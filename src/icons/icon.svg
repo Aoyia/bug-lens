@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="lensRing" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3B82F6" />
+      <stop offset="100%" stop-color="#1D4ED8" />
+    </linearGradient>
+    <linearGradient id="handleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2563EB" />
+      <stop offset="100%" stop-color="#1E40AF" />
+    </linearGradient>
+    <radialGradient id="recDot" cx="35%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#FF5252" />
+      <stop offset="100%" stop-color="#E53935" />
+    </radialGradient>
+  </defs>
+
+  <!-- Lens Handle -->
+  <path d="M 315 315 L 435 435" stroke="url(#handleGrad)" stroke-width="44" stroke-linecap="round" />
+
+  <!-- Bug Antennae -->
+  <path d="M 185 145 C 170 115 145 110 130 118" stroke="#3B82F6" stroke-width="18" stroke-linecap="round" fill="none" />
+  <path d="M 255 145 C 270 115 295 110 310 118" stroke="#3B82F6" stroke-width="18" stroke-linecap="round" fill="none" />
+
+  <!-- Bug Legs -->
+  <path d="M 130 195 L 165 200 M 125 230 L 165 225 M 130 260 L 165 250" stroke="#475569" stroke-width="14" stroke-linecap="round" />
+  <path d="M 310 195 L 275 200 M 315 230 L 275 225 M 310 260 L 275 250" stroke="#475569" stroke-width="14" stroke-linecap="round" />
+
+  <!-- Magnifier Ring Outer -->
+  <circle cx="220" cy="220" r="140" fill="none" stroke="url(#lensRing)" stroke-width="38" />
+
+  <!-- Bug Body -->
+  <circle cx="220" cy="165" r="26" fill="#334155" />
+  <path d="M 160 215 C 160 165 280 165 280 215 C 280 275 160 275 160 215 Z" fill="#334155" />
+
+  <!-- Red Recording Core -->
+  <circle cx="220" cy="218" r="32" fill="url(#recDot)" />
+  <circle cx="210" cy="208" r="9" fill="#FFFFFF" opacity="0.85" />
+</svg>

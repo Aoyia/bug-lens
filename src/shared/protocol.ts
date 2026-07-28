@@ -77,8 +77,41 @@ export type InteractionRecord = {
 };
 
 export type ConsoleEntry = { id: string; sessionId: string; createdAt: number; level: string; text: string; source?: string };
-export type NetworkEntry = { id: string; sessionId: string; createdAt: number; url: string; method: string; status?: number; type?: string; durationMs?: number; error?: string };
-export type ExportSelection = { sessionId: string; excludedInteractionIds: string[]; updatedAtEpochMs: number };
+export type NetworkEntry = {
+  id: string;
+  sessionId: string;
+  createdAt: number;
+  url: string;
+  method: string;
+  status?: number;
+  type?: string;
+  durationMs?: number;
+  error?: string;
+  response?: {
+    mimeType?: string;
+    headers?: Record<string, string>;
+    bodyStatus: "pending" | "captured" | "not-present" | "unavailable";
+    body?: string;
+    base64Encoded?: boolean;
+    byteLength?: number;
+    error?: string;
+  };
+};
+export type ExportSelection = {
+  sessionId: string;
+  excludedInteractionIds: string[];
+  excludedConsoleEntryIds?: string[];
+  excludedNetworkEntryIds?: string[];
+  updatedAtEpochMs: number;
+};
+export type ExportArtifact = {
+  sessionId: string;
+  downloadId: number;
+  state: "in_progress" | "complete" | "interrupted" | "cancelled";
+  filename?: string;
+  error?: string;
+  updatedAtEpochMs: number;
+};
 
 export type Envelope<T extends string, P = unknown> = { protocolVersion: 1; messageId: string; type: T; sentAt: number; sessionId?: string; payload: P };
 export type RuntimeMessage =

@@ -1,4 +1,385 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Web Bug Recorder</title><style>
-*{box-sizing:border-box}body{margin:0;width:360px;background:#f7f8fa;color:#182230;font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.shell{padding:20px}.brand{display:flex;align-items:center;gap:10px;margin-bottom:18px}.mark{width:34px;height:34px;border-radius:10px;background:#172b4d;color:#fff;display:grid;place-items:center;font-weight:700}.brand h1{font-size:17px;margin:0}.brand p{margin:2px 0 0;color:#697586;font-size:12px}.card{background:#fff;border:1px solid #e4e7ec;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 3px 12px #1018280a}.label{font-size:11px;color:#697586;text-transform:uppercase;letter-spacing:.08em}.target{font-weight:600;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.url{color:#697586;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.row{display:flex;justify-content:space-between;align-items:center;margin:12px 0}.field{display:flex;align-items:center;gap:8px}.actions{display:grid;grid-template-columns:1fr;gap:8px;margin-top:16px}button{border:0;border-radius:10px;padding:11px 14px;font:inherit;font-weight:600;cursor:pointer}button.primary{background:#1769e0;color:#fff}button.stop{background:#d92d20;color:#fff}button.secondary{background:#eef2f7;color:#344054}button:disabled{opacity:.5;cursor:not-allowed}.status{display:flex;align-items:center;gap:8px;color:#475467}.dot{width:8px;height:8px;border-radius:50%;background:#98a2b3}.dot.rec{background:#d92d20;box-shadow:0 0 0 4px #d92d201a}.hint{font-size:12px;color:#697586;margin:10px 0 0}.error{color:#b42318;font-size:12px;margin-top:8px;white-space:pre-wrap}
-</style></head><body><main class="shell"><header class="brand"><div class="mark">WB</div><div><h1>Web Bug Recorder</h1><p>本地采集，可控导出</p></div></header><section class="card"><div class="label">目标标签页</div><div id="title" class="target">正在读取…</div><div id="url" class="url"></div><div class="row"><div class="status"><span id="dot" class="dot"></span><span id="status">未录制</span></div><span id="timer" class="label"></span></div></section><section class="card"><div class="label">录制选项</div><div class="row"><label class="field"><input id="audio" type="checkbox"> 标签页音频</label><select id="privacy"><option value="safe">安全模式（推荐）</option><option value="raw">原始模式</option></select></div><p class="hint">只记录当前标签页，不包含麦克风和其他应用。</p></section><div class="actions"><button id="start" class="primary">开始录制</button><button id="stop" class="stop" hidden>结束录制</button><button id="preview" class="secondary" hidden>打开预览</button></div><div id="error" class="error"></div></main><script src="popup.js"></script></body></html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Bug Lens</title>
+  <style>
+    :root {
+      --arco-primary: #165dff;
+      --arco-primary-hover: #4080ff;
+      --arco-primary-active: #0e42d2;
+      --arco-danger: #f53f3f;
+      --arco-danger-hover: #f76565;
+      --arco-danger-active: #cb2727;
+      --arco-bg-page: #f2f3f5;
+      --arco-bg-white: #ffffff;
+      --arco-fill-1: #f7f8fa;
+      --arco-fill-2: #f2f3f5;
+      --arco-fill-3: #e5e6eb;
+      --arco-text-1: #1d2129;
+      --arco-text-2: #4e5969;
+      --arco-text-3: #86909c;
+      --arco-text-4: #c9cdd4;
+      --arco-border: #e5e6eb;
+      --arco-border-hover: #c9cdd4;
+      --arco-radius-card: 6px;
+      --arco-radius-btn: 4px;
+      --arco-radius-sm: 2px;
+      --arco-shadow-card: 0 2px 8px rgba(0, 0, 0, 0.05);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      width: 360px;
+      background: var(--arco-bg-page);
+      color: var(--arco-text-1);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 13px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .shell {
+      padding: 16px;
+    }
+
+    /* Brand Header */
+    .brand {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--arco-border);
+    }
+    .brand-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .mark {
+      width: 32px;
+      height: 32px;
+      border-radius: var(--arco-radius-btn);
+      background: linear-gradient(135deg, #165dff 0%, #0e42d2 100%);
+      color: #fff;
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 0.5px;
+      box-shadow: 0 2px 6px rgba(22, 93, 255, 0.25);
+    }
+    .brand-info h1 {
+      font-size: 15px;
+      font-weight: 600;
+      margin: 0;
+      color: var(--arco-text-1);
+      letter-spacing: -0.2px;
+    }
+    .brand-info p {
+      margin: 1px 0 0;
+      color: var(--arco-text-3);
+      font-size: 11px;
+    }
+    .tag-version {
+      font-size: 11px;
+      padding: 1px 6px;
+      background: #e8f3ff;
+      color: var(--arco-primary);
+      border-radius: var(--arco-radius-sm);
+      font-weight: 500;
+    }
+
+    /* Card Panels */
+    .card {
+      background: var(--arco-bg-white);
+      border: 1px solid var(--arco-border);
+      border-radius: var(--arco-radius-card);
+      padding: 14px;
+      margin-bottom: 12px;
+      box-shadow: var(--arco-shadow-card);
+      transition: border-color 0.2s ease;
+    }
+    .card:hover {
+      border-color: var(--arco-border-hover);
+    }
+    .card-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--arco-text-3);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .target {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--arco-text-1);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .url {
+      color: var(--arco-text-3);
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-top: 2px;
+    }
+
+    .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 10px;
+    }
+
+    .field-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 6px;
+    }
+
+    /* Checkbox & Select */
+    .field {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--arco-text-2);
+      cursor: pointer;
+      user-select: none;
+    }
+    .field input[type="checkbox"] {
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border: 1px solid var(--arco-border-hover);
+      border-radius: var(--arco-radius-sm);
+      outline: none;
+      cursor: pointer;
+      position: relative;
+      background: #fff;
+      transition: all 0.15s ease;
+    }
+    .field input[type="checkbox"]:checked {
+      background: var(--arco-primary);
+      border-color: var(--arco-primary);
+    }
+    .field input[type="checkbox"]:checked::after {
+      content: "";
+      position: absolute;
+      left: 4px;
+      top: 1px;
+      width: 4px;
+      height: 7px;
+      border: solid white;
+      border-width: 0 1.5px 1.5px 0;
+      transform: rotate(45deg);
+    }
+
+    select {
+      appearance: none;
+      background-color: var(--arco-fill-1);
+      border: 1px solid var(--arco-border);
+      border-radius: var(--arco-radius-btn);
+      padding: 5px 24px 5px 8px;
+      font-size: 12px;
+      color: var(--arco-text-2);
+      outline: none;
+      cursor: pointer;
+      background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%3C86909C' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+      transition: all 0.2s ease;
+    }
+    select:hover {
+      background-color: var(--arco-fill-2);
+      border-color: var(--arco-border-hover);
+    }
+    select:focus {
+      border-color: var(--arco-primary);
+      box-shadow: 0 0 0 2px rgba(22, 93, 255, 0.2);
+    }
+
+    /* Arco Buttons */
+    .actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 14px;
+    }
+    button {
+      width: 100%;
+      border: 1px solid transparent;
+      border-radius: var(--arco-radius-btn);
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 0.15s cubic-bezier(0, 0, 1, 1);
+      outline: none;
+    }
+    button:focus-visible {
+      box-shadow: 0 0 0 2px rgba(22, 93, 255, 0.3);
+    }
+
+    button.primary {
+      background: var(--arco-primary);
+      color: #fff;
+    }
+    button.primary:hover {
+      background: var(--arco-primary-hover);
+    }
+    button.primary:active {
+      background: var(--arco-primary-active);
+    }
+
+    button.stop {
+      background: var(--arco-danger);
+      color: #fff;
+    }
+    button.stop:hover {
+      background: var(--arco-danger-hover);
+    }
+    button.stop:active {
+      background: var(--arco-danger-active);
+    }
+
+    button.secondary {
+      background: #e8f3ff;
+      color: var(--arco-primary);
+      border-color: transparent;
+    }
+    button.secondary:hover {
+      background: #d6e8ff;
+    }
+    button.secondary:active {
+      background: #bed8ff;
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    /* Status indicator */
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--arco-text-2);
+      font-weight: 500;
+    }
+    .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--arco-text-4);
+      display: inline-block;
+    }
+    .dot.rec {
+      background: var(--arco-danger);
+      box-shadow: 0 0 0 3px rgba(245, 63, 63, 0.2);
+      animation: arco-pulse 1.5s infinite;
+    }
+
+    @keyframes arco-pulse {
+      0% { box-shadow: 0 0 0 0 rgba(245, 63, 63, 0.4); }
+      70% { box-shadow: 0 0 0 6px rgba(245, 63, 63, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(245, 63, 63, 0); }
+    }
+
+    .timer {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 12px;
+      color: var(--arco-danger);
+      font-weight: 600;
+    }
+
+    .hint {
+      font-size: 11px;
+      color: var(--arco-text-3);
+      margin: 8px 0 0;
+      line-height: 1.4;
+    }
+    .error {
+      color: var(--arco-danger);
+      font-size: 12px;
+      margin-top: 8px;
+      white-space: pre-wrap;
+      background: #ffece8;
+      border: 1px solid #ffbbbb;
+      padding: 6px 10px;
+      border-radius: var(--arco-radius-btn);
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="brand">
+      <div class="brand-left">
+        <div class="mark">WB</div>
+        <div class="brand-info">
+          <h1>Bug Lens</h1>
+          <p>本地采集 · 诊断日志导出</p>
+        </div>
+      </div>
+      <span class="tag-version">v0.1</span>
+    </header>
+
+    <section class="card">
+      <div class="card-title">目标标签页</div>
+      <div id="title" class="target">正在读取…</div>
+      <div id="url" class="url"></div>
+      <div class="row">
+        <div class="status">
+          <span id="dot" class="dot"></span>
+          <span id="status">未录制</span>
+        </div>
+        <span id="timer" class="timer"></span>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-title">录制配置</div>
+      <div class="field-row">
+        <label class="field">
+          <input id="audio" type="checkbox"> 标签页音频
+        </label>
+        <select id="privacy">
+          <option value="safe">安全模式（推荐）</option>
+          <option value="raw">原始模式</option>
+        </select>
+      </div>
+      <p class="hint">仅捕获当前标签页内容，绝不涉及全局屏或独立系统面板。</p>
+    </section>
+
+    <div class="actions">
+      <button id="start" class="primary">开始录制</button>
+      <button id="stop" class="stop" hidden>结束录制</button>
+      <button id="preview" class="secondary" hidden>查看离线预览</button>
+    </div>
+
+    <div id="error" class="error" style="display: none;"></div>
+  </main>
+
+  <script src="popup.js"></script>
+</body>
+</html>
+

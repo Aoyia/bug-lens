@@ -1,8 +1,8 @@
-import type { ConsoleEntry, ExportSelection, InteractionRecord, NetworkEntry, RecordingSession } from "../shared/protocol";
+import type { ConsoleEntry, ExportArtifact, ExportSelection, InteractionRecord, NetworkEntry, RecordingSession } from "../shared/protocol";
 
 const DB_NAME = "web-bug-recorder";
-const DB_VERSION = 3;
-type StoreName = "control" | "sessions" | "interactions" | "consoleEntries" | "networkEntries" | "mediaChunks" | "exportSelections";
+const DB_VERSION = 4;
+type StoreName = "control" | "sessions" | "interactions" | "consoleEntries" | "networkEntries" | "mediaChunks" | "exportSelections" | "exportArtifacts";
 
 let openPromise: Promise<IDBDatabase> | undefined;
 function openDb(): Promise<IDBDatabase> {
@@ -28,6 +28,7 @@ function openDb(): Promise<IDBDatabase> {
       ensureStore("networkEntries", "id", [{ name: "sessionId", keyPath: "sessionId" }]);
       ensureStore("mediaChunks", "id", [{ name: "sessionId", keyPath: "sessionId" }]);
       ensureStore("exportSelections", "sessionId");
+      ensureStore("exportArtifacts", "sessionId");
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
@@ -113,5 +114,7 @@ export const db = {
   saveMediaChunk: (chunk: { id: string; sessionId: string; sequence: number; recordedAt: number; mimeType: string; chunk: ArrayBuffer }) => put("mediaChunks", chunk),
   getMediaChunks: (sessionId: string) => list<{ id: string; sequence: number; recordedAt: number; mimeType: string; chunk: ArrayBuffer }>("mediaChunks", "sessionId", sessionId),
   getExportSelection: (sessionId: string) => get<ExportSelection>("exportSelections", sessionId),
-  saveExportSelection: (selection: ExportSelection) => put("exportSelections", selection)
+  saveExportSelection: (selection: ExportSelection) => put("exportSelections", selection),
+  getExportArtifact: (sessionId: string) => get<ExportArtifact>("exportArtifacts", sessionId),
+  saveExportArtifact: (artifact: ExportArtifact) => put("exportArtifacts", artifact)
 };

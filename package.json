@@ -1,10 +1,12 @@
 {
-  "name": "web-bug-recorder",
+  "name": "bug-lens",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs",
+    "build:icons": "node scripts/build-icons.mjs",
+    "package": "node scripts/package.mjs",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

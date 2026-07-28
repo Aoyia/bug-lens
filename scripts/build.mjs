@@ -29,6 +29,7 @@ for (const [name, entry] of Object.entries(entries)) {
 }
 
 await cp(resolve(root, "src/manifest.json"), resolve(outdir, "manifest.json"));
+await cp(resolve(root, "src/icons"), resolve(outdir, "icons"), { recursive: true });
 for (const file of ["popup.html", "offscreen.html", "preview.html"]) {
   await cp(resolve(root, `src/entrypoints/${file.replace(".html", "")}/index.html`), resolve(outdir, file));
 }

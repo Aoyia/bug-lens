@@ -3,8 +3,106 @@ import { message, type ElementDescriptor, type InteractionRecord } from "../../s
 declare global { interface Window { __WEB_BUG_RECORDER_INSTALLED__?: boolean; __WEB_BUG_RECORDER_SESSION__?: { sessionId: string; nonce: string }; } }
 if (!window.__WEB_BUG_RECORDER_INSTALLED__) {
   window.__WEB_BUG_RECORDER_INSTALLED__ = true;
-  let session: { sessionId: string; nonce: string } | undefined;
+  let session: { sessionId: string; nonce: string; startedAtEpochMs?: number } | undefined;
   const pending = new Map<string, InteractionRecord>();
+  let widgetContainer: HTMLDivElement | undefined;
+  let timerInterval: number | undefined;
+
+  function renderRecordingWidget(): void {
+    if (widgetContainer || window.top !== window) return;
+    const root = document.createElement("div");
+    root.id = "__wbr_recording_widget__";
+    root.setAttribute("data-wbr-ignore", "true");
+
+    Object.assign(root.style, {
+      position: "fixed",
+      bottom: "24px",
+      right: "24px",
+      zIndex: "2147483647",
+      display: "flex",
+      alignItems: "center",
+      gap: "10px",
+      padding: "8px 14px",
+      background: "#1d2129",
+      color: "#ffffff",
+      borderRadius: "6px",
+      boxShadow: "0 4px 18px rgba(0, 0, 0, 0.28)",
+      fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+      fontSize: "12px",
+      lineHeight: "1",
+      userSelect: "none"
+    });
+
+    root.innerHTML = `
+      <style>
+        @keyframes wbr-pulse {
+          0% { box-shadow: 0 0 0 0 rgba(245, 63, 63, 0.6); }
+          70% { box-shadow: 0 0 0 6px rgba(245, 63, 63, 0); }
+          100% { box-shadow: 0 0 0 0 rgba(245, 63, 63, 0); }
+        }
+        .__wbr_dot {
+          width: 8px; height: 8px; border-radius: 50%; background: #f53f3f;
+          display: inline-block;
+          animation: wbr-pulse 1.5s infinite;
+        }
+        .__wbr_btn {
+          border: none; background: #f53f3f; color: #fff; border-radius: 4px;
+          padding: 5px 10px; font-size: 11px; font-weight: 500; cursor: pointer;
+          transition: background 0.15s ease;
+          outline: none;
+        }
+        .__wbr_btn:hover { background: #f76565; }
+        .__wbr_btn:active { background: #cb2727; }
+        .__wbr_timer { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; color: #e5e6eb; font-weight: 600; }
+      </style>
+      <span class="__wbr_dot"></span>
+      <span style="font-weight:600;letter-spacing:0.5px;color:#fff;">REC</span>
+      <span id="__wbr_timer_display__" class="__wbr_timer">00:00</span>
+      <button id="__wbr_stop_btn__" class="__wbr_btn">结束录制</button>
+    `;
+
+    const attach = () => {
+      if (document.body) {
+        document.body.appendChild(root);
+        widgetContainer = root;
+
+        const stopBtn = root.querySelector("#__wbr_stop_btn__");
+        if (stopBtn) {
+          stopBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            void chrome.runtime.sendMessage(message("session/stop", { commandId: crypto.randomUUID() }));
+            removeRecordingWidget();
+          }, true);
+        }
+
+        const startTime = session?.startedAtEpochMs || Date.now();
+        const updateTimer = () => {
+          const display = root.querySelector("#__wbr_timer_display__");
+          if (display) {
+            const sec = Math.floor((Date.now() - startTime) / 1000);
+            const m = String(Math.floor(sec / 60)).padStart(2, "0");
+            const s = String(sec % 60).padStart(2, "0");
+            display.textContent = `${m}:${s}`;
+          }
+        };
+        updateTimer();
+        timerInterval = window.setInterval(updateTimer, 1000);
+      } else {
+        window.addEventListener("DOMContentLoaded", attach, { once: true });
+      }
+    };
+    attach();
+  }
+
+  function removeRecordingWidget(): void {
+    if (timerInterval) { clearInterval(timerInterval); timerInterval = undefined; }
+    if (widgetContainer) { widgetContainer.remove(); widgetContainer = undefined; }
+  }
+
+  function isWidgetElement(el: Element | null): boolean {
+    return Boolean(el && el.closest("#__wbr_recording_widget__"));
+  }
 
   function textOf(element: Element): string | undefined {
     if (element instanceof HTMLInputElement && element.type.toLowerCase() === "password") return undefined;
@@ -60,7 +158,7 @@ if (!window.__WEB_BUG_RECORDER_INSTALLED__) {
   document.addEventListener("pointerdown", (event) => {
     if (!session || !event.isTrusted) return;
     const element = firstElement(event.composedPath());
-    if (!element) return;
+    if (!element || isWidgetElement(element)) return;
     const record = createRecord(event, element, "candidate");
     pending.set(record.id, record);
     send(record, "interaction/candidate");
@@ -70,7 +168,7 @@ if (!window.__WEB_BUG_RECORDER_INSTALLED__) {
   document.addEventListener("click", (event) => {
     if (!session || !event.isTrusted) return;
     const element = firstElement(event.composedPath()) ?? (event.target instanceof Element ? event.target : undefined);
-    if (!element) return;
+    if (!element || isWidgetElement(element)) return;
     const nearest = Array.from(pending.values()).find((candidate) => Math.abs(candidate.coordinates.clientX - event.clientX) < 3 && Math.abs(candidate.coordinates.clientY - event.clientY) < 3);
     const record = nearest ? { ...nearest, status: "confirmed" as const, confirmedAt: Date.now(), element: describe(element) } : createRecord(event, element, "confirmed");
     if (nearest) pending.delete(nearest.id);
@@ -79,8 +177,12 @@ if (!window.__WEB_BUG_RECORDER_INSTALLED__) {
 
   chrome.runtime.sendMessage(message("content/hello", { url: location.href, title: document.title })).then((response) => {
     if (response?.active && response.sessionId && response.nonce) {
-      session = { sessionId: response.sessionId, nonce: response.nonce };
+      session = { sessionId: response.sessionId, nonce: response.nonce, startedAtEpochMs: response.startedAtEpochMs };
       window.__WEB_BUG_RECORDER_SESSION__ = session;
+      renderRecordingWidget();
+    } else {
+      removeRecordingWidget();
     }
   }).catch(() => undefined);
 }
+
