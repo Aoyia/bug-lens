@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Web Bug Recorder",
+  "version": "0.1.0",
+  "description": "Capture local evidence for web bugs.",
+  "minimum_chrome_version": "125",
+  "action": { "default_popup": "popup.html", "default_title": "Web Bug Recorder" },
+  "background": { "service_worker": "background.js" },
+  "permissions": ["activeTab", "debugger", "downloads", "offscreen", "scripting", "storage", "tabCapture", "unlimitedStorage", "webNavigation"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
+  "content_scripts": [],
+  "host_permissions": [],
+  "content_security_policy": { "extension_pages": "script-src 'self'; object-src 'none'" }
+}
