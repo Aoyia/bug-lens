@@ -1362,27 +1362,31 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 24px;
-      height: 24px;
+      width: 20px;
+      height: 20px;
       padding: 0;
-      color: var(--zen-text-sub);
-      background: rgba(0, 0, 0, 0.03);
-      border: 1px solid var(--zen-border);
-      border-radius: 2px;
+      color: var(--zen-text-muted);
+      background: transparent;
+      border: none;
+      outline: none;
+      box-shadow: none;
       cursor: pointer;
-      backdrop-filter: blur(4px);
+      opacity: 0.65;
       transition: all 0.15s ease;
       z-index: 2;
     }
     .code-copy-btn:hover {
       color: var(--zen-primary);
-      background: rgba(22, 93, 255, 0.08);
-      border-color: rgba(22, 93, 255, 0.2);
+      opacity: 1;
+      background: transparent;
+      border: none;
+      transform: scale(1.1);
     }
     .code-copy-btn.copied {
       color: #00b42a;
-      background: rgba(0, 180, 42, 0.08);
-      border-color: rgba(0, 180, 42, 0.2);
+      opacity: 1;
+      background: transparent;
+      border: none;
     }
     /* JSON 语法高亮样式 (Chrome DevTools 亮色风格) */
     .jk { color: #881391; font-weight: 600; } /* Key */
