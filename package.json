@@ -5,7 +5,6 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs",
-    "build:icons": "node scripts/build-icons.mjs",
     "package": "node scripts/package.mjs",
     "typecheck": "tsc --noEmit"
   },

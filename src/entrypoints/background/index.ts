@@ -220,6 +220,10 @@ async function startSession(payload: Extract<RuntimeMessage, { type: "session/st
     const started = await updateSession(session, { status: debuggerIssue || !streamId ? "DEGRADED" : "RECORDING", timeline: { ...session.timeline, startedAtEpochMs: Date.now() } });
     await chrome.action.setBadgeText({ tabId: payload.tabId, text: "REC" });
     await chrome.action.setBadgeBackgroundColor({ tabId: payload.tabId, color: "#d92d20" });
+    await chrome.action.setIcon({
+      tabId: payload.tabId,
+      path: "icons/icon_recording.png"
+    }).catch(() => undefined);
     return started;
   } catch (error) {
     const failed = await updateSession(session, { status: "FAILED", error: issue("SESSION_START_FAILED", String(error), "media", false), quality: { ...session.quality, overall: "failed" } });
@@ -239,6 +243,10 @@ async function stopSession(): Promise<RecordingSession | undefined> {
   await detachDebugger(session.target.tabId);
   await removeContentScript();
   await chrome.action.setBadgeText({ tabId: session.target.tabId, text: "" });
+  await chrome.action.setIcon({
+    tabId: session.target.tabId,
+    path: "icons/icon_idle.png"
+  }).catch(() => undefined);
   const stoppedAt = stopping.timeline.stoppedAtEpochMs ?? Date.now();
   const next = await updateSession(stopping, { status: "PREVIEW_READY", timeline: { ...stopping.timeline, durationMs: (stoppedAt - (stopping.timeline.startedAtEpochMs ?? stopping.timeline.createdAtEpochMs)) } });
   await db.clearActive(session.id);

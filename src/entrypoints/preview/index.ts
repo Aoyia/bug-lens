@@ -173,6 +173,59 @@ function showToast(messageText: string): void {
   window.setTimeout(() => { toast.hidden = true; }, 2500);
 }
 
+let modalScale = 1.0;
+let modalTranslateX = 0;
+let modalTranslateY = 0;
+let modalRotation = 0;
+let modalIsDragging = false;
+let modalDragStartX = 0;
+let modalDragStartY = 0;
+
+function resetModalTransform(): void {
+  modalScale = 1.0;
+  modalTranslateX = 0;
+  modalTranslateY = 0;
+  modalRotation = 0;
+  applyModalTransform();
+}
+
+function applyModalTransform(): void {
+  const imgContainer = $("#modal-img-container");
+  const ratioNode = $("#modal-zoom-ratio");
+  if (imgContainer) {
+    imgContainer.style.transform = `translate(${modalTranslateX}px, ${modalTranslateY}px) scale(${modalScale}) rotate(${modalRotation}deg)`;
+  }
+  if (ratioNode) {
+    ratioNode.textContent = `${Math.round(modalScale * 100)}%`;
+  }
+}
+
+function zoomModalImage(factor: number): void {
+  const nextScale = Math.min(Math.max(0.25, modalScale * factor), 5.0);
+  modalScale = Number(nextScale.toFixed(2));
+  applyModalTransform();
+}
+
+function rotateModalImage(): void {
+  modalRotation = (modalRotation + 90) % 360;
+  applyModalTransform();
+}
+
+function downloadCurrentImage(): void {
+  if (!modalScreenshotItems.length) return;
+  const current = modalScreenshotItems[currentModalIndex];
+  const dataUrl = current?.item.screenshot.dataUrl;
+  if (!dataUrl) return;
+
+  const a = document.createElement("a");
+  a.href = dataUrl;
+  a.download = `step-${current.globalIndex + 1}-screenshot.png`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  showToast("已开始下载图片截图");
+}
+
 function updateModalView(): void {
   if (!modalScreenshotItems.length) return;
   const current = modalScreenshotItems[currentModalIndex];
@@ -192,8 +245,10 @@ function updateModalView(): void {
   prevBtn.disabled = currentModalIndex === 0;
   nextBtn.disabled = currentModalIndex === modalScreenshotItems.length - 1;
 
-  copyText.textContent = "复制图片";
-  copyBtn.classList.remove("copied");
+  if (copyText) copyText.textContent = "复制";
+  if (copyBtn) copyBtn.classList.remove("copied");
+
+  resetModalTransform();
 }
 
 function openImageModal(interactionId: string): void {
@@ -212,6 +267,7 @@ function openImageModal(interactionId: string): void {
 
 function closeImageModal(): void {
   $("#image-modal").hidden = true;
+  resetModalTransform();
 }
 
 async function copyCurrentImage(): Promise<void> {
@@ -227,8 +283,8 @@ async function copyCurrentImage(): Promise<void> {
     ]);
     const copyText = $("#modal-copy-text");
     const copyBtn = $("#modal-copy-btn");
-    copyText.textContent = "已复制 ✓";
-    copyBtn.classList.add("copied");
+    if (copyText) copyText.textContent = "已复制 ✓";
+    if (copyBtn) copyBtn.classList.add("copied");
     showToast("已成功复制图片到剪贴板");
   } catch (error) {
     showToast("复制失败：" + String(error));
@@ -241,30 +297,131 @@ function initImageModalEvents(): void {
   const prevBtn = $("#modal-prev-btn");
   const nextBtn = $("#modal-next-btn");
   const copyBtn = $("#modal-copy-btn");
+  const downloadBtn = $("#modal-download-btn");
+  const zoomInBtn = $("#modal-zoom-in-btn");
+  const zoomOutBtn = $("#modal-zoom-out-btn");
+  const resetBtn = $("#modal-reset-btn");
+  const rotateBtn = $("#modal-rotate-btn");
+  const stage = $("#modal-stage");
+  const modalImg = $("#modal-image");
 
   closeBtn.addEventListener("click", closeImageModal);
-  modal.addEventListener("click", (event) => {
-    if (event.target === modal) closeImageModal();
+  
+  // 点击遮罩空白背景处关闭
+  stage.addEventListener("click", (event) => {
+    if (event.target === stage || event.target === $("#modal-img-container")) {
+      closeImageModal();
+    }
   });
 
-  prevBtn.addEventListener("click", () => {
+  prevBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
     if (currentModalIndex > 0) {
       currentModalIndex -= 1;
       updateModalView();
     }
   });
 
-  nextBtn.addEventListener("click", () => {
+  nextBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
     if (currentModalIndex < modalScreenshotItems.length - 1) {
       currentModalIndex += 1;
       updateModalView();
     }
   });
 
-  copyBtn.addEventListener("click", () => {
-    void copyCurrentImage();
+  if (copyBtn) {
+    copyBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      void copyCurrentImage();
+    });
+  }
+
+  if (downloadBtn) {
+    downloadBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      downloadCurrentImage();
+    });
+  }
+
+  if (zoomInBtn) {
+    zoomInBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      zoomModalImage(1.25);
+    });
+  }
+
+  if (zoomOutBtn) {
+    zoomOutBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      zoomModalImage(0.8);
+    });
+  }
+
+  if (resetBtn) {
+    resetBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (modalScale !== 1.0 || modalTranslateX !== 0 || modalTranslateY !== 0 || modalRotation !== 0) {
+        resetModalTransform();
+      } else {
+        zoomModalImage(2.0);
+      }
+    });
+  }
+
+  if (rotateBtn) {
+    rotateBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      rotateModalImage();
+    });
+  }
+
+  // 鼠标拖拽平移 (Pan)
+  stage.addEventListener("mousedown", (e) => {
+    if ((e.target as HTMLElement).closest(".arco-preview-nav-btn") || (e.target as HTMLElement).closest(".arco-preview-toolbar")) return;
+    modalIsDragging = true;
+    modalDragStartX = e.clientX - modalTranslateX;
+    modalDragStartY = e.clientY - modalDragStartY;
+    modalDragStartY = e.clientY - modalTranslateY;
+    stage.classList.add("is-dragging");
   });
 
+  window.addEventListener("mousemove", (e) => {
+    if (!modalIsDragging) return;
+    modalTranslateX = e.clientX - modalDragStartX;
+    modalTranslateY = e.clientY - modalDragStartY;
+    applyModalTransform();
+  });
+
+  window.addEventListener("mouseup", () => {
+    if (modalIsDragging) {
+      modalIsDragging = false;
+      stage.classList.remove("is-dragging");
+    }
+  });
+
+  // 滚轮缩放
+  stage.addEventListener("wheel", (e) => {
+    if (modal.hidden) return;
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.15 : 0.85;
+    zoomModalImage(factor);
+  }, { passive: false });
+
+  // 双击放大/还原
+  modalImg.addEventListener("dblclick", (e) => {
+    e.stopPropagation();
+    if (modalScale === 1.0) {
+      modalScale = 2.0;
+    } else {
+      modalScale = 1.0;
+      modalTranslateX = 0;
+      modalTranslateY = 0;
+    }
+    applyModalTransform();
+  });
+
+  // 键盘快捷键
   window.addEventListener("keydown", (event) => {
     if (modal.hidden) return;
     if (event.key === "Escape") {
@@ -279,6 +436,14 @@ function initImageModalEvents(): void {
         currentModalIndex += 1;
         updateModalView();
       }
+    } else if (event.key === "+" || event.key === "=") {
+      zoomModalImage(1.25);
+    } else if (event.key === "-" || event.key === "_") {
+      zoomModalImage(0.8);
+    } else if (event.key === "r" || event.key === "R") {
+      rotateModalImage();
+    } else if (event.key === "0") {
+      resetModalTransform();
     }
   });
 }

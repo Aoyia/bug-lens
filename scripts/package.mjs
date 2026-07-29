@@ -3,6 +3,11 @@ import { readFileSync, existsSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 
 const root = process.cwd();
+
+// 先强制触发 build.mjs 编译构建
+console.log("Building dist files...");
+execSync("node scripts/build.mjs", { stdio: "inherit" });
+
 const distDir = join(root, "dist");
 const manifestPath = join(distDir, "manifest.json");
 
@@ -13,7 +18,8 @@ if (!existsSync(manifestPath)) {
 
 const manifest = JSON.parse(readFileSync(manifestPath, "utf-8"));
 const version = manifest.version || "0.1.0";
-const zipFilename = `web-bug-recorder-v${version}.zip`;
+const nameSlug = (manifest.name || "bug-lens").toLowerCase().replace(/\s+/g, "-");
+const zipFilename = `${nameSlug}-v${version}.zip`;
 const outputPath = join(root, zipFilename);
 
 if (existsSync(outputPath)) {
