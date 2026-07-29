@@ -3,487 +3,666 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>录制预览 - Bug Lens</title>
+  <title>录制预览 - Bug Lens Desktop</title>
   <style>
     :root {
-      --arco-primary: #165dff;
-      --arco-primary-hover: #4080ff;
-      --arco-primary-active: #0e42d2;
-      --arco-primary-light: #e8f3ff;
-      --arco-success: #00b42a;
-      --arco-success-light: #e8ffea;
-      --arco-warning: #ff7d00;
-      --arco-warning-light: #fff7e8;
-      --arco-danger: #f53f3f;
-      --arco-danger-hover: #f76565;
-      --arco-danger-light: #ffece8;
+      /* 禅意纸感色盘 Zen Porcelain Color System */
+      --zen-bg-base: #f5f6f9;
+      --zen-bg-surface: rgba(255, 255, 255, 0.75);
+      --zen-bg-glass: rgba(255, 255, 255, 0.55);
+      --zen-bg-hover: rgba(255, 255, 255, 0.95);
+      --zen-bg-dark: #12151c;
       
-      --arco-bg-page: #f2f3f5;
-      --arco-bg-white: #ffffff;
-      --arco-fill-1: #f7f8fa;
-      --arco-fill-2: #f2f3f5;
-      --arco-fill-3: #e5e6eb;
-      --arco-fill-4: #c9cdd4;
+      --zen-border: rgba(0, 0, 0, 0.06);
+      --zen-border-subtle: rgba(0, 0, 0, 0.03);
+      --zen-border-accent: rgba(22, 93, 255, 0.35);
+
+      --zen-primary: #165dff;
+      --zen-primary-hover: #3676ff;
+      --zen-primary-light: rgba(22, 93, 255, 0.08);
       
-      --arco-text-1: #1d2129;
-      --arco-text-2: #4e5969;
-      --arco-text-3: #86909c;
-      --arco-text-4: #c9cdd4;
-      
-      --arco-border-1: #f2f3f5;
-      --arco-border-2: #e5e6eb;
-      --arco-border-3: #c9cdd4;
-      
-      --arco-radius-card: 8px;
-      --arco-radius-btn: 6px;
-      --arco-radius-sm: 4px;
-      
-      --arco-shadow-card: 0 4px 10px rgba(0, 0, 0, 0.04);
-      --arco-shadow-hover: 0 8px 20px rgba(0, 0, 0, 0.08);
-      --arco-shadow-dropdown: 0 4px 14px rgba(0, 0, 0, 0.12);
+      --zen-text-main: #1d2129;
+      --zen-text-sub: #5f6b7c;
+      --zen-text-muted: #8c97a8;
+
+      --zen-shadow-glass: 0 8px 32px 0 rgba(31, 38, 135, 0.04);
+      --zen-shadow-float: 0 12px 36px rgba(0, 0, 0, 0.06);
+
+      --zen-radius-window: 12px;
+      --zen-radius-panel: 10px;
+      --zen-radius-btn: 8px;
     }
 
     * { box-sizing: border-box; }
-    body {
+    
+    html, body {
       margin: 0;
-      background: var(--arco-bg-page);
-      color: var(--arco-text-1);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      padding: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: radial-gradient(120% 120% at 50% 0%, #ffffff 0%, #f0f2f6 100%);
+      color: var(--zen-text-main);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Hiragino Sans GB", sans-serif;
       font-size: 13px;
-      line-height: 1.5715;
+      line-height: 1.5;
       -webkit-font-smoothing: antialiased;
     }
 
-    .shell {
-      max-width: 1400px;
-      width: 94vw;
-      margin: 0 auto;
-      padding: 24px 20px;
-    }
-
-    /* Arco Page Header */
-    .header {
+    /* 桌面级 APP 主窗口 Desktop Window Shell */
+    .zen-app-frame {
       display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      flex-wrap: wrap;
-      gap: 16px;
-      margin-bottom: 20px;
-      padding: 20px 24px;
-      background: var(--arco-bg-white);
-      border: 1px solid var(--arco-border-2);
-      border-radius: var(--arco-radius-card);
-      box-shadow: var(--arco-shadow-card);
-      position: relative;
+      flex-direction: column;
+      width: 100vw;
+      height: 100vh;
       overflow: hidden;
-    }
-    .header::before {
-      content: "";
-      position: absolute;
-      left: 0;
-      top: 0;
-      bottom: 0;
-      width: 4px;
-      background: linear-gradient(180deg, var(--arco-primary) 0%, #0e42d2 100%);
+      position: relative;
+      background: rgba(247, 248, 250, 0.65);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
     }
 
-    .eyebrow {
-      display: inline-flex;
+    /* macOS 视窗一体控制顶栏 Zen Window Titlebar (极致淡出) */
+    .zen-titlebar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 38px;
+      padding: 0 14px;
+      background: rgba(255, 255, 255, 0.4);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--zen-border);
+      user-select: none;
+      flex-shrink: 0;
+      z-index: 100;
+    }
+
+    .zen-titlebar-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* macOS 拟态红黄绿控制按钮按钮 */
+    .mac-controls {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .mac-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      display: inline-block;
+      opacity: 0.85;
+    }
+    .mac-dot.close { background: #ff5f56; border: 0.5px solid #e0443e; }
+    .mac-dot.min { background: #ffbd2e; border: 0.5px solid #dea123; }
+    .mac-dot.max { background: #27c93f; border: 0.5px solid #1aab29; }
+
+    .brand-info {
+      display: flex;
       align-items: center;
       gap: 6px;
-      color: var(--arco-primary);
-      background: var(--arco-primary-light);
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      padding: 2px 8px;
-      border-radius: var(--arco-radius-sm);
-      margin-bottom: 6px;
     }
-    .header h1 {
-      margin: 2px 0 4px;
-      font-size: 20px;
-      font-weight: 600;
-      color: var(--arco-text-1);
-      letter-spacing: -0.3px;
+    .brand-logo {
+      width: 15px;
+      height: 15px;
+      object-fit: contain;
+      opacity: 0.8;
     }
-    .muted {
-      color: var(--arco-text-3);
-      font-size: 12px;
-    }
-
-    .actions, .panel-heading, .item-actions {
+    .brand-titles {
       display: flex;
       align-items: center;
       gap: 8px;
     }
-    .actions {
-      flex-wrap: wrap;
+    .brand-titles h1 {
+      margin: 0;
+      font-size: 11.5px;
+      font-weight: 500;
+      color: var(--zen-text-sub);
+      letter-spacing: -0.2px;
+      max-width: 320px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
-    .panel-heading {
-      justify-content: space-between;
-      margin-bottom: 14px;
-      padding-bottom: 10px;
-      border-bottom: 1px solid var(--arco-border-1);
-    }
-    .panel-heading h2 {
-      margin: 0 !important;
-      position: relative;
-      padding-left: 10px;
-    }
-    .panel-heading h2::before {
-      content: "";
-      position: absolute;
-      left: 0;
-      top: 50%;
-      transform: translateY(-50%);
-      width: 3px;
-      height: 12px;
-      background: var(--arco-primary);
-      border-radius: 2px;
+    .brand-titles .muted {
+      font-size: 10.5px;
+      color: var(--zen-text-muted);
+      font-weight: 400;
+      white-space: nowrap;
     }
 
-    /* Arco Modern Buttons */
+    .zen-titlebar-right {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* 顶级控制按钮 Control Buttons */
     button {
-      border: 1px solid transparent;
-      border-radius: var(--arco-radius-btn);
-      padding: 8px 16px;
-      font-size: 13px;
+      border: none;
+      outline: none;
+      font-family: inherit;
+      font-size: 11.5px;
       font-weight: 500;
+      padding: 4px 10px;
+      height: 26px;
+      border-radius: 6px;
       cursor: pointer;
-      background: var(--arco-primary);
-      color: #fff;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 6px;
-      transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
-      outline: none;
-      box-shadow: 0 2px 6px rgba(22, 93, 255, 0.18);
+      gap: 5px;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     }
-    button:hover {
-      background: var(--arco-primary-hover);
+    button#export {
+      background: linear-gradient(135deg, #165dff 0%, #0e42d2 100%);
+      color: #ffffff;
+      box-shadow: 0 2px 8px rgba(22, 93, 255, 0.2);
+    }
+    button#export:hover {
+      background: linear-gradient(135deg, #3676ff 0%, #165dff 100%);
+      box-shadow: 0 4px 12px rgba(22, 93, 255, 0.3);
       transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(22, 93, 255, 0.28);
-    }
-    button:active {
-      background: var(--arco-primary-active);
-      transform: translateY(0);
-      box-shadow: 0 2px 4px rgba(22, 93, 255, 0.15);
     }
 
     button.secondary {
-      background: var(--arco-primary-light);
-      color: var(--arco-primary);
-      box-shadow: none;
+      background: rgba(22, 93, 255, 0.08);
+      color: var(--zen-primary);
     }
     button.secondary:hover {
-      background: #d6e8ff;
-      color: var(--arco-primary-hover);
+      background: rgba(22, 93, 255, 0.15);
+      transform: translateY(-1px);
     }
 
     button.ghost {
-      padding: 5px 12px;
-      background: var(--arco-fill-1);
-      color: var(--arco-text-2);
-      font-size: 12px;
-      border: 1px solid var(--arco-border-2);
-      box-shadow: none;
+      background: rgba(0, 0, 0, 0.03);
+      color: var(--zen-text-sub);
+      border: 1px solid var(--zen-border);
     }
     button.ghost:hover {
-      background: var(--arco-fill-2);
-      color: var(--arco-text-1);
-      border-color: var(--arco-border-3);
+      background: rgba(0, 0, 0, 0.06);
+      color: var(--zen-text-main);
     }
 
     button.delete {
-      padding: 3px 8px;
-      background: var(--arco-danger-light);
-      color: var(--arco-danger);
-      font-size: 11px;
-      border-radius: var(--arco-radius-sm);
-      box-shadow: none;
+      padding: 2px 6px;
+      height: 20px;
+      font-size: 10.5px;
+      background: rgba(245, 63, 63, 0.08);
+      color: #f53f3f;
     }
     button.delete:hover {
-      background: #ffd7d2;
-      color: var(--arco-danger-hover);
+      background: rgba(245, 63, 63, 0.16);
     }
 
     button:disabled {
-      opacity: 0.5;
+      opacity: 0.4;
       cursor: not-allowed;
       transform: none !important;
       box-shadow: none !important;
     }
 
-    /* Layout Grid & Arco Cards */
-    .grid {
-      display: grid;
-      grid-template-columns: 1.35fr 1fr;
-      gap: 16px;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: var(--zen-shadow-glass);
     }
-    .card {
-      background: var(--arco-bg-white);
-      border: 1px solid var(--arco-border-2);
-      border-radius: var(--arco-radius-card);
-      padding: 18px 20px;
-      box-shadow: var(--arco-shadow-card);
-      transition: box-shadow 0.2s cubic-bezier(0.2, 0, 0, 1), border-color 0.2s ease;
-    }
-    .card:hover {
-      border-color: var(--arco-border-3);
-      box-shadow: var(--arco-shadow-hover);
-    }
-    .card h2 {
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--arco-text-1);
-      margin: 0 0 14px;
+    .zen-ai-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
+      cursor: pointer;
+    }
+    .zen-ai-header h2 {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .ai-status {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: rgba(22, 93, 255, 0.08);
+      color: var(--zen-primary);
+      font-weight: 500;
+    }
+    .ai-path {
+      margin: 8px 0;
+      padding: 8px 12px;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.03);
+      color: var(--zen-text-sub);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 11px;
+      word-break: break-all;
+      border: 1px solid var(--zen-border-subtle);
+    }
+    .ai-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 6px;
+    }
+    .ai-prompt {
+      max-height: 180px;
+      margin: 8px 0 0;
+      padding: 10px 12px;
+      white-space: pre-wrap;
+      overflow: auto;
+      border-radius: 6px;
+      background: #181d28;
+      color: #e5e6eb;
+      font: 11.5px/1.5 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    details {
+      margin-top: 6px;
+    }
+    details summary {
+      font-size: 11px;
+      color: var(--zen-text-muted);
+      cursor: pointer;
+      user-select: none;
+    }
+    details summary:hover {
+      color: var(--zen-primary);
     }
 
-    /* Arco Metric Bar */
-    .metrics {
+    /* 桌面一体化主工作台 Desktop Workspace Canvas */
+    .zen-workspace {
+      flex: 1;
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-      gap: 12px;
-      margin-bottom: 16px;
-    }
-    .metric {
-      background: var(--arco-bg-white);
-      border: 1px solid var(--arco-border-2);
-      border-radius: var(--arco-radius-card);
-      padding: 12px 16px;
-      box-shadow: var(--arco-shadow-card);
-      transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.2s ease, border-color 0.2s ease;
-      position: relative;
-    }
-    .metric:hover {
-      transform: translateY(-2px);
-      box-shadow: var(--arco-shadow-hover);
-      border-color: #c0d8ff;
-    }
-    .metric strong {
-      display: block;
-      font-size: 22px;
-      font-weight: 700;
-      color: var(--arco-primary);
-      line-height: 1.2;
-      letter-spacing: -0.5px;
-    }
-    .metric span {
-      font-size: 12px;
-      color: var(--arco-text-3);
-      margin-top: 4px;
-      display: block;
+      grid-template-columns: 1.15fr 1fr;
+      gap: 16px;
+      padding: 16px 20px;
+      overflow: hidden;
     }
 
-    /* Step / Item Lists */
-    .list {
+    /* 左侧主画面面板 Left Panel: Metrics & Video */
+    .zen-left-panel {
       display: flex;
       flex-direction: column;
-      gap: 8px;
-      max-height: min(60vh, 520px);
+      gap: 14px;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    /* 剃刀原理极简 Metrics 单行流式胶囊 */
+    .metrics {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 12px;
+      background: rgba(255, 255, 255, 0.7);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--zen-border);
+      border-radius: 100px;
+      width: fit-content;
+      flex-shrink: 0;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+    }
+    .metric {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11.5px;
+      color: var(--zen-text-sub);
+    }
+    .metric strong {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: var(--zen-primary);
+    }
+    .metric:not(:last-child)::after {
+      content: "•";
+      margin-left: 6px;
+      margin-right: 2px;
+      color: var(--zen-text-muted);
+      opacity: 0.4;
+    }
+
+    /* 剃刀原理悬浮折叠 AI 抽屉 (Absolute Floating Popover) */
+    .zen-ai-drawer {
+      position: absolute;
+      top: 54px;
+      right: 20px;
+      width: 460px;
+      max-width: calc(100vw - 40px);
+      z-index: 1000;
+      background: rgba(255, 255, 255, 0.96);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid var(--zen-border);
+      border-radius: var(--zen-radius-panel);
+      padding: 14px 16px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.04);
+      animation: zen-slide-down 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .zen-ai-drawer[hidden] {
+      display: none !important;
+    }
+    @keyframes zen-slide-down {
+      from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .zen-video-container {
+      flex: 1;
+      background: var(--zen-bg-surface);
+      border: 1px solid var(--zen-border);
+      border-radius: var(--zen-radius-panel);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: var(--zen-shadow-glass);
+    }
+    .zen-panel-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--zen-text-main);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .video-viewport {
+      flex: 1;
+      position: relative;
+      background: var(--zen-bg-dark);
+      border-radius: var(--zen-radius-btn);
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .video {
+      width: 100%;
+      height: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      outline: none;
+    }
+
+    /* 右侧双栏/多面板工作区 Right Panel: Zen Tabbed Workspace */
+    .zen-right-panel {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    .zen-tab-box {
+      background: var(--zen-bg-surface);
+      border: 1px solid var(--zen-border);
+      border-radius: var(--zen-radius-panel);
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden;
+      box-shadow: var(--zen-shadow-glass);
+    }
+
+    .zen-tab-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 5px 12px;
+      background: rgba(0, 0, 0, 0.02);
+      border-bottom: 1px solid var(--zen-border-subtle);
+      flex-shrink: 0;
+      min-height: 36px;
+    }
+
+    .zen-tabs {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      background: rgba(0, 0, 0, 0.04);
+      padding: 3px;
+      border-radius: 8px;
+      flex-shrink: 0;
+    }
+
+    .zen-tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--zen-text-sub);
+      font-size: 11.5px;
+      font-weight: 500;
+      padding: 0 12px;
+      height: 26px;
+      line-height: 26px;
+      border-radius: 6px;
+      cursor: pointer;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.18s ease;
+      box-shadow: none;
+    }
+    .zen-tab-btn:hover {
+      color: var(--zen-text-main);
+      background: rgba(255, 255, 255, 0.4);
+    }
+    .zen-tab-btn.active {
+      background: #ffffff;
+      color: var(--zen-primary);
+      font-weight: 600;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+    }
+
+    .zen-tab-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .zen-tab-actions button.ghost {
+      white-space: nowrap;
+      height: 22px;
+      font-size: 10.5px;
+      padding: 0 8px;
+      border-radius: 6px;
+      line-height: 22px;
+    }
+
+    .zen-tab-pane {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      padding: 10px 12px;
+    }
+    .zen-tab-pane[hidden] {
+      display: none !important;
+    }
+
+    .zen-steps-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    .zen-sub-box {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      height: 100%;
+    }
+
+    .large-list {
+      max-height: 100% !important;
+      height: 100% !important;
+    }
+
+    .zen-box-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 6px;
+      margin-bottom: 6px;
+      border-bottom: 1px solid var(--zen-border-subtle);
+      flex-shrink: 0;
+    }
+    .zen-box-header h2 {
+      margin: 0;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--zen-text-main);
+    }
+
+    /* 列表 List Design */
+    .list {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
       overflow-y: auto;
       padding-right: 4px;
     }
     .list::-webkit-scrollbar {
-      width: 5px;
+      width: 4px;
     }
     .list::-webkit-scrollbar-thumb {
-      background: var(--arco-fill-3);
-      border-radius: 3px;
+      background: rgba(0, 0, 0, 0.12);
+      border-radius: 4px;
     }
     .list::-webkit-scrollbar-thumb:hover {
-      background: var(--arco-text-4);
+      background: rgba(0, 0, 0, 0.25);
     }
 
     .item {
-      border: 1px solid var(--arco-border-2);
-      border-radius: var(--arco-radius-btn);
-      padding: 10px 14px;
+      border: 1px solid var(--zen-border-subtle);
+      border-radius: 6px;
+      padding: 8px 10px;
       cursor: pointer;
-      background: var(--arco-bg-white);
-      transition: all 0.18s cubic-bezier(0.2, 0, 0, 1);
+      background: rgba(255, 255, 255, 0.6);
+      transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
       position: relative;
     }
     .item:hover {
-      border-color: #84adf4;
-      background: var(--arco-primary-light);
+      background: rgba(255, 255, 255, 0.95);
+      border-color: rgba(22, 93, 255, 0.25);
       transform: translateX(2px);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
     }
     .item.active {
-      border-color: var(--arco-primary);
-      background: var(--arco-primary-light);
-      box-shadow: 0 0 0 1px var(--arco-primary);
+      background: #ffffff;
+      border-color: var(--zen-primary);
+      box-shadow: 0 2px 10px rgba(22, 93, 255, 0.1);
     }
     .item.active::before {
       content: "";
       position: absolute;
       left: 0;
-      top: 0;
-      bottom: 0;
-      width: 3.5px;
-      background: var(--arco-primary);
-      border-top-left-radius: var(--arco-radius-btn);
-      border-bottom-left-radius: var(--arco-radius-btn);
+      top: 4px;
+      bottom: 4px;
+      width: 3px;
+      background: var(--zen-primary);
+      border-radius: 2px;
     }
     .item .top {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
     }
     .item .top strong {
-      font-size: 13px;
-      color: var(--arco-text-1);
+      font-size: 12px;
+      color: var(--zen-text-main);
     }
     .item .text {
-      margin-top: 4px;
-      color: var(--arco-text-3);
-      font-size: 11.5px;
+      margin-top: 3px;
+      color: var(--zen-text-sub);
+      font-size: 11px;
       word-break: break-all;
     }
 
-    /* Arco Tag / Badge */
+    /* 徽章 Badge Styles */
     .badge {
-      font-size: 11px;
-      padding: 2px 8px;
+      font-size: 10px;
+      padding: 1px 6px;
       border-radius: 100px;
-      background: var(--arco-success-light);
-      color: var(--arco-success);
+      background: rgba(0, 180, 42, 0.08);
+      color: #00b42a;
       font-weight: 500;
-      display: inline-block;
     }
     .badge.partial {
-      background: var(--arco-warning-light);
-      color: var(--arco-warning);
+      background: rgba(255, 125, 0, 0.08);
+      color: #ff7d00;
     }
     .badge.info {
-      background: var(--arco-primary-light);
-      color: var(--arco-primary);
+      background: rgba(22, 93, 255, 0.08);
+      color: var(--zen-primary);
     }
 
-    /* Details Panel & Media */
+    /* Step Detail Content */
     .detail {
-      min-height: 200px;
+      flex: 1;
+      overflow-y: auto;
     }
     .code {
       white-space: pre-wrap;
       word-break: break-word;
       background: #181d28;
       color: #e5e6eb;
-      border-radius: var(--arco-radius-btn);
-      padding: 14px;
+      border-radius: 6px;
+      padding: 10px;
       font-family: ui-monospace, SFMono-Regular, "Fira Code", Menlo, Monaco, Consolas, monospace;
-      font-size: 12px;
-      line-height: 1.6;
-      max-height: 300px;
+      font-size: 11px;
+      line-height: 1.5;
+      max-height: 220px;
       overflow-y: auto;
-      margin-top: 10px;
-      border: 1px solid #272e3b;
+      margin-top: 8px;
     }
     .shot {
       width: 100%;
-      max-height: 360px;
+      max-height: 240px;
       object-fit: contain;
-      background: var(--arco-fill-1);
-      border: 1px solid var(--arco-border-2);
-      border-radius: var(--arco-radius-btn);
-      margin-top: 10px;
+      background: rgba(0, 0, 0, 0.02);
+      border: 1px solid var(--zen-border);
+      border-radius: 6px;
+      margin-top: 8px;
       cursor: zoom-in;
-      transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1), border-color 0.2s ease, box-shadow 0.2s ease;
+      transition: transform 0.2s ease;
     }
     .shot:hover {
-      border-color: var(--arco-primary);
-      box-shadow: var(--arco-shadow-hover);
-      transform: scale(1.008);
-    }
-
-    .video-card {
-      margin-bottom: 16px;
-    }
-    .ai-card {
-      margin-bottom: 16px;
-      border-color: #bed5ff;
-      background: linear-gradient(135deg, #f7fbff 0%, #ffffff 72%);
-    }
-    .ai-card h2 {
-      margin-bottom: 6px;
-    }
-    .ai-status {
-      display: inline-flex;
-      align-items: center;
-      padding: 3px 8px;
-      border-radius: 999px;
-      background: var(--arco-primary-light);
-      color: var(--arco-primary);
-      font-size: 11px;
-    }
-    .ai-path {
-      margin: 10px 0;
-      padding: 9px 10px;
-      border-radius: var(--arco-radius-btn);
-      background: var(--arco-fill-1);
-      color: var(--arco-text-2);
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      font-size: 11px;
-      line-height: 1.5;
-      word-break: break-all;
-    }
-    .ai-prompt {
-      max-height: 220px;
-      margin: 10px 0 0;
-      padding: 12px;
-      white-space: pre-wrap;
-      overflow: auto;
-      border: 1px solid var(--arco-border-2);
-      border-radius: var(--arco-radius-btn);
-      background: #181d28;
-      color: #e5e6eb;
-      font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    }
-    .ai-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 10px;
-    }
-    .video {
-      display: block;
-      width: 100%;
-      max-height: 480px;
-      border-radius: var(--arco-radius-card);
-      background: #0f131c;
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+      transform: scale(1.01);
+      border-color: var(--zen-primary);
     }
 
     .empty {
-      padding: 36px 16px;
+      padding: 24px 12px;
       text-align: center;
-      color: var(--arco-text-3);
-      font-size: 12px;
-      background: var(--arco-fill-1);
-      border-radius: var(--arco-radius-btn);
-      border: 1px dashed var(--arco-border-2);
+      color: var(--zen-text-muted);
+      font-size: 11.5px;
+      background: rgba(0, 0, 0, 0.015);
+      border-radius: 6px;
+      border: 1px dashed var(--zen-border);
     }
 
-    /* Modal / Lightbox Styles */
-    /* Occam's Razor Streamlined Previewer */
+    /* Modal / Lightbox Styles (Occam's Razor Streamlined) */
     .arco-preview-backdrop {
       position: fixed;
       inset: 0;
-      background: rgba(242, 243, 245, 0.92);
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
+      background: rgba(245, 246, 249, 0.94);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
       z-index: 9999;
       display: flex;
       flex-direction: column;
       opacity: 1;
-      transition: opacity 0.2s cubic-bezier(0, 0, 0.2, 1);
+      transition: opacity 0.2s ease;
     }
     .arco-preview-backdrop[hidden] {
       display: none;
@@ -491,37 +670,26 @@
     }
     button#modal-close-btn.arco-preview-close-fixed {
       position: absolute !important;
-      top: 20px !important;
-      right: 24px !important;
+      top: 18px !important;
+      right: 20px !important;
       width: 32px !important;
       height: 32px !important;
       min-width: 32px !important;
-      background: transparent !important;
-      border: none !important;
-      box-shadow: none !important;
-      outline: none !important;
-      transform: none !important;
-      color: var(--arco-text-2) !important;
-      border-radius: var(--arco-radius-btn) !important;
+      background: rgba(0, 0, 0, 0.04) !important;
+      border: 1px solid var(--zen-border) !important;
+      border-radius: 50% !important;
       display: inline-flex !important;
       align-items: center !important;
       justify-content: center !important;
       cursor: pointer !important;
+      color: var(--zen-text-sub) !important;
       transition: all 0.15s ease !important;
       z-index: 30 !important;
     }
     button#modal-close-btn.arco-preview-close-fixed:hover {
-      background: rgba(245, 63, 63, 0.1) !important;
-      color: var(--arco-danger) !important;
-      box-shadow: none !important;
-      transform: none !important;
-    }
-    button#modal-close-btn.arco-preview-close-fixed svg {
-      width: 18px !important;
-      height: 18px !important;
-      stroke: currentColor !important;
-      stroke-width: 2.5px !important;
-      display: block !important;
+      background: rgba(245, 63, 63, 0.12) !important;
+      color: #f53f3f !important;
+      border-color: rgba(245, 63, 63, 0.2) !important;
     }
     .arco-preview-stage {
       flex: 1;
@@ -543,32 +711,32 @@
       align-items: center;
       justify-content: center;
       will-change: transform;
-      transition: transform 0.12s cubic-bezier(0, 0, 0.2, 1);
+      transition: transform 0.12s ease;
     }
     .arco-preview-img {
-      max-width: calc(100vw - 100px);
-      max-height: calc(100vh - 120px);
+      max-width: calc(100vw - 80px);
+      max-height: calc(100vh - 100px);
       object-fit: contain;
-      border-radius: var(--arco-radius-card);
-      border: 1px solid var(--arco-border-2);
-      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.08);
+      border-radius: var(--zen-radius-panel);
+      border: 1px solid var(--zen-border);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.1);
       pointer-events: auto;
-      background: var(--arco-bg-white);
+      background: #ffffff;
     }
-    /* Flat Minimalist Preview Toolbar */
     .arco-preview-toolbar {
       position: absolute;
-      bottom: 24px;
+      bottom: 20px;
       left: 50%;
       transform: translateX(-50%);
       display: flex;
       align-items: center;
       gap: 6px;
-      padding: 4px 14px;
-      background: var(--arco-bg-white);
-      border: 1px solid var(--arco-border-2);
-      border-radius: var(--arco-radius-card);
-      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.05);
+      padding: 5px 14px;
+      background: rgba(255, 255, 255, 0.88);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--zen-border);
+      border-radius: 100px;
+      box-shadow: var(--zen-shadow-float);
       z-index: 20;
     }
     .arco-toolbar-group {
@@ -577,10 +745,10 @@
       gap: 2px;
     }
     .arco-toolbar-title {
-      font-size: 12px;
+      font-size: 11.5px;
       font-weight: 500;
-      color: var(--arco-text-1);
-      max-width: 220px;
+      color: var(--zen-text-main);
+      max-width: 200px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -588,8 +756,7 @@
     }
     .arco-toolbar-tag {
       font-size: 11px;
-      color: var(--arco-text-3);
-      background: transparent;
+      color: var(--zen-text-sub);
       padding: 0 4px;
       font-weight: 500;
       user-select: none;
@@ -597,248 +764,221 @@
     button.arco-toolbar-btn {
       background: transparent !important;
       border: none !important;
-      box-shadow: none !important;
-      outline: none !important;
-      transform: none !important;
-      color: var(--arco-text-2) !important;
+      color: var(--zen-text-sub) !important;
       width: 28px !important;
       height: 28px !important;
-      min-width: 28px !important;
       padding: 0 !important;
-      border-radius: var(--arco-radius-btn) !important;
+      border-radius: 50% !important;
       cursor: pointer !important;
       display: inline-flex !important;
       align-items: center !important;
       justify-content: center !important;
       transition: all 0.15s ease !important;
-      user-select: none !important;
     }
     button.arco-toolbar-btn:hover:not(:disabled) {
-      background: var(--arco-fill-2) !important;
-      color: var(--arco-primary) !important;
-      box-shadow: none !important;
-      transform: none !important;
-    }
-    button.arco-toolbar-btn:active:not(:disabled) {
-      transform: scale(0.94) !important;
-      box-shadow: none !important;
-    }
-    button.arco-toolbar-btn:disabled {
-      opacity: 0.25 !important;
-      cursor: not-allowed !important;
-      background: transparent !important;
-      box-shadow: none !important;
+      background: rgba(0, 0, 0, 0.05) !important;
+      color: var(--zen-primary) !important;
     }
     button.arco-toolbar-btn.copied {
-      color: var(--arco-success) !important;
-    }
-      transform: scale(1.1);
-    }
-    .nav-btn:disabled {
-      opacity: 0.2;
-      cursor: not-allowed;
+      color: #00b42a !important;
     }
 
-    /* Arco Toast Notification */
+    /* Toast Notification */
     .toast {
       position: fixed;
-      bottom: 36px;
+      bottom: 30px;
       left: 50%;
       transform: translateX(-50%);
-      background: #1d2129;
+      background: #181d28;
       color: #ffffff;
-      padding: 10px 20px;
-      border-radius: var(--arco-radius-btn);
-      font-size: 13px;
-      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+      padding: 8px 18px;
+      border-radius: 100px;
+      font-size: 12px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
       z-index: 10000;
       display: flex;
       align-items: center;
       gap: 8px;
-      animation: arco-toast-in 0.25s cubic-bezier(0.2, 0, 0, 1);
-      border: 1px solid #374151;
+      animation: zen-toast-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     }
     .toast[hidden] { display: none; }
 
-    @keyframes arco-toast-in {
-      from { transform: translate(-50%, 16px); opacity: 0; }
+    @keyframes zen-toast-in {
+      from { transform: translate(-50%, 12px); opacity: 0; }
       to { transform: translate(-50%, 0); opacity: 1; }
     }
 
-    /* Media Queries for Screen Adaptation */
-    @media (min-width: 1441px) {
-      .shell {
-        max-width: 1600px;
-      }
-      .grid {
-        grid-template-columns: 1.4fr 1fr;
-        gap: 20px;
-      }
-      .list {
-        max-height: min(68vh, 650px);
-      }
-      .video {
-        max-height: 560px;
-      }
-    }
-
-    @media (max-width: 960px) {
-      .shell {
-        width: 100%;
-        padding: 16px 12px;
-      }
-      .grid {
+    @media (max-width: 1100px) {
+      .zen-workspace {
         grid-template-columns: 1fr;
+        overflow-y: auto;
       }
-      .video {
-        max-height: 400px;
+      .zen-right-panel {
+        height: auto;
       }
-      .list {
-        max-height: 420px;
-      }
-    }
-
-    @media (max-width: 600px) {
-      .metrics {
-        grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
-        gap: 8px;
-      }
-      .metric {
-        padding: 10px 12px;
-      }
-      .metric strong {
-        font-size: 18px;
-      }
-      .metric span {
-        font-size: 11px;
+      .zen-app-frame {
+        height: auto;
+        overflow-y: auto;
       }
     }
   </style>
 </head>
 <body>
-  <main class="shell">
-    <header class="header">
-      <div style="display: flex; align-items: center; gap: 12px;">
-        <img src="icons/icon48.png" width="36" height="36" alt="Bug Lens Icon" style="object-fit: contain;">
-        <div>
-          <div class="eyebrow">Bug Lens</div>
-          <h1 id="title">录制预览</h1>
-          <div id="meta" class="muted"></div>
+  <div class="zen-app-frame">
+    <!-- macOS 风格拟态顶栏 -->
+    <header class="zen-titlebar">
+      <div class="zen-titlebar-left">
+        <div class="mac-controls">
+          <span class="mac-dot close"></span>
+          <span class="mac-dot min"></span>
+          <span class="mac-dot max"></span>
+        </div>
+        <div class="brand-info">
+          <img src="icons/icon48.png" class="brand-logo" alt="Bug Lens Icon">
+          <div class="brand-titles">
+            <h1 id="title">录制预览</h1>
+            <div id="meta" class="muted"></div>
+          </div>
         </div>
       </div>
-      <div class="actions">
+      <div class="zen-titlebar-right">
+        <!-- 1 步直达一键复制 AI 提示词 -->
+        <button id="copy-ai-prompt" class="secondary" style="font-size: 11.5px; padding: 6px 14px;">
+          <span>✨ 复制 AI 提示词</span>
+        </button>
+        <!-- 悬浮查看路径与高级选项 -->
+        <button id="toggle-ai-drawer" class="ghost" style="font-size: 11px; padding: 6px 10px;" title="查看文件绝对路径与更多选项">
+          <span id="ai-status" class="ai-status" style="font-size: 10px;">等待导出</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 2px;"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </button>
         <button id="export">导出离线报告</button>
       </div>
     </header>
 
-    <section class="card ai-card">
-      <div class="panel-heading">
-        <div>
-          <h2>交给 AI 分析</h2>
-          <div class="muted">导出完成后会显示 ZIP 的本机绝对路径；路径不会写入 ZIP。</div>
-        </div>
-        <span id="ai-status" class="ai-status">等待导出</span>
-      </div>
+    <!-- AI 分析轻量悬浮抽屉 (默认折叠) -->
+    <section id="ai-drawer" class="zen-ai-drawer" hidden>
       <div id="ai-path" class="ai-path">请先点击“导出离线报告”，完成下载后获取绝对路径。</div>
       <div class="ai-actions">
-        <button id="copy-ai-prompt" class="secondary">复制 AI 提示词</button>
-        <button id="copy-ai-path" class="ghost" hidden>复制绝对路径</button>
+        <button id="copy-ai-path" class="secondary" hidden>复制绝对路径</button>
         <button id="show-ai-file" class="ghost" hidden>在文件夹中显示</button>
       </div>
       <details>
-        <summary>查看提示词</summary>
+        <summary style="margin-top: 6px;">查看完整提示词</summary>
         <pre id="ai-prompt" class="ai-prompt"></pre>
       </details>
     </section>
 
-    <section id="metrics" class="metrics"></section>
-
-    <section class="card video-card">
-      <h2>标签页录像</h2>
-      <div id="video-empty" class="empty">正在读取媒体分片…</div>
-      <video id="video" class="video" controls hidden></video>
-    </section>
-
-    <div class="grid">
-      <section class="card">
-        <div class="panel-heading">
-          <h2>交互步骤</h2>
-          <button id="restore" class="ghost" hidden>恢复已删除步骤</button>
+    <!-- 桌面一体化主工作区 -->
+    <main class="zen-workspace">
+      <!-- 左侧主区：视轨播放器 + Metrics -->
+      <div class="zen-left-panel">
+        <div class="zen-video-container">
+          <div class="zen-panel-title">
+            <span>标签页录像</span>
+            <div id="metrics" class="metrics"></div>
+          </div>
+          <div class="video-viewport">
+            <div id="video-empty" class="empty">正在读取媒体分片…</div>
+            <video id="video" class="video" controls hidden></video>
+          </div>
         </div>
-        <div id="interactions" class="list"></div>
-      </section>
+      </div>
 
-      <section class="card detail">
-        <h2>步骤详情</h2>
-        <div id="detail" class="empty">选择左侧步骤查看元素信息</div>
-      </section>
+      <!-- 右侧 Tab 调试工作区 Right Panel: Zen Tabbed Workspace -->
+      <div class="zen-right-panel">
+        <div class="zen-tab-box">
+          <!-- 极简 Segmented Tab Header -->
+          <div class="zen-tab-bar">
+            <div class="zen-tabs">
+              <button class="zen-tab-btn active" data-tab="steps">
+                <span>交互步骤</span>
+              </button>
+              <button class="zen-tab-btn" data-tab="console">
+                <span>Console 日志</span>
+              </button>
+              <button class="zen-tab-btn" data-tab="network">
+                <span>Network 请求</span>
+              </button>
+            </div>
+            
+            <div class="zen-tab-actions">
+              <button id="restore" class="ghost" hidden>恢复已删除步骤</button>
+              <button id="restore-console" class="ghost" hidden>恢复已删除日志</button>
+              <button id="restore-network" class="ghost" hidden>恢复已删除请求</button>
+            </div>
+          </div>
 
-      <section class="card">
-        <div class="panel-heading">
-          <h2>Console 控制台日志</h2>
-          <button id="restore-console" class="ghost" hidden>恢复已删除日志</button>
+          <!-- Tab 面板 1：交互步骤 + 步骤详情 (左右联动) -->
+          <div id="tab-pane-steps" class="zen-tab-pane">
+            <div class="zen-steps-layout">
+              <div class="zen-sub-box">
+                <div class="zen-box-header"><h2>步骤列表</h2></div>
+                <div id="interactions" class="list"></div>
+              </div>
+              <div class="zen-sub-box">
+                <div class="zen-box-header"><h2>步骤详情</h2></div>
+                <div id="detail" class="empty">选择左侧步骤查看元素信息</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab 面板 2：Console 日志 (独占大区域) -->
+          <div id="tab-pane-console" class="zen-tab-pane" hidden>
+            <div id="console" class="list large-list"></div>
+          </div>
+
+          <!-- Tab 面板 3：Network 请求 (独占大区域) -->
+          <div id="tab-pane-network" class="zen-tab-pane" hidden>
+            <div id="network" class="list large-list"></div>
+          </div>
         </div>
-        <div id="console" class="list"></div>
-      </section>
+      </div>
+    </main>
+  </div>
 
-      <section class="card">
-        <div class="panel-heading">
-          <h2>Network 网络请求</h2>
-          <button id="restore-network" class="ghost" hidden>恢复已删除请求</button>
-        </div>
-        <div id="network" class="list"></div>
-      </section>
-    </div>
-  </main>
-
-  <!-- Image Lightbox Modal (Occam's Razor Streamlined Previewer) -->
+  <!-- Image Lightbox Modal -->
   <div id="image-modal" class="arco-preview-backdrop" hidden>
-    <!-- Top Right Quick Close -->
     <button id="modal-close-btn" class="arco-preview-close-fixed" title="关闭 (ESC)">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
     </button>
 
-    <!-- Main Stage -->
     <div id="modal-stage" class="arco-preview-stage">
       <div id="modal-img-container" class="arco-preview-img-container">
         <img id="modal-image" class="arco-preview-img" src="" alt="截图大图" draggable="false">
       </div>
     </div>
 
-    <!-- Single Integrated Flat Minimalist Toolbar -->
     <div class="arco-preview-toolbar">
-      <!-- Step Navigation & Counter -->
       <div class="arco-toolbar-group">
         <button id="modal-prev-btn" class="arco-toolbar-btn" title="上一张 (←)">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
         </button>
         <span id="modal-step-counter" class="arco-toolbar-tag">0 / 0</span>
         <button id="modal-next-btn" class="arco-toolbar-btn" title="下一张 (→)">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
         </button>
       </div>
 
       <span id="modal-step-title" class="arco-toolbar-title">步骤截图</span>
       <span id="modal-zoom-ratio" class="arco-toolbar-tag">100%</span>
 
-      <!-- Action Icons (Flat Mode) -->
       <button id="modal-zoom-out-btn" class="arco-toolbar-btn" title="缩小 (-)">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
       </button>
       <button id="modal-zoom-in-btn" class="arco-toolbar-btn" title="放大 (+)">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
       </button>
-      <button id="modal-reset-btn" class="arco-toolbar-btn" title="自适应 / 1:1 还原 (0)">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"></path><path d="M9 21H3v-6"></path><path d="M21 3l-7 7"></path><path d="M3 21l7-7"></path></svg>
+      <button id="modal-reset-btn" class="arco-toolbar-btn" title="自适应 (0)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"></path><path d="M9 21H3v-6"></path><path d="M21 3l-7 7"></path><path d="M3 21l7-7"></path></svg>
       </button>
-      <button id="modal-rotate-btn" class="arco-toolbar-btn" title="旋转 90° (R)">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6"></path><path d="M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path></svg>
+      <button id="modal-rotate-btn" class="arco-toolbar-btn" title="旋转 (R)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6"></path><path d="M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path></svg>
       </button>
       <button id="modal-copy-btn" class="arco-toolbar-btn" title="复制图片">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
       </button>
       <button id="modal-download-btn" class="arco-toolbar-btn" title="下载截图">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
       </button>
     </div>
   </div>

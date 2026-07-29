@@ -99,6 +99,58 @@ $("#copy-ai-prompt").addEventListener("click", () => void copyText(buildAiPrompt
 $("#copy-ai-path").addEventListener("click", () => { if (exportArtifact?.filename) void copyText(exportArtifact.filename, "ZIP 绝对路径已复制"); });
 $("#show-ai-file").addEventListener("click", () => { if (exportArtifact) chrome.downloads.show(exportArtifact.downloadId); });
 
+const toggleAiBtn = document.getElementById("toggle-ai-drawer");
+if (toggleAiBtn) {
+  toggleAiBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const drawer = document.getElementById("ai-drawer");
+    if (drawer) drawer.hidden = !drawer.hidden;
+  });
+}
+
+document.addEventListener("click", (e) => {
+  const drawer = document.getElementById("ai-drawer");
+  const toggleBtn = document.getElementById("toggle-ai-drawer");
+  if (drawer && !drawer.hidden && !drawer.contains(e.target as Node) && !toggleBtn?.contains(e.target as Node)) {
+    drawer.hidden = true;
+  }
+});
+
+let currentActiveTab: "steps" | "console" | "network" = "steps";
+
+function updateRestoreButtonsVisibility(): void {
+  const restoreSteps = $("#restore") as HTMLButtonElement;
+  const restoreConsole = $("#restore-console") as HTMLButtonElement;
+  const restoreNetwork = $("#restore-network") as HTMLButtonElement;
+
+  if (restoreSteps) {
+    restoreSteps.hidden = excludedInteractionIds.size === 0 || currentActiveTab !== "steps";
+    restoreSteps.textContent = `恢复步骤（${excludedInteractionIds.size}）`;
+  }
+  if (restoreConsole) {
+    restoreConsole.hidden = excludedConsoleEntryIds.size === 0 || currentActiveTab !== "console";
+    restoreConsole.textContent = `恢复日志（${excludedConsoleEntryIds.size}）`;
+  }
+  if (restoreNetwork) {
+    restoreNetwork.hidden = excludedNetworkEntryIds.size === 0 || currentActiveTab !== "network";
+    restoreNetwork.textContent = `恢复请求（${excludedNetworkEntryIds.size}）`;
+  }
+}
+
+// Tab 页签切换 handler
+document.querySelectorAll<HTMLButtonElement>(".zen-tab-btn[data-tab]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".zen-tab-btn").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    const targetTab = (btn.dataset.tab as "steps" | "console" | "network") || "steps";
+    currentActiveTab = targetTab;
+    document.querySelectorAll(".zen-tab-pane").forEach((pane) => {
+      (pane as HTMLElement).hidden = pane.id !== `tab-pane-${targetTab}`;
+    });
+    updateRestoreButtonsVisibility();
+  });
+});
+
 function esc(value: unknown): string { return String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]!)); }
 function renderMetrics(): void {
   if (!session) return;
@@ -106,9 +158,7 @@ function renderMetrics(): void {
   const included = includedInteractions();
   const screenshotCount = included.filter((item) => item.screenshot.status === "captured").length;
   $("#metrics").innerHTML = [[included.length, "有效步骤"], [excludedInteractionIds.size + excludedConsoleEntryIds.size + excludedNetworkEntryIds.size, "已删除"], [screenshotCount, "步骤截图"], [includedConsoleEntries().length, "Console"], [includedNetworkEntries().length, "Network"]].map(([value, label]) => `<div class="metric"><strong>${value}</strong><span>${label}</span></div>`).join("");
-  const restoreButton = $("#restore") as HTMLButtonElement;
-  restoreButton.hidden = excludedInteractionIds.size === 0;
-  restoreButton.textContent = `恢复已删除步骤（${excludedInteractionIds.size}）`;
+  updateRestoreButtonsVisibility();
 }
 function renderInteractions(): void {
   const list = $("#interactions");
@@ -458,12 +508,7 @@ function renderLogs(): void {
     ? includedNetwork.slice(-200).reverse().map((entry) => `<div class="item"><div class="top"><strong>${esc(entry.method)} ${entry.status ?? ""}</strong><div class="item-actions"><span class="muted">${new Date(entry.createdAt).toLocaleTimeString()}</span><button class="delete" data-delete-network="${esc(entry.id)}" title="从预览和导出中删除">删除</button></div></div><div class="text">${esc(entry.url)}</div>${renderNetworkResponse(entry)}</div>`).join("")
     : `<div class="empty">${networkEntries.length ? "所有 Network 请求均已删除，可从右上角恢复。" : "没有 Network 记录"}</div>`;
 
-  const restoreConsoleButton = $("#restore-console") as HTMLButtonElement;
-  restoreConsoleButton.hidden = excludedConsoleEntryIds.size === 0;
-  restoreConsoleButton.textContent = `恢复已删除日志（${excludedConsoleEntryIds.size}）`;
-  const restoreNetworkButton = $("#restore-network") as HTMLButtonElement;
-  restoreNetworkButton.hidden = excludedNetworkEntryIds.size === 0;
-  restoreNetworkButton.textContent = `恢复已删除请求（${excludedNetworkEntryIds.size}）`;
+  updateRestoreButtonsVisibility();
 
   $("#console").querySelectorAll<HTMLButtonElement>("[data-delete-console]").forEach((button) => button.addEventListener("click", () => {
     excludedConsoleEntryIds.add(button.dataset.deleteConsole!);
