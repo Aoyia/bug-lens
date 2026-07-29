@@ -909,15 +909,10 @@ function renderNetworkDetailPanel(entry?: NetworkEntry): string {
 function updateConsoleSelectOptions(): void {
   const select = document.querySelector<HTMLSelectElement>("#console-level-filter");
   if (!select) return;
+  select.value = consoleLevelFilter;
   const options = select.options;
   for (let i = 0; i < options.length; i++) {
-    const opt = options[i];
-    const rawLabel = opt.text.replace(/^✓\s*/, "");
-    if (opt.value === consoleLevelFilter) {
-      opt.text = `✓ ${rawLabel}`;
-    } else {
-      opt.text = rawLabel;
-    }
+    options[i].text = options[i].text.replace(/^[✓\s]+/, "");
   }
 }
 
