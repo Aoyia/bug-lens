@@ -3,3 +3,6 @@ dist/
 .DS_Store
 *.log
 docs
+scripts/auto-commit.sh
+.agents
+plans

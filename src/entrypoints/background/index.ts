@@ -1,122 +1,101 @@
 import { db } from "../../storage/db";
 import { isEnvelope, message, type CaptureIssue, type InteractionRecord, type NetworkEntry, type RecordingSession, type RuntimeMessage } from "../../shared/protocol";
+import { applyInteractionEvent, type InteractionEvent } from "../../domain/interaction-ledger";
+import { applySessionEvent as reduceSession, type RecordingSessionEvent } from "../../domain/recording-session";
+import { sanitizeInteractionRecord, sanitizeText, sanitizeUrl } from "../../domain/privacy-policy";
+import { normalizeRecordingOptions } from "../../domain/storage-policy";
+import { CdpEvidenceCollector } from "../../evidence/cdp-evidence-collector";
+import { RecordingCoordinator } from "../../recording/recording-coordinator";
 
 const EXTENSION_VERSION = "0.1.0";
 let registeredContentScript = false;
-const debuggerTabs = new Set<number>();
-const pendingBodyCaptures = new Set<Promise<void>>();
-const networkEventQueues = new Map<string, Promise<void>>();
+const interactionEventQueues = new Map<string, Promise<unknown>>();
+const pendingInteractionHandlers = new Set<Promise<void>>();
+const recordingCoordinator = new RecordingCoordinator();
+const BROWSER_EPOCH_KEY = "bug-lens-browser-epoch";
+const browserEpochPromise = loadOrCreateBrowserEpoch();
 
-function normalizeHeaders(headers: Record<string, unknown> | undefined, privacyMode: RecordingSession["options"]["privacyMode"]): Record<string, string> | undefined {
-  if (!headers) return undefined;
-  const sensitiveHeader = /^(authorization|proxy-authorization|cookie|set-cookie)$/i;
-  return Object.fromEntries(Object.entries(headers).map(([key, value]) => [key, privacyMode === "safe" && sensitiveHeader.test(key) ? `[REDACTED:${key}]` : String(value)]));
+async function loadOrCreateBrowserEpoch(): Promise<string> {
+  const stored = await chrome.storage.session.get(BROWSER_EPOCH_KEY);
+  const existing = stored[BROWSER_EPOCH_KEY];
+  if (typeof existing === "string" && existing) return existing;
+  const created = crypto.randomUUID();
+  await chrome.storage.session.set({ [BROWSER_EPOCH_KEY]: created });
+  return created;
 }
 
-function redactResponseText(body: string, mimeType: string | undefined, privacyMode: RecordingSession["options"]["privacyMode"]): string {
-  if (privacyMode === "raw") return body;
-  const sensitiveKey = /^(password|passwd|token|accessToken|refreshToken|authorization|secret|cookie|set-cookie|cardNumber)$/i;
-  if (mimeType?.includes("json") || /^[\s]*[\[{]/.test(body)) {
-    try {
-      const redactValue = (value: unknown, depth = 0): unknown => {
-        if (depth > 30) return "[REDACTED:depth-limit]";
-        if (Array.isArray(value)) return value.map((item) => redactValue(item, depth + 1));
-        if (value && typeof value === "object") {
-          const result: Record<string, unknown> = {};
-          for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
-            if (["__proto__", "prototype", "constructor"].includes(key)) continue;
-            result[key] = sensitiveKey.test(key) ? `[REDACTED:${key}]` : redactValue(child, depth + 1);
-          }
-          return result;
-        }
-        return value;
-      };
-      return JSON.stringify(redactValue(JSON.parse(body)));
-    } catch { /* Fall through to text redaction. */ }
-  }
-  return body
-    .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [REDACTED]")
-    .replace(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, "[REDACTED:jwt]");
-}
-
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, messageText: string): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(messageText)), timeoutMs);
-    promise.then(
-      (value) => { clearTimeout(timer); resolve(value); },
-      (error) => { clearTimeout(timer); reject(error); }
-    );
-  });
-}
-
-async function captureResponseBody(source: chrome.debugger.Debuggee, session: RecordingSession, requestId: string): Promise<void> {
-  const id = `${session.id}:${requestId}`;
-  const current = (await db.getNetwork(session.id)).find((entry) => entry.id === id);
-  if (!current) return;
-  if (current.method === "HEAD" || current.status === 204 || current.status === 304) {
-    await db.saveNetwork({ ...current, response: { ...current.response, bodyStatus: "not-present" } });
-    return;
-  }
-  try {
-    const command = chrome.debugger.sendCommand(source, "Network.getResponseBody", { requestId }) as Promise<{ body?: string; base64Encoded?: boolean }>;
-    const result = await withTimeout(command, 3_000, "RESPONSE_BODY_TIMEOUT: 响应正文读取超过 3 秒");
-    const rawBody = result.body ?? "";
-    const base64Encoded = Boolean(result.base64Encoded);
-    const body = base64Encoded ? rawBody : redactResponseText(rawBody, current.response?.mimeType, session.options.privacyMode);
-    const byteLength = base64Encoded
-      ? Math.max(0, Math.floor(rawBody.length * 3 / 4) - (rawBody.endsWith("==") ? 2 : rawBody.endsWith("=") ? 1 : 0))
-      : new TextEncoder().encode(body).byteLength;
-    await db.saveNetwork({ ...current, response: { ...current.response, bodyStatus: "captured", body, base64Encoded, byteLength } });
-  } catch (error) {
-    await db.saveNetwork({ ...current, response: { ...current.response, bodyStatus: "unavailable", error: String(error) } });
-  }
-}
-
-async function finalizeNetworkBodies(session: RecordingSession): Promise<void> {
-  for (let round = 0; round < 3 && pendingBodyCaptures.size; round += 1) {
-    await Promise.allSettled([...pendingBodyCaptures]);
-  }
-
-  const pending = (await db.getNetwork(session.id)).filter((entry) => entry.response?.bodyStatus === "pending");
-  let cursor = 0;
-  const deadline = Date.now() + 5_000;
-  const workers = Array.from({ length: Math.min(4, pending.length) }, async () => {
-    while (cursor < pending.length && Date.now() < deadline) {
-      const entry = pending[cursor++];
-      const requestId = entry.id.startsWith(`${session.id}:`) ? entry.id.slice(session.id.length + 1) : "";
-      if (requestId) await captureResponseBody({ tabId: session.target.tabId }, session, requestId);
-    }
-  });
-  await Promise.allSettled(workers);
-
-  const unresolved = (await db.getNetwork(session.id)).filter((entry) => entry.response?.bodyStatus === "pending");
-  await Promise.all(unresolved.map((entry) => db.saveNetwork({
-    ...entry,
-    response: {
-      ...entry.response,
-      bodyStatus: "unavailable",
-      error: "RESPONSE_BODY_INCOMPLETE: 录制结束前未收到完整响应或浏览器未提供正文"
-    }
-  })));
-}
-
-function trackBodyCapture(task: Promise<void>): void {
-  pendingBodyCaptures.add(task);
-  void task.then(
-    () => pendingBodyCaptures.delete(task),
-    () => pendingBodyCaptures.delete(task)
-  );
-}
-
-function enqueueNetworkTask(key: string, work: () => Promise<void>): Promise<void> {
-  const previous = networkEventQueues.get(key) ?? Promise.resolve();
+function enqueueInteractionTask<T>(key: string, work: () => Promise<T>): Promise<T> {
+  const previous = interactionEventQueues.get(key) ?? Promise.resolve();
   const current = previous.catch(() => undefined).then(work);
-  networkEventQueues.set(key, current);
+  interactionEventQueues.set(key, current);
   void current.then(
-    () => { if (networkEventQueues.get(key) === current) networkEventQueues.delete(key); },
-    () => { if (networkEventQueues.get(key) === current) networkEventQueues.delete(key); }
+    () => { if (interactionEventQueues.get(key) === current) interactionEventQueues.delete(key); },
+    () => { if (interactionEventQueues.get(key) === current) interactionEventQueues.delete(key); }
   );
   return current;
+}
+
+function trackInteractionHandler(task: Promise<void>): Promise<void> {
+  pendingInteractionHandlers.add(task);
+  void task.then(
+    () => pendingInteractionHandlers.delete(task),
+    () => pendingInteractionHandlers.delete(task)
+  );
+  return task;
+}
+
+async function persistInteractionEvent(
+  sessionId: string,
+  interactionId: string,
+  event: InteractionEvent
+): Promise<{ previous?: InteractionRecord; next?: InteractionRecord; budgetRejected?: boolean }> {
+  return enqueueInteractionTask(`${sessionId}:${interactionId}`, async () => {
+    const previous = await db.getInteraction(interactionId);
+    const next = applyInteractionEvent(previous, event);
+    if (next && next !== previous) {
+      const stored = await db.saveInteractionWithinBudget(next);
+      if (!stored.stored) return { previous, next: previous, budgetRejected: true };
+    }
+    return { previous, next };
+  });
+}
+
+async function applySessionEvent(sessionId: string, event: RecordingSessionEvent): Promise<RecordingSession> {
+  const next = await db.updateSession(sessionId, (current) => reduceSession(current, event));
+  if (!next) throw new Error(`未找到会话 (SESSION_NOT_FOUND:${sessionId})`);
+  return next;
+}
+
+const cdpCollector = new CdpEvidenceCollector(db, applySessionEvent, (sessionId) => recordingCoordinator.isStopping(sessionId));
+
+async function reconcileSessionQuality(sessionId: string): Promise<void> {
+  const [interactions, consoleEntries, networkEntries] = await Promise.all([
+    db.getInteractions(sessionId),
+    db.getConsole(sessionId),
+    db.getNetwork(sessionId)
+  ]);
+  const included = interactions.filter((entry) => entry.status !== "cancelled");
+  await applySessionEvent(sessionId, {
+    type: "quality-snapshot",
+    counts: {
+      interactionCount: included.length,
+      confirmedInteractionCount: included.filter((entry) => entry.status === "confirmed").length,
+      primaryScreenshotCount: included.filter((entry) => entry.screenshot.status === "captured" && entry.screenshot.source === "primary").length,
+      fallbackScreenshotCount: included.filter((entry) => entry.screenshot.status === "captured" && entry.screenshot.source === "video-frame").length,
+      unavailableScreenshotCount: included.filter((entry) => entry.screenshot.status === "unavailable").length,
+      consoleEntryCount: consoleEntries.length,
+      networkEntryCount: networkEntries.length
+    }
+  });
+}
+
+async function assertTargetTabIsActive(session: RecordingSession): Promise<void> {
+  const query: chrome.tabs.QueryInfo = { active: true };
+  if (typeof session.target.windowId === "number") query.windowId = session.target.windowId;
+  const activeTabs = await chrome.tabs.query(query);
+  if (!activeTabs.some((tab) => tab.id === session.target.tabId)) {
+    throw new Error("TARGET_TAB_NOT_ACTIVE: 当前激活标签页不是录制目标，已拒绝保存截图");
+  }
 }
 
 function issue(code: string, messageText: string, source: CaptureIssue["source"], recoverable = true): CaptureIssue {
@@ -153,164 +132,393 @@ async function injectContent(tabId: number): Promise<void> {
       registeredContentScript = registrations.length > 0;
     }
   }
-  await chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] }).catch(() => undefined);
+  await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, files: ["content.js"] }).catch(() => undefined);
 }
 
-async function removeContentScript(): Promise<void> {
-  if (!registeredContentScript) return;
-  await chrome.scripting.unregisterContentScripts({ ids: ["web-bug-recorder-content"] }).catch(() => undefined);
+async function removeContentScript(tabId?: number): Promise<void> {
+  if (typeof tabId === "number") {
+    await chrome.tabs.sendMessage(tabId, message("content/reset", {})).catch(() => undefined);
+  }
+  const registrations = await chrome.scripting.getRegisteredContentScripts({ ids: ["web-bug-recorder-content"] }).catch(() => []);
+  if (registeredContentScript || registrations.length) {
+    await chrome.scripting.unregisterContentScripts({ ids: ["web-bug-recorder-content"] }).catch(() => undefined);
+  }
   registeredContentScript = false;
 }
 
-async function attachDebugger(tabId: number, session: RecordingSession): Promise<CaptureIssue | undefined> {
-  try {
-    await chrome.debugger.attach({ tabId }, "1.3");
-    debuggerTabs.add(tabId);
-    await chrome.debugger.sendCommand({ tabId }, "Runtime.enable");
-    await chrome.debugger.sendCommand({ tabId }, "Network.enable", { maxTotalBufferSize: 50 * 1024 * 1024, maxResourceBufferSize: 10 * 1024 * 1024, maxPostDataSize: 1024 * 1024 }).catch(() => undefined);
-    await chrome.debugger.sendCommand({ tabId }, "Log.enable").catch(() => undefined);
-    return undefined;
-  } catch (error) {
-    return issue("DEBUGGER_ATTACH_FAILED", String(error), "debugger");
+async function startSessionImpl(payload: Extract<RuntimeMessage, { type: "session/start" }>["payload"]): Promise<RecordingSession> {
+  const previousCommand = await db.getCommand(payload.commandId);
+  if (previousCommand) {
+    if (previousCommand.kind !== "start") throw new Error(`指令类型冲突 (COMMAND_KIND_CONFLICT:${payload.commandId})`);
+    const previousSession = await db.getSession(previousCommand.sessionId);
+    if (previousSession) return previousSession;
+    throw new Error(`指令对应会话不存在 (COMMAND_SESSION_MISSING:${payload.commandId})`);
   }
-}
-
-async function detachDebugger(tabId: number): Promise<void> {
-  if (!debuggerTabs.has(tabId)) return;
-  debuggerTabs.delete(tabId);
-  await chrome.debugger.detach({ tabId }).catch(() => undefined);
-}
-
-async function updateSession(session: RecordingSession, patch: Partial<RecordingSession>): Promise<RecordingSession> {
-  const next = { ...session, ...patch, quality: { ...session.quality, ...(patch.quality ?? {}) } };
-  await db.saveSession(next);
-  return next;
-}
-
-async function startSession(payload: Extract<RuntimeMessage, { type: "session/start" }>["payload"]): Promise<RecordingSession> {
-  const streamIdPromise = payload.streamId
-    ? Promise.resolve(payload.streamId)
-    : new Promise<string>((resolve, reject) => chrome.tabCapture.getMediaStreamId({ targetTabId: payload.tabId }, (id) => id ? resolve(id) : reject(chrome.runtime.lastError ?? new Error("未返回媒体流 ID"))));
   const tab = await chrome.tabs.get(payload.tabId);
+  const options = normalizeRecordingOptions(payload.options, await db.getStoragePolicy());
+  const browserEpoch = await browserEpochPromise;
   const session: RecordingSession = {
     id: crypto.randomUUID(),
-    schemaVersion: 1,
+    schemaVersion: 2,
     extensionVersion: EXTENSION_VERSION,
     status: "PREPARING",
-    target: { tabId: payload.tabId, windowId: tab.windowId, initialUrl: tab.url ?? "", initialTitle: tab.title ?? "" },
-    options: payload.options,
+    target: {
+      tabId: payload.tabId,
+      windowId: tab.windowId,
+      initialUrl: sanitizeUrl(tab.url ?? "", options.privacyMode),
+      initialTitle: sanitizeText(tab.title ?? "", options.privacyMode, 256)
+    },
+    options,
     timeline: { createdAtEpochMs: Date.now() },
     quality: { overall: "complete", interactionCount: 0, confirmedInteractionCount: 0, primaryScreenshotCount: 0, fallbackScreenshotCount: 0, unavailableScreenshotCount: 0, consoleEntryCount: 0, networkEntryCount: 0, issues: [] },
-    nonce: crypto.randomUUID()
+    nonce: crypto.randomUUID(),
+    commandIds: { start: payload.commandId },
+    browserEpoch,
+    resumedFromSessionId: payload.resumedFromSessionId,
+    storage: { usedBytes: 0 }
   };
   const claim = await db.claimSession(session);
-  if (!claim.claimed) return claim.session;
+  if (!claim.claimed) {
+    if (claim.session.commandIds?.start === payload.commandId) return claim.session;
+    throw new Error(`已有活动会话在录制中 (SESSION_ALREADY_ACTIVE:${claim.session.id})`);
+  }
 
+  let mediaStarted = false;
   try {
-    const streamId = await streamIdPromise.catch(() => undefined);
+    const streamId = !options.captureVideo ? undefined : payload.streamId
+      ? payload.streamId
+      : await new Promise<string>((resolve, reject) => chrome.tabCapture.getMediaStreamId({ targetTabId: payload.tabId }, (id) => id ? resolve(id) : reject(chrome.runtime.lastError ?? new Error("未返回媒体流 ID")))).catch(() => undefined);
     await ensureOffscreen();
     await injectContent(payload.tabId);
-    const debuggerIssue = await attachDebugger(payload.tabId, session);
-    if (debuggerIssue) session.quality.issues.push(debuggerIssue);
+    const debuggerIssue = options.captureConsole || options.captureNetwork ? await cdpCollector.attach(payload.tabId, session) : undefined;
+    const issues: CaptureIssue[] = debuggerIssue ? [debuggerIssue] : [];
     if (streamId) {
-      await chrome.runtime.sendMessage(message("offscreen/start-media", { streamId, sessionId: session.id, captureAudio: payload.options.captureAudio, timesliceMs: payload.options.mediaTimesliceMs }, session.id));
-    } else {
-      session.quality.issues.push(issue("MEDIA_STREAM_ID_FAILED", "未取得标签页媒体流，已进入降级录制。", "media", false));
+      const mediaResponse = await chrome.runtime.sendMessage(message("offscreen/start-media", { streamId, sessionId: session.id, captureAudio: options.captureAudio, timesliceMs: options.mediaTimesliceMs }, session.id)).catch((error) => ({ ok: false, error: String(error) }));
+      if (mediaResponse?.ok) mediaStarted = true;
+      else issues.push(issue("MEDIA_RECORDER_FAILED", sanitizeText(mediaResponse?.error ?? "媒体录制启动失败", options.privacyMode), "media", false));
+    } else if (options.captureVideo) {
+      issues.push(issue("MEDIA_STREAM_ID_FAILED", "未取得标签页媒体流，已进入降级录制。", "media", false));
     }
-    const started = await updateSession(session, { status: debuggerIssue || !streamId ? "DEGRADED" : "RECORDING", timeline: { ...session.timeline, startedAtEpochMs: Date.now() } });
-    await chrome.action.setBadgeText({ tabId: payload.tabId, text: "REC" });
-    await chrome.action.setBadgeBackgroundColor({ tabId: payload.tabId, color: "#d92d20" });
-    await chrome.action.setIcon({
-      tabId: payload.tabId,
-      path: "icons/icon_recording.png"
-    }).catch(() => undefined);
+    const started = await applySessionEvent(session.id, { type: "started", atEpochMs: Date.now(), issues });
+    if (["RECORDING", "DEGRADED"].includes(started.status)) {
+      await chrome.action.setBadgeText({ tabId: payload.tabId, text: "REC" }).catch(() => undefined);
+      await chrome.action.setBadgeBackgroundColor({ tabId: payload.tabId, color: "#d92d20" }).catch(() => undefined);
+      await chrome.action.setIcon({ tabId: payload.tabId, path: "icons/icon_recording.png" }).catch(() => undefined);
+    } else if (mediaStarted) {
+      await chrome.runtime.sendMessage(message("offscreen/stop-media", { sessionId: session.id }, session.id)).catch(() => undefined);
+    }
     return started;
   } catch (error) {
-    const failed = await updateSession(session, { status: "FAILED", error: issue("SESSION_START_FAILED", String(error), "media", false), quality: { ...session.quality, overall: "failed" } });
+    if (mediaStarted) await chrome.runtime.sendMessage(message("offscreen/stop-media", { sessionId: session.id }, session.id)).catch(() => undefined);
+    const failure = issue("SESSION_START_FAILED", sanitizeText(String(error), options.privacyMode), "media", false);
+    const failed = await applySessionEvent(session.id, { type: "failed", issue: failure });
     await db.clearActive(session.id);
-    await detachDebugger(payload.tabId);
+    await cdpCollector.detach(payload.tabId);
+    await removeContentScript(payload.tabId);
+    await chrome.action.setBadgeText({ tabId: payload.tabId, text: "" }).catch(() => undefined);
     return failed;
   }
 }
 
-async function stopSession(): Promise<RecordingSession | undefined> {
-  const session = await db.getActiveSession();
+function startSession(payload: Extract<RuntimeMessage, { type: "session/start" }>["payload"]): Promise<RecordingSession> {
+  return recordingCoordinator.runLifecycle(() => startSessionImpl(payload));
+}
+
+async function continueInterruptedSession(sessionId: string, commandId: string): Promise<RecordingSession> {
+  const previous = await db.getSession(sessionId);
+  if (!previous) throw new Error(`未找到中断会话 (SESSION_NOT_FOUND:${sessionId})`);
+  if (!previous.quality.issues.some((entry) => entry.code.startsWith("SESSION_") || entry.code === "MEDIA_CONTEXT_LOST")) {
+    throw new Error("该会话未处于可继续状态");
+  }
+  const tab = (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
+  if (!tab?.id) throw new Error("无法读取当前标签页，无法继续录制");
+  return startSession({ tabId: tab.id, options: previous.options, commandId, resumedFromSessionId: previous.id });
+}
+
+async function performStopSession(session: RecordingSession, commandId?: string): Promise<RecordingSession | undefined> {
+  if (["PREVIEW_READY", "EXPORTED", "FAILED"].includes(session.status)) return session;
+  const stopping = await applySessionEvent(session.id, { type: "stop-requested", atEpochMs: Date.now(), commandId });
+  if (commandId && stopping.commandIds?.stop && stopping.commandIds.stop !== commandId) return stopping;
+  recordingCoordinator.beginStopping(session.id);
+  const cleanupErrors: string[] = [];
+  try {
+    await cdpCollector.detach(session.target.tabId);
+    await removeContentScript(session.target.tabId);
+
+    const mediaResponse = await chrome.runtime.sendMessage(message("offscreen/stop-media", { sessionId: session.id }, session.id)).catch((error) => ({ ok: false, error: String(error) }));
+    if (mediaResponse?.ok === false) cleanupErrors.push(`媒体停止失败：${mediaResponse.error ?? "未知错误"}`);
+
+    for (let round = 0; round < 3; round += 1) {
+      const interactionResults = await Promise.allSettled([...pendingInteractionHandlers]);
+      for (const result of interactionResults) if (result.status === "rejected") cleanupErrors.push(`交互写入未完成：${String(result.reason)}`);
+      if (!pendingInteractionHandlers.size) break;
+    }
+
+    cleanupErrors.push(...await cdpCollector.drain());
+    await cdpCollector.finalizeNetworkBodies(stopping).catch((error) => cleanupErrors.push(`Network 正文收尾失败：${String(error)}`));
+    await reconcileSessionQuality(session.id).catch((error) => cleanupErrors.push(`质量摘要重算失败：${String(error)}`));
+  } finally {
+    await cdpCollector.detach(session.target.tabId);
+    await removeContentScript(session.target.tabId);
+    await chrome.action.setBadgeText({ tabId: session.target.tabId, text: "" }).catch(() => undefined);
+    await chrome.action.setIcon({ tabId: session.target.tabId, path: "icons/icon_idle.png" }).catch(() => undefined);
+  }
+
+  const cleanupIssue = cleanupErrors.length
+    ? issue("SESSION_STOP_PARTIAL", sanitizeText(cleanupErrors.join("；"), session.options.privacyMode), "storage")
+    : undefined;
+  try {
+    const next = await db.updateSession(session.id, (current) => ({
+      ...reduceSession(current, { type: "stop-completed", issue: cleanupIssue }),
+      previewPending: true
+    }));
+    if (!next) throw new Error(`未找到会话 (SESSION_NOT_FOUND:${session.id})`);
+    return await openPendingPreview(next);
+  } finally {
+    recordingCoordinator.finishStopping(session.id);
+  }
+}
+
+async function stopSessionImpl(commandId?: string): Promise<RecordingSession | undefined> {
+  let session: RecordingSession | undefined;
+  if (commandId) {
+    const previousCommand = await db.getCommand(commandId);
+    if (previousCommand) {
+      if (previousCommand.kind !== "stop") throw new Error(`指令类型冲突 (COMMAND_KIND_CONFLICT:${commandId})`);
+      session = await db.getSession(previousCommand.sessionId);
+      if (!session) throw new Error(`指令对应会话不存在 (COMMAND_SESSION_MISSING:${commandId})`);
+    }
+  }
+  if (!session) session = await db.getActiveSession();
   if (!session) return undefined;
-  if (["STOPPING", "PREVIEW_READY", "EXPORTED"].includes(session.status)) return session;
-  const stopping = await updateSession(session, { status: "STOPPING", timeline: { ...session.timeline, stoppedAtEpochMs: Date.now() } });
-  await chrome.runtime.sendMessage(message("offscreen/stop-media", { sessionId: session.id }, session.id)).catch(() => undefined);
-  await finalizeNetworkBodies(stopping);
-  await detachDebugger(session.target.tabId);
-  await removeContentScript();
-  await chrome.action.setBadgeText({ tabId: session.target.tabId, text: "" });
-  await chrome.action.setIcon({
-    tabId: session.target.tabId,
-    path: "icons/icon_idle.png"
-  }).catch(() => undefined);
-  const stoppedAt = stopping.timeline.stoppedAtEpochMs ?? Date.now();
-  const next = await updateSession(stopping, { status: "PREVIEW_READY", timeline: { ...stopping.timeline, durationMs: (stoppedAt - (stopping.timeline.startedAtEpochMs ?? stopping.timeline.createdAtEpochMs)) } });
-  await db.clearActive(session.id);
-  await chrome.tabs.create({ url: chrome.runtime.getURL(`preview.html?sessionId=${encodeURIComponent(session.id)}`) });
-  return next;
+  if (commandId && !(await db.getCommand(commandId))) {
+    const claimed = await db.claimCommand({ commandId, kind: "stop", sessionId: session.id, createdAtEpochMs: Date.now() });
+    if (!claimed.claimed) {
+      if (claimed.command.kind !== "stop") throw new Error(`指令类型冲突 (COMMAND_KIND_CONFLICT:${commandId})`);
+      session = await db.getSession(claimed.command.sessionId) ?? session;
+    }
+  }
+  return recordingCoordinator.runStop(session.id, () => performStopSession(session!, commandId));
+}
+
+function stopSession(commandId?: string): Promise<RecordingSession | undefined> {
+  return recordingCoordinator.runLifecycle(() => stopSessionImpl(commandId));
 }
 
 async function handleInteraction(interaction: InteractionRecord, sender: chrome.runtime.MessageSender): Promise<void> {
   const session = await db.getActiveSession();
-  if (!session || session.target.tabId !== sender.tab?.id || session.nonce !== interaction.sessionId) return;
-  const existing = await db.getInteractions(session.id);
-  const previous = existing.find((item) => item.id === interaction.id);
-  const candidate = { ...interaction, sessionId: session.id, screenshot: interaction.status === "confirmed" && previous ? previous.screenshot : interaction.screenshot };
-  await db.saveInteraction(candidate);
-  if (!previous) session.quality.interactionCount += 1;
-  if (candidate.status === "confirmed" && previous?.status !== "confirmed") session.quality.confirmedInteractionCount += 1;
-  await db.saveSession(session);
-  if (candidate.status === "candidate") {
+  if (!session || recordingCoordinator.isStopping(session.id) || !["PREPARING", "RECORDING", "DEGRADED"].includes(session.status) || session.target.tabId !== sender.tab?.id || session.nonce !== interaction.sessionId) return;
+  const incoming = sanitizeInteractionRecord({
+    ...interaction,
+    sessionId: session.id,
+    screenshot: session.options.captureScreenshots ? interaction.screenshot : { status: "disabled" }
+  }, session.options.privacyMode);
+  const event: InteractionEvent = incoming.status === "confirmed"
+    ? { type: "confirmed", interaction: incoming }
+    : { type: "candidate", interaction: incoming };
+  const { previous, next, budgetRejected } = await persistInteractionEvent(session.id, incoming.id, event);
+  if (budgetRejected) {
+    await applySessionEvent(session.id, { type: "capture-issue", issue: issue("SESSION_STORAGE_LIMIT_REACHED", "已达到会话存储上限，未保存更多交互证据。", "storage") });
+    return;
+  }
+  if (!next) return;
+  const interactionDelta = {
+    interactionCount: previous ? 0 : 1,
+    confirmedInteractionCount: next.status === "confirmed" && previous?.status !== "confirmed" ? 1 : 0
+  };
+  if (interactionDelta.interactionCount || interactionDelta.confirmedInteractionCount) {
+    await applySessionEvent(session.id, { type: "quality-delta", delta: interactionDelta });
+  }
+  if (session.options.captureScreenshots && (event.type === "candidate" || event.type === "confirmed") && !previous) {
     try {
       const capture = chrome.tabs.captureVisibleTab as unknown as (windowId: number, options: { format: "png" }) => Promise<string>;
       if ((sender.frameId ?? 0) !== 0) throw new Error("FRAME_GEOMETRY_UNAVAILABLE: iframe 坐标暂无法可靠映射到顶层视口");
+      await assertTargetTabIsActive(session);
       const dataUrl = await capture(session.target.windowId ?? chrome.windows.WINDOW_ID_CURRENT, { format: "png" });
-      const annotated = await chrome.runtime.sendMessage(message("offscreen/annotate-image", { dataUrl, clientX: candidate.coordinates.clientX, clientY: candidate.coordinates.clientY, viewportWidth: candidate.coordinates.viewport.width, viewportHeight: candidate.coordinates.viewport.height }, session.id));
+      await assertTargetTabIsActive(session);
+      const annotated = await chrome.runtime.sendMessage(message("offscreen/annotate-image", { dataUrl, clientX: next.coordinates.clientX, clientY: next.coordinates.clientY, viewportWidth: next.coordinates.viewport.width, viewportHeight: next.coordinates.viewport.height }, session.id));
       if (!annotated?.ok || typeof annotated.dataUrl !== "string") throw new Error(annotated?.error || "截图标记失败");
-      const confirmed = { ...candidate, screenshot: { status: "captured" as const, source: "primary" as const, dataUrl: annotated.dataUrl } };
-      await db.saveInteraction(confirmed);
-      session.quality.primaryScreenshotCount += 1;
-      await db.saveSession(session);
+      const screenshotResult = await persistInteractionEvent(session.id, next.id, { type: "screenshot-captured", source: "primary", dataUrl: annotated.dataUrl });
+      if (screenshotResult.budgetRejected) {
+        await applySessionEvent(session.id, { type: "capture-issue", issue: issue("SESSION_STORAGE_LIMIT_REACHED", "已达到会话存储上限，未保存更多点击截图。", "storage") });
+        return;
+      }
+      if (screenshotResult.previous?.status !== "cancelled" && screenshotResult.previous?.screenshot.status !== "captured") {
+        await applySessionEvent(session.id, { type: "quality-delta", delta: { primaryScreenshotCount: 1 } });
+      }
     } catch (error) {
-      const unavailable = { ...candidate, screenshot: { status: "unavailable" as const, issue: String(error) } };
-      await db.saveInteraction(unavailable);
-      session.quality.unavailableScreenshotCount += 1;
-      session.quality.issues.push(issue("VISIBLE_TAB_NOT_ACTIVE", String(error), "screenshot"));
-      session.quality.overall = "partial";
-      await db.saveSession(session);
+      const safeError = sanitizeText(String(error), session.options.privacyMode);
+      const screenshotResult = await persistInteractionEvent(session.id, next.id, { type: "screenshot-unavailable", issue: safeError });
+      if (screenshotResult.budgetRejected) return;
+      if (screenshotResult.previous?.status !== "cancelled" && screenshotResult.previous?.screenshot.status !== "unavailable") {
+        await applySessionEvent(session.id, { type: "quality-delta", delta: { unavailableScreenshotCount: 1 } });
+        await applySessionEvent(session.id, { type: "capture-issue", issue: issue("VISIBLE_TAB_NOT_ACTIVE", safeError, "screenshot") });
+      }
     }
   }
 }
 
+async function handleInteractionCancelled(interactionId: string, interaction: InteractionRecord | undefined, nonce: string | undefined, sender: chrome.runtime.MessageSender): Promise<void> {
+  const session = await db.getActiveSession();
+  if (!session || recordingCoordinator.isStopping(session.id) || !["PREPARING", "RECORDING", "DEGRADED"].includes(session.status) || session.target.tabId !== sender.tab?.id || session.nonce !== nonce) return;
+  const cancelled = interaction
+    ? sanitizeInteractionRecord({ ...interaction, sessionId: session.id, status: "cancelled" }, session.options.privacyMode)
+    : undefined;
+  const { previous, next } = await persistInteractionEvent(session.id, interactionId, { type: "cancelled", interaction: cancelled });
+  if (!previous || next?.status !== "cancelled" || previous.status === "cancelled") return;
+  const delta: Parameters<typeof applySessionEvent>[1] & { type: "quality-delta" } = {
+    type: "quality-delta",
+    delta: { interactionCount: -1 }
+  };
+  if (previous.screenshot.status === "captured") {
+    if (previous.screenshot.source === "primary") delta.delta.primaryScreenshotCount = -1;
+    else delta.delta.fallbackScreenshotCount = -1;
+  } else if (previous.screenshot.status === "unavailable") {
+    delta.delta.unavailableScreenshotCount = -1;
+  }
+  await applySessionEvent(session.id, delta);
+}
+
+async function openPendingPreview(session: RecordingSession): Promise<RecordingSession> {
+  if (!session.previewPending) return session;
+  const previewUrl = chrome.runtime.getURL(`preview.html?sessionId=${encodeURIComponent(session.id)}`);
+  const existing = await chrome.tabs.query({}).then(
+    (tabs) => tabs.some((tab) => tab.url === previewUrl),
+    () => false
+  );
+  const opened = existing || await chrome.tabs.create({ url: previewUrl }).then(() => true).catch(() => false);
+  if (!opened) return session;
+  return await db.updateSessionAndClearActive(session.id, (current) => ({ ...current, previewPending: false }))
+    ?? { ...session, previewPending: false };
+}
+
+async function recoverInterruptedSession(session: RecordingSession, code: string, messageText: string): Promise<void> {
+  await reconcileSessionQuality(session.id).catch(() => undefined);
+  const recovered = await db.updateSession(session.id, (current) => ({
+    ...reduceSession(current, {
+      type: "recover",
+      atEpochMs: Date.now(),
+      issue: issue(code, messageText, "storage")
+    }),
+    previewPending: true
+  }));
+  if (!recovered) return;
+  await cdpCollector.detach(session.target.tabId);
+  await removeContentScript(session.target.tabId);
+  await chrome.action.setBadgeText({ tabId: session.target.tabId, text: "" }).catch(() => undefined);
+  await chrome.action.setIcon({ tabId: session.target.tabId, path: "icons/icon_idle.png" }).catch(() => undefined);
+  await openPendingPreview(recovered);
+}
+
+async function bootstrapRuntimeState(): Promise<void> {
+  await db.cleanupExpiredSessions().catch(() => undefined);
+  const browserEpoch = await browserEpochPromise;
+  const session = await db.getActiveSession();
+  if (!session) return;
+
+  if (!["PREPARING", "RECORDING", "DEGRADED", "STOPPING"].includes(session.status)) {
+    if (session.previewPending) await openPendingPreview(session);
+    else await db.clearActive(session.id);
+    return;
+  }
+
+  if (!session.browserEpoch || session.browserEpoch !== browserEpoch) {
+    await recoverInterruptedSession(session, "SESSION_INTERRUPTED_BY_BROWSER_RESTART", "浏览器重启中断了录制，已保留现有证据。");
+    return;
+  }
+
+  if (session.status === "STOPPING") {
+    await stopSession(session.commandIds?.stop);
+    return;
+  }
+
+  if (session.status === "PREPARING") {
+    await recoverInterruptedSession(session, "SESSION_START_INTERRUPTED", "录制启动过程被中断，已保留启动前证据。");
+    return;
+  }
+
+  const targetExists = await chrome.tabs.get(session.target.tabId).then(() => true).catch(() => false);
+  if (!targetExists) {
+    await stopSession(`system:missing-tab:${session.id}`);
+    return;
+  }
+
+  const registrations = await chrome.scripting.getRegisteredContentScripts({ ids: ["web-bug-recorder-content"] }).catch(() => []);
+  registeredContentScript = registrations.length > 0;
+  if (!registeredContentScript) await injectContent(session.target.tabId);
+
+  const mediaWasExpected = session.options.captureVideo && !session.quality.issues.some((entry) => entry.code === "MEDIA_STREAM_ID_FAILED" || entry.code === "MEDIA_RECORDER_FAILED");
+  if (mediaWasExpected) {
+    const contexts = await (chrome.runtime.getContexts as unknown as (filter: unknown) => Promise<chrome.runtime.ExtensionContext[]>)({ contextTypes: ["OFFSCREEN_DOCUMENT"] }).catch(() => []);
+    const mediaStatus = contexts.length
+      ? await chrome.runtime.sendMessage(message("offscreen/status", { sessionId: session.id }, session.id)).catch(() => undefined)
+      : undefined;
+    if (!mediaStatus?.active) {
+      await applySessionEvent(session.id, { type: "capture-issue", issue: issue("MEDIA_CONTEXT_LOST", "后台恢复后未找到活动的媒体录制上下文。", "media", false) });
+    }
+  }
+
+  if (session.options.captureConsole || session.options.captureNetwork) {
+    const targets = await chrome.debugger.getTargets().catch(() => []);
+    if (targets.some((target) => target.tabId === session.target.tabId && target.attached)) {
+      cdpCollector.markAttached(session.target.tabId);
+    } else {
+      const debuggerIssue = await cdpCollector.attach(session.target.tabId, session);
+      if (debuggerIssue) await applySessionEvent(session.id, { type: "capture-issue", issue: debuggerIssue });
+    }
+  }
+
+  await chrome.action.setBadgeText({ tabId: session.target.tabId, text: "REC" }).catch(() => undefined);
+  await chrome.action.setBadgeBackgroundColor({ tabId: session.target.tabId, color: "#d92d20" }).catch(() => undefined);
+  await chrome.action.setIcon({ tabId: session.target.tabId, path: "icons/icon_recording.png" }).catch(() => undefined);
+}
+
+const bootstrapPromise = bootstrapRuntimeState().catch(() => undefined);
+
 chrome.runtime.onMessage.addListener((raw: unknown, sender, sendResponse) => {
   if (!isEnvelope(raw)) return;
   const incoming = raw as RuntimeMessage;
-  if (incoming.type === "offscreen/start-media" || incoming.type === "offscreen/stop-media" || incoming.type === "offscreen/annotate-image") return;
+  if (incoming.type === "offscreen/start-media" || incoming.type === "offscreen/stop-media" || incoming.type === "offscreen/status" || incoming.type === "offscreen/annotate-image") return;
   void (async () => {
     try {
+      if (incoming.type === "offscreen/media-state") {
+        const session = await db.getSession(incoming.payload.sessionId);
+        if (session && incoming.payload.state === "error" && sender.url === chrome.runtime.getURL("offscreen.html")) {
+          await applySessionEvent(session.id, { type: "capture-issue", issue: issue("MEDIA_RECORDER_FAILED", sanitizeText(incoming.payload.error ?? "媒体录制失败", session.options.privacyMode), "media", false) });
+        }
+        sendResponse({ ok: true });
+        return;
+      }
+      await bootstrapPromise;
       switch (incoming.type) {
         case "session/start": sendResponse({ ok: true, session: await startSession(incoming.payload) }); return;
-        case "session/stop": sendResponse({ ok: true, session: await stopSession() }); return;
+        case "session/stop": sendResponse({ ok: true, session: await stopSession(incoming.payload.commandId) }); return;
         case "session/status": sendResponse({ ok: true, session: await db.getActiveSession() }); return;
+        case "session/list": sendResponse({ ok: true, sessions: await db.listSessionOverviews(incoming.payload.query) }); return;
+        case "session/delete": {
+          const active = await db.getActiveSession();
+          if (active?.id === incoming.payload.sessionId) throw new Error("不能删除正在录制的会话");
+          sendResponse({ ok: true, deleted: await db.deleteSession(incoming.payload.sessionId) });
+          return;
+        }
+        case "session/resume": sendResponse({ ok: true, session: await continueInterruptedSession(incoming.payload.sessionId, incoming.payload.commandId) }); return;
+        case "storage/get": sendResponse({ ok: true, storage: await db.getStorageOverview() }); return;
+        case "storage/update": sendResponse({ ok: true, policy: await db.saveStoragePolicy(incoming.payload.policy) }); return;
+        case "storage/cleanup": sendResponse({ ok: true, deletedSessionIds: await db.cleanupExpiredSessions() }); return;
         case "session/open-preview": await chrome.tabs.create({ url: chrome.runtime.getURL(`preview.html?sessionId=${incoming.payload.sessionId}`) }); sendResponse({ ok: true }); return;
         case "content/hello": {
           const session = await db.getActiveSession();
-          const allowed = Boolean(session && session.target.tabId === sender.tab?.id);
-          sendResponse({ ok: true, active: allowed, sessionId: allowed ? session?.id : undefined, nonce: allowed ? session?.nonce : undefined, startedAtEpochMs: allowed ? session?.timeline.startedAtEpochMs : undefined });
+          const allowed = Boolean(session && ["PREPARING", "RECORDING", "DEGRADED"].includes(session.status) && session.target.tabId === sender.tab?.id);
+          sendResponse({ ok: true, active: allowed, sessionId: allowed ? session?.id : undefined, nonce: allowed ? session?.nonce : undefined, startedAtEpochMs: allowed ? session?.timeline.startedAtEpochMs : undefined, privacyMode: allowed ? session?.options.privacyMode : undefined });
           return;
         }
         case "interaction/candidate":
-        case "interaction/confirmed": await handleInteraction(incoming.payload.interaction, sender); sendResponse({ ok: true }); return;
-        case "interaction/cancelled": sendResponse({ ok: true }); return;
-        case "offscreen/media-chunk": await db.saveMediaChunk({ id: `${incoming.payload.sessionId}:${incoming.payload.sequence}`, ...incoming.payload }); sendResponse({ ok: true }); return;
-        case "offscreen/media-state": {
-          const session = await db.getSession(incoming.payload.sessionId);
-          if (session && incoming.payload.state === "error") await updateSession(session, { status: "DEGRADED", quality: { ...session.quality, overall: "partial", issues: [...session.quality.issues, issue("MEDIA_RECORDER_FAILED", incoming.payload.error ?? "媒体录制失败", "media", false)] } });
-          sendResponse({ ok: true }); return;
+        case "interaction/confirmed": await trackInteractionHandler(handleInteraction(incoming.payload.interaction, sender)); sendResponse({ ok: true }); return;
+        case "interaction/cancelled": await trackInteractionHandler(handleInteractionCancelled(incoming.payload.interactionId, incoming.payload.interaction, incoming.sessionId, sender)); sendResponse({ ok: true }); return;
+        case "offscreen/media-chunk": {
+          const result = await db.saveMediaChunkWithinBudget({ id: `${incoming.payload.sessionId}:${incoming.payload.sequence}`, ...incoming.payload });
+          sendResponse({ ok: result.stored, error: result.stored ? undefined : "SESSION_STORAGE_LIMIT_REACHED" });
+          return;
         }
         default: sendResponse({ ok: false, error: "UNSUPPORTED_MESSAGE" });
       }
@@ -320,71 +528,17 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender, sendResponse) => {
 });
 
 chrome.debugger.onEvent.addListener((source, method, params) => {
-  const tabId = source.tabId;
-  if (typeof tabId !== "number") return;
-  void (async () => {
-    const session = await db.getActiveSession();
-    if (!session || session.target.tabId !== tabId) return;
-    if (method === "Runtime.consoleAPICalled") {
-      const p = params as { type?: string; args?: Array<{ value?: unknown; description?: string }>; timestamp?: number };
-      await db.saveConsole({ id: crypto.randomUUID(), sessionId: session.id, createdAt: p.timestamp ?? Date.now(), level: p.type ?? "log", text: (p.args ?? []).map((arg) => typeof arg.value === "string" ? arg.value : arg.description ?? String(arg.value ?? "")).join(" ") });
-      session.quality.consoleEntryCount += 1;
-      await db.saveSession(session);
-    } else if (method === "Runtime.exceptionThrown") {
-      const p = params as { timestamp?: number; exceptionDetails?: { text?: string; url?: string; exception?: { description?: string }; lineNumber?: number; columnNumber?: number } };
-      const details = p.exceptionDetails;
-      await db.saveConsole({ id: crypto.randomUUID(), sessionId: session.id, createdAt: p.timestamp ?? Date.now(), level: "error", text: details?.exception?.description ?? details?.text ?? "未捕获异常", source: details?.url });
-      session.quality.consoleEntryCount += 1;
-      await db.saveSession(session);
-    } else if (method === "Log.entryAdded") {
-      const p = params as { entry?: { timestamp?: number; level?: string; text?: string; url?: string } };
-      if (!p.entry) return;
-      await db.saveConsole({ id: crypto.randomUUID(), sessionId: session.id, createdAt: p.entry.timestamp ?? Date.now(), level: p.entry.level ?? "info", text: p.entry.text ?? "", source: p.entry.url });
-      session.quality.consoleEntryCount += 1;
-      await db.saveSession(session);
-    } else if (method === "Network.requestWillBeSent") {
-      const p = params as { request?: { url?: string; method?: string }; type?: string; timestamp?: number; requestId?: string };
-      if (!p.request?.url) return;
-      const requestId = p.requestId ?? crypto.randomUUID();
-      await enqueueNetworkTask(`${tabId}:${requestId}`, async () => {
-        await db.saveNetwork({ id: `${session.id}:${requestId}`, sessionId: session.id, createdAt: (p.timestamp ?? 0) * 1000 || Date.now(), url: p.request!.url!, method: p.request!.method ?? "GET", type: p.type });
-        session.quality.networkEntryCount += 1;
-        await db.saveSession(session);
-      });
-    } else if (method === "Network.responseReceived") {
-      const p = params as { requestId?: string; response?: { status?: number; url?: string; mimeType?: string; headers?: Record<string, unknown> } };
-      if (!p.requestId) return;
-      const id = `${session.id}:${p.requestId ?? ""}`;
-      await enqueueNetworkTask(`${tabId}:${p.requestId}`, async () => {
-        const current = (await db.getNetwork(session.id)).find((entry) => entry.id === id);
-        if (current) await db.saveNetwork({ ...current, status: p.response?.status, response: { mimeType: p.response?.mimeType, headers: normalizeHeaders(p.response?.headers, session.options.privacyMode), bodyStatus: "pending" } });
-      });
-    } else if (method === "Network.loadingFinished") {
-      const p = params as { requestId?: string };
-      if (p.requestId) trackBodyCapture(enqueueNetworkTask(`${tabId}:${p.requestId}`, () => captureResponseBody(source, session, p.requestId!)));
-    } else if (method === "Network.loadingFailed") {
-      const p = params as { requestId?: string; errorText?: string };
-      if (!p.requestId) return;
-      const id = `${session.id}:${p.requestId ?? ""}`;
-      await enqueueNetworkTask(`${tabId}:${p.requestId}`, async () => {
-        const current = (await db.getNetwork(session.id)).find((entry) => entry.id === id);
-        if (current) await db.saveNetwork({ ...current, error: p.errorText ?? "请求失败", response: { ...current.response, bodyStatus: "unavailable", error: p.errorText ?? "请求失败" } });
-      });
-    }
-  })();
+  cdpCollector.handleEvent(source, method, params);
 });
 
 chrome.debugger.onDetach.addListener((source, reason) => {
-  if (typeof source.tabId !== "number" || reason === "target_closed") return;
-  void (async () => {
-    const session = await db.getActiveSession();
-    if (!session || session.target.tabId !== source.tabId) return;
-    await updateSession(session, { status: session.status === "RECORDING" ? "DEGRADED" : session.status, quality: { ...session.quality, overall: "partial", issues: [...session.quality.issues, issue("DEBUGGER_DETACHED_BY_DEVTOOLS", reason, "debugger")] } });
-  })();
+  void bootstrapPromise.then(() => cdpCollector.handleDetach(source, reason));
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {
-  void (async () => { const session = await db.getActiveSession(); if (session?.target.tabId === tabId) await stopSession(); })();
+  void (async () => { await bootstrapPromise; const session = await db.getActiveSession(); if (session?.target.tabId === tabId) await stopSession(`system:tab-removed:${session.id}`); })();
 });
 
-chrome.runtime.onStartup.addListener(() => { void db.getActiveSession(); });
+chrome.runtime.onStartup.addListener(() => { void bootstrapPromise; });
+chrome.alarms.create("bug-lens-storage-cleanup", { periodInMinutes: 24 * 60 });
+chrome.alarms.onAlarm.addListener((alarm) => { if (alarm.name === "bug-lens-storage-cleanup") void db.cleanupExpiredSessions(); });

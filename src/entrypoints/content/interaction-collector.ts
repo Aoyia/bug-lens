@@ -1,9 +1,26 @@
 import { message, type ElementDescriptor, type InteractionRecord } from "../../shared/protocol";
 
-declare global { interface Window { __WEB_BUG_RECORDER_INSTALLED__?: boolean; __WEB_BUG_RECORDER_SESSION__?: { sessionId: string; nonce: string }; } }
-if (!window.__WEB_BUG_RECORDER_INSTALLED__) {
+type ContentSession = { sessionId: string; nonce: string; startedAtEpochMs?: number; privacyMode: "safe" | "raw" };
+type ContentController = { refresh: (next: ContentSession | undefined) => void };
+
+declare global {
+  interface Window {
+    __WEB_BUG_RECORDER_INSTALLED__?: boolean;
+    __WEB_BUG_RECORDER_SESSION__?: ContentSession;
+    __WEB_BUG_RECORDER_CONTROLLER__?: ContentController;
+  }
+}
+
+const existingController = window.__WEB_BUG_RECORDER_CONTROLLER__;
+if (existingController) {
+  void chrome.runtime.sendMessage(message("content/hello", { url: location.href, title: document.title })).then((response) => {
+    existingController.refresh(response?.active && response.sessionId && response.nonce
+      ? { sessionId: response.sessionId, nonce: response.nonce, startedAtEpochMs: response.startedAtEpochMs, privacyMode: response.privacyMode === "raw" ? "raw" : "safe" }
+      : undefined);
+  }).catch(() => undefined);
+} else {
   window.__WEB_BUG_RECORDER_INSTALLED__ = true;
-  let session: { sessionId: string; nonce: string; startedAtEpochMs?: number } | undefined;
+  let session: ContentSession | undefined;
   const pending = new Map<string, InteractionRecord>();
   let widgetContainer: HTMLDivElement | undefined;
   let timerInterval: number | undefined;
@@ -23,7 +40,10 @@ if (!window.__WEB_BUG_RECORDER_INSTALLED__) {
       alignItems: "center",
       gap: "10px",
       padding: "8px 14px",
-      background: "#1d2129",
+      background: "rgba(29, 33, 41, 0.75)",
+      backdropFilter: "blur(12px)",
+      webkitBackdropFilter: "blur(12px)",
+      border: "1px solid rgba(255, 255, 255, 0.15)",
       color: "#ffffff",
       borderRadius: "6px",
       boxShadow: "0 4px 18px rgba(0, 0, 0, 0.28)",
@@ -100,12 +120,21 @@ if (!window.__WEB_BUG_RECORDER_INSTALLED__) {
     if (widgetContainer) { widgetContainer.remove(); widgetContainer = undefined; }
   }
 
+  function refreshSession(next: ContentSession | undefined): void {
+    pending.clear();
+    session = next;
+    window.__WEB_BUG_RECORDER_SESSION__ = next;
+    if (next) renderRecordingWidget();
+    else removeRecordingWidget();
+  }
+
   function isWidgetElement(el: Element | null): boolean {
     return Boolean(el && el.closest("#__wbr_recording_widget__"));
   }
 
   function textOf(element: Element): string | undefined {
     if (element instanceof HTMLInputElement && element.type.toLowerCase() === "password") return undefined;
+    if (session?.privacyMode === "safe" && (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement)) return undefined;
     const labelled = element.getAttribute("aria-label") || element.getAttribute("alt") || element.getAttribute("title");
     const text = labelled || (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement ? element.value : element.textContent);
     return text?.replace(/\s+/g, " ").trim().slice(0, 256) || undefined;
@@ -162,7 +191,7 @@ if (!window.__WEB_BUG_RECORDER_INSTALLED__) {
     const record = createRecord(event, element, "candidate");
     pending.set(record.id, record);
     send(record, "interaction/candidate");
-    window.setTimeout(() => { if (pending.get(record.id)?.status === "candidate") { pending.delete(record.id); void chrome.runtime.sendMessage(message("interaction/cancelled", { interactionId: record.id }, record.sessionId)); } }, 750);
+    window.setTimeout(() => { if (pending.get(record.id)?.status === "candidate") { pending.delete(record.id); void chrome.runtime.sendMessage(message("interaction/cancelled", { interactionId: record.id, interaction: record }, record.sessionId)); } }, 750);
   }, { capture: true, passive: true });
 
   document.addEventListener("click", (event) => {
@@ -175,14 +204,13 @@ if (!window.__WEB_BUG_RECORDER_INSTALLED__) {
     send(record, "interaction/confirmed");
   }, { capture: true, passive: true });
 
+  window.__WEB_BUG_RECORDER_CONTROLLER__ = { refresh: refreshSession };
+  chrome.runtime.onMessage.addListener((raw: unknown) => {
+    if (raw && typeof raw === "object" && (raw as { type?: unknown }).type === "content/reset") refreshSession(undefined);
+  });
   chrome.runtime.sendMessage(message("content/hello", { url: location.href, title: document.title })).then((response) => {
-    if (response?.active && response.sessionId && response.nonce) {
-      session = { sessionId: response.sessionId, nonce: response.nonce, startedAtEpochMs: response.startedAtEpochMs };
-      window.__WEB_BUG_RECORDER_SESSION__ = session;
-      renderRecordingWidget();
-    } else {
-      removeRecordingWidget();
-    }
+    refreshSession(response?.active && response.sessionId && response.nonce
+      ? { sessionId: response.sessionId, nonce: response.nonce, startedAtEpochMs: response.startedAtEpochMs, privacyMode: response.privacyMode === "raw" ? "raw" : "safe" }
+      : undefined);
   }).catch(() => undefined);
 }
-

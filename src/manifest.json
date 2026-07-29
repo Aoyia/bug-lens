@@ -13,7 +13,7 @@
     "128": "icons/icon_idle.png"
   },
   "background": { "service_worker": "background.js" },
-  "permissions": ["activeTab", "debugger", "downloads", "offscreen", "scripting", "storage", "tabCapture", "unlimitedStorage", "webNavigation"],
+  "permissions": ["activeTab", "alarms", "debugger", "downloads", "offscreen", "scripting", "storage", "tabCapture", "unlimitedStorage", "webNavigation"],
   "optional_host_permissions": ["http://*/*", "https://*/*"],
   "content_scripts": [],
   "host_permissions": [],
