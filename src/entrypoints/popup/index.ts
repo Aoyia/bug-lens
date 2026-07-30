@@ -175,7 +175,12 @@ $("#start").addEventListener("click", async () => {
   setError();
   try {
     const hasPermission = await chrome.permissions.contains({ origins: ["http://*/*", "https://*/*"] }).catch(() => false);
-    if (!hasPermission && !(await chrome.permissions.request({ origins: ["http://*/*", "https://*/*"] }).catch(() => false))) setError("未授予全站访问权限：页面交互采集可能受限。");
+    if (!hasPermission) {
+      await chrome.storage.local.set({ pendingRecordingRequest: { tabId: activeTab.id, options } });
+      await chrome.tabs.create({ url: chrome.runtime.getURL("permission.html") });
+      window.close();
+      return;
+    }
     const response = await chrome.runtime.sendMessage(message("session/start", { tabId: activeTab.id, options, commandId: crypto.randomUUID() }));
     if (!response?.ok) throw new Error(response?.error || "开始录制失败");
     setState(response.session);

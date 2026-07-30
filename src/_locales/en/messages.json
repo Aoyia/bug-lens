@@ -125,5 +125,32 @@
   },
   "shortcut": {
     "message": "Shortcut"
+  },
+  "guideStep1Title": {
+    "message": "Capture & Annotate Issue"
+  },
+  "guideStep1Desc": {
+    "message": "Click here or press shortcut to select elements for annotated screenshots."
+  },
+  "guideStep2Title": {
+    "message": "Automatic Evidence Collection"
+  },
+  "guideStep2Desc": {
+    "message": "Automatically collects Network, Console logs, and step records. Pauses after 60s of inactivity."
+  },
+  "guideStep3Title": {
+    "message": "100% Local & Safe Privacy"
+  },
+  "guideStep3Desc": {
+    "message": "All videos, screenshots, network and console logs remain safely on your browser. Zero server uploads."
+  },
+  "guideNext": {
+    "message": "Next"
+  },
+  "guideGotIt": {
+    "message": "Got it"
+  },
+  "guideSkip": {
+    "message": "Skip"
   }
 }

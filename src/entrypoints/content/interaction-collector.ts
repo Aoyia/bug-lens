@@ -1,6 +1,7 @@
 import { defaultAnnotation } from "../../domain/issue-scene";
 import { message, type AnnotationModel, type DomAncestorSnapshot, type ElementDescriptor, type InteractionRecord, type TargetDomSnapshot } from "../../shared/protocol";
 import { t } from "../../shared/i18n";
+import { tryShowOnboardingGuide } from "../../guide/onboarding-tour";
 
 type ContentSession = { sessionId: string; nonce: string; startedAtEpochMs?: number; privacyMode: "safe" | "raw" };
 type ContentController = { refresh: (next: ContentSession | undefined) => void };
@@ -181,6 +182,7 @@ if (existingController) {
         };
         updateTimer();
         timerInterval = window.setInterval(updateTimer, 1000);
+        void tryShowOnboardingGuide(root);
       } else {
         window.addEventListener("DOMContentLoaded", attach, { once: true });
       }
@@ -262,7 +264,13 @@ if (existingController) {
     return candidate;
   }
 
+  let issueEditorKeydownListener: ((e: KeyboardEvent) => void) | undefined;
+
   function closeIssueEditor(restoreWidget = true): void {
+    if (issueEditorKeydownListener) {
+      window.removeEventListener("keydown", issueEditorKeydownListener, true);
+      issueEditorKeydownListener = undefined;
+    }
     issueEditor?.remove();
     issueEditor = undefined;
     selectedIssueElement = undefined;
@@ -277,7 +285,7 @@ if (existingController) {
     const boxes = annotation.targetBoxes?.length
       ? annotation.targetBoxes
       : (annotation.targetBox ? [annotation.targetBox] : []);
-    let boxMarkup = boxes.map((box) => `<rect data-issue-handle="true" x="${box.xRatio * 1000}" y="${box.yRatio * 1000}" width="${box.widthRatio * 1000}" height="${box.heightRatio * 1000}" rx="2" ry="2" fill="none" stroke="#ef233c" stroke-width="3" style="cursor:move"></rect>`).join("");
+    let boxMarkup = boxes.map((box) => `<rect data-issue-handle="true" x="${box.xRatio * 1000}" y="${box.yRatio * 1000}" width="${box.widthRatio * 1000}" height="${box.heightRatio * 1000}" rx="2" ry="2" fill="none" stroke="#ef233c" stroke-width="3" vector-effect="non-scaling-stroke" style="cursor:move"></rect>`).join("");
 
     const defs = `<defs>
       <marker id="user-arrow-head" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
@@ -285,18 +293,22 @@ if (existingController) {
       </marker>
     </defs>`;
 
+    const rect = svg.getBoundingClientRect();
+    const scaleX = rect.width > 0 ? 1000 / rect.width : 1;
+    const scaleY = rect.height > 0 ? 1000 / rect.height : 1;
+
     let userMarkup = "";
     if (annotation.userAnnotations?.length) {
       for (const item of annotation.userAnnotations) {
         const color = item.color || "#165dff";
         if (item.type === "rect") {
-          userMarkup += `<rect x="${item.xRatio * 1000}" y="${item.yRatio * 1000}" width="${item.widthRatio * 1000}" height="${item.heightRatio * 1000}" rx="2" ry="2" fill="none" stroke="${color}" stroke-width="3"></rect>`;
+          userMarkup += `<rect x="${item.xRatio * 1000}" y="${item.yRatio * 1000}" width="${item.widthRatio * 1000}" height="${item.heightRatio * 1000}" rx="2" ry="2" fill="none" stroke="${color}" stroke-width="3" vector-effect="non-scaling-stroke"></rect>`;
         } else if (item.type === "arrow") {
-          userMarkup += `<line x1="${item.startXRatio * 1000}" y1="${item.startYRatio * 1000}" x2="${item.endXRatio * 1000}" y2="${item.endYRatio * 1000}" stroke="${color}" stroke-width="3" marker-end="url(#user-arrow-head)"></line>`;
+          userMarkup += `<line x1="${item.startXRatio * 1000}" y1="${item.startYRatio * 1000}" x2="${item.endXRatio * 1000}" y2="${item.endYRatio * 1000}" stroke="${color}" stroke-width="3" vector-effect="non-scaling-stroke" marker-end="url(#user-arrow-head)"></line>`;
         } else if (item.type === "text" && item.text) {
           const textEsc = item.text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-          userMarkup += `<g transform="translate(${item.xRatio * 1000}, ${item.yRatio * 1000})">
-            <text x="0" y="0" fill="${color}" font-size="16" font-weight="700" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" style="filter: drop-shadow(0px 1px 2px rgba(0,0,0,0.6));">${textEsc}</text>
+          userMarkup += `<g transform="translate(${item.xRatio * 1000}, ${item.yRatio * 1000}) scale(${scaleX}, ${scaleY})">
+            <text x="0" y="0" fill="${color}" font-size="16" font-weight="700" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">${textEsc}</text>
           </g>`;
         }
       }
@@ -313,9 +325,9 @@ if (existingController) {
         const ry = Math.min(sy, cy);
         const rw = Math.abs(cx - sx);
         const rh = Math.abs(cy - sy);
-        activeMarkup = `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" rx="2" ry="2" fill="none" stroke="#165dff" stroke-width="3" stroke-dasharray="4,4"></rect>`;
+        activeMarkup = `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" rx="2" ry="2" fill="none" stroke="#165dff" stroke-width="3" stroke-dasharray="4,4" vector-effect="non-scaling-stroke"></rect>`;
       } else if (activeDrawing.type === "arrow") {
-        activeMarkup = `<line x1="${sx}" y1="${sy}" x2="${cx}" y2="${cy}" stroke="#165dff" stroke-width="3" stroke-dasharray="4,4" marker-end="url(#user-arrow-head)"></line>`;
+        activeMarkup = `<line x1="${sx}" y1="${sy}" x2="${cx}" y2="${cy}" stroke="#165dff" stroke-width="3" stroke-dasharray="4,4" vector-effect="non-scaling-stroke" marker-end="url(#user-arrow-head)"></line>`;
       }
     }
 
@@ -372,50 +384,41 @@ if (existingController) {
         cursor: not-allowed;
       }
     </style>
-    <div style="position:absolute;top:18px;left:50%;transform:translateX(-50%);z-index:30;background:rgba(255,255,255,0.96);backdrop-filter:blur(16px);border:1px solid #e5e6eb;border-radius:2px;box-shadow:0 4px 16px rgba(0,0,0,0.12);padding:5px 12px;display:flex;align-items:center;gap:10px">
-      <div style="display:flex;align-items:center;gap:6px">
-        <span style="display:flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:2px;background:#fde3df;color:#b42318">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
-        </span>
-        <span style="font-size:12px;font-weight:600;color:#1d2129">标记问题现场</span>
-      </div>
-      <div style="height:12px;width:1px;background:#e5e6eb"></div>
-      <div style="display:flex;align-items:center;gap:4px">
-        <button data-issue-tool="none" class="__wbr_issue_action __wbr_tool_btn" style="display:inline-flex;align-items:center;gap:3px;background:#165dff;color:#ffffff;border:1px solid #165dff;border-radius:2px;padding:3px 8px;font-size:12px;font-weight:500;cursor:pointer" title="查看模式">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-          浏览
+    <div style="position:absolute;top:18px;left:50%;transform:translateX(-50%);z-index:30;background:rgba(255,255,255,0.96);backdrop-filter:blur(16px);border:1px solid #e5e6eb;border-radius:4px;box-shadow:0 4px 16px rgba(0,0,0,0.12);padding:4px 8px;display:flex;align-items:center;gap:8px">
+      <div style="display:flex;align-items:center;gap:3px">
+        <button data-issue-tool="none" class="__wbr_issue_action __wbr_tool_btn" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:26px;background:#165dff;color:#ffffff;border:1px solid #165dff;border-radius:3px;cursor:pointer;padding:0;flex-shrink:0" title="浏览模式 (查看)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
         </button>
-        <button data-issue-tool="rect" class="__wbr_issue_action __wbr_tool_btn" style="display:inline-flex;align-items:center;gap:3px;background:#ffffff;color:#1d2129;border:1px solid #e5e6eb;border-radius:2px;padding:3px 8px;font-size:12px;font-weight:500;cursor:pointer" title="绘制矩形框">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
-          方框
+        <button data-issue-tool="rect" class="__wbr_issue_action __wbr_tool_btn" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:26px;background:#ffffff;color:#1d2129;border:1px solid #e5e6eb;border-radius:3px;cursor:pointer;padding:0;flex-shrink:0" title="绘制矩形框">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
         </button>
-        <button data-issue-tool="arrow" class="__wbr_issue_action __wbr_tool_btn" style="display:inline-flex;align-items:center;gap:3px;background:#ffffff;color:#1d2129;border:1px solid #e5e6eb;border-radius:2px;padding:3px 8px;font-size:12px;font-weight:500;cursor:pointer" title="绘制箭头">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="19" x2="19" y2="5"/><polyline points="12 5 19 5 19 12"/></svg>
-          箭头
+        <button data-issue-tool="arrow" class="__wbr_issue_action __wbr_tool_btn" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:26px;background:#ffffff;color:#1d2129;border:1px solid #e5e6eb;border-radius:3px;cursor:pointer;padding:0;flex-shrink:0" title="绘制箭头">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="19" x2="19" y2="5"/><polyline points="12 5 19 5 19 12"/></svg>
         </button>
-        <button data-issue-tool="text" class="__wbr_issue_action __wbr_tool_btn" style="display:inline-flex;align-items:center;gap:3px;background:#ffffff;color:#1d2129;border:1px solid #e5e6eb;border-radius:2px;padding:3px 8px;font-size:12px;font-weight:500;cursor:pointer" title="添加文字批注">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 7 4 4 20 4 20 7"/><line x1="12" y1="4" x2="12" y2="20"/><line x1="9" y1="20" x2="15" y2="20"/></svg>
-          文字
-        </button>
-        <button data-issue-tool-undo class="__wbr_issue_action" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:24px;background:#ffffff;color:#1d2129;border:1px solid #e5e6eb;border-radius:2px;cursor:pointer" title="${t("undo")}">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
-        </button>
-        <button data-issue-tool-redo class="__wbr_issue_action" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:24px;background:#ffffff;color:#1d2129;border:1px solid #e5e6eb;border-radius:2px;cursor:pointer" title="${t("redo")}">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"/></svg>
+        <button data-issue-tool="text" class="__wbr_issue_action __wbr_tool_btn" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:26px;background:#ffffff;color:#1d2129;border:1px solid #e5e6eb;border-radius:3px;cursor:pointer;padding:0;flex-shrink:0" title="添加文字批注">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="12" y1="4" x2="12" y2="20"/><line x1="9" y1="20" x2="15" y2="20"/></svg>
         </button>
       </div>
       <div style="height:12px;width:1px;background:#e5e6eb"></div>
-      <div style="display:flex;align-items:center;gap:6px">
-        <button data-issue-reselect class="__wbr_issue_action" style="display:inline-flex;align-items:center;gap:4px;background:#ffffff;color:#1d2129;border:1px solid #e5e6eb;border-radius:2px;padding:3px 8px;font-size:12px;font-weight:500;cursor:pointer">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-          重新选择
+      <div style="display:flex;align-items:center;gap:3px">
+        <button data-issue-tool-undo class="__wbr_issue_action" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:26px;background:#ffffff;color:#1d2129;border:1px solid #e5e6eb;border-radius:3px;cursor:pointer;padding:0;flex-shrink:0" title="${t("undo")}">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/></svg>
         </button>
-        <button data-issue-cancel class="__wbr_issue_action" style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;background:#ffffff;color:#5f6b7c;border:1px solid #e5e6eb;border-radius:2px;cursor:pointer;font-size:12px" title="取消关闭">✕</button>
+        <button data-issue-tool-redo class="__wbr_issue_action" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:26px;background:#ffffff;color:#1d2129;border:1px solid #e5e6eb;border-radius:3px;cursor:pointer;padding:0;flex-shrink:0" title="${t("redo")}">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5v0A5.5 5.5 0 0 0 9.5 20H13"/></svg>
+        </button>
+      </div>
+      <div style="height:12px;width:1px;background:#e5e6eb"></div>
+      <div style="display:flex;align-items:center;gap:3px">
+        <button data-issue-reselect class="__wbr_issue_action" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:26px;background:#ffffff;color:#1d2129;border:1px solid #e5e6eb;border-radius:3px;cursor:pointer;padding:0;flex-shrink:0" title="重新选择元素">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+        </button>
+        <button data-issue-cancel class="__wbr_issue_action" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:26px;background:#ffffff;color:#5f6b7c;border:1px solid #e5e6eb;border-radius:3px;cursor:pointer;padding:0;flex-shrink:0;font-size:13px" title="取消关闭">✕</button>
       </div>
     </div>
-    <div style="width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;padding:70px 24px 100px;box-sizing:border-box;overflow:hidden;position:relative">
+    <div style="width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;padding:52px 12px 24px;box-sizing:border-box;overflow:hidden;position:relative">
       <div data-issue-canvas style="position:relative;display:inline-block;max-width:100%;max-height:100%;border-radius:2px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.15);background:#06080c">
-        <img data-issue-image alt="问题现场原图" style="display:block;max-width:100%;max-height:calc(100vh - 170px);object-fit:contain" draggable="false">
+        <img data-issue-image alt="问题现场原图" style="display:block;max-width:calc(100vw - 24px);max-height:calc(100vh - 80px);object-fit:contain" draggable="false">
         <svg data-issue-svg viewBox="0 0 1000 1000" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;touch-action:none"></svg>
       </div>
     </div>
@@ -559,27 +562,31 @@ if (existingController) {
       const hasRedo = Boolean(redoStack.length);
       if (undoBtn) {
         undoBtn.disabled = !hasUndo;
-        undoBtn.style.opacity = hasUndo ? "1" : "0.4";
+        undoBtn.style.color = hasUndo ? "#1d2129" : "#c0c6d0";
+        undoBtn.style.background = hasUndo ? "#ffffff" : "#f7f8fa";
         undoBtn.style.cursor = hasUndo ? "pointer" : "not-allowed";
+        undoBtn.style.opacity = "1";
       }
       if (redoBtn) {
         redoBtn.disabled = !hasRedo;
-        redoBtn.style.opacity = hasRedo ? "1" : "0.4";
+        redoBtn.style.color = hasRedo ? "#1d2129" : "#c0c6d0";
+        redoBtn.style.background = hasRedo ? "#ffffff" : "#f7f8fa";
         redoBtn.style.cursor = hasRedo ? "pointer" : "not-allowed";
+        redoBtn.style.opacity = "1";
       }
     };
     updateUndoRedoStatus();
 
-    undoBtn?.addEventListener("click", () => {
+    const handleUndo = () => {
       if (annotation.userAnnotations?.length) {
         const popped = annotation.userAnnotations.pop();
         if (popped) redoStack.push(popped);
         renderEditorAnnotation(svg, annotation);
         updateUndoRedoStatus();
       }
-    });
+    };
 
-    redoBtn?.addEventListener("click", () => {
+    const handleRedo = () => {
       if (redoStack.length) {
         const item = redoStack.pop();
         if (item) {
@@ -588,7 +595,44 @@ if (existingController) {
           updateUndoRedoStatus();
         }
       }
-    });
+    };
+
+    undoBtn?.addEventListener("click", handleUndo);
+    redoBtn?.addEventListener("click", handleRedo);
+
+    const undoShortcutText = isMac ? "⌘Z" : "Ctrl+Z";
+    const redoShortcutText = isMac ? "⇧⌘Z" : "Ctrl+Shift+Z";
+    if (undoBtn) undoBtn.title = `${t("undo")} (${undoShortcutText})`;
+    if (redoBtn) redoBtn.title = `${t("redo")} (${redoShortcutText})`;
+
+    issueEditorKeydownListener = (e: KeyboardEvent) => {
+      const isCmdOrCtrl = e.metaKey || e.ctrlKey;
+      if (!isCmdOrCtrl) return;
+
+      const activeEl = document.activeElement;
+      const isTyping = activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA");
+
+      const isZ = e.key === "z" || e.key === "Z";
+      const isY = e.key === "y" || e.key === "Y";
+
+      if (isZ && e.shiftKey) {
+        if (!isTyping) {
+          e.preventDefault();
+          handleRedo();
+        }
+      } else if (isZ && !e.shiftKey) {
+        if (!isTyping) {
+          e.preventDefault();
+          handleUndo();
+        }
+      } else if (isY && !e.shiftKey) {
+        if (!isTyping) {
+          e.preventDefault();
+          handleRedo();
+        }
+      }
+    };
+    window.addEventListener("keydown", issueEditorKeydownListener, true);
 
     let textInputOverlay: HTMLInputElement | undefined;
     const removeTextInputOverlay = () => {

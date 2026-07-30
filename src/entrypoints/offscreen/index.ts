@@ -242,11 +242,8 @@ async function renderIssueImage(payload: Extract<RuntimeMessage, { type: "offscr
           context.font = `700 ${fontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`;
           const pad = Math.round(4 * dpr);
 
-          context.shadowColor = "rgba(0, 0, 0, 0.6)";
-          context.shadowBlur = Math.round(4 * dpr);
           context.fillStyle = strokeColor;
           context.fillText(item.text, tx, ty - pad / 2);
-          context.shadowBlur = 0;
         }
         context.restore();
       }

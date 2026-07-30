@@ -10,6 +10,7 @@ await mkdir(outdir, { recursive: true });
 const entries = {
   background: "src/entrypoints/background/index.ts",
   popup: "src/entrypoints/popup/index.ts",
+  permission: "src/entrypoints/permission/index.ts",
   offscreen: "src/entrypoints/offscreen/index.ts",
   content: "src/entrypoints/content/interaction-collector.ts",
   preview: "src/entrypoints/preview/index.ts",
@@ -32,7 +33,7 @@ for (const [name, entry] of Object.entries(entries)) {
 await cp(resolve(root, "src/manifest.json"), resolve(outdir, "manifest.json"));
 await cp(resolve(root, "src/icons"), resolve(outdir, "icons"), { recursive: true });
 await cp(resolve(root, "src/_locales"), resolve(outdir, "_locales"), { recursive: true });
-for (const file of ["popup.html", "offscreen.html", "preview.html"]) {
+for (const file of ["popup.html", "permission.html", "offscreen.html", "preview.html"]) {
   await cp(resolve(root, `src/entrypoints/${file.replace(".html", "")}/index.html`), resolve(outdir, file));
 }
 await cp(resolve(root, "src/entrypoints/report/index.html"), resolve(outdir, "report-template.html"));

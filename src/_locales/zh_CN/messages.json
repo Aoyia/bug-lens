@@ -125,5 +125,32 @@
   },
   "shortcut": {
     "message": "快捷键"
+  },
+  "guideStep1Title": {
+    "message": "标记问题截图"
+  },
+  "guideStep1Desc": {
+    "message": "点击此处或按快捷键可随时框选网页元素进行截图与画面批注。"
+  },
+  "guideStep2Title": {
+    "message": "自动证据收集"
+  },
+  "guideStep2Desc": {
+    "message": "录制会自动记录 Network 请求、Console 日志与交互步骤，无操作 60s 自动暂停。"
+  },
+  "guideStep3Title": {
+    "message": "纯本地隐私安全"
+  },
+  "guideStep3Desc": {
+    "message": "所有录制视频、截屏批注与日志均仅保存在浏览器本地，绝不上传第三方服务器，全流程安全可控。"
+  },
+  "guideNext": {
+    "message": "下一步"
+  },
+  "guideGotIt": {
+    "message": "我知道了"
+  },
+  "guideSkip": {
+    "message": "跳过"
   }
 }
