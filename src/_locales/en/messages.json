@@ -17,7 +17,10 @@
     "message": "Refresh List"
   },
   "cleanupExpired": {
-    "message": "Clean Up Expired"
+    "message": "Clear History"
+  },
+  "clearHistoryPrompt": {
+    "message": "Are you sure you want to clear all history? (Active recordings will be preserved, this cannot be undone)"
   },
   "loading": {
     "message": "Loading…"
@@ -98,6 +101,9 @@
   },
   "networkRequests": {
     "message": "Network Requests"
+  },
+  "issueScenes": {
+    "message": "Issue Scenes"
   },
   "evidenceSummary": {
     "message": "Evidence Summary"

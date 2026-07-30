@@ -3,7 +3,7 @@ import { openEvidenceDatabase, type StoreName } from "./indexed-db-schema.ts";
 export async function deleteSessionAndEvidence(sessionId: string): Promise<boolean> {
   const database = await openEvidenceDatabase();
   return new Promise((resolve, reject) => {
-    const stores: StoreName[] = ["sessions", "interactions", "consoleEntries", "networkEntries", "mediaChunks", "exportSelections", "exportArtifacts", "control"];
+    const stores: StoreName[] = ["sessions", "interactions", "consoleEntries", "networkEntries", "mediaChunks", "exportSelections", "exportArtifacts", "issueScenes", "evidenceAssets", "control"];
     const transaction = database.transaction(stores, "readwrite");
     let existed = false;
     const sessions = transaction.objectStore("sessions");
@@ -13,7 +13,7 @@ export async function deleteSessionAndEvidence(sessionId: string): Promise<boole
       sessions.delete(sessionId);
     };
     sessionRequest.onerror = () => reject(sessionRequest.error);
-    for (const storeName of ["interactions", "consoleEntries", "networkEntries", "mediaChunks"] as const) {
+    for (const storeName of ["interactions", "consoleEntries", "networkEntries", "mediaChunks", "issueScenes", "evidenceAssets"] as const) {
       const cursorRequest = transaction.objectStore(storeName).index("sessionId").openKeyCursor(IDBKeyRange.only(sessionId));
       cursorRequest.onsuccess = () => {
         const cursor = cursorRequest.result;

@@ -1,9 +1,9 @@
 import { copyTextToClipboard } from "./clipboard";
 
-export type PreviewTab = "steps" | "console" | "network";
+export type PreviewTab = "steps" | "console" | "network" | "issues";
 
 export class PreviewPageShell {
-  private tab: PreviewTab = "steps";
+  private tab: PreviewTab = "issues";
 
   constructor(private readonly root: Document, onTabChange: () => void) {
     this.bindTabs(onTabChange);

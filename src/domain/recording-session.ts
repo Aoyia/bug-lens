@@ -7,6 +7,8 @@ type QualityCounters = Pick<
   | "primaryScreenshotCount"
   | "fallbackScreenshotCount"
   | "unavailableScreenshotCount"
+  | "issueSceneCount"
+  | "partialIssueSceneCount"
   | "consoleEntryCount"
   | "networkEntryCount"
 >;
@@ -78,7 +80,7 @@ export function applySessionEvent(
       if (!ACTIVE_STATUSES.has(session.status)) return session;
       const quality = { ...session.quality };
       for (const [key, delta] of Object.entries(event.delta) as Array<[keyof QualityCounters, number | undefined]>) {
-        if (delta != null) quality[key] = Math.max(0, quality[key] + delta);
+        if (delta != null) quality[key] = Math.max(0, (quality[key] ?? 0) + delta);
       }
       return { ...session, quality };
     }

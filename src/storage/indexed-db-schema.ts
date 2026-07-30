@@ -1,5 +1,5 @@
 const DB_NAME = "web-bug-recorder";
-const DB_VERSION = 5;
+const DB_VERSION = 6;
 
 export type StoreName =
   | "control"
@@ -9,7 +9,9 @@ export type StoreName =
   | "networkEntries"
   | "mediaChunks"
   | "exportSelections"
-  | "exportArtifacts";
+  | "exportArtifacts"
+  | "issueScenes"
+  | "evidenceAssets";
 
 let openPromise: Promise<IDBDatabase> | undefined;
 
@@ -40,6 +42,14 @@ export function openEvidenceDatabase(): Promise<IDBDatabase> {
       ]);
       ensureStore("exportSelections", "sessionId");
       ensureStore("exportArtifacts", "sessionId");
+      ensureStore("issueScenes", "id", [
+        { name: "sessionId", keyPath: "sessionId" },
+        { name: "sessionIdObservedAt", keyPath: ["sessionId", "observedAtEpochMs"] }
+      ]);
+      ensureStore("evidenceAssets", "id", [
+        { name: "sessionId", keyPath: "sessionId" },
+        { name: "issueSceneId", keyPath: "issueSceneId" }
+      ]);
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);

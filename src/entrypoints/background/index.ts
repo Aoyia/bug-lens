@@ -6,6 +6,7 @@ import { normalizeRecordingOptions } from "../../domain/storage-policy";
 import { CdpEvidenceCollector } from "../../evidence/cdp-evidence-collector";
 import { ContentScriptManager } from "../../recording/content-script-manager";
 import { InteractionCapture } from "../../recording/interaction-capture";
+import { IssueSceneCapture } from "../../recording/issue-scene-capture";
 import { RecordingCoordinator } from "../../recording/recording-coordinator";
 
 const EXTENSION_VERSION = "0.1.0";
@@ -31,12 +32,14 @@ async function applySessionEvent(sessionId: string, event: RecordingSessionEvent
 
 const cdpCollector = new CdpEvidenceCollector(db, applySessionEvent, (sessionId) => recordingCoordinator.isStopping(sessionId));
 const interactionCapture = new InteractionCapture(db, applySessionEvent, (sessionId) => recordingCoordinator.isStopping(sessionId));
+const issueSceneCapture = new IssueSceneCapture((sessionId) => recordingCoordinator.isStopping(sessionId));
 
 async function reconcileSessionQuality(sessionId: string): Promise<void> {
-  const [interactions, consoleEntries, networkEntries] = await Promise.all([
+  const [interactions, consoleEntries, networkEntries, issueScenes] = await Promise.all([
     db.getInteractions(sessionId),
     db.getConsole(sessionId),
-    db.getNetwork(sessionId)
+    db.getNetwork(sessionId),
+    db.getIssueScenes(sessionId)
   ]);
   const included = interactions.filter((entry) => entry.status !== "cancelled");
   await applySessionEvent(sessionId, {
@@ -47,10 +50,15 @@ async function reconcileSessionQuality(sessionId: string): Promise<void> {
       primaryScreenshotCount: included.filter((entry) => entry.screenshot.status === "captured" && entry.screenshot.source === "primary").length,
       fallbackScreenshotCount: included.filter((entry) => entry.screenshot.status === "captured" && entry.screenshot.source === "video-frame").length,
       unavailableScreenshotCount: included.filter((entry) => entry.screenshot.status === "unavailable").length,
+      issueSceneCount: issueScenes.length,
+      partialIssueSceneCount: issueScenes.filter((entry) => entry.status === "partial" || entry.status === "failed").length,
       consoleEntryCount: consoleEntries.length,
       networkEntryCount: networkEntries.length
     }
   });
+  if (issueScenes.some((scene) => scene.status === "partial" || scene.status === "failed")) {
+    await applySessionEvent(sessionId, { type: "capture-issue", issue: issue("ISSUE_SCENE_PARTIAL", "至少一个问题现场只完成了部分采集。", "issue-scene") });
+  }
 }
 
 function issue(code: string, messageText: string, source: CaptureIssue["source"], recoverable = true): CaptureIssue {
@@ -91,7 +99,7 @@ async function startSessionImpl(payload: Extract<RuntimeMessage, { type: "sessio
     },
     options,
     timeline: { createdAtEpochMs: Date.now() },
-    quality: { overall: "complete", interactionCount: 0, confirmedInteractionCount: 0, primaryScreenshotCount: 0, fallbackScreenshotCount: 0, unavailableScreenshotCount: 0, consoleEntryCount: 0, networkEntryCount: 0, issues: [] },
+    quality: { overall: "complete", interactionCount: 0, confirmedInteractionCount: 0, primaryScreenshotCount: 0, fallbackScreenshotCount: 0, unavailableScreenshotCount: 0, issueSceneCount: 0, partialIssueSceneCount: 0, consoleEntryCount: 0, networkEntryCount: 0, issues: [] },
     nonce: crypto.randomUUID(),
     commandIds: { start: payload.commandId },
     browserEpoch,
@@ -170,9 +178,11 @@ async function performStopSession(session: RecordingSession, commandId?: string)
     if (mediaResponse?.ok === false) cleanupErrors.push(`媒体停止失败：${mediaResponse.error ?? "未知错误"}`);
 
     cleanupErrors.push(...await interactionCapture.drain());
+    cleanupErrors.push(...await issueSceneCapture.drain());
 
     cleanupErrors.push(...await cdpCollector.drain());
     await cdpCollector.finalizeNetworkBodies(stopping).catch((error) => cleanupErrors.push(`Network 正文收尾失败：${String(error)}`));
+    await issueSceneCapture.finalizeUnfinished(session.id).catch((error) => cleanupErrors.push(`问题现场收尾失败：${String(error)}`));
     await reconcileSessionQuality(session.id).catch((error) => cleanupErrors.push(`质量摘要重算失败：${String(error)}`));
   } finally {
     await cdpCollector.detach(session.target.tabId);
@@ -319,7 +329,7 @@ const bootstrapPromise = bootstrapRuntimeState().catch(() => undefined);
 chrome.runtime.onMessage.addListener((raw: unknown, sender, sendResponse) => {
   if (!isEnvelope(raw)) return;
   const incoming = raw as RuntimeMessage;
-  if (incoming.type === "offscreen/start-media" || incoming.type === "offscreen/stop-media" || incoming.type === "offscreen/status" || incoming.type === "offscreen/annotate-image") return;
+  if (incoming.type === "offscreen/start-media" || incoming.type === "offscreen/stop-media" || incoming.type === "offscreen/status" || incoming.type === "offscreen/annotate-image" || incoming.type === "offscreen/render-issue-image") return;
   void (async () => {
     try {
       if (incoming.type === "offscreen/media-state") {
@@ -346,6 +356,7 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender, sendResponse) => {
         case "storage/get": sendResponse({ ok: true, storage: await db.getStorageOverview() }); return;
         case "storage/update": sendResponse({ ok: true, policy: await db.saveStoragePolicy(incoming.payload.policy) }); return;
         case "storage/cleanup": sendResponse({ ok: true, deletedSessionIds: await db.cleanupExpiredSessions() }); return;
+        case "storage/clear-all": sendResponse({ ok: true, deletedSessionIds: await db.clearAllHistory() }); return;
         case "session/open-preview": await chrome.tabs.create({ url: chrome.runtime.getURL(`preview.html?sessionId=${incoming.payload.sessionId}`) }); sendResponse({ ok: true }); return;
         case "content/hello": {
           const session = await db.getActiveSession();
@@ -356,6 +367,19 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender, sendResponse) => {
         case "interaction/candidate":
         case "interaction/confirmed": await interactionCapture.handle(incoming.payload.interaction, sender); sendResponse({ ok: true }); return;
         case "interaction/cancelled": await interactionCapture.cancel(incoming.payload.interactionId, incoming.payload.interaction, incoming.sessionId, sender); sendResponse({ ok: true }); return;
+        case "issue-scene/capture": {
+          const result = await issueSceneCapture.capture(incoming.payload, sender);
+          await applySessionEvent(result.scene.sessionId, { type: "quality-delta", delta: { issueSceneCount: 1, partialIssueSceneCount: result.scene.status === "partial" || result.scene.status === "failed" ? 1 : 0 } });
+          sendResponse({ ok: true, scene: result.scene, dataUrl: result.dataUrl });
+          return;
+        }
+        case "issue-scene/commit": {
+          const scene = await issueSceneCapture.commit(incoming.payload, sender);
+          sendResponse({ ok: true, scene });
+          if (incoming.payload.stopAfterCommit) void stopSession(`issue-scene:${scene.id}`);
+          return;
+        }
+        case "issue-scene/cancel": await issueSceneCapture.cancel(incoming.payload.issueSceneId, incoming.payload.nonce, sender); sendResponse({ ok: true }); return;
         case "offscreen/media-chunk": {
           const result = await db.saveMediaChunkWithinBudget({ id: `${incoming.payload.sessionId}:${incoming.payload.sequence}`, ...incoming.payload });
           sendResponse({ ok: result.stored, error: result.stored ? undefined : "SESSION_STORAGE_LIMIT_REACHED" });

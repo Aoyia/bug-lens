@@ -3,6 +3,7 @@ import { DiagnosticsView } from "./diagnostics-view";
 import { ImageViewer } from "./image-viewer";
 import { InteractionListView } from "./interaction-list-view";
 import { PreviewPageShell } from "./page-shell";
+import { IssueSceneView, type IssueScenePreview } from "./issue-scene-view";
 
 type EvidenceCollection<T> = { all: T[]; included: T[] };
 
@@ -11,6 +12,7 @@ export type EvidenceReportSnapshot = {
   interactions: EvidenceCollection<InteractionRecord>;
   consoleEntries: EvidenceCollection<ConsoleEntry>;
   networkEntries: EvidenceCollection<NetworkEntry>;
+  issueScenes?: EvidenceCollection<IssueScenePreview>;
   hasMedia: boolean;
 };
 
@@ -24,7 +26,8 @@ type EditableReportAdapter = {
   getSnapshot(): EvidenceReportSnapshot | undefined;
   excludeInteraction(interactionId: string): Promise<void>;
   excludeDiagnostic(kind: "console" | "network", id: string): Promise<void>;
-  restore(kind: "interaction" | "console" | "network"): Promise<void>;
+  excludeIssueScene?(issueSceneId: string): Promise<void>;
+  restore(kind: "interaction" | "console" | "network" | "issueScene"): Promise<void>;
 };
 
 export type EvidenceReportAdapter = ReadOnlyReportAdapter | EditableReportAdapter;
@@ -42,6 +45,7 @@ export class EvidenceReportView {
   private readonly imageViewer: ImageViewer;
   private readonly interactionList: InteractionListView;
   private readonly diagnostics: DiagnosticsView;
+  private readonly issueScenes: IssueSceneView;
 
   constructor(private readonly root: Document, private readonly adapter: EvidenceReportAdapter) {
     this.shell = new PreviewPageShell(root, () => this.updateRestoreButtons());
@@ -69,9 +73,18 @@ export class EvidenceReportView {
         selectionChanged: () => this.renderSummary()
       } : {})
     }, root);
+    this.issueScenes = new IssueSceneView(root, {
+      exclude: async (id) => {
+        if (adapter.mode !== "editable") return;
+        await adapter.excludeIssueScene?.(id);
+        this.render();
+      },
+      notify: (message) => this.shell.notify(message)
+    });
 
     if (adapter.mode === "editable") {
       root.querySelector<HTMLButtonElement>("#restore")?.addEventListener("click", () => void this.restoreInteractions());
+      root.querySelector<HTMLButtonElement>("#restore-issues")?.addEventListener("click", () => void this.restoreIssueScenes());
     }
   }
 
@@ -91,6 +104,7 @@ export class EvidenceReportView {
       hasMedia: snapshot.hasMedia,
       startedAtEpochMs: snapshot.session.timeline.startedAtEpochMs
     });
+    this.issueScenes.render(snapshot.issueScenes ?? { all: [], included: [] }, snapshot.session.timeline.startedAtEpochMs, this.adapter.mode === "editable");
     this.diagnostics.render();
   }
 
@@ -103,7 +117,8 @@ export class EvidenceReportView {
       ...(this.adapter.mode === "editable" ? [{ key: "deleted", value: this.excludedCount(), label: "已删除" }] : []),
       { key: "screenshots", value: included.filter((item) => item.screenshot.status === "captured").length, label: "步骤截图" },
       { key: "console", value: snapshot.consoleEntries.included.length, label: "Console" },
-      { key: "network", value: snapshot.networkEntries.included.length, label: "Network" }
+      { key: "network", value: snapshot.networkEntries.included.length, label: "Network" },
+      { key: "issues", value: snapshot.issueScenes?.included.length ?? 0, label: "问题现场" }
     ];
     this.root.querySelector<HTMLElement>("#metrics")!.innerHTML = metrics
       .map((item) => `<div class="metric metric-${item.key}"><strong>${item.value}</strong><span>${item.label}</span></div>`)
@@ -111,15 +126,16 @@ export class EvidenceReportView {
     this.updateRestoreButtons();
   }
 
-  private excludedCount(kind?: "interaction" | "console" | "network"): number {
+  private excludedCount(kind?: "interaction" | "console" | "network" | "issueScene"): number {
     const snapshot = this.adapter.getSnapshot();
     if (!snapshot) return 0;
     const counts = {
       interaction: snapshot.interactions.all.length - snapshot.interactions.included.length,
       console: snapshot.consoleEntries.all.length - snapshot.consoleEntries.included.length,
-      network: snapshot.networkEntries.all.length - snapshot.networkEntries.included.length
+      network: snapshot.networkEntries.all.length - snapshot.networkEntries.included.length,
+      issueScene: (snapshot.issueScenes?.all.length ?? 0) - (snapshot.issueScenes?.included.length ?? 0)
     };
-    return kind ? counts[kind] : counts.interaction + counts.console + counts.network;
+    return kind ? counts[kind] : counts.interaction + counts.console + counts.network + counts.issueScene;
   }
 
   private updateRestoreButtons(): void {
@@ -127,7 +143,8 @@ export class EvidenceReportView {
     const buttons = [
       { selector: "#restore", kind: "interaction" as const, tab: "steps", label: "步骤" },
       { selector: "#restore-console", kind: "console" as const, tab: "console", label: "日志" },
-      { selector: "#restore-network", kind: "network" as const, tab: "network", label: "请求" }
+      { selector: "#restore-network", kind: "network" as const, tab: "network", label: "请求" },
+      { selector: "#restore-issues", kind: "issueScene" as const, tab: "issues", label: "问题现场" }
     ];
     for (const item of buttons) {
       const button = this.root.querySelector<HTMLButtonElement>(item.selector);
@@ -152,6 +169,12 @@ export class EvidenceReportView {
   private async restoreInteractions(): Promise<void> {
     if (this.adapter.mode !== "editable") return;
     await this.adapter.restore("interaction");
+    this.render();
+  }
+
+  private async restoreIssueScenes(): Promise<void> {
+    if (this.adapter.mode !== "editable") return;
+    await this.adapter.restore("issueScene");
     this.render();
   }
 }

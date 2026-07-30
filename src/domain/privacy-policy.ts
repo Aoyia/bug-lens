@@ -1,4 +1,4 @@
-import type { ConsoleEntry, InteractionRecord, RecordingOptions } from "../shared/protocol";
+import type { ConsoleEntry, DiagnosticStackFrame, InteractionRecord, IssueScene, RecordingOptions, TargetDomSnapshot } from "../shared/protocol";
 
 export type PrivacyMode = RecordingOptions["privacyMode"];
 
@@ -166,6 +166,20 @@ export function sanitizeInteractionRecord(record: InteractionRecord, mode: Priva
       url: sanitizeUrl(record.page.url, mode),
       title: sanitizeText(record.page.title, mode, 256)
     },
+    metadata: record.metadata ? {
+      ...record.metadata,
+      inputType: record.metadata.inputType ? sanitizeText(record.metadata.inputType, mode, 128, false) : undefined,
+      value: undefined,
+      valueRedacted: record.metadata.value != null || record.metadata.valueRedacted || undefined,
+      key: record.metadata.key?.length === 1 ? "[REDACTED:key]" : record.metadata.key ? sanitizeText(record.metadata.key, mode, 64, false) : undefined,
+      code: record.metadata.code ? sanitizeText(record.metadata.code, mode, 64, false) : undefined,
+      formMethod: record.metadata.formMethod ? sanitizeText(record.metadata.formMethod, mode, 16, false) : undefined,
+      formAction: record.metadata.formAction ? sanitizeUrl(record.metadata.formAction, mode) : undefined,
+      navigationType: record.metadata.navigationType ? sanitizeText(record.metadata.navigationType, mode, 64, false) : undefined,
+      transitionQualifiers: record.metadata.transitionQualifiers?.slice(0, 12).map((value) => sanitizeText(value, mode, 64, false)),
+      fromUrl: record.metadata.fromUrl ? sanitizeUrl(record.metadata.fromUrl, mode) : undefined,
+      toUrl: record.metadata.toUrl ? sanitizeUrl(record.metadata.toUrl, mode) : undefined
+    } : undefined,
     element: {
       ...record.element,
       id: record.element.id ? sanitizeText(record.element.id, mode, 128) : undefined,
@@ -182,11 +196,78 @@ export function sanitizeInteractionRecord(record: InteractionRecord, mode: Priva
   };
 }
 
+function sanitizeStackTrace(stackTrace: DiagnosticStackFrame[] | undefined, mode: PrivacyMode): DiagnosticStackFrame[] | undefined {
+  if (!stackTrace) return undefined;
+  return stackTrace.slice(0, 50).map((frame) => ({
+    functionName: frame.functionName ? sanitizeText(frame.functionName, mode, 256, false) : undefined,
+    url: frame.url ? sanitizeUrl(frame.url, mode) : undefined,
+    lineNumber: frame.lineNumber,
+    columnNumber: frame.columnNumber
+  }));
+}
+
+export function sanitizeDomSnapshot(snapshot: TargetDomSnapshot, mode: PrivacyMode): TargetDomSnapshot {
+  const sanitizeElement = sanitizeInteractionRecord({
+    id: "dom-snapshot",
+    sessionId: "dom-snapshot",
+    kind: "click",
+    status: "confirmed",
+    createdAt: snapshot.capturedAtEpochMs,
+    page: { url: "", title: "", frameId: 0 },
+    input: { pointerType: "unknown", button: 0, isTrusted: false },
+    coordinates: { clientX: 0, clientY: 0, pageX: 0, pageY: 0, scrollX: 0, scrollY: 0, devicePixelRatio: 1, viewport: { width: 1, height: 1 } },
+    element: snapshot.element,
+    screenshot: { status: "disabled" }
+  }, mode).element;
+  return {
+    ...snapshot,
+    element: sanitizeElement,
+    sanitizedHtml: snapshot.sanitizedHtml ? sanitizeText(snapshot.sanitizedHtml, mode, 32_768, false) : undefined,
+    ancestors: snapshot.ancestors.slice(0, 5).map((ancestor) => ({
+      ...ancestor,
+      id: ancestor.id ? sanitizeText(ancestor.id, mode, 128, false) : undefined,
+      classNames: ancestor.classNames.map((value) => sanitizeText(value, mode, 128, false)),
+      role: ancestor.role ? sanitizeText(ancestor.role, mode, 128, false) : undefined,
+      accessibleName: ancestor.accessibleName ? sanitizeText(ancestor.accessibleName, mode, 256) : undefined
+    })),
+    computedStyle: Object.fromEntries(Object.entries(snapshot.computedStyle).slice(0, 20).map(([key, value]) => [key, sanitizeText(value, mode, 512, false)]))
+  };
+}
+
+export function sanitizeIssueScene(scene: IssueScene, mode: PrivacyMode): IssueScene {
+  return {
+    ...scene,
+    page: {
+      ...scene.page,
+      url: sanitizeUrl(scene.page.url, mode),
+      title: sanitizeText(scene.page.title, mode, 256)
+    },
+    target: sanitizeDomSnapshot(scene.target, mode),
+    narrative: scene.narrative ? {
+      actual: sanitizeText(scene.narrative.actual, mode, 8_192),
+      expected: scene.narrative.expected ? sanitizeText(scene.narrative.expected, mode, 8_192) : undefined,
+      note: scene.narrative.note ? sanitizeText(scene.narrative.note, mode, 8_192) : undefined
+    } : undefined,
+    annotation: { ...scene.annotation, label: scene.annotation.label ? sanitizeText(scene.annotation.label, mode, 80) : undefined },
+    issues: scene.issues.map((item) => ({ ...item, message: sanitizeText(item.message, mode, 2_048) }))
+  };
+}
+
 export function sanitizeConsoleEntry(entry: ConsoleEntry, mode: PrivacyMode): ConsoleEntry {
   if (mode === "raw") return entry;
   return {
     ...entry,
     text: sanitizeText(entry.text, mode, 8_192),
-    source: entry.source ? sanitizeUrl(entry.source, mode) : undefined
+    source: entry.source ? sanitizeUrl(entry.source, mode) : undefined,
+    category: entry.category ? sanitizeText(entry.category, mode, 128, false) : undefined,
+    context: entry.context ? sanitizeText(entry.context, mode, 256, false) : undefined,
+    stackTrace: sanitizeStackTrace(entry.stackTrace, mode),
+    args: entry.args?.slice(0, 20).map((argument) => ({
+      ...argument,
+      type: sanitizeText(argument.type, mode, 64, false),
+      subtype: argument.subtype ? sanitizeText(argument.subtype, mode, 64, false) : undefined,
+      description: argument.description ? sanitizeText(argument.description, mode, 1_024) : undefined,
+      valuePreview: argument.valuePreview ? sanitizeText(argument.valuePreview, mode, 4_096) : undefined
+    }))
   };
 }

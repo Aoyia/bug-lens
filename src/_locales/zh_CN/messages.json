@@ -17,7 +17,10 @@
     "message": "刷新列表"
   },
   "cleanupExpired": {
-    "message": "清理过期记录"
+    "message": "清空历史记录"
+  },
+  "clearHistoryPrompt": {
+    "message": "确定要清空全部历史记录吗？（进行中的录制不会被删除，此操作不可恢复）"
   },
   "loading": {
     "message": "正在读取…"
@@ -98,6 +101,9 @@
   },
   "networkRequests": {
     "message": "网络请求"
+  },
+  "issueScenes": {
+    "message": "问题现场"
   },
   "evidenceSummary": {
     "message": "证据概览"

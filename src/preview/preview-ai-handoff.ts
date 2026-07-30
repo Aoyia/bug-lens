@@ -43,8 +43,18 @@ export class PreviewAiHandoff {
     if (showFile) showFile.hidden = !complete;
   }
 
-  private async copyPrompt(): Promise<void> {
+  async copyPrompt(): Promise<void> {
     await this.copy(this.options.getPrompt(this.options.getArtifact()?.filename), "AI 提示词已复制");
+  }
+
+  async autoCopyPrompt(): Promise<boolean> {
+    try {
+      const prompt = this.options.getPrompt(this.options.getArtifact()?.filename);
+      await copyTextToClipboard(prompt, this.options.root);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   private async copyPath(): Promise<void> {

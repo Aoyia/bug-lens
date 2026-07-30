@@ -1,4 +1,4 @@
-import type { ConsoleEntry, ExportArtifact, ExportSelection, InteractionRecord, NetworkEntry, RecordingSession, SessionOverview, StorageOverview, StoragePolicy } from "../shared/protocol";
+import type { ConsoleEntry, EvidenceAsset, ExportArtifact, ExportSelection, InteractionRecord, IssueScene, NetworkEntry, RecordingSession, SessionOverview, StorageOverview, StoragePolicy } from "../shared/protocol";
 import { DEFAULT_STORAGE_POLICY, estimateBytes, expiresAt, isExpired, normalizeStoragePolicy } from "../domain/storage-policy.ts";
 import { buildEvidenceSummary } from "./evidence-summary.ts";
 import { openEvidenceDatabase as openDb, type StoreName } from "./indexed-db-schema.ts";
@@ -122,22 +122,54 @@ async function getMediaSummary(sessionId: string): Promise<{ count: number; mime
 }
 
 async function measureSessionBytes(sessionId: string): Promise<number> {
-  const [interactions, consoleEntries, networkEntries, chunks] = await Promise.all([
+  const [interactions, consoleEntries, networkEntries, chunks, issueScenes, assets] = await Promise.all([
     list<InteractionRecord>("interactions", "sessionId", sessionId),
     list<ConsoleEntry>("consoleEntries", "sessionId", sessionId),
     list<NetworkEntry>("networkEntries", "sessionId", sessionId),
-    list<MediaChunkRecord>("mediaChunks", "sessionId", sessionId)
+    list<MediaChunkRecord>("mediaChunks", "sessionId", sessionId),
+    list<IssueScene>("issueScenes", "sessionId", sessionId),
+    list<EvidenceAsset>("evidenceAssets", "sessionId", sessionId)
   ]);
-  return [...interactions, ...consoleEntries, ...networkEntries, ...chunks]
+  return [...interactions, ...consoleEntries, ...networkEntries, ...chunks, ...issueScenes, ...assets]
     .reduce((total, entry) => total + estimateBytes(entry), 0);
 }
 
-async function evidenceFor(session: RecordingSession) {
-  const [media, networkEntries] = await Promise.all([
-    getMediaSummary(session.id),
-    list<NetworkEntry>("networkEntries", "sessionId", session.id)
+async function deleteIssueScene(issueSceneId: string): Promise<void> {
+  const [scene, assets] = await Promise.all([
+    get<IssueScene>("issueScenes", issueSceneId),
+    list<EvidenceAsset>("evidenceAssets", "issueSceneId", issueSceneId)
   ]);
-  return buildEvidenceSummary(session, media, networkEntries);
+  if (!scene) return;
+  const database = await openDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = database.transaction(["issueScenes", "evidenceAssets", "sessions"], "readwrite");
+    const issueAssets = tx.objectStore("evidenceAssets");
+    const sessions = tx.objectStore("sessions");
+    const sessionRequest = sessions.get(scene.sessionId);
+    sessionRequest.onsuccess = () => {
+      const session = sessionRequest.result as RecordingSession | undefined;
+      if (session) {
+        const releasedBytes = estimateBytes(scene) + assets.reduce((total, asset) => total + estimateBytes(asset), 0);
+        const usedBytes = Math.max(0, (session.storage?.usedBytes ?? 0) - releasedBytes);
+        sessions.put({ ...session, storage: { usedBytes, limitReached: false } });
+      }
+      for (const asset of assets) issueAssets.delete(asset.id);
+    };
+    sessionRequest.onerror = () => reject(sessionRequest.error);
+    tx.objectStore("issueScenes").delete(issueSceneId);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error ?? new Error("问题现场删除事务已中止"));
+  });
+}
+
+async function evidenceFor(session: RecordingSession) {
+  const [media, networkEntries, issueScenes] = await Promise.all([
+    getMediaSummary(session.id),
+    list<NetworkEntry>("networkEntries", "sessionId", session.id),
+    list<IssueScene>("issueScenes", "sessionId", session.id)
+  ]);
+  return buildEvidenceSummary(session, media, networkEntries, issueScenes);
 }
 
 export const db = {
@@ -306,6 +338,16 @@ export const db = {
   saveInteraction: (record: InteractionRecord) => put("interactions", record),
   saveInteractionWithinBudget: (record: InteractionRecord) => putWithinSessionBudget("interactions", record),
   getInteractions: (sessionId: string) => list<InteractionRecord>("interactions", "sessionId", sessionId),
+  getIssueScene: (id: string) => get<IssueScene>("issueScenes", id),
+  saveIssueScene: (scene: IssueScene) => put("issueScenes", scene),
+  saveIssueSceneWithinBudget: (scene: IssueScene) => putWithinSessionBudget("issueScenes", scene),
+  updateIssueScene: (id: string, mutate: (current: IssueScene) => IssueScene) => update<IssueScene>("issueScenes", id, mutate),
+  getIssueScenes: async (sessionId: string) => (await list<IssueScene>("issueScenes", "sessionId", sessionId)).sort((left, right) => left.observedAtEpochMs - right.observedAtEpochMs),
+  getEvidenceAsset: (id: string) => get<EvidenceAsset>("evidenceAssets", id),
+  saveEvidenceAsset: (asset: EvidenceAsset) => put("evidenceAssets", asset),
+  saveEvidenceAssetWithinBudget: (asset: EvidenceAsset) => putWithinSessionBudget("evidenceAssets", asset),
+  getEvidenceAssets: (issueSceneId: string) => list<EvidenceAsset>("evidenceAssets", "issueSceneId", issueSceneId),
+  deleteIssueScene,
   saveConsole: (entry: ConsoleEntry) => put("consoleEntries", entry),
   saveConsoleWithinBudget: (entry: ConsoleEntry) => putWithinSessionBudget("consoleEntries", entry),
   getConsole: (sessionId: string) => list<ConsoleEntry>("consoleEntries", "sessionId", sessionId),
@@ -366,6 +408,12 @@ export const db = {
     const expired = sessions.filter((session) => session.id !== active?.id && isExpired(session.timeline.createdAtEpochMs, policy.retentionDays, now));
     await Promise.all(expired.map((session) => deleteSessionAndEvidence(session.id)));
     return expired.map((session) => session.id);
+  },
+  clearAllHistory: async (): Promise<string[]> => {
+    const [sessions, active] = await Promise.all([listAll<RecordingSession>("sessions"), db.getActiveSession()]);
+    const targetSessions = sessions.filter((session) => session.id !== active?.id);
+    await Promise.all(targetSessions.map((session) => deleteSessionAndEvidence(session.id)));
+    return targetSessions.map((session) => session.id);
   }
 };
 
@@ -378,6 +426,15 @@ export type EvidenceRepository = Pick<
   | "saveInteraction"
   | "saveInteractionWithinBudget"
   | "getInteractions"
+  | "getIssueScene"
+  | "saveIssueScene"
+  | "saveIssueSceneWithinBudget"
+  | "updateIssueScene"
+  | "getIssueScenes"
+  | "getEvidenceAsset"
+  | "saveEvidenceAsset"
+  | "saveEvidenceAssetWithinBudget"
+  | "getEvidenceAssets"
   | "saveConsole"
   | "saveConsoleWithinBudget"
   | "getConsole"

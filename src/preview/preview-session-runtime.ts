@@ -1,9 +1,10 @@
 import { migrateSessionForExport } from "../export/export-manifest";
-import type { ConsoleEntry, InteractionRecord, NetworkEntry, RecordingSession } from "../shared/protocol";
+import type { ConsoleEntry, EvidenceAsset, InteractionRecord, IssueScene, NetworkEntry, RecordingSession } from "../shared/protocol";
 import type { db } from "../storage/db";
 import { PreviewController } from "./preview-controller";
 import type { EvidencePackageSnapshot } from "./evidence-package";
 import type { EvidenceReportSnapshot } from "./evidence-report-view";
+import type { IssueScenePreview } from "./issue-scene-view";
 
 export type PreviewStorage = Pick<
   typeof db,
@@ -14,6 +15,8 @@ export type PreviewStorage = Pick<
   | "saveExportSelection"
   | "getConsole"
   | "getNetwork"
+  | "getIssueScenes"
+  | "getEvidenceAssets"
   | "getMediaSummary"
   | "getMediaChunks"
   | "saveNetwork"
@@ -27,6 +30,9 @@ export class PreviewSessionRuntime {
   private interactions: InteractionRecord[] = [];
   private consoleEntries: ConsoleEntry[] = [];
   private networkEntries: NetworkEntry[] = [];
+  private issueScenes: IssueScene[] = [];
+  private issueAssets: EvidenceAsset[] = [];
+  private issueScenePreviews: IssueScenePreview[] = [];
   private mediaUrl?: string;
   private mediaChunkCount = 0;
   private mediaMimeType = "video/webm";
@@ -53,6 +59,14 @@ export class PreviewSessionRuntime {
     this.selection.loadSelection(await this.storage.getExportSelection(sessionId));
     this.consoleEntries = (await this.storage.getConsole(sessionId)).sort((left, right) => left.createdAt - right.createdAt);
     this.networkEntries = await this.storage.getNetwork(sessionId);
+    this.issueScenes = await this.storage.getIssueScenes(sessionId);
+    this.issueAssets = (await Promise.all(this.issueScenes.map((scene) => this.storage.getEvidenceAssets(scene.id)))).flat();
+    this.issueScenePreviews = this.issueScenes.map((scene) => {
+      const assets = this.issueAssets.filter((asset) => asset.issueSceneId === scene.id);
+      const original = assets.find((asset) => asset.kind === "issue-original");
+      const annotated = assets.find((asset) => asset.kind === "issue-annotated");
+      return { scene, originalSource: original ? URL.createObjectURL(new Blob([original.bytes], { type: original.mimeType })) : undefined, annotatedSource: annotated ? URL.createObjectURL(new Blob([annotated.bytes], { type: annotated.mimeType })) : undefined };
+    });
     await this.finalizePendingNetworkBodies();
 
     const mediaSummary = await this.storage.getMediaSummary(sessionId);
@@ -80,6 +94,7 @@ export class PreviewSessionRuntime {
       interactions: { all: this.interactions, included: this.selection.includedInteractions(this.interactions) },
       consoleEntries: { all: this.consoleEntries, included: this.selection.includedConsoleEntries(this.consoleEntries) },
       networkEntries: { all: this.networkEntries, included: this.selection.includedNetworkEntries(this.networkEntries) },
+      issueScenes: { all: this.issueScenePreviews, included: this.selection.includedIssueScenes(this.issueScenePreviews) },
       hasMedia: Boolean(this.mediaUrl)
     };
   }
@@ -91,10 +106,13 @@ export class PreviewSessionRuntime {
       interactions: this.selection.includedInteractions(this.interactions),
       consoleEntries: this.selection.includedConsoleEntries(this.consoleEntries),
       networkEntries: this.selection.includedNetworkEntries(this.networkEntries),
+      issueScenes: this.selection.includedIssueScenes(this.issueScenes),
+      issueAssets: this.issueAssets.filter((asset) => this.selection.includedIssueScenes(this.issueScenes).some((scene) => scene.id === asset.issueSceneId)).map((asset) => ({ sceneId: asset.issueSceneId, kind: asset.kind, bytes: new Uint8Array(asset.bytes), mimeType: asset.mimeType })),
       excluded: {
         interaction: this.selection.excludedCount("interaction"),
         console: this.selection.excludedCount("console"),
-        network: this.selection.excludedCount("network")
+        network: this.selection.excludedCount("network"),
+        issueScene: this.selection.excludedCount("issueScene")
       },
       hasMedia: this.mediaChunkCount > 0
     };
@@ -110,7 +128,12 @@ export class PreviewSessionRuntime {
     await this.saveSelection();
   }
 
-  async restore(kind: "interaction" | "console" | "network"): Promise<void> {
+  async excludeIssueScene(id: string): Promise<void> {
+    this.selection.exclude("issueScene", id);
+    await this.saveSelection();
+  }
+
+  async restore(kind: "interaction" | "console" | "network" | "issueScene"): Promise<void> {
     this.selection.restore(kind);
     await this.saveSelection();
   }
@@ -118,6 +141,11 @@ export class PreviewSessionRuntime {
   dispose(): void {
     if (this.mediaUrl) URL.revokeObjectURL(this.mediaUrl);
     this.mediaUrl = undefined;
+    for (const preview of this.issueScenePreviews) {
+      if (preview.originalSource) URL.revokeObjectURL(preview.originalSource);
+      if (preview.annotatedSource) URL.revokeObjectURL(preview.annotatedSource);
+    }
+    this.issueScenePreviews = [];
   }
 
   private async saveSelection(): Promise<void> {

@@ -31,3 +31,7 @@ _Avoid_: report metadata, checksum file
 **Offline Evidence Report**:
 The read-only, fully local projection of the selected evidence in an exported package. It shares the Preview display module but never exposes selection editing, extension storage or local download-path actions.
 _Avoid_: second preview implementation, editable export
+
+**Issue Scene**:
+A user-confirmed abnormal page state containing a clean screenshot, independent SVG annotation, target DOM snapshot, narrative and observed timestamp. It does not own or automatically link Network, Console or interaction records.
+_Avoid_: automatically inferred causal evidence, linked request bundle

@@ -16,6 +16,7 @@ const reportView = new EvidenceReportView(document, {
   mode: "editable",
   getSnapshot: () => runtime.getReportSnapshot(),
   excludeInteraction: (id) => runtime.excludeInteraction(id),
+  excludeIssueScene: (id) => runtime.excludeIssueScene(id),
   excludeDiagnostic: (kind, id) => runtime.excludeDiagnostic(kind, id),
   restore: (kind) => runtime.restore(kind)
 });
@@ -38,7 +39,8 @@ exportController = new PreviewExportController({
   getSnapshot: () => runtime.getPackageSnapshot(),
   getMediaChunkCount: () => runtime.mediaChunks,
   notify: (message) => reportView.notify(message),
-  onArtifactChanged: () => aiHandoff.render()
+  onArtifactChanged: () => aiHandoff.render(),
+  onExportComplete: () => aiHandoff.autoCopyPrompt()
 });
 
 async function loadMediaPreview(): Promise<void> {

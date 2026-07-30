@@ -7,6 +7,7 @@ const sharedStyles = [
   "preview-console.css",
   "preview-network.css",
   "preview-image-viewer.css",
+  "preview-issue-scenes.css",
   "report-static.css"
 ];
 

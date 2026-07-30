@@ -1,12 +1,14 @@
 import type { ConsoleEntry, InteractionRecord, NetworkEntry, RecordingSession } from "../../shared/protocol";
+import type { IssueScenePreview } from "../../preview/issue-scene-view";
 import { EvidenceReportView } from "../../preview/evidence-report-view";
 
 type StaticReportData = {
-  protocolVersion: 2;
+  protocolVersion: 3;
   session: RecordingSession;
   interactions: InteractionRecord[];
   consoleEntries: ConsoleEntry[];
   networkEntries: NetworkEntry[];
+  issueScenes: IssueScenePreview[];
   hasMedia: boolean;
 };
 
@@ -19,7 +21,7 @@ declare global {
 const data = window.__WEB_BUG_REPORT_DATA__;
 const meta = document.querySelector<HTMLElement>("#meta")!;
 
-if (!data || data.protocolVersion !== 2) {
+if (!data || data.protocolVersion !== 3) {
   meta.textContent = "报告数据缺失或版本不兼容，请确认 ZIP 已完整解压。";
   meta.classList.add("report-error");
 } else {
@@ -30,6 +32,7 @@ if (!data || data.protocolVersion !== 2) {
       interactions: { all: data.interactions, included: data.interactions },
       consoleEntries: { all: data.consoleEntries, included: data.consoleEntries },
       networkEntries: { all: data.networkEntries, included: data.networkEntries },
+      issueScenes: { all: data.issueScenes ?? [], included: data.issueScenes ?? [] },
       hasMedia: data.hasMedia
     })
   });

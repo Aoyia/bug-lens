@@ -16,6 +16,7 @@ export type PreviewExportOptions = {
   getMediaChunkCount(): number;
   notify(message: string): void;
   onArtifactChanged(): void;
+  onExportComplete?: () => Promise<boolean>;
   loadAssets?: () => Promise<StaticReportAssets>;
 };
 
@@ -75,7 +76,16 @@ export class PreviewExportController {
       this.artifact = await this.waitForDownload(downloadId);
       await storage.saveExportArtifact(this.artifact);
       this.options.onArtifactChanged();
-      this.options.notify(this.artifact.state === "complete" ? "ZIP 下载完成，可复制 AI 提示词" : `ZIP ${this.artifact.error || "下载未完成"}`);
+      if (this.artifact.state === "complete") {
+        const autoCopied = await this.options.onExportComplete?.();
+        this.options.notify(
+          autoCopied
+            ? "ZIP 下载完成，AI 提示词已自动复制到剪贴板！"
+            : "ZIP 下载完成，可复制 AI 提示词"
+        );
+      } else {
+        this.options.notify(`ZIP ${this.artifact.error || "下载未完成"}`);
+      }
     } catch (error) {
       this.options.notify(`导出失败：${String(error)}`);
     } finally {

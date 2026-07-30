@@ -2,8 +2,8 @@ import type { ExportManifest, RecordingSession } from "../shared/protocol";
 import type { ArchiveEntryIntegrity } from "./export-pipeline";
 import { sha256 } from "./sha256.ts";
 
-export const EXPORT_SCHEMA_VERSION = 2;
-export const SUPPORTED_EXPORT_SCHEMA_VERSIONS = [1, 2] as const;
+export const EXPORT_SCHEMA_VERSION = 3;
+export const SUPPORTED_EXPORT_SCHEMA_VERSIONS = [1, 2, 3] as const;
 
 /** Makes a persisted v1 session safe to serialize in the v2 evidence package. */
 export function migrateSessionForExport(session: RecordingSession): RecordingSession {
@@ -17,7 +17,7 @@ export function migrateSessionForExport(session: RecordingSession): RecordingSes
 
 export function buildExportManifest(session: RecordingSession, files: ArchiveEntryIntegrity): ExportManifest {
   return {
-    format: "2.0",
+    format: "3.0",
     schemaVersion: EXPORT_SCHEMA_VERSION,
     createdAtEpochMs: Date.now(),
     sessionId: session.id,

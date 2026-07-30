@@ -39,6 +39,7 @@ function activeEvidence(session?: RecordingSession): EvidenceSummary[] {
   return [
     { kind: "video", state: state(session.options.captureVideo, "media"), count: 0, sizeBytes: 0, detail: "" },
     { kind: "screenshots", state: state(session.options.captureScreenshots, "screenshot"), count: session.quality.primaryScreenshotCount, sizeBytes: 0, detail: "" },
+    { kind: "issueScenes", state: session.quality.issues.some((entry) => entry.source === "issue-scene") ? "partial" : "captured", count: session.quality.issueSceneCount ?? 0, sizeBytes: 0, detail: "" },
     { kind: "console", state: state(session.options.captureConsole, "debugger"), count: session.quality.consoleEntryCount, sizeBytes: 0, detail: "" },
     { kind: "network", state: state(session.options.captureNetwork, "debugger"), count: session.quality.networkEntryCount, sizeBytes: 0, detail: "" },
     { kind: "networkBodies", state: !session.options.captureNetworkBodies ? "disabled" : "pending", count: 0, sizeBytes: 0, detail: "" }
@@ -46,7 +47,7 @@ function activeEvidence(session?: RecordingSession): EvidenceSummary[] {
 }
 
 function evidenceLabel(evidence: EvidenceSummary): string {
-  return ({ video: "录像", audio: "音频", screenshots: "截图", console: "Console", network: "Network", networkBodies: "正文" })[evidence.kind];
+  return ({ video: "录像", audio: "音频", screenshots: "截图", issueScenes: "问题现场", console: "Console", network: "Network", networkBodies: "正文" })[evidence.kind] ?? evidence.kind;
 }
 
 function renderEvidence(items: EvidenceSummary[]): string {
@@ -198,7 +199,11 @@ document.querySelectorAll<HTMLButtonElement>(".tab").forEach((button) => button.
 $("#video").addEventListener("change", () => { const video = ($("#video") as HTMLInputElement).checked; ($("#audio") as HTMLInputElement).disabled = !video; if (!video) ($("#audio") as HTMLInputElement).checked = false; });
 $("#network").addEventListener("change", () => { const network = ($("#network") as HTMLInputElement).checked; ($("#bodies") as HTMLInputElement).disabled = !network; if (!network) ($("#bodies") as HTMLInputElement).checked = false; });
 $("#refresh-history").addEventListener("click", () => void refreshHistory().catch(setError));
-$("#cleanup").addEventListener("click", async () => { const response = await chrome.runtime.sendMessage(message("storage/cleanup", {})); if (!response?.ok) setError(response?.error || "清理失败"); else await refreshHistory(); });
+$("#cleanup").addEventListener("click", async () => {
+  if (!window.confirm("确定要清空全部历史记录吗？（已完成的记录将被全量删除，此操作不可恢复）")) return;
+  const response = await chrome.runtime.sendMessage(message("storage/clear-all", {}));
+  if (!response?.ok) setError(response?.error || "清空历史失败"); else await refreshHistory();
+});
 $("#search").addEventListener("input", () => void refreshHistory().catch(setError));
 $("#sessions").addEventListener("click", async (event) => {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>("button");

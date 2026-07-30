@@ -9,7 +9,8 @@
   <link rel="stylesheet" href="preview-interactions.css">
   <link rel="stylesheet" href="preview-console.css">
   <link rel="stylesheet" href="preview-network.css">
-  <link rel="stylesheet" href="preview-image-viewer.css">
+<link rel="stylesheet" href="preview-image-viewer.css">
+  <link rel="stylesheet" href="preview-issue-scenes.css">
 </head>
 <body>
   <div class="zen-app-frame">
@@ -73,7 +74,10 @@
           <!-- 极简 Segmented Tab Header -->
           <div class="zen-tab-bar">
             <div class="zen-tabs">
-              <button class="zen-tab-btn active" data-tab="steps">
+              <button class="zen-tab-btn active" data-tab="issues">
+                <span data-i18n="issueScenes">问题现场</span>
+              </button>
+              <button class="zen-tab-btn" data-tab="steps">
                 <span data-i18n="timeline">交互步骤</span>
               </button>
               <button class="zen-tab-btn" data-tab="console">
@@ -85,18 +89,26 @@
             </div>
             
             <div class="zen-tab-actions">
+              <button id="restore-issues" class="ghost" hidden>恢复已删除现场</button>
               <button id="restore" class="ghost" hidden>恢复已删除步骤</button>
               <button id="restore-console" class="ghost" hidden>恢复已删除日志</button>
               <button id="restore-network" class="ghost" hidden>恢复已删除请求</button>
             </div>
           </div>
 
-          <!-- Tab 面板 1：交互步骤 (时间轴线性流式面板) -->
-          <div id="tab-pane-steps" class="zen-tab-pane">
+          <!-- Tab 面板 1：问题现场 (单卡片整合) -->
+          <div id="tab-pane-issues" class="zen-tab-pane">
+            <div class="integrated-card-panel">
+              <div id="issue-scenes" class="issue-scenes-list"></div>
+            </div>
+          </div>
+
+          <!-- Tab 面板 2：交互步骤 (时间轴线性流式面板) -->
+          <div id="tab-pane-steps" class="zen-tab-pane" hidden>
             <div id="interactions" class="list large-list"></div>
           </div>
 
-          <!-- Tab 面板 2：Console 日志 (单卡片整合) -->
+          <!-- Tab 面板 3：Console 日志 (单卡片整合) -->
           <div id="tab-pane-console" class="zen-tab-pane" hidden>
             <div class="integrated-card-panel">
               <div class="integrated-panel-header">
@@ -114,7 +126,7 @@
             </div>
           </div>
 
-          <!-- Tab 面板 3：Network 请求 (单卡片整合) -->
+          <!-- Tab 面板 4：Network 请求 (单卡片整合) -->
           <div id="tab-pane-network" class="zen-tab-pane" hidden>
             <div class="integrated-card-panel">
               <div class="integrated-panel-header">

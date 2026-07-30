@@ -37,7 +37,7 @@ for (const file of ["popup.html", "offscreen.html", "preview.html"]) {
 }
 await cp(resolve(root, "src/entrypoints/report/index.html"), resolve(outdir, "report-template.html"));
 await cp(resolve(root, "src/entrypoints/report/static.css"), resolve(outdir, "report-static.css"));
-for (const style of ["base", "workspace", "interactions", "console", "network", "image-viewer"]) {
+for (const style of ["base", "workspace", "interactions", "console", "network", "image-viewer", "issue-scenes"]) {
   await cp(
     resolve(root, `src/entrypoints/preview/styles/${style}.css`),
     resolve(outdir, `preview-${style}.css`)
