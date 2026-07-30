@@ -8,10 +8,18 @@
   "action": {
     "default_popup": "popup.html",
     "default_title": "Bug Lens",
-    "default_icon": "icons/icon_idle.png"
+    "default_icon": {
+      "16": "icons/icon_idle_16.png",
+      "32": "icons/icon_idle_32.png",
+      "48": "icons/icon_idle_48.png",
+      "128": "icons/icon_idle_128.png"
+    }
   },
   "icons": {
-    "128": "icons/icon_idle.png"
+    "16": "icons/icon_idle_16.png",
+    "32": "icons/icon_idle_32.png",
+    "48": "icons/icon_idle_48.png",
+    "128": "icons/icon_idle_128.png"
   },
   "background": { "service_worker": "background.js" },
   "permissions": ["activeTab", "alarms", "debugger", "downloads", "offscreen", "scripting", "storage", "tabCapture", "unlimitedStorage", "webNavigation"],
