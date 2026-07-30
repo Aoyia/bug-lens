@@ -50,7 +50,7 @@ export class EvidenceReportView {
       openImage: (interactionId) => this.openImage(interactionId),
       ...(adapter.mode === "editable" ? { exclude: (interactionId: string) => void this.excludeInteraction(interactionId) } : {})
     });
-    this.diagnostics = new DiagnosticsView(root, {
+    this.diagnostics = new DiagnosticsView({
       getSnapshot: () => {
         const snapshot = adapter.getSnapshot();
         if (!snapshot) return emptyDiagnostics;
@@ -68,7 +68,7 @@ export class EvidenceReportView {
         restore: (kind: "console" | "network") => adapter.restore(kind),
         selectionChanged: () => this.renderSummary()
       } : {})
-    });
+    }, root);
 
     if (adapter.mode === "editable") {
       root.querySelector<HTMLButtonElement>("#restore")?.addEventListener("click", () => void this.restoreInteractions());
