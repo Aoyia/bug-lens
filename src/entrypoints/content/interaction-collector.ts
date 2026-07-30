@@ -1,5 +1,6 @@
 import { defaultAnnotation } from "../../domain/issue-scene";
 import { message, type AnnotationModel, type DomAncestorSnapshot, type ElementDescriptor, type InteractionRecord, type TargetDomSnapshot } from "../../shared/protocol";
+import { t } from "../../shared/i18n";
 
 type ContentSession = { sessionId: string; nonce: string; startedAtEpochMs?: number; privacyMode: "safe" | "raw" };
 type ContentController = { refresh: (next: ContentSession | undefined) => void };
@@ -86,7 +87,7 @@ if (existingController) {
     const button = widgetContainer?.querySelector<HTMLButtonElement>("#__wbr_issue_btn__");
     if (!button) return;
     button.disabled = selecting;
-    button.textContent = selecting ? "选择中…" : `标记问题 (${shortcutKeyText})`;
+    button.textContent = selecting ? t("selecting") : `${t("markIssue")} (${shortcutKeyText})`;
     button.style.opacity = selecting ? ".72" : "1";
   }
 
@@ -143,8 +144,8 @@ if (existingController) {
       <span class="__wbr_dot"></span>
       <span data-wbr-rec-tag style="font-weight:600;letter-spacing:0.5px;color:#fff;">REC</span>
       <span id="__wbr_timer_display__" class="__wbr_timer">00:00</span>
-      <button id="__wbr_issue_btn__" class="__wbr_btn" style="background:#b42318;" title="快捷键: ${shortcutKeyText}">标记问题 (${shortcutKeyText})</button>
-      <button id="__wbr_stop_btn__" class="__wbr_btn">结束录制</button>
+      <button id="__wbr_issue_btn__" class="__wbr_btn" style="background:#b42318;" title="${t("shortcut")}: ${shortcutKeyText}">${t("markIssue")} (${shortcutKeyText})</button>
+      <button id="__wbr_stop_btn__" class="__wbr_btn">${t("stopRecording")}</button>
     `;
 
     const attach = () => {
@@ -175,7 +176,7 @@ if (existingController) {
             const sec = Math.floor((Date.now() - startTime) / 1000);
             const m = String(Math.floor(sec / 60)).padStart(2, "0");
             const s = String(sec % 60).padStart(2, "0");
-            display.textContent = isIdlePaused ? `${m}:${s} (闲置已暂停)` : `${m}:${s}`;
+            display.textContent = isIdlePaused ? `${m}:${s} (${t("idlePaused")})` : `${m}:${s}`;
           }
         };
         updateTimer();
@@ -396,10 +397,10 @@ if (existingController) {
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 7 4 4 20 4 20 7"/><line x1="12" y1="4" x2="12" y2="20"/><line x1="9" y1="20" x2="15" y2="20"/></svg>
           文字
         </button>
-        <button data-issue-tool-undo class="__wbr_issue_action" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:24px;background:#ffffff;color:#1d2129;border:1px solid #e5e6eb;border-radius:2px;cursor:pointer" title="撤销 (Undo)">
+        <button data-issue-tool-undo class="__wbr_issue_action" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:24px;background:#ffffff;color:#1d2129;border:1px solid #e5e6eb;border-radius:2px;cursor:pointer" title="${t("undo")}">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
         </button>
-        <button data-issue-tool-redo class="__wbr_issue_action" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:24px;background:#ffffff;color:#1d2129;border:1px solid #e5e6eb;border-radius:2px;cursor:pointer" title="恢复 (Redo)">
+        <button data-issue-tool-redo class="__wbr_issue_action" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:24px;background:#ffffff;color:#1d2129;border:1px solid #e5e6eb;border-radius:2px;cursor:pointer" title="${t("redo")}">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"/></svg>
         </button>
       </div>

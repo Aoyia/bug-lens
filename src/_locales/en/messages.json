@@ -107,5 +107,23 @@
   },
   "evidenceSummary": {
     "message": "Evidence Summary"
+  },
+  "markIssue": {
+    "message": "Capture Issue"
+  },
+  "idlePaused": {
+    "message": "Paused (Idle)"
+  },
+  "selecting": {
+    "message": "Selecting…"
+  },
+  "undo": {
+    "message": "Undo"
+  },
+  "redo": {
+    "message": "Redo"
+  },
+  "shortcut": {
+    "message": "Shortcut"
   }
 }

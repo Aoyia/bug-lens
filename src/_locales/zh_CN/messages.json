@@ -107,5 +107,23 @@
   },
   "evidenceSummary": {
     "message": "证据概览"
+  },
+  "markIssue": {
+    "message": "标记问题"
+  },
+  "idlePaused": {
+    "message": "闲置已暂停"
+  },
+  "selecting": {
+    "message": "选择中…"
+  },
+  "undo": {
+    "message": "撤销"
+  },
+  "redo": {
+    "message": "恢复"
+  },
+  "shortcut": {
+    "message": "快捷键"
   }
 }
