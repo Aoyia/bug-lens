@@ -220,7 +220,18 @@ export class CdpEvidenceCollector {
     }
 
     if (session.options.captureNetwork && method === "Network.requestWillBeSent") {
-      const value = params as { request?: { url?: string; method?: string }; type?: string; timestamp?: number; wallTime?: number; requestId?: string };
+      const value = params as {
+        request?: {
+          url?: string;
+          method?: string;
+          headers?: Record<string, string>;
+          postData?: string;
+        };
+        type?: string;
+        timestamp?: number;
+        wallTime?: number;
+        requestId?: string;
+      };
       if (!value.request?.url) return;
       const requestId = value.requestId ?? crypto.randomUUID();
       await this.enqueue(`${tabId}:${requestId}`, async () => {
@@ -232,7 +243,9 @@ export class CdpEvidenceCollector {
           startedAtMonotonicMs: timing.startedAtMonotonicMs,
           url: sanitizeUrl(value.request!.url!, session.options.privacyMode),
           method: value.request!.method ?? "GET",
-          type: value.type
+          type: value.type,
+          requestHeaders: value.request?.headers ? sanitizeHeaders(value.request.headers, session.options.privacyMode) : undefined,
+          requestBody: value.request?.postData ? sanitizeText(value.request.postData, session.options.privacyMode) : undefined
         });
         if (stored.stored) await this.writeSessionEvent(session.id, { type: "quality-delta", delta: { networkEntryCount: 1 } });
         else await this.writeSessionEvent(session.id, { type: "capture-issue", issue: captureIssue("SESSION_STORAGE_LIMIT_REACHED", "已达到会话存储上限，未保存更多 Network 记录。", "storage") });

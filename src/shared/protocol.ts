@@ -135,6 +135,8 @@ export type NetworkEntry = {
   durationMs?: number;
   startedAtMonotonicMs?: number;
   error?: string;
+  requestHeaders?: Record<string, string>;
+  requestBody?: string;
   response?: {
     mimeType?: string;
     headers?: Record<string, string>;

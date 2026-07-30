@@ -1,6 +1,7 @@
 import { db } from "../../storage/db";
 import type { ConsoleEntry, ElementDescriptor, ExportArtifact, InteractionRecord, NetworkEntry, RecordingSession } from "../../shared/protocol";
 import { formatElapsedEpochTime } from "../../domain/evidence-clock";
+import { generateCurlCommand } from "../../domain/curl-generator";
 import { createTemporaryArchive } from "../../export/archive-destination";
 import { writeEvidenceArchive } from "../../export/export-pipeline";
 import { buildExportManifest, migrateSessionForExport } from "../../export/export-manifest";
@@ -900,7 +901,13 @@ function renderNetworkDetailPanel(entry?: NetworkEntry): string {
 
   return `
     <div class="network-detail-view">
-      <div class="network-detail-header">请求详情</div>
+      <div class="network-detail-header">
+        <span>请求详情</span>
+        <button id="btn-copy-curl" class="btn-copy-curl" title="复制为 cURL 命令">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+          <span class="btn-copy-curl-text">复制 cURL</span>
+        </button>
+      </div>
       <div class="network-detail-url"><strong>${esc(method)}</strong> ${esc(entry.url)}</div>
       ${resHeaderBlock}
       ${resBodyBlock}
@@ -998,6 +1005,25 @@ function renderLogs(): void {
     }
     void saveSelection().then(() => { renderMetrics(); renderLogs(); });
   }));
+
+  const copyCurlBtn = document.querySelector<HTMLButtonElement>("#btn-copy-curl");
+  if (copyCurlBtn && selectedEntry) {
+    copyCurlBtn.addEventListener("click", () => {
+      const curlCmd = generateCurlCommand(selectedEntry);
+      void navigator.clipboard.writeText(curlCmd).then(() => {
+        copyCurlBtn.classList.add("copied");
+        const textSpan = copyCurlBtn.querySelector<HTMLSpanElement>(".btn-copy-curl-text");
+        if (textSpan) textSpan.textContent = "已复制 cURL";
+        showToast("已复制 cURL 命令到剪贴板");
+        setTimeout(() => {
+          copyCurlBtn.classList.remove("copied");
+          if (textSpan) textSpan.textContent = "复制 cURL";
+        }, 1800);
+      }).catch((err) => {
+        showToast(`复制失败：${String(err)}`);
+      });
+    });
+  }
 }
 
 function highlightJson(jsonStr: string): string {

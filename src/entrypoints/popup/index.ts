@@ -124,7 +124,14 @@ async function refreshHistory(): Promise<void> {
     chrome.runtime.sendMessage(message("storage/get", {}))
   ]);
   const sessions = (sessionsResponse?.sessions ?? []) as SessionOverview[];
-  $("#sessions").innerHTML = sessions.length ? sessions.map(sessionHtml).join("") : '<div class="empty">没有匹配的本地会话</div>';
+  const emptyHtml = `
+    <div class="empty-state">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+      <div class="empty-title">暂无匹配的诊断记录</div>
+      <div class="empty-sub">已完成录制的报告将存放在这里</div>
+    </div>
+  `;
+  $("#sessions").innerHTML = sessions.length ? sessions.map(sessionHtml).join("") : emptyHtml;
   if (storageResponse?.storage) renderStorage(storageResponse.storage as StorageOverview);
 }
 
@@ -132,6 +139,12 @@ function showView(next: "record" | "history"): void {
   currentView = next;
   $("#record-view").hidden = next !== "record";
   $("#history-view").hidden = next !== "history";
+  const mainHeader = $("#main-header");
+  const historyHeader = $("#history-header");
+  if (mainHeader && historyHeader) {
+    mainHeader.hidden = next === "history";
+    historyHeader.hidden = next !== "history";
+  }
   document.querySelectorAll<HTMLButtonElement>(".tab").forEach((button) => button.classList.toggle("active", button.dataset.view === next));
   if (next === "history") void refreshHistory().catch(setError);
 }
@@ -162,7 +175,10 @@ $("#stop").addEventListener("click", async () => {
 });
 
 $("#preview").addEventListener("click", () => { if (activeSession) void chrome.runtime.sendMessage(message("session/open-preview", { sessionId: activeSession.id })); });
-document.querySelectorAll<HTMLButtonElement>(".tab").forEach((button) => button.addEventListener("click", () => showView(button.dataset.view === "history" ? "history" : "record")));
+document.querySelectorAll<HTMLButtonElement>(".tab").forEach((button) => button.addEventListener("click", () => {
+  const targetView = button.dataset.view === "history" ? (currentView === "history" ? "record" : "history") : "record";
+  showView(targetView);
+}));
 $("#video").addEventListener("change", () => { const video = ($("#video") as HTMLInputElement).checked; ($("#audio") as HTMLInputElement).disabled = !video; if (!video) ($("#audio") as HTMLInputElement).checked = false; });
 $("#network").addEventListener("change", () => { const network = ($("#network") as HTMLInputElement).checked; ($("#bodies") as HTMLInputElement).disabled = !network; if (!network) ($("#bodies") as HTMLInputElement).checked = false; });
 $("#refresh-history").addEventListener("click", () => void refreshHistory().catch(setError));
@@ -174,6 +190,15 @@ $("#sessions").addEventListener("click", async (event) => {
   if (button.dataset.open) { await chrome.runtime.sendMessage(message("session/open-preview", { sessionId: button.dataset.open })); return; }
   if (button.dataset.delete) { if (window.confirm("删除会话及其全部本地证据？此操作不可恢复。")) { const response = await chrome.runtime.sendMessage(message("session/delete", { sessionId: button.dataset.delete })); if (!response?.ok) setError(response?.error || "删除失败"); else await refreshHistory(); } return; }
   if (button.dataset.continue) { const response = await chrome.runtime.sendMessage(message("session/resume", { sessionId: button.dataset.continue, commandId: crypto.randomUUID() })); if (!response?.ok) setError(response?.error || "继续录制失败"); else { showView("record"); setState(response.session); } }
+});
+
+$("#toggle-options")?.addEventListener("click", () => {
+  const panel = $("#advanced-options");
+  const btn = $("#toggle-options");
+  if (!panel || !btn) return;
+  const isHidden = panel.hidden;
+  panel.hidden = !isHidden;
+  btn.classList.toggle("open", isHidden);
 });
 
 void refreshRecord().catch(setError);
