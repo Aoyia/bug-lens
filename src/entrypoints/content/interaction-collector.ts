@@ -79,11 +79,14 @@ if (existingController) {
     }
   }
 
+  const isMac = typeof navigator !== "undefined" && Boolean(/(Mac|iPhone|iPod|iPad)/i.test(navigator.platform || navigator.userAgent));
+  const shortcutKeyText = isMac ? "Option+S" : "Alt+S";
+
   function setIssueButtonSelecting(selecting: boolean): void {
     const button = widgetContainer?.querySelector<HTMLButtonElement>("#__wbr_issue_btn__");
     if (!button) return;
     button.disabled = selecting;
-    button.textContent = selecting ? "选择中…" : "标记问题 (Alt+S)";
+    button.textContent = selecting ? "选择中…" : `标记问题 (${shortcutKeyText})`;
     button.style.opacity = selecting ? ".72" : "1";
   }
 
@@ -138,9 +141,9 @@ if (existingController) {
         .__wbr_timer { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; color: #e5e6eb; font-weight: 600; }
       </style>
       <span class="__wbr_dot"></span>
-      <span style="font-weight:600;letter-spacing:0.5px;color:#fff;">REC</span>
+      <span data-wbr-rec-tag style="font-weight:600;letter-spacing:0.5px;color:#fff;">REC</span>
       <span id="__wbr_timer_display__" class="__wbr_timer">00:00</span>
-      <button id="__wbr_issue_btn__" class="__wbr_btn" style="background:#b42318;" title="快捷键: Alt+S (macOS: Option+S)">标记问题 (Alt+S)</button>
+      <button id="__wbr_issue_btn__" class="__wbr_btn" style="background:#b42318;" title="快捷键: ${shortcutKeyText}">标记问题 (${shortcutKeyText})</button>
       <button id="__wbr_stop_btn__" class="__wbr_btn">结束录制</button>
     `;
 
@@ -172,7 +175,7 @@ if (existingController) {
             const sec = Math.floor((Date.now() - startTime) / 1000);
             const m = String(Math.floor(sec / 60)).padStart(2, "0");
             const s = String(sec % 60).padStart(2, "0");
-            display.textContent = `${m}:${s}`;
+            display.textContent = isIdlePaused ? `${m}:${s} (闲置已暂停)` : `${m}:${s}`;
           }
         };
         updateTimer();
@@ -186,6 +189,7 @@ if (existingController) {
 
   function removeIssueUi(): void {
     unlockScroll();
+    const wasActive = issueSelectionActive || Boolean(issueEditor);
     issueSelectionActive = false;
     setIssueButtonSelecting(false);
     if (issueEscapeListener) window.removeEventListener("keydown", issueEscapeListener, true);
@@ -195,6 +199,9 @@ if (existingController) {
     issueEditor?.remove();
     issueEditor = undefined;
     selectedIssueElement = undefined;
+    if (wasActive && session) {
+      void chrome.runtime.sendMessage(message("issue-scene/cancel-selection", {}, session.sessionId));
+    }
   }
 
   function snapshotHtml(element: Element): { sanitizedHtml?: string; htmlTruncated?: boolean } {
@@ -282,15 +289,13 @@ if (existingController) {
       for (const item of annotation.userAnnotations) {
         const color = item.color || "#165dff";
         if (item.type === "rect") {
-          userMarkup += `<rect x="${item.xRatio * 1000}" y="${item.yRatio * 1000}" width="${item.widthRatio * 1000}" height="${item.heightRatio * 1000}" rx="2" ry="2" fill="rgba(22,93,255,0.06)" stroke="${color}" stroke-width="3"></rect>`;
+          userMarkup += `<rect x="${item.xRatio * 1000}" y="${item.yRatio * 1000}" width="${item.widthRatio * 1000}" height="${item.heightRatio * 1000}" rx="2" ry="2" fill="none" stroke="${color}" stroke-width="3"></rect>`;
         } else if (item.type === "arrow") {
           userMarkup += `<line x1="${item.startXRatio * 1000}" y1="${item.startYRatio * 1000}" x2="${item.endXRatio * 1000}" y2="${item.endYRatio * 1000}" stroke="${color}" stroke-width="3" marker-end="url(#user-arrow-head)"></line>`;
         } else if (item.type === "text" && item.text) {
           const textEsc = item.text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-          const bgWidth = Math.max(36, textEsc.length * 10 + 12);
           userMarkup += `<g transform="translate(${item.xRatio * 1000}, ${item.yRatio * 1000})">
-            <rect x="-4" y="-18" width="${bgWidth}" height="24" rx="2" fill="rgba(10,13,18,0.78)"></rect>
-            <text x="2" y="-2" fill="${color}" font-size="14" font-weight="600" font-family="-apple-system, BlinkMacSystemFont, sans-serif">${textEsc}</text>
+            <text x="0" y="0" fill="${color}" font-size="16" font-weight="700" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" style="filter: drop-shadow(0px 1px 2px rgba(0,0,0,0.6));">${textEsc}</text>
           </g>`;
         }
       }
@@ -307,7 +312,7 @@ if (existingController) {
         const ry = Math.min(sy, cy);
         const rw = Math.abs(cx - sx);
         const rh = Math.abs(cy - sy);
-        activeMarkup = `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" rx="2" ry="2" fill="rgba(22,93,255,0.12)" stroke="#165dff" stroke-width="3" stroke-dasharray="4,4"></rect>`;
+        activeMarkup = `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" rx="2" ry="2" fill="none" stroke="#165dff" stroke-width="3" stroke-dasharray="4,4"></rect>`;
       } else if (activeDrawing.type === "arrow") {
         activeMarkup = `<line x1="${sx}" y1="${sy}" x2="${cx}" y2="${cy}" stroke="#165dff" stroke-width="3" stroke-dasharray="4,4" marker-end="url(#user-arrow-head)"></line>`;
       }
@@ -391,8 +396,11 @@ if (existingController) {
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 7 4 4 20 4 20 7"/><line x1="12" y1="4" x2="12" y2="20"/><line x1="9" y1="20" x2="15" y2="20"/></svg>
           文字
         </button>
-        <button data-issue-tool-undo class="__wbr_issue_action" style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;background:#ffffff;color:#5f6b7c;border:1px solid #e5e6eb;border-radius:2px;cursor:pointer;font-size:12px" title="撤销上一条批注">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/></svg>
+        <button data-issue-tool-undo class="__wbr_issue_action" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:24px;background:#ffffff;color:#1d2129;border:1px solid #e5e6eb;border-radius:2px;cursor:pointer" title="撤销 (Undo)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
+        </button>
+        <button data-issue-tool-redo class="__wbr_issue_action" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:24px;background:#ffffff;color:#1d2129;border:1px solid #e5e6eb;border-radius:2px;cursor:pointer" title="恢复 (Redo)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"/></svg>
         </button>
       </div>
       <div style="height:12px;width:1px;background:#e5e6eb"></div>
@@ -541,10 +549,43 @@ if (existingController) {
       });
     });
 
-    root.querySelector("[data-issue-tool-undo]")?.addEventListener("click", () => {
+    const redoStack: any[] = [];
+    const undoBtn = root.querySelector<HTMLButtonElement>("[data-issue-tool-undo]");
+    const redoBtn = root.querySelector<HTMLButtonElement>("[data-issue-tool-redo]");
+
+    const updateUndoRedoStatus = () => {
+      const hasUndo = Boolean(annotation.userAnnotations?.length);
+      const hasRedo = Boolean(redoStack.length);
+      if (undoBtn) {
+        undoBtn.disabled = !hasUndo;
+        undoBtn.style.opacity = hasUndo ? "1" : "0.4";
+        undoBtn.style.cursor = hasUndo ? "pointer" : "not-allowed";
+      }
+      if (redoBtn) {
+        redoBtn.disabled = !hasRedo;
+        redoBtn.style.opacity = hasRedo ? "1" : "0.4";
+        redoBtn.style.cursor = hasRedo ? "pointer" : "not-allowed";
+      }
+    };
+    updateUndoRedoStatus();
+
+    undoBtn?.addEventListener("click", () => {
       if (annotation.userAnnotations?.length) {
-        annotation.userAnnotations.pop();
+        const popped = annotation.userAnnotations.pop();
+        if (popped) redoStack.push(popped);
         renderEditorAnnotation(svg, annotation);
+        updateUndoRedoStatus();
+      }
+    });
+
+    redoBtn?.addEventListener("click", () => {
+      if (redoStack.length) {
+        const item = redoStack.pop();
+        if (item) {
+          annotation.userAnnotations!.push(item);
+          renderEditorAnnotation(svg, annotation);
+          updateUndoRedoStatus();
+        }
       }
     });
 
@@ -588,7 +629,7 @@ if (existingController) {
           left: `${event.clientX - root.getBoundingClientRect().left}px`,
           top: `${event.clientY - root.getBoundingClientRect().top - 14}px`,
           zIndex: "40",
-          background: "rgba(10, 13, 18, 0.9)",
+          background: "rgba(255, 255, 255, 0.95)",
           color: "#165dff",
           border: "1px solid #165dff",
           borderRadius: "2px",
@@ -596,7 +637,7 @@ if (existingController) {
           fontSize: "13px",
           fontWeight: "600",
           outline: "none",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
           minWidth: "100px"
         });
         root.appendChild(input);
@@ -613,7 +654,9 @@ if (existingController) {
               yRatio: clickYRatio,
               text: val
             });
+            redoStack.length = 0;
             renderEditorAnnotation(svg, annotation);
+            updateUndoRedoStatus();
           }
           removeTextInputOverlay();
         };
@@ -694,6 +737,8 @@ if (existingController) {
               endYRatio: endYRatio
             });
           }
+          redoStack.length = 0;
+          updateUndoRedoStatus();
         }
         renderEditorAnnotation(svg, annotation);
       }
@@ -814,6 +859,7 @@ if (existingController) {
   function beginIssueSelection(): void {
     if (!session || issueSelectionActive || issueEditor) return;
     issueSelectionActive = true;
+    void chrome.runtime.sendMessage(message("issue-scene/start-selection", {}, session.sessionId));
     lockScroll();
     setIssueButtonSelecting(true);
 
@@ -851,7 +897,7 @@ if (existingController) {
     });
 
     const statusText = document.createElement("span");
-    statusText.textContent = "标记模式 (Alt+S) · 点击选择网页元素";
+    statusText.textContent = `标记模式 (${shortcutKeyText}) · 点击选择网页元素`;
 
     const btnGroup = document.createElement("div");
     Object.assign(btnGroup.style, { display: "flex", alignItems: "center", gap: "8px" });
@@ -1032,6 +1078,73 @@ if (existingController) {
     window.addEventListener("keydown", issueEscapeListener, true);
   }
 
+  const INACTIVITY_TIMEOUT_MS = 60_000;
+  let lastActivityTime = Date.now();
+  let isIdlePaused = false;
+  let inactivityCheckInterval: number | undefined;
+  let activityListenersAttached = false;
+  const activityEvents = ["pointermove", "pointerdown", "keydown", "scroll", "wheel", "touchstart"];
+
+  function handleUserActivity(): void {
+    const now = Date.now();
+    if (isIdlePaused && session) {
+      isIdlePaused = false;
+      updateWidgetPauseState(false);
+      void chrome.runtime.sendMessage(message("offscreen/resume-media", { sessionId: session.sessionId }, session.sessionId));
+    }
+    lastActivityTime = now;
+  }
+
+  function startInactivityMonitor(): void {
+    stopInactivityMonitor();
+    lastActivityTime = Date.now();
+    isIdlePaused = false;
+
+    if (!activityListenersAttached) {
+      activityEvents.forEach((type) => {
+        window.addEventListener(type, handleUserActivity, { capture: true, passive: true });
+      });
+      activityListenersAttached = true;
+    }
+
+    inactivityCheckInterval = window.setInterval(() => {
+      if (!session || issueSelectionActive || issueEditor) return;
+      if (!isIdlePaused && Date.now() - lastActivityTime >= INACTIVITY_TIMEOUT_MS) {
+        isIdlePaused = true;
+        updateWidgetPauseState(true);
+        void chrome.runtime.sendMessage(message("offscreen/pause-media", { sessionId: session.sessionId }, session.sessionId));
+      }
+    }, 2_000);
+  }
+
+  function stopInactivityMonitor(): void {
+    if (inactivityCheckInterval) {
+      clearInterval(inactivityCheckInterval);
+      inactivityCheckInterval = undefined;
+    }
+    if (activityListenersAttached) {
+      activityEvents.forEach((type) => {
+        window.removeEventListener(type, handleUserActivity, true);
+      });
+      activityListenersAttached = false;
+    }
+    isIdlePaused = false;
+  }
+
+  function updateWidgetPauseState(paused: boolean): void {
+    if (!widgetContainer) return;
+    const dot = widgetContainer.querySelector<HTMLElement>(".__wbr_dot");
+    const recTag = widgetContainer.querySelector<HTMLElement>("[data-wbr-rec-tag]");
+    if (dot) {
+      dot.style.background = paused ? "#ffc107" : "#f53f3f";
+      dot.style.animation = paused ? "none" : "wbr-pulse 1.5s infinite";
+    }
+    if (recTag) {
+      recTag.textContent = paused ? "PAUSED" : "REC";
+      recTag.style.color = paused ? "#ffc107" : "#fff";
+    }
+  }
+
   function removeRecordingWidget(): void {
     if (timerInterval) { clearInterval(timerInterval); timerInterval = undefined; }
     if (widgetContainer) { widgetContainer.remove(); widgetContainer = undefined; }
@@ -1044,8 +1157,13 @@ if (existingController) {
     if (!next) removeIssueUi();
     session = next;
     window.__WEB_BUG_RECORDER_SESSION__ = next;
-    if (next) renderRecordingWidget();
-    else removeRecordingWidget();
+    if (next) {
+      renderRecordingWidget();
+      startInactivityMonitor();
+    } else {
+      removeRecordingWidget();
+      stopInactivityMonitor();
+    }
   }
 
   function isWidgetElement(el: Element | null): boolean {
@@ -1160,7 +1278,7 @@ if (existingController) {
 
   const send = (record: InteractionRecord, type: "interaction/candidate" | "interaction/confirmed") => { void chrome.runtime.sendMessage(message(type, { interaction: record }, record.sessionId)); };
   document.addEventListener("pointerdown", (event) => {
-    if (issueSelectionActive) return;
+    if (issueSelectionActive || issueEditor) return;
     if (!session || !event.isTrusted) return;
     const element = firstElement(event.composedPath());
     if (!element || isWidgetElement(element)) return;
@@ -1171,7 +1289,7 @@ if (existingController) {
   }, { capture: true, passive: false });
 
   document.addEventListener("click", (event) => {
-    if (issueSelectionActive) return;
+    if (issueSelectionActive || issueEditor) return;
     if (!session || !event.isTrusted) return;
     const element = firstElement(event.composedPath()) ?? (event.target instanceof Element ? event.target : undefined);
     if (!element || isWidgetElement(element)) return;
@@ -1182,7 +1300,7 @@ if (existingController) {
   }, { capture: true, passive: true });
 
   document.addEventListener("input", (event) => {
-    if (!session || issueSelectionActive || !event.isTrusted) return;
+    if (!session || issueSelectionActive || issueEditor || !event.isTrusted) return;
     const element = firstElement(event.composedPath()) ?? (event.target instanceof Element ? event.target : undefined);
     if (!element || isWidgetElement(element)) return;
     const previous = pendingInputs.get(element);
@@ -1193,7 +1311,7 @@ if (existingController) {
   }, { capture: true, passive: true });
 
   document.addEventListener("change", (event) => {
-    if (!session || issueSelectionActive || !event.isTrusted) return;
+    if (!session || issueSelectionActive || issueEditor || !event.isTrusted) return;
     const element = firstElement(event.composedPath()) ?? (event.target instanceof Element ? event.target : undefined);
     if (!element || isWidgetElement(element)) return;
     const previous = pendingInputs.get(element);
@@ -1202,7 +1320,7 @@ if (existingController) {
   }, { capture: true, passive: true });
 
   document.addEventListener("submit", (event) => {
-    if (!session || issueSelectionActive || !event.isTrusted) return;
+    if (!session || issueSelectionActive || issueEditor || !event.isTrusted) return;
     const form = event.target instanceof HTMLFormElement ? event.target : undefined;
     if (!form || isWidgetElement(form)) return;
     sendConfirmed(createRecord(event, form, "confirmed", "submit", { formMethod: form.method.toUpperCase(), formAction: form.action }));
@@ -1214,16 +1332,16 @@ if (existingController) {
     if (isAltS) {
       event.preventDefault();
       event.stopPropagation();
-      if (issueSelectionActive) {
+      if (issueSelectionActive || issueEditor) {
         removeIssueUi();
-      } else if (!issueEditor) {
+      } else {
         beginIssueSelection();
       }
     }
   }, { capture: true });
 
   document.addEventListener("keydown", (event) => {
-    if (!session || issueSelectionActive || !event.isTrusted || !actionableKey(event)) return;
+    if (!session || issueSelectionActive || issueEditor || !event.isTrusted || !actionableKey(event)) return;
     const element = firstElement(event.composedPath()) ?? (event.target instanceof Element ? event.target : document.documentElement);
     if (isWidgetElement(element)) return;
     sendConfirmed(createRecord(event, element, "confirmed", "keydown", { key: event.key, code: event.code, altKey: event.altKey, ctrlKey: event.ctrlKey, metaKey: event.metaKey, shiftKey: event.shiftKey, repeat: event.repeat }));

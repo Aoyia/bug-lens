@@ -105,6 +105,20 @@ async function stopMedia(sessionId: string): Promise<void> {
   if (failures.length) throw new Error(`媒体数据块写入失败 (MEDIA_CHUNK_WRITE_FAILED:${failures.map((failure) => String(failure.reason)).join("; ")})`);
 }
 
+async function pauseMedia(sessionId: string): Promise<void> {
+  if (activeSessionId && activeSessionId !== sessionId) return;
+  if (recorder && recorder.state === "recording") {
+    recorder.pause();
+  }
+}
+
+async function resumeMedia(sessionId: string): Promise<void> {
+  if (activeSessionId && activeSessionId !== sessionId) return;
+  if (recorder && recorder.state === "paused") {
+    recorder.resume();
+  }
+}
+
 async function annotateImage(payload: Extract<RuntimeMessage, { type: "offscreen/annotate-image" }>["payload"]): Promise<string> {
   const response = await fetch(payload.dataUrl);
   const bitmap = await createImageBitmap(await response.blob());
@@ -225,16 +239,14 @@ async function renderIssueImage(payload: Extract<RuntimeMessage, { type: "offscr
           const tx = Math.round(bitmap.width * item.xRatio);
           const ty = Math.round(bitmap.height * item.yRatio);
           const fontSize = Math.max(14, Math.round((item.fontSize || 16) * dpr));
-          context.font = `600 ${fontSize}px -apple-system, BlinkMacSystemFont, sans-serif`;
-
-          const textMetrics = context.measureText(item.text);
+          context.font = `700 ${fontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`;
           const pad = Math.round(4 * dpr);
 
-          context.fillStyle = "rgba(10, 13, 18, 0.75)";
-          context.fillRect(tx - pad, ty - fontSize - pad / 2, textMetrics.width + pad * 2, fontSize + pad * 1.5);
-
+          context.shadowColor = "rgba(0, 0, 0, 0.6)";
+          context.shadowBlur = Math.round(4 * dpr);
           context.fillStyle = strokeColor;
           context.fillText(item.text, tx, ty - pad / 2);
+          context.shadowBlur = 0;
         }
         context.restore();
       }
@@ -251,7 +263,9 @@ chrome.runtime.onMessage.addListener((raw: unknown) => {
   const incoming = raw as RuntimeMessage;
   if (incoming.type === "offscreen/start-media") return startMedia(incoming.payload).then(() => ({ ok: true })).catch((error) => ({ ok: false, error: String(error) }));
   if (incoming.type === "offscreen/stop-media") return stopMedia(incoming.payload.sessionId).then(() => ({ ok: true })).catch((error) => ({ ok: false, error: String(error) }));
-  if (incoming.type === "offscreen/status") return Promise.resolve({ ok: true, active: activeSessionId === incoming.payload.sessionId && recorder?.state === "recording" });
+  if (incoming.type === "offscreen/pause-media") return pauseMedia(incoming.payload.sessionId).then(() => ({ ok: true })).catch((error) => ({ ok: false, error: String(error) }));
+  if (incoming.type === "offscreen/resume-media") return resumeMedia(incoming.payload.sessionId).then(() => ({ ok: true })).catch((error) => ({ ok: false, error: String(error) }));
+  if (incoming.type === "offscreen/status") return Promise.resolve({ ok: true, active: activeSessionId === incoming.payload.sessionId && (recorder?.state === "recording" || recorder?.state === "paused") });
   if (incoming.type === "offscreen/annotate-image") return annotateImage(incoming.payload).then((dataUrl) => ({ ok: true, dataUrl })).catch((error) => ({ ok: false, error: String(error) }));
   if (incoming.type === "offscreen/render-issue-image") return renderIssueImage(incoming.payload).then((result) => ({ ok: true, ...result })).catch((error) => ({ ok: false, error: String(error) }));
 });

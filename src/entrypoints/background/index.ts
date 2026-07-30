@@ -326,10 +326,24 @@ async function bootstrapRuntimeState(): Promise<void> {
 
 const bootstrapPromise = bootstrapRuntimeState().catch(() => undefined);
 
+async function pauseMediaSession(sessionId: string): Promise<void> {
+  const session = await db.getSession(sessionId);
+  if (session && session.options.captureVideo) {
+    await chrome.runtime.sendMessage(message("offscreen/pause-media", { sessionId }, sessionId)).catch(() => undefined);
+  }
+}
+
+async function resumeMediaSession(sessionId: string): Promise<void> {
+  const session = await db.getSession(sessionId);
+  if (session && session.options.captureVideo) {
+    await chrome.runtime.sendMessage(message("offscreen/resume-media", { sessionId }, sessionId)).catch(() => undefined);
+  }
+}
+
 chrome.runtime.onMessage.addListener((raw: unknown, sender, sendResponse) => {
   if (!isEnvelope(raw)) return;
   const incoming = raw as RuntimeMessage;
-  if (incoming.type === "offscreen/start-media" || incoming.type === "offscreen/stop-media" || incoming.type === "offscreen/status" || incoming.type === "offscreen/annotate-image" || incoming.type === "offscreen/render-issue-image") return;
+  if (incoming.type === "offscreen/start-media" || incoming.type === "offscreen/stop-media" || incoming.type === "offscreen/pause-media" || incoming.type === "offscreen/resume-media" || incoming.type === "offscreen/status" || incoming.type === "offscreen/annotate-image" || incoming.type === "offscreen/render-issue-image") return;
   void (async () => {
     try {
       if (incoming.type === "offscreen/media-state") {
@@ -367,6 +381,18 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender, sendResponse) => {
         case "interaction/candidate":
         case "interaction/confirmed": await interactionCapture.handle(incoming.payload.interaction, sender); sendResponse({ ok: true }); return;
         case "interaction/cancelled": await interactionCapture.cancel(incoming.payload.interactionId, incoming.payload.interaction, incoming.sessionId, sender); sendResponse({ ok: true }); return;
+        case "issue-scene/start-selection": {
+          const active = await db.getActiveSession();
+          if (active) void pauseMediaSession(active.id);
+          sendResponse({ ok: true });
+          return;
+        }
+        case "issue-scene/cancel-selection": {
+          const active = await db.getActiveSession();
+          if (active) void resumeMediaSession(active.id);
+          sendResponse({ ok: true });
+          return;
+        }
         case "issue-scene/capture": {
           const result = await issueSceneCapture.capture(incoming.payload, sender);
           await applySessionEvent(result.scene.sessionId, { type: "quality-delta", delta: { issueSceneCount: 1, partialIssueSceneCount: result.scene.status === "partial" || result.scene.status === "failed" ? 1 : 0 } });
@@ -377,9 +403,16 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender, sendResponse) => {
           const scene = await issueSceneCapture.commit(incoming.payload, sender);
           sendResponse({ ok: true, scene });
           if (incoming.payload.stopAfterCommit) void stopSession(`issue-scene:${scene.id}`);
+          else void resumeMediaSession(scene.sessionId);
           return;
         }
-        case "issue-scene/cancel": await issueSceneCapture.cancel(incoming.payload.issueSceneId, incoming.payload.nonce, sender); sendResponse({ ok: true }); return;
+        case "issue-scene/cancel": {
+          await issueSceneCapture.cancel(incoming.payload.issueSceneId, incoming.payload.nonce, sender);
+          const active = await db.getActiveSession();
+          if (active) void resumeMediaSession(active.id);
+          sendResponse({ ok: true });
+          return;
+        }
         case "offscreen/media-chunk": {
           const result = await db.saveMediaChunkWithinBudget({ id: `${incoming.payload.sessionId}:${incoming.payload.sequence}`, ...incoming.payload });
           sendResponse({ ok: result.stored, error: result.stored ? undefined : "SESSION_STORAGE_LIMIT_REACHED" });

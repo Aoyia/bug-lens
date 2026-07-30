@@ -350,10 +350,14 @@ export type RuntimeMessage =
   | Envelope<"issue-scene/capture", { captureId: string; nonce: string; observedAtEpochMs: number; page: IssueScene["page"]; target: TargetDomSnapshot; targets?: TargetDomSnapshot[]; annotation: AnnotationModel }>
   | Envelope<"issue-scene/commit", { issueSceneId: string; nonce: string; narrative: { actual: string; expected?: string; note?: string }; annotation: AnnotationModel; stopAfterCommit: boolean }>
   | Envelope<"issue-scene/cancel", { issueSceneId: string; nonce: string }>
+  | Envelope<"issue-scene/start-selection", Record<string, never>>
+  | Envelope<"issue-scene/cancel-selection", Record<string, never>>
   | Envelope<"content/hello", { url: string; title: string }>
   | Envelope<"content/reset", Record<string, never>>
   | Envelope<"offscreen/start-media", { streamId: string; sessionId: string; captureAudio: boolean; timesliceMs: number }>
   | Envelope<"offscreen/stop-media", { sessionId: string }>
+  | Envelope<"offscreen/pause-media", { sessionId: string }>
+  | Envelope<"offscreen/resume-media", { sessionId: string }>
   | Envelope<"offscreen/status", { sessionId: string }>
   | Envelope<"offscreen/annotate-image", { dataUrl: string; clientX: number; clientY: number; viewportWidth: number; viewportHeight: number }>
   | Envelope<"offscreen/render-issue-image", { sessionId: string; issueSceneId: string; originalAssetId: string; annotatedAssetId: string; annotation: AnnotationModel; devicePixelRatio?: number }>
