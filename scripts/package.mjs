@@ -18,7 +18,8 @@ if (!existsSync(manifestPath)) {
 
 const manifest = JSON.parse(readFileSync(manifestPath, "utf-8"));
 const version = manifest.version || "0.1.0";
-const nameSlug = (manifest.name || "bug-lens").toLowerCase().replace(/\s+/g, "-");
+const rawName = manifest.name && !manifest.name.startsWith("__MSG_") ? manifest.name : "bug-lens";
+const nameSlug = rawName.toLowerCase().replace(/\s+/g, "-");
 const zipFilename = `${nameSlug}-v${version}.zip`;
 const outputPath = join(root, zipFilename);
 

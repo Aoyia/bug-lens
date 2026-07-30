@@ -4,6 +4,9 @@ import { EvidenceReportView } from "../../preview/evidence-report-view";
 import { PreviewAiHandoff } from "../../preview/preview-ai-handoff";
 import { PreviewExportController } from "../../preview/preview-export-controller";
 import { PreviewSessionRuntime } from "../../preview/preview-session-runtime";
+import { applyI18n } from "../../shared/i18n";
+
+applyI18n();
 
 const $ = <T extends HTMLElement>(selector: string) => document.querySelector<T>(selector)!;
 const sessionId = new URLSearchParams(location.search).get("sessionId") || undefined;

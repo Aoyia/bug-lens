@@ -19,7 +19,7 @@
         <div class="brand-info">
           <img src="icons/icon_idle.png" class="brand-logo" alt="Bug Lens Icon">
           <div class="brand-titles">
-            <h1 id="title">录制预览</h1>
+            <h1 id="title" data-i18n="previewTitle">录制预览</h1>
             <div id="meta" class="muted"></div>
           </div>
         </div>
@@ -34,7 +34,7 @@
           <span id="ai-status" class="ai-status">等待导出</span>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 2px;"><polyline points="6 9 12 15 18 9"></polyline></svg>
         </button>
-        <button id="export">导出离线报告</button>
+        <button id="export" data-i18n="exportReport">导出离线报告</button>
       </div>
     </header>
 
@@ -57,11 +57,11 @@
       <div class="zen-left-panel">
         <div class="zen-video-container">
           <div class="zen-panel-title">
-            <span>标签页录像</span>
+            <span data-i18n="video">标签页录像</span>
             <div id="metrics" class="metrics"></div>
           </div>
           <div class="video-viewport">
-            <div id="video-empty" class="empty">正在读取媒体分片…</div>
+            <div id="video-empty" class="empty" data-i18n="loading">正在读取媒体分片…</div>
             <video id="video" class="video" controls hidden></video>
           </div>
         </div>
@@ -74,13 +74,13 @@
           <div class="zen-tab-bar">
             <div class="zen-tabs">
               <button class="zen-tab-btn active" data-tab="steps">
-                <span>交互步骤</span>
+                <span data-i18n="timeline">交互步骤</span>
               </button>
               <button class="zen-tab-btn" data-tab="console">
-                <span>Console 日志</span>
+                <span data-i18n="consoleLogs">Console 日志</span>
               </button>
               <button class="zen-tab-btn" data-tab="network">
-                <span>Network 请求</span>
+                <span data-i18n="networkRequests">Network 请求</span>
               </button>
             </div>
             

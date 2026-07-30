@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "Bug Lens",
-  "version": "0.1.0",
-  "description": "Capture local evidence for web bugs.",
+  "name": "__MSG_extensionName__",
+  "default_locale": "zh_CN",
+  "version": "0.1.1",
+  "description": "__MSG_extensionDescription__",
   "minimum_chrome_version": "125",
   "action": {
     "default_popup": "popup.html",

@@ -1,0 +1,105 @@
+{
+  "extensionName": {
+    "message": "Bug Lens",
+    "description": "The name of the extension"
+  },
+  "extensionDescription": {
+    "message": "Capture local evidence for web bugs lightweight tool.",
+    "description": "The description of the extension"
+  },
+  "history": {
+    "message": "History"
+  },
+  "backToRecord": {
+    "message": "Back"
+  },
+  "refreshList": {
+    "message": "Refresh List"
+  },
+  "cleanupExpired": {
+    "message": "Clean Up Expired"
+  },
+  "loading": {
+    "message": "Loading…"
+  },
+  "notRecording": {
+    "message": "Idle"
+  },
+  "recording": {
+    "message": "Recording"
+  },
+  "defaultSafeCollection": {
+    "message": "Default · Safe Full Capture"
+  },
+  "config": {
+    "message": "Settings"
+  },
+  "video": {
+    "message": "Video"
+  },
+  "audio": {
+    "message": "Audio"
+  },
+  "clickScreenshots": {
+    "message": "Screenshots"
+  },
+  "console": {
+    "message": "Console"
+  },
+  "network": {
+    "message": "Network"
+  },
+  "responseBodies": {
+    "message": "Response Bodies"
+  },
+  "safeMode": {
+    "message": "Safe Mode (Sanitized)"
+  },
+  "rawMode": {
+    "message": "Raw Mode (Unsanitized)"
+  },
+  "startRecording": {
+    "message": "Start Recording"
+  },
+  "stopRecording": {
+    "message": "Stop Recording"
+  },
+  "reopenPreview": {
+    "message": "Reopen Preview"
+  },
+  "searchPlaceholder": {
+    "message": "Search title, URL, or status"
+  },
+  "sessionsCount": {
+    "message": "$COUNT$ sessions",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "previewTitle": {
+    "message": "Bug Lens Workspace"
+  },
+  "exportPackage": {
+    "message": "Export Package"
+  },
+  "exportReport": {
+    "message": "Export HTML Report"
+  },
+  "deleteSession": {
+    "message": "Delete Session"
+  },
+  "timeline": {
+    "message": "Timeline"
+  },
+  "consoleLogs": {
+    "message": "Console Logs"
+  },
+  "networkRequests": {
+    "message": "Network Requests"
+  },
+  "evidenceSummary": {
+    "message": "Evidence Summary"
+  }
+}

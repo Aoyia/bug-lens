@@ -1,0 +1,105 @@
+{
+  "extensionName": {
+    "message": "Bug Lens",
+    "description": "The name of the extension"
+  },
+  "extensionDescription": {
+    "message": "捕获网页 Bug 现场证据的轻量级扩展工具。",
+    "description": "The description of the extension"
+  },
+  "history": {
+    "message": "历史记录"
+  },
+  "backToRecord": {
+    "message": "返回录制"
+  },
+  "refreshList": {
+    "message": "刷新列表"
+  },
+  "cleanupExpired": {
+    "message": "清理过期记录"
+  },
+  "loading": {
+    "message": "正在读取…"
+  },
+  "notRecording": {
+    "message": "未录制"
+  },
+  "recording": {
+    "message": "正在录制"
+  },
+  "defaultSafeCollection": {
+    "message": "默认 · 安全全量采集"
+  },
+  "config": {
+    "message": "配置"
+  },
+  "video": {
+    "message": "录像"
+  },
+  "audio": {
+    "message": "音频"
+  },
+  "clickScreenshots": {
+    "message": "点击截图"
+  },
+  "console": {
+    "message": "Console"
+  },
+  "network": {
+    "message": "Network"
+  },
+  "responseBodies": {
+    "message": "响应正文"
+  },
+  "safeMode": {
+    "message": "安全模式（推荐脱敏）"
+  },
+  "rawMode": {
+    "message": "原始模式（不脱敏）"
+  },
+  "startRecording": {
+    "message": "开始录制"
+  },
+  "stopRecording": {
+    "message": "结束录制"
+  },
+  "reopenPreview": {
+    "message": "重新打开预览"
+  },
+  "searchPlaceholder": {
+    "message": "搜索标题、URL、状态"
+  },
+  "sessionsCount": {
+    "message": "$COUNT$ 个会话",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "previewTitle": {
+    "message": "Bug Lens 预览分析"
+  },
+  "exportPackage": {
+    "message": "导出证据包"
+  },
+  "exportReport": {
+    "message": "导出网页报告"
+  },
+  "deleteSession": {
+    "message": "删除当前会话"
+  },
+  "timeline": {
+    "message": "操作时间轴"
+  },
+  "consoleLogs": {
+    "message": "控制台日志"
+  },
+  "networkRequests": {
+    "message": "网络请求"
+  },
+  "evidenceSummary": {
+    "message": "证据概览"
+  }
+}

@@ -6,3 +6,4 @@ docs
 scripts/auto-commit.sh
 .agents
 plans
+*.zip

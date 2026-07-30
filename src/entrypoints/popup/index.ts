@@ -1,4 +1,7 @@
 import { message, type EvidenceSummary, type RecordingOptions, type RecordingSession, type SessionOverview, type StorageOverview } from "../../shared/protocol";
+import { applyI18n, t } from "../../shared/i18n";
+
+applyI18n();
 
 const $ = <T extends HTMLElement>(selector: string) => document.querySelector<T>(selector)!;
 const scopeIds = ["video", "audio", "screenshots", "console", "network", "bodies"] as const;
