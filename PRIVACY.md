@@ -1,21 +1,21 @@
-# Bug Lens 隐私政策 (Privacy Policy)
+# Privacy Policy for Bug Lens
 
-**生效日期**：2026年7月30日
+**Effective Date**: July 30, 2026
 
-Bug Lens（以下简称“本扩展”）非常重视用户的隐私保护。本隐私政策旨在说明本扩展如何收集、使用和存储您的相关信息。
+Bug Lens ("the Extension") is committed to protecting your privacy. This Privacy Policy explains how the Extension handles, processes, and protects your information.
 
-## 1. 数据收集与处理
-- **本地存储**：本扩展在您主动触发录制或截屏功能时，所捕获的 DOM 快照、控制台日志（Console Logs）、网络请求（Network Request）以及音视频录像数据，**完全且仅存储在您本地浏览器的 IndexedDB 中**。
-- **无远程服务器上传**：本扩展不设立外部数据收集服务器，绝不向任何第三方发送或卖出您的个人数据、浏览历史或凭据信息。
+## 1. Data Collection and Processing
+- **Local-Only Storage**: All captured data—including DOM snapshots, Console logs, Network request headers/bodies, screenshots, and audio/video recordings—are **stored exclusively in your local browser's IndexedDB**.
+- **No Remote Servers**: The Extension does NOT operate any external servers, does NOT track user behavior, and NEVER transmits, sells, or shares your personal data or browsing activity with any third party.
 
-## 2. 权限说明
-- **debugger (DevTools Protocol)**：仅在您开始录制时，用于读取当前标签页的网络 Header/Payload 与控制台报错日志，帮助生成缺陷调试报告。
-- **tabCapture & offscreen**：仅在您启动录制时，捕获当前标签页屏幕图像与音视频，并在本地合成高清截图标注图。
-- **storage & unlimitedStorage**：仅用于在您本地浏览器中持久化保存未导出的证据分析包。
+## 2. Permission Justifications
+- **debugger (DevTools Protocol)**: Used solely during an active recording session to capture Console logs and Network request details to generate structured debugging reports.
+- **tabCapture & offscreen**: Used solely upon user action to record tab media and render annotated screenshots in a local offscreen canvas.
+- **storage & unlimitedStorage**: Used solely to persist un-exported evidence packages locally on your machine.
 
-## 3. 用户控制权
-您可随时在扩展预览面板中一键清除所有历史记录与本地缓存证据包，或随时卸载本扩展。
+## 3. User Control
+You retain full control over your data. You can clear all stored sessions and evidence packages at any time within the Extension's preview workspace or by uninstalling the Extension.
 
-## 4. 联系我们
-如有任何关于本隐私政策的疑问，请通过开源仓库提交 Issue 沟通：
+## 4. Contact Us
+If you have any questions regarding this Privacy Policy, please open an issue on our GitHub repository:
 https://github.com/Aoyia/bug-lens
