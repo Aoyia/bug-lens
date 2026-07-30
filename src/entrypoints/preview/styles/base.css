@@ -1,0 +1,253 @@
+    :root {
+      /* 禅意纸感色盘 Zen Porcelain Color System */
+      --zen-bg-base: #f5f6f9;
+      --zen-bg-surface: rgba(255, 255, 255, 0.75);
+      --zen-bg-glass: rgba(255, 255, 255, 0.55);
+      --zen-bg-hover: rgba(255, 255, 255, 0.95);
+      --zen-bg-dark: #12151c;
+      
+      --zen-border: rgba(0, 0, 0, 0.06);
+      --zen-border-subtle: rgba(0, 0, 0, 0.03);
+      --zen-border-accent: rgba(22, 93, 255, 0.35);
+
+      --zen-primary: #165dff;
+      --zen-primary-hover: #3676ff;
+      --zen-primary-light: rgba(22, 93, 255, 0.08);
+      
+      --zen-text-main: #1d2129;
+      --zen-text-sub: #5f6b7c;
+      --zen-text-muted: #8c97a8;
+
+      --zen-shadow-glass: none;
+      --zen-shadow-float: none;
+
+      --zen-radius-window: 2px;
+      --zen-radius-panel: 2px;
+      --zen-radius-btn: 2px;
+
+      /* 屏幕尺寸响应式变量 (Fluid Typography & Dynamic Scale) */
+      --font-xs: clamp(10px, 0.3vw + 3px, 11.5px);
+      --font-sm: clamp(11px, 0.35vw + 3px, 12.5px);
+      --font-base: clamp(12px, 0.4vw + 4px, 14px);
+      --font-md: clamp(13.5px, 0.45vw + 4px, 16px);
+
+      --btn-height: clamp(24px, 0.7vw + 8px, 30px);
+      --btn-padding: 3px clamp(8px, 0.4vw + 2px, 12px);
+      --titlebar-height: clamp(34px, 0.9vw + 10px, 40px);
+    }
+
+    * { box-sizing: border-box; }
+    
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: radial-gradient(120% 120% at 50% 0%, #ffffff 0%, #f0f2f6 100%);
+      color: var(--zen-text-main);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Hiragino Sans GB", sans-serif;
+      font-size: var(--font-base);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* 桌面级 APP 主窗口 Desktop Window Shell */
+    .zen-app-frame {
+      display: flex;
+      flex-direction: column;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      position: relative;
+      background: rgba(247, 248, 250, 0.65);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+    }
+
+    /* macOS 视窗一体控制顶栏 Zen Window Titlebar (极致淡出) */
+    .zen-titlebar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: var(--titlebar-height);
+      padding: 0 14px;
+      background: rgba(255, 255, 255, 0.4);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--zen-border);
+      user-select: none;
+      flex-shrink: 0;
+      z-index: 100;
+    }
+
+    .zen-titlebar-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .brand-logo {
+      width: clamp(16px, 0.8vw + 8px, 22px);
+      height: clamp(16px, 0.8vw + 8px, 22px);
+      object-fit: contain;
+      opacity: 0.85;
+    }
+    .brand-titles {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .brand-titles h1 {
+      margin: 0;
+      font-size: var(--font-sm);
+      font-weight: 500;
+      color: var(--zen-text-sub);
+      letter-spacing: -0.2px;
+      max-width: 320px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .brand-titles .muted {
+      font-size: var(--font-xs);
+      color: var(--zen-text-muted);
+      font-weight: 400;
+      white-space: nowrap;
+    }
+
+    .zen-titlebar-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* 顶级控制按钮 Control Buttons */
+    button {
+      border: none;
+      outline: none;
+      font-family: inherit;
+      font-size: var(--font-sm);
+      font-weight: 500;
+      padding: var(--btn-padding);
+      height: var(--btn-height);
+      border-radius: var(--zen-radius-btn);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    button#export {
+      background: linear-gradient(135deg, #165dff 0%, #0e42d2 100%);
+      color: #ffffff;
+    }
+    button#export:hover {
+      background: linear-gradient(135deg, #3676ff 0%, #165dff 100%);
+      transform: translateY(-1px);
+    }
+
+    button.secondary {
+      background: rgba(22, 93, 255, 0.08);
+      color: var(--zen-primary);
+    }
+    button.secondary:hover {
+      background: rgba(22, 93, 255, 0.15);
+      transform: translateY(-1px);
+    }
+
+    button.ghost {
+      background: rgba(0, 0, 0, 0.03);
+      color: var(--zen-text-sub);
+      border: 1px solid var(--zen-border);
+    }
+    button.ghost:hover {
+      background: rgba(0, 0, 0, 0.06);
+      color: var(--zen-text-main);
+    }
+
+    button.delete {
+      padding: 2px 6px;
+      height: 20px;
+      font-size: 10.5px;
+      background: rgba(245, 63, 63, 0.08);
+      color: #f53f3f;
+      border-radius: 0;
+    }
+    button.delete:hover {
+      background: rgba(245, 63, 63, 0.16);
+    }
+
+    button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      transform: none !important;
+      box-shadow: none !important;
+    }
+
+    .zen-ai-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+    }
+    .zen-ai-header h2 {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .ai-status {
+      font-size: inherit;
+      color: inherit;
+      font-weight: 500;
+    }
+    .ai-path {
+      margin: 8px 0;
+      padding: 8px 12px;
+      border-radius: 2px;
+      background: rgba(0, 0, 0, 0.03);
+      color: var(--zen-text-sub);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 11px;
+      word-break: break-all;
+      border: 1px solid var(--zen-border-subtle);
+    }
+    .ai-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 6px;
+    }
+    .ai-prompt {
+      max-height: clamp(320px, 45vh, 480px);
+      margin: 8px 0 0;
+      padding: 12px 14px;
+      white-space: pre-wrap;
+      overflow: auto;
+      border-radius: 0;
+      background: #f8f9fa;
+      border: 1px solid var(--zen-border);
+      color: #1d2129;
+      font: var(--font-sm)/1.6 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    details {
+      margin-top: 6px;
+    }
+    details summary {
+      font-size: 11px;
+      color: var(--zen-text-muted);
+      cursor: pointer;
+      user-select: none;
+    }
+    details summary:hover {
+      color: var(--zen-primary);
+    }

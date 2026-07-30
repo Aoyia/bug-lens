@@ -1,47 +1,13 @@
-import type { ConsoleEntry, EvidenceState, EvidenceSummary, ExportArtifact, ExportSelection, InteractionRecord, NetworkEntry, RecordingSession, SessionOverview, StorageOverview, StoragePolicy } from "../shared/protocol";
+import type { ConsoleEntry, ExportArtifact, ExportSelection, InteractionRecord, NetworkEntry, RecordingSession, SessionOverview, StorageOverview, StoragePolicy } from "../shared/protocol";
 import { DEFAULT_STORAGE_POLICY, estimateBytes, expiresAt, isExpired, normalizeStoragePolicy } from "../domain/storage-policy.ts";
+import { buildEvidenceSummary } from "./evidence-summary.ts";
+import { openEvidenceDatabase as openDb, type StoreName } from "./indexed-db-schema.ts";
+import { deleteSessionAndEvidence } from "./session-deletion.ts";
+import { putWithinSessionBudget, type BudgetWriteResult } from "./storage-budget.ts";
 
-const DB_NAME = "web-bug-recorder";
-const DB_VERSION = 5;
-type StoreName = "control" | "sessions" | "interactions" | "consoleEntries" | "networkEntries" | "mediaChunks" | "exportSelections" | "exportArtifacts";
 export type CommandRecord = { key: string; commandId: string; kind: "start" | "stop"; sessionId: string; createdAtEpochMs: number };
 export type MediaChunkRecord = { id: string; sessionId: string; sequence: number; recordedAt: number; mimeType: string; chunk: ArrayBuffer };
-export type BudgetWriteResult = { stored: boolean; usedBytes: number; limitReached: boolean };
-
-let openPromise: Promise<IDBDatabase> | undefined;
-function openDb(): Promise<IDBDatabase> {
-  if (openPromise) return openPromise;
-  openPromise = new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onupgradeneeded = () => {
-      const database = request.result;
-      const transaction = request.transaction;
-      if (!transaction) throw new Error("IndexedDB 数据库升级/迁移事务不可用");
-      const ensureStore = (name: StoreName, keyPath: string, indexes: Array<{ name: string; keyPath: string | string[] }> = []) => {
-        const store = database.objectStoreNames.contains(name)
-          ? transaction.objectStore(name)
-          : database.createObjectStore(name, { keyPath });
-        for (const index of indexes) {
-          if (!store.indexNames.contains(index.name)) store.createIndex(index.name, index.keyPath);
-        }
-      };
-      ensureStore("control", "key");
-      ensureStore("sessions", "id", [{ name: "status", keyPath: "status" }]);
-      ensureStore("interactions", "id", [{ name: "sessionId", keyPath: "sessionId" }]);
-      ensureStore("consoleEntries", "id", [{ name: "sessionId", keyPath: "sessionId" }]);
-      ensureStore("networkEntries", "id", [{ name: "sessionId", keyPath: "sessionId" }]);
-      ensureStore("mediaChunks", "id", [
-        { name: "sessionId", keyPath: "sessionId" },
-        { name: "sessionIdSequence", keyPath: ["sessionId", "sequence"] }
-      ]);
-      ensureStore("exportSelections", "sessionId");
-      ensureStore("exportArtifacts", "sessionId");
-    };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-  return openPromise;
-}
+export type { BudgetWriteResult } from "./storage-budget.ts";
 
 async function put(storeName: StoreName, value: unknown): Promise<void> {
   const db = await openDb();
@@ -155,17 +121,6 @@ async function getMediaSummary(sessionId: string): Promise<{ count: number; mime
   });
 }
 
-function hasIssue(session: RecordingSession, source: string): boolean {
-  return session.quality.issues.some((entry) => entry.source === source);
-}
-
-function enabledState(enabled: boolean, count: number, failed: boolean, detail: string): EvidenceState {
-  if (!enabled) return "disabled";
-  if (failed && count === 0) return "failed";
-  if (failed) return "partial";
-  return "captured";
-}
-
 async function measureSessionBytes(sessionId: string): Promise<number> {
   const [interactions, consoleEntries, networkEntries, chunks] = await Promise.all([
     list<InteractionRecord>("interactions", "sessionId", sessionId),
@@ -173,105 +128,16 @@ async function measureSessionBytes(sessionId: string): Promise<number> {
     list<NetworkEntry>("networkEntries", "sessionId", sessionId),
     list<MediaChunkRecord>("mediaChunks", "sessionId", sessionId)
   ]);
-  return [...interactions, ...consoleEntries, ...networkEntries, ...chunks].reduce((total, entry) => total + estimateBytes(entry), 0);
+  return [...interactions, ...consoleEntries, ...networkEntries, ...chunks]
+    .reduce((total, entry) => total + estimateBytes(entry), 0);
 }
 
-async function evidenceFor(session: RecordingSession): Promise<EvidenceSummary[]> {
-  const [media, networkEntries] = await Promise.all([getMediaSummary(session.id), list<NetworkEntry>("networkEntries", "sessionId", session.id)]);
-  const screenshotCount = session.quality.primaryScreenshotCount + session.quality.fallbackScreenshotCount;
-  const unavailableScreenshots = session.quality.unavailableScreenshotCount;
-  const networkBodyEntries = networkEntries.filter((entry) => entry.response);
-  const bodyBytes = networkBodyEntries.reduce((total, entry) => total + (entry.response?.capturedByteLength ?? entry.response?.byteLength ?? 0), 0);
-  const redactedBodyCount = networkBodyEntries.filter((entry) => entry.response?.bodyStatus === "redacted").length;
-  const truncatedBodyCount = networkBodyEntries.filter((entry) => entry.response?.truncated).length;
-  const unavailableBodyCount = networkBodyEntries.filter((entry) => entry.response?.bodyStatus === "unavailable" || entry.response?.bodyStatus === "pending").length;
-  const videoState = enabledState(session.options.captureVideo, media.count, hasIssue(session, "media"), media.count ? `${media.count} 个媒体分片` : "没有媒体分片");
-  const screenshotState = !session.options.captureScreenshots ? "disabled" : unavailableScreenshots ? (screenshotCount ? "partial" : "failed") : "captured";
-  const consoleState = enabledState(session.options.captureConsole, session.quality.consoleEntryCount, hasIssue(session, "debugger"), `${session.quality.consoleEntryCount} 条`);
-  const networkState = enabledState(session.options.captureNetwork, session.quality.networkEntryCount, hasIssue(session, "debugger"), `${session.quality.networkEntryCount} 条`);
-  let bodiesState: EvidenceState = "disabled";
-  if (session.options.captureNetwork && session.options.captureNetworkBodies) {
-    bodiesState = redactedBodyCount
-      ? "redacted"
-      : unavailableBodyCount ? (networkBodyEntries.length ? "partial" : "failed")
-      : "captured";
-  }
-  return [
-    { kind: "video", state: videoState, count: media.count, sizeBytes: 0, detail: media.count ? `${media.count} 个 WebM 分片` : "未写入录像" },
-    { kind: "audio", state: !session.options.captureAudio ? "disabled" : videoState, count: session.options.captureAudio && media.count ? 1 : 0, sizeBytes: 0, detail: session.options.captureAudio ? "与标签页录像复用同一 WebM" : "未采集" },
-    { kind: "screenshots", state: screenshotState, count: screenshotCount, sizeBytes: 0, detail: !session.options.captureScreenshots ? "未采集" : unavailableScreenshots ? `${screenshotCount} 成功，${unavailableScreenshots} 失败` : `${screenshotCount} 张` },
-    { kind: "console", state: consoleState, count: session.quality.consoleEntryCount, sizeBytes: 0, detail: `${session.quality.consoleEntryCount} 条` },
-    { kind: "network", state: networkState, count: session.quality.networkEntryCount, sizeBytes: 0, detail: `${session.quality.networkEntryCount} 条` },
-    { kind: "networkBodies", state: bodiesState, count: networkBodyEntries.length, sizeBytes: bodyBytes, detail: !session.options.captureNetworkBodies ? "未采集" : redactedBodyCount ? `${redactedBodyCount} 条已脱敏${truncatedBodyCount ? `，${truncatedBodyCount} 条已截断` : ""}` : truncatedBodyCount ? `${truncatedBodyCount} 条已截断` : `${networkBodyEntries.length} 条` }
-  ];
-}
-
-async function putWithinSessionBudget<T extends { sessionId: string }>(storeName: StoreName, value: T): Promise<BudgetWriteResult> {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction([storeName, "sessions"], "readwrite");
-    const store = tx.objectStore(storeName);
-    const sessions = tx.objectStore("sessions");
-    let result: BudgetWriteResult | undefined;
-    const sessionRequest = sessions.get(value.sessionId);
-    sessionRequest.onsuccess = () => {
-      const session = sessionRequest.result as RecordingSession | undefined;
-      if (!session) { result = { stored: false, usedBytes: 0, limitReached: false }; return; }
-      const valueRequest = store.get((value as { id?: IDBValidKey }).id ?? value.sessionId);
-      valueRequest.onsuccess = () => {
-        const previous = valueRequest.result;
-        const delta = Math.max(0, estimateBytes(value) - estimateBytes(previous));
-        const usedBytes = session.storage?.usedBytes ?? 0;
-        const limit = session.options.maxSessionBytes;
-        if (usedBytes + delta > limit) {
-          sessions.put({ ...session, storage: { usedBytes, limitReached: true } });
-          result = { stored: false, usedBytes, limitReached: true };
-          return;
-        }
-        const nextUsedBytes = Math.max(0, usedBytes + estimateBytes(value) - estimateBytes(previous));
-        store.put(value);
-        sessions.put({ ...session, storage: { usedBytes: nextUsedBytes, limitReached: false } });
-        result = { stored: true, usedBytes: nextUsedBytes, limitReached: false };
-      };
-      valueRequest.onerror = () => reject(valueRequest.error);
-    };
-    sessionRequest.onerror = () => reject(sessionRequest.error);
-    tx.oncomplete = () => result ? resolve(result) : reject(new Error("证据写入事务未产生结果"));
-    tx.onerror = () => reject(tx.error);
-    tx.onabort = () => reject(tx.error ?? new Error("证据写入事务已中止"));
-  });
-}
-
-async function deleteSessionAndEvidence(sessionId: string): Promise<boolean> {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const stores: StoreName[] = ["sessions", "interactions", "consoleEntries", "networkEntries", "mediaChunks", "exportSelections", "exportArtifacts", "control"];
-    const tx = db.transaction(stores, "readwrite");
-    let existed = false;
-    const sessions = tx.objectStore("sessions");
-    const sessionRequest = sessions.get(sessionId);
-    sessionRequest.onsuccess = () => { existed = Boolean(sessionRequest.result); sessions.delete(sessionId); };
-    sessionRequest.onerror = () => reject(sessionRequest.error);
-    for (const storeName of ["interactions", "consoleEntries", "networkEntries", "mediaChunks"] as const) {
-      const index = tx.objectStore(storeName).index("sessionId");
-      const cursorRequest = index.openKeyCursor(IDBKeyRange.only(sessionId));
-      cursorRequest.onsuccess = () => {
-        const cursor = cursorRequest.result;
-        if (!cursor) return;
-        tx.objectStore(storeName).delete(cursor.primaryKey);
-        cursor.continue();
-      };
-      cursorRequest.onerror = () => reject(cursorRequest.error);
-    }
-    tx.objectStore("exportSelections").delete(sessionId);
-    tx.objectStore("exportArtifacts").delete(sessionId);
-    const activeRequest = tx.objectStore("control").get("active-session");
-    activeRequest.onsuccess = () => { if (activeRequest.result?.sessionId === sessionId) tx.objectStore("control").delete("active-session"); };
-    activeRequest.onerror = () => reject(activeRequest.error);
-    tx.oncomplete = () => resolve(existed);
-    tx.onerror = () => reject(tx.error);
-    tx.onabort = () => reject(tx.error ?? new Error("会话删除事务已中止"));
-  });
+async function evidenceFor(session: RecordingSession) {
+  const [media, networkEntries] = await Promise.all([
+    getMediaSummary(session.id),
+    list<NetworkEntry>("networkEntries", "sessionId", session.id)
+  ]);
+  return buildEvidenceSummary(session, media, networkEntries);
 }
 
 export const db = {

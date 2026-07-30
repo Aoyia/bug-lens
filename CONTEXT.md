@@ -27,3 +27,7 @@ _Avoid_: resume, restore recording
 **Export Manifest**:
 The versioned, unhashed index of an evidence package's files, their byte sizes, hashes and compatible schema revisions.
 _Avoid_: report metadata, checksum file
+
+**Offline Evidence Report**:
+The read-only, fully local projection of the selected evidence in an exported package. It shares the Preview display module but never exposes selection editing, extension storage or local download-path actions.
+_Avoid_: second preview implementation, editable export

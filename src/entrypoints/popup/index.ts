@@ -106,7 +106,20 @@ function isContinuable(session: RecordingSession): boolean {
 function sessionHtml(item: SessionOverview): string {
   const { session } = item;
   const date = new Date(session.timeline.createdAtEpochMs).toLocaleString();
-  return `<article class="session"><div class="session-head"><div class="session-title" title="${escapeHtml(session.target.initialTitle)}">${escapeHtml(session.target.initialTitle || "未命名标签页")}</div><span class="session-time">${escapeHtml(session.status)}</span></div><div class="session-meta">${escapeHtml(date)} · ${formatBytes(item.sizeBytes)} · ${escapeHtml(session.target.initialUrl)}</div><div class="evidence">${renderEvidence(item.evidence)}</div><div class="session-actions"><button data-open="${session.id}">重新打开预览</button>${isContinuable(session) ? `<button data-continue="${session.id}">恢复中断会话</button>` : ""}<button class="delete" data-delete="${session.id}">删除</button></div></article>`;
+  return `<article class="session">
+    <div class="session-head">
+      <div class="session-title" title="${escapeHtml(session.target.initialTitle)}">${escapeHtml(session.target.initialTitle || "未命名标签页")}</div>
+      <div class="session-head-actions">
+        ${isContinuable(session) ? `<button class="btn-continue-sm" data-continue="${session.id}">恢复</button>` : ""}
+        <button class="btn-open-preview" data-open="${session.id}">预览</button>
+        <button class="btn-delete-icon" data-delete="${session.id}" title="删除会话">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+        </button>
+      </div>
+    </div>
+    <div class="session-meta"><span class="session-status-tag">${escapeHtml(session.status)}</span> · ${escapeHtml(date)} · ${formatBytes(item.sizeBytes)} · ${escapeHtml(session.target.initialUrl)}</div>
+    <div class="evidence">${renderEvidence(item.evidence)}</div>
+  </article>`;
 }
 
 function escapeHtml(value: unknown): string { return String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]!)); }

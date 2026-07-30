@@ -1,6 +1,8 @@
 # Bug Lens
 
-基于 Manifest V3 的本地 Web 缺陷录制扩展。当前版本已打通最小可用链路：Popup 开始/结束录制、标签页 WebM、点击元素元数据、带红色圆环的点击截图、基础 Console/Network 采集、IndexedDB 持久化、预览页和离线 ZIP 报告。预览页可非破坏性排除并恢复交互、Console 和 Network 条目；ZIP 根目录包含帮助人和 AI 理解证据资源的动态 `README.md` 和通用 `AI_PROMPT.md`。导出完成后预览页还会显示本机 ZIP 绝对路径并提供一键复制 AI 提示词。
+基于 Manifest V3 的本地 Web 缺陷录制扩展。当前版本已打通最小可用链路：Popup 开始/结束录制、标签页 WebM、点击元素元数据、带红色圆环的点击截图、基础 Console/Network 采集、IndexedDB 持久化、预览页和离线 ZIP 报告。预览页可非破坏性排除并恢复交互、Console 和 Network 条目；导出的 `report.html` 复用预览页的展示模块与样式，以只读离线模式保留视频、步骤时间线、截图灯箱、Console 筛选和 Network 详情。ZIP 根目录还包含帮助人和 AI 理解证据资源的动态 `README.md` 和通用 `AI_PROMPT.md`。导出完成后预览页会显示本机 ZIP 绝对路径并提供一键复制 AI 提示词。
+
+离线报告无需服务端。将导出的 ZIP 完整解压后双击 `report.html` 即可查看；报告不包含排除的证据，也不包含删除、恢复、再次导出或本机路径操作。
 
 ## 本地构建
 

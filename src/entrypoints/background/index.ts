@@ -1,17 +1,16 @@
 import { db } from "../../storage/db";
-import { isEnvelope, message, type CaptureIssue, type InteractionRecord, type NetworkEntry, type RecordingSession, type RuntimeMessage } from "../../shared/protocol";
-import { applyInteractionEvent, type InteractionEvent } from "../../domain/interaction-ledger";
+import { isEnvelope, message, type CaptureIssue, type NetworkEntry, type RecordingSession, type RuntimeMessage } from "../../shared/protocol";
 import { applySessionEvent as reduceSession, type RecordingSessionEvent } from "../../domain/recording-session";
-import { sanitizeInteractionRecord, sanitizeText, sanitizeUrl } from "../../domain/privacy-policy";
+import { sanitizeText, sanitizeUrl } from "../../domain/privacy-policy";
 import { normalizeRecordingOptions } from "../../domain/storage-policy";
 import { CdpEvidenceCollector } from "../../evidence/cdp-evidence-collector";
+import { ContentScriptManager } from "../../recording/content-script-manager";
+import { InteractionCapture } from "../../recording/interaction-capture";
 import { RecordingCoordinator } from "../../recording/recording-coordinator";
 
 const EXTENSION_VERSION = "0.1.0";
-let registeredContentScript = false;
-const interactionEventQueues = new Map<string, Promise<unknown>>();
-const pendingInteractionHandlers = new Set<Promise<void>>();
 const recordingCoordinator = new RecordingCoordinator();
+const contentScripts = new ContentScriptManager();
 const BROWSER_EPOCH_KEY = "bug-lens-browser-epoch";
 const browserEpochPromise = loadOrCreateBrowserEpoch();
 
@@ -24,42 +23,6 @@ async function loadOrCreateBrowserEpoch(): Promise<string> {
   return created;
 }
 
-function enqueueInteractionTask<T>(key: string, work: () => Promise<T>): Promise<T> {
-  const previous = interactionEventQueues.get(key) ?? Promise.resolve();
-  const current = previous.catch(() => undefined).then(work);
-  interactionEventQueues.set(key, current);
-  void current.then(
-    () => { if (interactionEventQueues.get(key) === current) interactionEventQueues.delete(key); },
-    () => { if (interactionEventQueues.get(key) === current) interactionEventQueues.delete(key); }
-  );
-  return current;
-}
-
-function trackInteractionHandler(task: Promise<void>): Promise<void> {
-  pendingInteractionHandlers.add(task);
-  void task.then(
-    () => pendingInteractionHandlers.delete(task),
-    () => pendingInteractionHandlers.delete(task)
-  );
-  return task;
-}
-
-async function persistInteractionEvent(
-  sessionId: string,
-  interactionId: string,
-  event: InteractionEvent
-): Promise<{ previous?: InteractionRecord; next?: InteractionRecord; budgetRejected?: boolean }> {
-  return enqueueInteractionTask(`${sessionId}:${interactionId}`, async () => {
-    const previous = await db.getInteraction(interactionId);
-    const next = applyInteractionEvent(previous, event);
-    if (next && next !== previous) {
-      const stored = await db.saveInteractionWithinBudget(next);
-      if (!stored.stored) return { previous, next: previous, budgetRejected: true };
-    }
-    return { previous, next };
-  });
-}
-
 async function applySessionEvent(sessionId: string, event: RecordingSessionEvent): Promise<RecordingSession> {
   const next = await db.updateSession(sessionId, (current) => reduceSession(current, event));
   if (!next) throw new Error(`未找到会话 (SESSION_NOT_FOUND:${sessionId})`);
@@ -67,6 +30,7 @@ async function applySessionEvent(sessionId: string, event: RecordingSessionEvent
 }
 
 const cdpCollector = new CdpEvidenceCollector(db, applySessionEvent, (sessionId) => recordingCoordinator.isStopping(sessionId));
+const interactionCapture = new InteractionCapture(db, applySessionEvent, (sessionId) => recordingCoordinator.isStopping(sessionId));
 
 async function reconcileSessionQuality(sessionId: string): Promise<void> {
   const [interactions, consoleEntries, networkEntries] = await Promise.all([
@@ -89,15 +53,6 @@ async function reconcileSessionQuality(sessionId: string): Promise<void> {
   });
 }
 
-async function assertTargetTabIsActive(session: RecordingSession): Promise<void> {
-  const query: chrome.tabs.QueryInfo = { active: true };
-  if (typeof session.target.windowId === "number") query.windowId = session.target.windowId;
-  const activeTabs = await chrome.tabs.query(query);
-  if (!activeTabs.some((tab) => tab.id === session.target.tabId)) {
-    throw new Error("TARGET_TAB_NOT_ACTIVE: 当前激活标签页不是录制目标，已拒绝保存截图");
-  }
-}
-
 function issue(code: string, messageText: string, source: CaptureIssue["source"], recoverable = true): CaptureIssue {
   return { code, message: messageText, source, recoverable, occurredAt: Date.now() };
 }
@@ -110,40 +65,6 @@ async function ensureOffscreen(): Promise<void> {
     reasons: ["USER_MEDIA", "BLOBS"],
     justification: "Record the selected tab and persist media chunks locally."
   });
-}
-
-async function injectContent(tabId: number): Promise<void> {
-  if (!registeredContentScript) {
-    try {
-      await chrome.scripting.registerContentScripts([{
-        id: "web-bug-recorder-content",
-        js: ["content.js"],
-        matches: ["http://*/*", "https://*/*"],
-        allFrames: true,
-        runAt: "document_start",
-        persistAcrossSessions: false
-      }]);
-    } catch (error) {
-      // It may already be registered after a service worker restart.
-      if (!String(error).includes("already exists")) registeredContentScript = false;
-    }
-    if (!registeredContentScript) {
-      const registrations = await chrome.scripting.getRegisteredContentScripts({ ids: ["web-bug-recorder-content"] }).catch(() => []);
-      registeredContentScript = registrations.length > 0;
-    }
-  }
-  await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, files: ["content.js"] }).catch(() => undefined);
-}
-
-async function removeContentScript(tabId?: number): Promise<void> {
-  if (typeof tabId === "number") {
-    await chrome.tabs.sendMessage(tabId, message("content/reset", {})).catch(() => undefined);
-  }
-  const registrations = await chrome.scripting.getRegisteredContentScripts({ ids: ["web-bug-recorder-content"] }).catch(() => []);
-  if (registeredContentScript || registrations.length) {
-    await chrome.scripting.unregisterContentScripts({ ids: ["web-bug-recorder-content"] }).catch(() => undefined);
-  }
-  registeredContentScript = false;
 }
 
 async function startSessionImpl(payload: Extract<RuntimeMessage, { type: "session/start" }>["payload"]): Promise<RecordingSession> {
@@ -189,7 +110,7 @@ async function startSessionImpl(payload: Extract<RuntimeMessage, { type: "sessio
       ? payload.streamId
       : await new Promise<string>((resolve, reject) => chrome.tabCapture.getMediaStreamId({ targetTabId: payload.tabId }, (id) => id ? resolve(id) : reject(chrome.runtime.lastError ?? new Error("未返回媒体流 ID")))).catch(() => undefined);
     await ensureOffscreen();
-    await injectContent(payload.tabId);
+    await contentScripts.activate(payload.tabId);
     const debuggerIssue = options.captureConsole || options.captureNetwork ? await cdpCollector.attach(payload.tabId, session) : undefined;
     const issues: CaptureIssue[] = debuggerIssue ? [debuggerIssue] : [];
     if (streamId) {
@@ -214,7 +135,7 @@ async function startSessionImpl(payload: Extract<RuntimeMessage, { type: "sessio
     const failed = await applySessionEvent(session.id, { type: "failed", issue: failure });
     await db.clearActive(session.id);
     await cdpCollector.detach(payload.tabId);
-    await removeContentScript(payload.tabId);
+    await contentScripts.remove(payload.tabId);
     await chrome.action.setBadgeText({ tabId: payload.tabId, text: "" }).catch(() => undefined);
     return failed;
   }
@@ -243,23 +164,19 @@ async function performStopSession(session: RecordingSession, commandId?: string)
   const cleanupErrors: string[] = [];
   try {
     await cdpCollector.detach(session.target.tabId);
-    await removeContentScript(session.target.tabId);
+    await contentScripts.remove(session.target.tabId);
 
     const mediaResponse = await chrome.runtime.sendMessage(message("offscreen/stop-media", { sessionId: session.id }, session.id)).catch((error) => ({ ok: false, error: String(error) }));
     if (mediaResponse?.ok === false) cleanupErrors.push(`媒体停止失败：${mediaResponse.error ?? "未知错误"}`);
 
-    for (let round = 0; round < 3; round += 1) {
-      const interactionResults = await Promise.allSettled([...pendingInteractionHandlers]);
-      for (const result of interactionResults) if (result.status === "rejected") cleanupErrors.push(`交互写入未完成：${String(result.reason)}`);
-      if (!pendingInteractionHandlers.size) break;
-    }
+    cleanupErrors.push(...await interactionCapture.drain());
 
     cleanupErrors.push(...await cdpCollector.drain());
     await cdpCollector.finalizeNetworkBodies(stopping).catch((error) => cleanupErrors.push(`Network 正文收尾失败：${String(error)}`));
     await reconcileSessionQuality(session.id).catch((error) => cleanupErrors.push(`质量摘要重算失败：${String(error)}`));
   } finally {
     await cdpCollector.detach(session.target.tabId);
-    await removeContentScript(session.target.tabId);
+    await contentScripts.remove(session.target.tabId);
     await chrome.action.setBadgeText({ tabId: session.target.tabId, text: "" }).catch(() => undefined);
     await chrome.action.setIcon({ tabId: session.target.tabId, path: "icons/icon_idle.png" }).catch(() => undefined);
   }
@@ -305,80 +222,6 @@ function stopSession(commandId?: string): Promise<RecordingSession | undefined> 
   return recordingCoordinator.runLifecycle(() => stopSessionImpl(commandId));
 }
 
-async function handleInteraction(interaction: InteractionRecord, sender: chrome.runtime.MessageSender): Promise<void> {
-  const session = await db.getActiveSession();
-  if (!session || recordingCoordinator.isStopping(session.id) || !["PREPARING", "RECORDING", "DEGRADED"].includes(session.status) || session.target.tabId !== sender.tab?.id || session.nonce !== interaction.sessionId) return;
-  const incoming = sanitizeInteractionRecord({
-    ...interaction,
-    sessionId: session.id,
-    screenshot: session.options.captureScreenshots ? interaction.screenshot : { status: "disabled" }
-  }, session.options.privacyMode);
-  const event: InteractionEvent = incoming.status === "confirmed"
-    ? { type: "confirmed", interaction: incoming }
-    : { type: "candidate", interaction: incoming };
-  const { previous, next, budgetRejected } = await persistInteractionEvent(session.id, incoming.id, event);
-  if (budgetRejected) {
-    await applySessionEvent(session.id, { type: "capture-issue", issue: issue("SESSION_STORAGE_LIMIT_REACHED", "已达到会话存储上限，未保存更多交互证据。", "storage") });
-    return;
-  }
-  if (!next) return;
-  const interactionDelta = {
-    interactionCount: previous ? 0 : 1,
-    confirmedInteractionCount: next.status === "confirmed" && previous?.status !== "confirmed" ? 1 : 0
-  };
-  if (interactionDelta.interactionCount || interactionDelta.confirmedInteractionCount) {
-    await applySessionEvent(session.id, { type: "quality-delta", delta: interactionDelta });
-  }
-  if (session.options.captureScreenshots && (event.type === "candidate" || event.type === "confirmed") && !previous) {
-    try {
-      const capture = chrome.tabs.captureVisibleTab as unknown as (windowId: number, options: { format: "png" }) => Promise<string>;
-      if ((sender.frameId ?? 0) !== 0) throw new Error("FRAME_GEOMETRY_UNAVAILABLE: iframe 坐标暂无法可靠映射到顶层视口");
-      await assertTargetTabIsActive(session);
-      const dataUrl = await capture(session.target.windowId ?? chrome.windows.WINDOW_ID_CURRENT, { format: "png" });
-      await assertTargetTabIsActive(session);
-      const annotated = await chrome.runtime.sendMessage(message("offscreen/annotate-image", { dataUrl, clientX: next.coordinates.clientX, clientY: next.coordinates.clientY, viewportWidth: next.coordinates.viewport.width, viewportHeight: next.coordinates.viewport.height }, session.id));
-      if (!annotated?.ok || typeof annotated.dataUrl !== "string") throw new Error(annotated?.error || "截图标记失败");
-      const screenshotResult = await persistInteractionEvent(session.id, next.id, { type: "screenshot-captured", source: "primary", dataUrl: annotated.dataUrl });
-      if (screenshotResult.budgetRejected) {
-        await applySessionEvent(session.id, { type: "capture-issue", issue: issue("SESSION_STORAGE_LIMIT_REACHED", "已达到会话存储上限，未保存更多点击截图。", "storage") });
-        return;
-      }
-      if (screenshotResult.previous?.status !== "cancelled" && screenshotResult.previous?.screenshot.status !== "captured") {
-        await applySessionEvent(session.id, { type: "quality-delta", delta: { primaryScreenshotCount: 1 } });
-      }
-    } catch (error) {
-      const safeError = sanitizeText(String(error), session.options.privacyMode);
-      const screenshotResult = await persistInteractionEvent(session.id, next.id, { type: "screenshot-unavailable", issue: safeError });
-      if (screenshotResult.budgetRejected) return;
-      if (screenshotResult.previous?.status !== "cancelled" && screenshotResult.previous?.screenshot.status !== "unavailable") {
-        await applySessionEvent(session.id, { type: "quality-delta", delta: { unavailableScreenshotCount: 1 } });
-        await applySessionEvent(session.id, { type: "capture-issue", issue: issue("VISIBLE_TAB_NOT_ACTIVE", safeError, "screenshot") });
-      }
-    }
-  }
-}
-
-async function handleInteractionCancelled(interactionId: string, interaction: InteractionRecord | undefined, nonce: string | undefined, sender: chrome.runtime.MessageSender): Promise<void> {
-  const session = await db.getActiveSession();
-  if (!session || recordingCoordinator.isStopping(session.id) || !["PREPARING", "RECORDING", "DEGRADED"].includes(session.status) || session.target.tabId !== sender.tab?.id || session.nonce !== nonce) return;
-  const cancelled = interaction
-    ? sanitizeInteractionRecord({ ...interaction, sessionId: session.id, status: "cancelled" }, session.options.privacyMode)
-    : undefined;
-  const { previous, next } = await persistInteractionEvent(session.id, interactionId, { type: "cancelled", interaction: cancelled });
-  if (!previous || next?.status !== "cancelled" || previous.status === "cancelled") return;
-  const delta: Parameters<typeof applySessionEvent>[1] & { type: "quality-delta" } = {
-    type: "quality-delta",
-    delta: { interactionCount: -1 }
-  };
-  if (previous.screenshot.status === "captured") {
-    if (previous.screenshot.source === "primary") delta.delta.primaryScreenshotCount = -1;
-    else delta.delta.fallbackScreenshotCount = -1;
-  } else if (previous.screenshot.status === "unavailable") {
-    delta.delta.unavailableScreenshotCount = -1;
-  }
-  await applySessionEvent(session.id, delta);
-}
-
 async function openPendingPreview(session: RecordingSession): Promise<RecordingSession> {
   if (!session.previewPending) return session;
   const previewUrl = chrome.runtime.getURL(`preview.html?sessionId=${encodeURIComponent(session.id)}`);
@@ -404,7 +247,7 @@ async function recoverInterruptedSession(session: RecordingSession, code: string
   }));
   if (!recovered) return;
   await cdpCollector.detach(session.target.tabId);
-  await removeContentScript(session.target.tabId);
+  await contentScripts.remove(session.target.tabId);
   await chrome.action.setBadgeText({ tabId: session.target.tabId, text: "" }).catch(() => undefined);
   await chrome.action.setIcon({ tabId: session.target.tabId, path: "icons/icon_idle.png" }).catch(() => undefined);
   await openPendingPreview(recovered);
@@ -443,9 +286,7 @@ async function bootstrapRuntimeState(): Promise<void> {
     return;
   }
 
-  const registrations = await chrome.scripting.getRegisteredContentScripts({ ids: ["web-bug-recorder-content"] }).catch(() => []);
-  registeredContentScript = registrations.length > 0;
-  if (!registeredContentScript) await injectContent(session.target.tabId);
+  await contentScripts.restore(session.target.tabId);
 
   const mediaWasExpected = session.options.captureVideo && !session.quality.issues.some((entry) => entry.code === "MEDIA_STREAM_ID_FAILED" || entry.code === "MEDIA_RECORDER_FAILED");
   if (mediaWasExpected) {
@@ -513,8 +354,8 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender, sendResponse) => {
           return;
         }
         case "interaction/candidate":
-        case "interaction/confirmed": await trackInteractionHandler(handleInteraction(incoming.payload.interaction, sender)); sendResponse({ ok: true }); return;
-        case "interaction/cancelled": await trackInteractionHandler(handleInteractionCancelled(incoming.payload.interactionId, incoming.payload.interaction, incoming.sessionId, sender)); sendResponse({ ok: true }); return;
+        case "interaction/confirmed": await interactionCapture.handle(incoming.payload.interaction, sender); sendResponse({ ok: true }); return;
+        case "interaction/cancelled": await interactionCapture.cancel(incoming.payload.interactionId, incoming.payload.interaction, incoming.sessionId, sender); sendResponse({ ok: true }); return;
         case "offscreen/media-chunk": {
           const result = await db.saveMediaChunkWithinBudget({ id: `${incoming.payload.sessionId}:${incoming.payload.sequence}`, ...incoming.payload });
           sendResponse({ ok: result.stored, error: result.stored ? undefined : "SESSION_STORAGE_LIMIT_REACHED" });
