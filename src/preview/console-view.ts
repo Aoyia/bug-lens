@@ -69,7 +69,7 @@ export class ConsoleView {
 
     const container = this.root.querySelector<HTMLElement>("#console")!;
     container.innerHTML = entries.length
-      ? `<div class="console-view">${entries.slice(-200).reverse().map((entry) => renderConsoleRow(entry, editable)).join("")}</div>`
+      ? `<div class="console-view">${entries.slice().reverse().map((entry) => renderConsoleRow(entry, editable)).join("")}</div>`
       : `<div class="empty">${snapshot.included.length ? "未找到匹配的 Console 日志" : snapshot.all.length && editable ? "所有 Console 日志均已删除，可从右上角恢复。" : "没有 Console 记录"}</div>`;
     container.querySelectorAll<HTMLButtonElement>("[data-delete-console]").forEach((button) => button.addEventListener("click", (event) => {
       event.stopPropagation();

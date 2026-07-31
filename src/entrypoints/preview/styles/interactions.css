@@ -317,6 +317,13 @@
       border-bottom: none;
       flex-shrink: 0;
     }
+    .integrated-panel-body {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
     .panel-filter-select {
       height: 26px;
       padding: 0 22px 0 8px;

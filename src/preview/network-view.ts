@@ -102,7 +102,7 @@ export class NetworkView {
 
     const container = this.root.querySelector<HTMLElement>("#network")!;
     container.innerHTML = entries.length
-      ? entries.slice(-200).reverse().map((entry) => renderNetworkRow(entry, snapshot.session, this.selectedId, editable)).join("")
+      ? entries.slice().reverse().map((entry) => renderNetworkRow(entry, snapshot.session, this.selectedId, editable)).join("")
       : `<div class="empty">${snapshot.all.length ? snapshot.included.length ? "未找到匹配的网络请求" : editable ? "所有 Network 请求均已删除，可从右上角恢复。" : "没有 Network 记录" : "没有 Network 记录"}</div>`;
 
     const selectedEntry = entries.find((entry) => entry.id === this.selectedId);
