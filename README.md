@@ -1,15 +1,15 @@
-# Bug Lens 🤖
+# Bug Lens
 
 **English** | [中文文档](README_zh.md)
 
 > **The Ultimate Context Provider for AI Code Assistants & Vibe Coders**
-> A powerful Chrome Extension designed for AI Agents (Cursor, Claude Code, Antigravity, etc.) and **Vibe Coding Creators** to effortlessly capture full-stack bug context from frontend sessions.
+> A Chrome Extension designed for AI Agents (Cursor, Claude Code, Antigravity) and Vibe Coding creators to seamlessly capture full-stack bug context from frontend sessions.
 
 ---
 
-## 💡 Why Bug Lens?
+## Why Bug Lens?
 
-Whether you are a **seasoned developer** or a **Vibe Coding creator** (building software with AI assistance), asking AI to diagnose and fix frontend bugs often hits a wall due to **missing runtime context**:
+Whether you are a developer or a Vibe Coding creator (building software with AI assistance), asking AI to diagnose and fix frontend bugs often hits a wall due to **missing runtime context**:
 - **Lack of Visual & Event Context**: AI cannot see which element you clicked, or what DOM mutations & errors occurred in real time.
 - **High Debugging Threshold**: Non-technical vibe coders struggle to extract network payloads or console logs from browser DevTools, while traditional developers waste time manually taking screenshots and copying log traces.
 
@@ -17,7 +17,7 @@ Whether you are a **seasoned developer** or a **Vibe Coding creator** (building 
 
 ---
 
-## ⚡️ AI-Native Workflow
+## AI-Native Workflow
 
 ```mermaid
 graph LR
@@ -32,22 +32,22 @@ graph LR
 
 ---
 
-## 🌟 Key Features
+## Key Features
 
-- 🎯 **Accurate Click & DOM Capture**: Automatically captures screenshots highlighting clicked elements with red visual rings alongside raw clean screenshots.
-- 📦 **Zero Backend & Privacy-First**: Exports self-contained, offline ZIP packages. Data remains 100% local with redaction modes for sensitive tokens/headers.
-- 🤖 **Deep AI Integration**:
+- **Accurate Click & DOM Capture**: Automatically captures screenshots highlighting clicked elements with red visual rings alongside raw clean screenshots.
+- **Zero Backend & Privacy-First**: Exports self-contained, offline ZIP packages. Data remains 100% local with redaction modes for sensitive tokens/headers.
+- **Deep AI Integration**:
   - `AI_PROMPT.md`: Pre-formatted instructions guiding AI models to analyze evidence step-by-step.
   - **Structured Context**: Provides structured JSON representations for DOM snapshots, console errors, and network payloads.
-- ⏱️ **Timeline Inspection & Filtering**: Interactively sync logs with video playback and exclude sensitive or redundant data before exporting.
+- **Timeline Inspection & Filtering**: Interactively sync logs with video playback and exclude sensitive or redundant data before exporting.
 
 ---
 
-## 🚀 Installation
+## Installation
 
 ### Option 1: Direct Download (Recommended)
 
-1. Download the pre-compiled package: [📥 bug-lens-v0.3.0.zip](https://github.com/Aoyia/bug-lens/releases/download/v0.3.0/bug-lens-v0.3.0.zip) (or visit the [Releases Page](https://github.com/Aoyia/bug-lens/releases/latest)).
+1. Download the pre-compiled package: [bug-lens-v0.3.0.zip](https://github.com/Aoyia/bug-lens/releases/download/v0.3.0/bug-lens-v0.3.0.zip) (or visit the [Releases Page](https://github.com/Aoyia/bug-lens/releases/latest)).
 2. Unzip the downloaded ZIP file to any local folder.
 3. Open `chrome://extensions/` in Google Chrome and enable **"Developer mode"** in the top right corner.
 4. Click **"Load unpacked"** and select the unzipped directory.
@@ -63,7 +63,7 @@ After building, load the generated `dist/` directory in `chrome://extensions/`.
 
 ---
 
-## 🛠️ Limitations & Roadmap
+## Limitations & Roadmap
 
 - **CDP Frame Mapping**: Tracks clicks across iframes; red indicator ring rendering will refine with frame coordinate mapping.
 - **Network Aggregation**: Captures headers and readable text bodies; redirect chain and out-of-order ExtraInfo joining is continuously improved.
@@ -71,4 +71,6 @@ After building, load the generated `dist/` directory in `chrome://extensions/`.
 
 ---
 
-💬 **Feedback & Contributions**: Have questions or feature requests? Feel free to open an [Issue](https://github.com/Aoyia/bug-lens/issues)!
+## Feedback & Contributions
+
+Have questions or feature requests? Feel free to open an [Issue](https://github.com/Aoyia/bug-lens/issues)!
