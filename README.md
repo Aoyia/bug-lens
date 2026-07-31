@@ -47,7 +47,7 @@ graph LR
 
 ### 方式一：直接下载 Releases 安装包（推荐）
 
-1. 点击直接下载预编译插件包：[📥 bug-lens-v0.2.0.zip](https://github.com/Aoyia/bug-lens/releases/download/v0.2.0/bug-lens-v0.2.0.zip)（或前往 [Releases 页面](https://github.com/Aoyia/bug-lens/releases/latest)）。
+1. 点击直接下载预编译插件包：[📥 bug-lens-v0.3.0.zip](https://github.com/Aoyia/bug-lens/releases/download/v0.3.0/bug-lens-v0.3.0.zip)（或前往 [Releases 页面](https://github.com/Aoyia/bug-lens/releases/latest)）。
 2. 将下载的 ZIP 压缩包解压到本地任意目录。
 3. 打开 Chrome 扩展管理页 `chrome://extensions/`，开启右上角 **“开发者模式”**。
 4. 点击 **“加载已解压的扩展程序”**，选择刚刚解压的目录即可完成安装。
