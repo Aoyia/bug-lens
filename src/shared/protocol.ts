@@ -321,6 +321,7 @@ export type IssueScene = {
   sessionId: string;
   status: IssueSceneStatus;
   observedAtEpochMs: number;
+  selectionStartedAtEpochMs?: number;
   committedAtEpochMs?: number;
   page: { url: string; title: string; frameId: number; viewport: { width: number; height: number }; scrollX: number; scrollY: number; devicePixelRatio: number };
   target: TargetDomSnapshot;
@@ -372,7 +373,7 @@ export type RuntimeMessage =
   | Envelope<"interaction/candidate", { interaction: InteractionRecord }>
   | Envelope<"interaction/confirmed", { interaction: InteractionRecord }>
   | Envelope<"interaction/cancelled", { interactionId: string; interaction?: InteractionRecord }>
-  | Envelope<"issue-scene/capture", { captureId: string; nonce: string; observedAtEpochMs: number; page: IssueScene["page"]; target: TargetDomSnapshot; targets?: TargetDomSnapshot[]; annotation: AnnotationModel }>
+  | Envelope<"issue-scene/capture", { captureId: string; nonce: string; observedAtEpochMs: number; selectionStartedAtEpochMs?: number; page: IssueScene["page"]; target: TargetDomSnapshot; targets?: TargetDomSnapshot[]; annotation: AnnotationModel }>
   | Envelope<"issue-scene/commit", { issueSceneId: string; nonce: string; narrative: { actual: string; expected?: string; note?: string }; annotation: AnnotationModel; stopAfterCommit: boolean }>
   | Envelope<"issue-scene/cancel", { issueSceneId: string; nonce: string }>
   | Envelope<"issue-scene/start-selection", Record<string, never>>

@@ -1,5 +1,4 @@
 import type { VueFrameworkSnapshot } from "../shared/protocol";
-import { escapeHtml } from "../shared/utils"; // 如果 utils 有 escapeHtml，或自行声明
 
 function escapeStr(str: any): string {
   if (typeof str !== "string") str = String(str);

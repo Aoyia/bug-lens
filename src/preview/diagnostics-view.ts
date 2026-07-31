@@ -47,6 +47,7 @@ export class DiagnosticsView {
   render(): void {
     const snapshot = this.actions.getSnapshot();
     this.consoleView.render({
+      session: snapshot.session,
       all: snapshot.consoleEntries,
       included: snapshot.includedConsoleEntries
     });

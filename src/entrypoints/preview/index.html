@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="preview-network.css">
   <link rel="stylesheet" href="preview-image-viewer.css">
   <link rel="stylesheet" href="preview-issue-scenes.css">
+  <link rel="stylesheet" href="preview-stream.css">
 </head>
 <body>
   <div class="zen-app-frame">
@@ -28,7 +29,7 @@
       <div class="zen-titlebar-right">
         <!-- 1 步直达一键复制 AI 提示词 -->
         <button id="copy-ai-prompt" class="secondary">
-          <span data-i18n="copyAiPrompt">✨ 复制 AI 提示词</span>
+          <span data-i18n="copyAiPrompt"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>复制 AI 提示词</span>
         </button>
         <!-- 悬浮查看路径与高级选项 -->
         <button id="toggle-ai-drawer" class="ghost" data-i18n-title="toggleAiDrawerTitle" title="查看文件绝对路径与更多选项">
@@ -59,11 +60,29 @@
         <div class="zen-video-container">
           <div class="zen-panel-title">
             <span data-i18n="video">标签页录像</span>
+            <label class="skip-annotation-toggle" style="margin-left: auto; margin-right: 14px; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #4e5969; cursor: pointer; user-select: none;">
+              <input type="checkbox" id="skip-annotation-checkbox" checked />
+              <span>跳过截图批注视频段</span>
+            </label>
             <div id="metrics" class="metrics"></div>
           </div>
           <div class="video-viewport">
             <div id="video-empty" class="empty" data-i18n="loading">正在读取媒体分片…</div>
-            <video id="video" class="video" controls hidden></video>
+            <video id="video" class="video" hidden></video>
+          </div>
+          <!-- 统一分段单轨播放控制栏 (Segmented Single Seekbar Player) -->
+          <div id="zen-player-controls" class="zen-player-controls" hidden>
+            <button id="play-pause-btn" class="player-btn" title="播放/暂停">
+              <svg id="play-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+              <svg id="pause-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" hidden><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+            </button>
+            <div id="video-time-text" class="player-time-text">00:00 / 00:00</div>
+            <div id="zen-seekbar-container" class="zen-seekbar-container">
+              <div id="seekbar-track" class="seekbar-track">
+                <div id="seekbar-fill" class="seekbar-fill"></div>
+                <div id="seekbar-thumb" class="seekbar-thumb"></div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -76,6 +95,9 @@
             <div class="zen-tabs">
               <button class="zen-tab-btn active" data-tab="issues">
                 <span data-i18n="issueScenes">问题现场</span>
+              </button>
+              <button class="zen-tab-btn" data-tab="stream">
+                <span data-i18n="timelineStream">全景瀑布流</span>
               </button>
               <button class="zen-tab-btn" data-tab="steps">
                 <span data-i18n="timeline">交互步骤</span>
@@ -100,6 +122,21 @@
           <div id="tab-pane-issues" class="zen-tab-pane">
             <div class="integrated-card-panel">
               <div id="issue-scenes" class="issue-scenes-list"></div>
+            </div>
+          </div>
+
+          <!-- Tab 面板 2：全景瀑布流 -->
+          <div id="tab-pane-stream" class="zen-tab-pane" hidden>
+            <div class="integrated-card-panel">
+              <div class="stream-header">
+                <div class="stream-filter-tags">
+                  <label class="stream-filter-label"><input type="checkbox" id="stream-filter-interactions" checked /> <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l7 18 3-7 7-3L3 3z"></path></svg> 交互步骤</label>
+                  <label class="stream-filter-label"><input type="checkbox" id="stream-filter-console" checked /> <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg> Console 日志</label>
+                  <label class="stream-filter-label"><input type="checkbox" id="stream-filter-network" checked /> <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg> Network 请求</label>
+                  <label class="stream-filter-label error-chip"><input type="checkbox" id="stream-filter-error-only" /> <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg> 仅看错误与异常</label>
+                </div>
+              </div>
+              <div id="timeline-stream-container" class="stream-timeline"></div>
             </div>
           </div>
 

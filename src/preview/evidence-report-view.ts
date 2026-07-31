@@ -4,6 +4,7 @@ import { ImageViewer } from "./image-viewer";
 import { InteractionListView } from "./interaction-list-view";
 import { PreviewPageShell } from "./page-shell";
 import { IssueSceneView, type IssueScenePreview } from "./issue-scene-view";
+import { TimelineStreamView } from "./timeline-stream-view";
 
 type EvidenceCollection<T> = { all: T[]; included: T[] };
 
@@ -46,6 +47,7 @@ export class EvidenceReportView {
   private readonly interactionList: InteractionListView;
   private readonly diagnostics: DiagnosticsView;
   private readonly issueScenes: IssueSceneView;
+  private readonly streamView: TimelineStreamView;
 
   constructor(private readonly root: Document, private readonly adapter: EvidenceReportAdapter) {
     this.shell = new PreviewPageShell(root, () => this.updateRestoreButtons());
@@ -81,6 +83,7 @@ export class EvidenceReportView {
       },
       notify: (message) => this.shell.notify(message)
     });
+    this.streamView = new TimelineStreamView(root);
 
     if (adapter.mode === "editable") {
       root.querySelector<HTMLButtonElement>("#restore")?.addEventListener("click", () => void this.restoreInteractions());
@@ -116,6 +119,12 @@ export class EvidenceReportView {
     });
     this.issueScenes.render(snapshot.issueScenes ?? { all: [], included: [] }, snapshot.session.timeline.startedAtEpochMs, this.adapter.mode === "editable");
     this.diagnostics.render();
+    this.streamView.render({
+      session: snapshot.session,
+      interactions: snapshot.interactions.included,
+      consoleEntries: snapshot.consoleEntries.included,
+      networkEntries: snapshot.networkEntries.included
+    });
   }
 
   private renderSummary(): void {

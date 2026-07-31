@@ -8,6 +8,7 @@ const sharedStyles = [
   "preview-network.css",
   "preview-image-viewer.css",
   "preview-issue-scenes.css",
+  "preview-stream.css",
   "report-static.css"
 ];
 

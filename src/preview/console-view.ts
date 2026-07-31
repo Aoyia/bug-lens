@@ -1,7 +1,8 @@
-import type { ConsoleEntry } from "../shared/protocol";
+import type { ConsoleEntry, RecordingSession } from "../shared/protocol";
 import { escapeHtml } from "./rendering";
 
 export type ConsoleViewSnapshot = {
+  session?: RecordingSession;
   all: ConsoleEntry[];
   included: ConsoleEntry[];
 };
@@ -70,8 +71,23 @@ export class ConsoleView {
     container.innerHTML = entries.length
       ? `<div class="console-view">${entries.slice(-200).reverse().map((entry) => renderConsoleRow(entry, editable)).join("")}</div>`
       : `<div class="empty">${snapshot.included.length ? "未找到匹配的 Console 日志" : snapshot.all.length && editable ? "所有 Console 日志均已删除，可从右上角恢复。" : "没有 Console 记录"}</div>`;
-    container.querySelectorAll<HTMLButtonElement>("[data-delete-console]").forEach((button) => button.addEventListener("click", () => {
+    container.querySelectorAll<HTMLButtonElement>("[data-delete-console]").forEach((button) => button.addEventListener("click", (event) => {
+      event.stopPropagation();
       void this.exclude(button.dataset.deleteConsole!);
+    }));
+
+    container.querySelectorAll<HTMLElement>(".console-row").forEach((row) => row.addEventListener("click", (event) => {
+      if ((event.target as HTMLElement).closest(".delete")) return;
+      const entryId = row.dataset.id;
+      const entry = entries.find((e) => e.id === entryId);
+      if (!entry) return;
+      const originEpochMs = snapshot.session?.timeline.startedAtEpochMs ?? snapshot.session?.timeline.createdAtEpochMs;
+      if (originEpochMs != null) {
+        const video = this.root.querySelector<HTMLVideoElement>("#video");
+        if (video) {
+          video.currentTime = Math.max(0, (entry.createdAt - originEpochMs) / 1000);
+        }
+      }
     }));
   }
 

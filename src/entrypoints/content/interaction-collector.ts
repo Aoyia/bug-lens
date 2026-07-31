@@ -29,6 +29,7 @@ if (existingController) {
   let widgetContainer: HTMLDivElement | undefined;
   let timerInterval: number | undefined;
   let issueSelectionActive = false;
+  let issueSelectionStartedAtEpochMs: number | undefined;
   let issueSelectionLayer: HTMLDivElement | undefined;
   let issueEditor: HTMLDivElement | undefined;
   let selectedIssueElement: Element | undefined;
@@ -951,10 +952,13 @@ if (existingController) {
     };
 
     removeRecordingWidget();
+    const selectionStartedAtEpochMs = issueSelectionStartedAtEpochMs;
+    issueSelectionStartedAtEpochMs = undefined;
     void new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))).then(() => chrome.runtime.sendMessage(message("issue-scene/capture", {
       captureId: crypto.randomUUID(),
       nonce: session!.nonce,
       observedAtEpochMs: Date.now(),
+      selectionStartedAtEpochMs,
       page: { url: location.href, title: document.title, frameId: 0, viewport, scrollX: window.scrollX, scrollY: window.scrollY, devicePixelRatio: window.devicePixelRatio },
       target: primaryTarget,
       targets,
@@ -968,6 +972,7 @@ if (existingController) {
   function beginIssueSelection(): void {
     if (!session || issueSelectionActive || issueEditor) return;
     issueSelectionActive = true;
+    issueSelectionStartedAtEpochMs = Date.now();
     void chrome.runtime.sendMessage(message("issue-scene/start-selection", {}, session.sessionId));
     lockScroll();
     setIssueButtonSelecting(true);

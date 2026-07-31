@@ -1,0 +1,168 @@
+/* 全景因果瀑布流 Timeline Stream View */
+.stream-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0 6px 0;
+  background: transparent;
+  flex-shrink: 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.03);
+  margin-bottom: 4px;
+}
+
+.stream-filter-tags {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--zen-text-muted);
+}
+
+.stream-filter-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 400;
+  color: #8c97a8;
+  background: rgba(0, 0, 0, 0.03);
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.12s ease;
+}
+
+.stream-filter-label input[type="checkbox"] {
+  display: none;
+}
+
+.stream-filter-label:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--zen-text-main);
+}
+
+.stream-filter-label:has(input:checked) {
+  background: rgba(22, 93, 255, 0.08);
+  color: #165dff;
+  font-weight: 500;
+}
+
+.stream-filter-label.error-chip {
+  margin-left: 4px;
+}
+
+.stream-filter-label.error-chip:hover {
+  background: rgba(245, 63, 63, 0.08);
+  color: #f53f3f;
+}
+
+.stream-filter-label.error-chip:has(input:checked) {
+  background: rgba(245, 63, 63, 0.1);
+  color: #f53f3f;
+  font-weight: 500;
+}
+
+.stream-timeline {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stream-timeline::-webkit-scrollbar {
+  width: 5px;
+}
+
+.stream-timeline::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
+}
+
+.stream-node {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  font-size: var(--font-xs);
+  cursor: pointer;
+  transition: background 0.1s ease;
+  user-select: none;
+}
+
+.stream-node:hover {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.stream-node.active {
+  background: var(--zen-primary-light);
+}
+
+.stream-node-time {
+  width: 72px;
+  flex-shrink: 0;
+  color: var(--zen-text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+}
+
+.stream-node-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  flex-shrink: 0;
+  line-height: 1.4;
+}
+
+.stream-node-badge.kind-interaction {
+  background: #e8f3ff;
+  color: #165dff;
+}
+
+.stream-node-badge.kind-console-log {
+  background: #f2f3f5;
+  color: #4e5969;
+}
+
+.stream-node-badge.kind-console-error {
+  background: #ffece6;
+  color: #f53f3f;
+}
+
+.stream-node-badge.kind-console-warn {
+  background: #fff7e6;
+  color: #ff7d00;
+}
+
+.stream-node-badge.kind-network-success {
+  background: #e8ffea;
+  color: #00b42a;
+}
+
+.stream-node-badge.kind-network-error {
+  background: #ffece6;
+  color: #f53f3f;
+}
+
+.stream-node-content {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--zen-text-main);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.stream-node-meta {
+  color: var(--zen-text-muted);
+  font-size: 11px;
+  margin-left: 6px;
+}

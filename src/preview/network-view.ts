@@ -107,14 +107,24 @@ export class NetworkView {
 
     const selectedEntry = entries.find((entry) => entry.id === this.selectedId);
     this.root.querySelector<HTMLElement>("#network-detail")!.innerHTML = renderNetworkDetail(selectedEntry);
-    this.bindRows();
+    this.bindRows(snapshot.session, entries);
     this.bindCopy(selectedEntry);
   }
 
-  private bindRows(): void {
+  private bindRows(session?: RecordingSession, entries: NetworkEntry[] = []): void {
     this.root.querySelector("#network")?.querySelectorAll<HTMLElement>("[data-network-id]").forEach((row) => row.addEventListener("click", (event) => {
       if ((event.target as HTMLElement).closest("[data-delete-network]")) return;
       this.selectedId = row.dataset.networkId || null;
+      const entry = entries.find((e) => e.id === this.selectedId);
+      if (entry) {
+        const originEpochMs = session?.timeline.startedAtEpochMs ?? session?.timeline.createdAtEpochMs;
+        if (originEpochMs != null) {
+          const video = this.root.querySelector<HTMLVideoElement>("#video");
+          if (video) {
+            video.currentTime = Math.max(0, (entry.createdAt - originEpochMs) / 1000);
+          }
+        }
+      }
       this.actions.render();
     }));
     this.root.querySelector("#network")?.querySelectorAll<HTMLButtonElement>("[data-delete-network]").forEach((button) => button.addEventListener("click", (event) => {

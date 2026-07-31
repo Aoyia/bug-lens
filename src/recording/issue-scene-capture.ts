@@ -83,6 +83,7 @@ export class IssueSceneCapture {
       sessionId: session.id,
       status: "capturing",
       observedAtEpochMs: payload.observedAtEpochMs,
+      selectionStartedAtEpochMs: payload.selectionStartedAtEpochMs,
       page: payload.page,
       target: payload.target,
       targets: payload.targets,
