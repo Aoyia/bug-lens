@@ -1,34 +1,76 @@
-# Bug Lens
+# Bug Lens 🤖
 
-基于 Manifest V3 的本地 Web 缺陷录制扩展。当前版本已打通最小可用链路：Popup 开始/结束录制、标签页 WebM、点击元素元数据、带红色圆环的点击截图、问题现场（元素选择、干净截图、SVG 批注、DOM 快照和问题描述）、基础 Console/Network 采集、IndexedDB 持久化、预览页和离线 ZIP 报告。问题现场只保存自己的采集时间点，交互、Console 和 Network 保持独立原始数据供开发人员查看。预览页可非破坏性排除并恢复问题现场、交互、Console 和 Network 条目；导出的 `report.html` 复用预览页的展示模块与样式，以只读离线模式保留问题现场、视频、步骤时间线、截图灯箱、Console 筛选和 Network 详情。ZIP 根目录还包含帮助人和 AI 理解证据资源的动态 `README.md` 和通用 `AI_PROMPT.md`。导出完成后预览页会显示本机 ZIP 绝对路径并提供一键复制 AI 提示词。
+> **The Ultimate Context Provider for AI Code Assistants**
+> 专为 AI Agent（Cursor, Claude Code, Antigravity 等）打造的前端缺陷现场上下文捕获扩展。
 
-离线报告无需服务端。将导出的 ZIP 完整解压后双击 `report.html` 即可查看；报告不包含排除的证据，也不包含删除、恢复、再次导出或本机路径操作。
+---
 
-## 本地构建
+## 💡 为什么需要 Bug Lens？
+
+AI 辅助编程极大提升了开发效率，但在让 AI 诊断和修复前端 Bug 时，开发者常遇到**上下文缺失**的痛点：
+- AI 看不到用户点击了哪个元素、触发了什么 DOM 变化。
+- 手动截图、复制控制台报错与网络请求极度繁琐。
+
+**Bug Lens 解决了这个问题**：在浏览器端一键录制用户复现步骤，自动提炼结构化的缺陷现场（包含 DOM 快照、带轨迹截图、Console 日志、Network 报文与 WebM 录屏），并生成可直接喂给 AI 的标准提示词与文件上下文！
+
+---
+
+## ⚡️ AI 原生工作流 (AI-Native Workflow)
+
+```mermaid
+graph LR
+    A["1. 浏览器一键录制"] --> B["2. 导出离线 ZIP & AI Prompt"]
+    B --> C["3. 一键发送给 AI Agent"]
+    C --> D["4. AI 精准定位并修复 Bug"]
+```
+
+1. **一键捕获**：点击扩展 Popup 开始录制，复现问题（自动记录点击红圈、DOM 快照、Console、Network 及 WebM 录屏）。
+2. **生成报告**：导出静态 ZIP 压缩包，系统自动生成供 AI 理解结构的 `AI_PROMPT.md` 与动态 `README.md`。
+3. **喂给 AI**：在预览页一键复制 Prompt 与本机绝对路径，直接发送给 AI 编程助手，AI 即可获取全量现场信息开展修复。
+
+---
+
+## 🌟 核心特性
+
+- 🎯 **精准现场捕获**：高亮点击元素，捕获带有红色圆环轨迹的截图与原始干净截图。
+- 📦 **零服务端·安全离线**：导出纯静态 ZIP 报告，内含离线 `report.html`，数据完全本地化。
+- 🤖 **AI 深度整合**：
+  - `AI_PROMPT.md`：自动生成指导 AI 逐层剖析报告资源的提示词模板。
+  - **结构化上下文**：为 DOM 快照、控制台报错与网络请求提供结构化数据源。
+- ⏱️ **时间线与非破坏性编辑**：支持按时间线联动查看日志与视频，导出前可排除敏感/无用数据。
+
+---
+
+## 🚀 下载与安装 (Installation)
+
+### 方式一：直接下载 Releases 安装包（推荐）
+
+1. 前往 GitHub 项目的 [Releases 页面](../../releases) 下载最新的预编译插件包（`bug-lens-extension.zip`）。
+2. 将下载的 ZIP 压缩包解压到本地任意目录。
+3. 打开 Chrome 扩展管理页 `chrome://extensions/`，开启右上角 **“开发者模式”**。
+4. 点击 **“加载已解压的扩展程序”**，选择刚刚解压的目录即可完成安装。
+
+### 方式二：从源码构建
 
 ```bash
 npm install
 npm run build
 ```
 
-构建产物位于 `dist/`。
+构建完成后，在 `chrome://extensions/` 中选择加载本项目的 `dist/` 目录。
 
-## 在 Chrome 中加载
+---
 
-1. 打开 `chrome://extensions/`。
-2. 开启右上角“开发者模式”。
-3. 点击“加载已解压的扩展程序”。
-4. 选择本项目的 `dist/` 目录。
-5. 打开一个普通 HTTP/HTTPS 页面，从扩展 Popup 开始录制。
+## 🛠️ 当前限制与规划
 
-修改源码后重新运行 `npm run build`，然后在扩展管理页点击刷新。
+- **CDP Frame 映射**：iframe 点击保持交互记录，CDP Frame 几何映射完成前暂停绘制红圈。
+- **Network 聚合**：包含基础请求/响应头及可读正文，重定向链与乱序 ExtraInfo 聚合持续完善中。
+- **Console 序列化**：支持 CDP 结构摘要，完整对象序列化进行中。
+- **导出机制**：当前采用内存内 ZIP 导出。
 
-## 当前限制
+---
 
-- iframe 点击会保留交互，但在 CDP Frame 几何映射完成前不会绘制可能错误的红圈。
-- Network 当前保存基础请求、状态、响应头和 CDP 可读取的响应正文；完整重定向链与乱序 ExtraInfo 聚合尚未实现。
-- Console 对象当前使用 CDP description/value 摘要，完整有界对象序列化尚未实现。
-- WebM 当前按一次 MediaRecorder 会话组合，30 秒独立分段和 Cues 修复尚未实现。
-- 导出采用内存内 ZIP，长录制的流式导出尚未实现。
-
-详细需求、技术方案和后续阶段分别见 `docs/01-requirements.md`、`docs/02-technical-solution.md`、`docs/03-implementation-design.md`。
+📄 详细需求文档与架构设计请参阅：
+- [需求说明](file:///Users/zhijian/Documents/mvp/bug-lens/docs/01-requirements.md)
+- [技术方案](file:///Users/zhijian/Documents/mvp/bug-lens/docs/02-technical-solution.md)
+- [实施设计](file:///Users/zhijian/Documents/mvp/bug-lens/docs/03-implementation-design.md)
