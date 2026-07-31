@@ -76,3 +76,10 @@ yarn build
 ## 反馈与建议
 
 使用过程中遇到任何问题或有新功能想法，欢迎提交 [Issues](https://github.com/Aoyia/bug-lens/issues) 交流反馈！
+
+---
+
+## 开源许可证
+
+本项目采用 [GNU Affero General Public License v3.0 (AGPL-3.0)](LICENSE) 开源许可证。任何基于本项目的修改、衍生开发或网络服务使用，均须按 AGPL-3.0 协议保持全开源。
+

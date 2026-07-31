@@ -6,13 +6,21 @@ import type { RecordingSessionEvent } from "../domain/recording-session.ts";
 
 type InteractionRepository = Pick<
   EvidenceRepository,
-  "getActiveSession" | "getInteraction" | "saveInteractionWithinBudget"
+  "getActiveSession" | "getInteraction" | "saveInteractionWithinBudget" | "saveEvidenceAssetWithinBudget"
 >;
 
 type SessionEventWriter = (sessionId: string, event: RecordingSessionEvent) => Promise<RecordingSession>;
 
 function issue(code: string, messageText: string, source: CaptureIssue["source"]): CaptureIssue {
   return { code, message: messageText, source, recoverable: true, occurredAt: Date.now() };
+}
+
+function dataUrlToArrayBuffer(dataUrl: string): ArrayBuffer {
+  const base64 = dataUrl.split(",")[1] ?? "";
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
 }
 
 export class InteractionCapture {
@@ -142,7 +150,24 @@ export class InteractionCapture {
         viewportHeight: interaction.coordinates.viewport.height
       }, session.id));
       if (!annotated?.ok || typeof annotated.dataUrl !== "string") throw new Error(annotated?.error || "截图标记失败");
-      const result = await this.persist(session.id, interaction.id, { type: "screenshot-captured", source: "primary", dataUrl: annotated.dataUrl });
+      const assetId = `asset-interaction-${interaction.id}`;
+      const bytes = dataUrlToArrayBuffer(annotated.dataUrl);
+      const assetResult = await this.repository.saveEvidenceAssetWithinBudget({
+        id: assetId,
+        sessionId: session.id,
+        interactionId: interaction.id,
+        kind: "interaction-screenshot",
+        mimeType: "image/png",
+        bytes,
+        width: interaction.coordinates.viewport.width,
+        height: interaction.coordinates.viewport.height,
+        createdAtEpochMs: Date.now()
+      });
+      if (!assetResult.stored) {
+        await this.writeSessionEvent(session.id, { type: "capture-issue", issue: issue("SESSION_STORAGE_LIMIT_REACHED", "已达到会话存储上限，未保存更多点击截图。", "storage") });
+        return;
+      }
+      const result = await this.persist(session.id, interaction.id, { type: "screenshot-captured", source: "primary", assetId });
       if (result.budgetRejected) {
         await this.writeSessionEvent(session.id, { type: "capture-issue", issue: issue("SESSION_STORAGE_LIMIT_REACHED", "已达到会话存储上限，未保存更多点击截图。", "storage") });
       } else if (result.previous?.status !== "cancelled" && result.previous?.screenshot.status !== "captured") {

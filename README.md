@@ -74,3 +74,10 @@ After building, load the generated `dist/` directory in `chrome://extensions/`.
 ## Feedback & Contributions
 
 Have questions or feature requests? Feel free to open an [Issue](https://github.com/Aoyia/bug-lens/issues)!
+
+---
+
+## License
+
+This project is licensed under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0). Any modification or derivative work must also be open-sourced under AGPL-3.0.
+

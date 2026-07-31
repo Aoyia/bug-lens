@@ -4,7 +4,7 @@ export type InteractionEvent =
   | { type: "candidate"; interaction: InteractionRecord }
   | { type: "confirmed"; interaction: InteractionRecord }
   | { type: "cancelled"; interaction?: InteractionRecord }
-  | { type: "screenshot-captured"; dataUrl: string; source: "primary" | "video-frame" }
+  | { type: "screenshot-captured"; assetId?: string; dataUrl?: string; source: "primary" | "video-frame" }
   | { type: "screenshot-unavailable"; issue: string };
 
 export function applyInteractionEvent(
@@ -34,7 +34,8 @@ export function applyInteractionEvent(
         screenshot: {
           status: "captured",
           source: event.source,
-          dataUrl: event.dataUrl
+          ...(event.assetId ? { assetId: event.assetId } : {}),
+          ...(event.dataUrl ? { dataUrl: event.dataUrl } : {})
         }
       };
 

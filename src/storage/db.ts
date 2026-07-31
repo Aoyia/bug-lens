@@ -347,6 +347,7 @@ export const db = {
   saveEvidenceAsset: (asset: EvidenceAsset) => put("evidenceAssets", asset),
   saveEvidenceAssetWithinBudget: (asset: EvidenceAsset) => putWithinSessionBudget("evidenceAssets", asset),
   getEvidenceAssets: (issueSceneId: string) => list<EvidenceAsset>("evidenceAssets", "issueSceneId", issueSceneId),
+  getEvidenceAssetsForSession: (sessionId: string) => list<EvidenceAsset>("evidenceAssets", "sessionId", sessionId),
   deleteIssueScene,
   saveConsole: (entry: ConsoleEntry) => put("consoleEntries", entry),
   saveConsoleWithinBudget: (entry: ConsoleEntry) => putWithinSessionBudget("consoleEntries", entry),
@@ -435,6 +436,7 @@ export type EvidenceRepository = Pick<
   | "saveEvidenceAsset"
   | "saveEvidenceAssetWithinBudget"
   | "getEvidenceAssets"
+  | "getEvidenceAssetsForSession"
   | "saveConsole"
   | "saveConsoleWithinBudget"
   | "getConsole"

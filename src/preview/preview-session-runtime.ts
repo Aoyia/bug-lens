@@ -18,6 +18,7 @@ export type PreviewStorage = Pick<
   | "getNetwork"
   | "getIssueScenes"
   | "getEvidenceAssets"
+  | "getEvidenceAssetsForSession"
   | "getMediaSummary"
   | "getMediaChunks"
   | "saveNetwork"
@@ -33,6 +34,7 @@ export class PreviewSessionRuntime {
   private networkEntries: NetworkEntry[] = [];
   private issueScenes: IssueScene[] = [];
   private issueAssets: EvidenceAsset[] = [];
+  private interactionAssets: EvidenceAsset[] = [];
   private issueScenePreviews: IssueScenePreview[] = [];
   private mediaUrl?: string;
   private mediaChunkCount = 0;
@@ -54,14 +56,30 @@ export class PreviewSessionRuntime {
       this.session = migrated;
       await this.storage.saveSession(migrated);
     }
+    const allAssets = (await this.storage.getEvidenceAssetsForSession?.(sessionId)) ?? [];
+    this.issueAssets = allAssets.filter((a) => a.kind === "issue-original" || a.kind === "issue-annotated");
+    this.interactionAssets = allAssets.filter((a) => a.kind === "interaction-screenshot");
+
     this.interactions = (await this.storage.getInteractions(sessionId))
       .filter((item) => item.status !== "cancelled")
-      .sort((left, right) => left.createdAt - right.createdAt);
+      .sort((left, right) => left.createdAt - right.createdAt)
+      .map((item) => {
+        if (item.screenshot.status === "captured") {
+          const asset = this.interactionAssets.find((a) => a.id === item.screenshot.assetId || a.interactionId === item.id);
+          if (asset) {
+            const objectUrl = URL.createObjectURL(new Blob([asset.bytes], { type: asset.mimeType }));
+            return { ...item, screenshot: { ...item.screenshot, dataUrl: objectUrl } };
+          }
+        }
+        return item;
+      });
     this.selection.loadSelection(await this.storage.getExportSelection(sessionId));
     this.consoleEntries = (await this.storage.getConsole(sessionId)).sort((left, right) => left.createdAt - right.createdAt);
     this.networkEntries = await this.storage.getNetwork(sessionId);
     this.issueScenes = await this.storage.getIssueScenes(sessionId);
-    this.issueAssets = (await Promise.all(this.issueScenes.map((scene) => this.storage.getEvidenceAssets(scene.id)))).flat();
+    if (!this.issueAssets.length) {
+      this.issueAssets = (await Promise.all(this.issueScenes.map((scene) => this.storage.getEvidenceAssets(scene.id)))).flat();
+    }
     this.issueScenePreviews = this.issueScenes.map((scene) => {
       const assets = this.issueAssets.filter((asset) => asset.issueSceneId === scene.id);
       const original = assets.find((asset) => asset.kind === "issue-original");
@@ -113,7 +131,8 @@ export class PreviewSessionRuntime {
       consoleEntries: this.selection.includedConsoleEntries(this.consoleEntries),
       networkEntries: this.selection.includedNetworkEntries(this.networkEntries),
       issueScenes: this.selection.includedIssueScenes(this.issueScenes),
-      issueAssets: this.issueAssets.filter((asset) => this.selection.includedIssueScenes(this.issueScenes).some((scene) => scene.id === asset.issueSceneId)).map((asset) => ({ sceneId: asset.issueSceneId, kind: asset.kind, bytes: new Uint8Array(asset.bytes), mimeType: asset.mimeType })),
+      issueAssets: this.issueAssets.filter((asset) => asset.issueSceneId && this.selection.includedIssueScenes(this.issueScenes).some((scene) => scene.id === asset.issueSceneId)).map((asset) => ({ sceneId: asset.issueSceneId!, kind: asset.kind as "issue-original" | "issue-annotated", bytes: new Uint8Array(asset.bytes), mimeType: asset.mimeType })),
+      interactionAssets: this.interactionAssets.filter((asset) => asset.interactionId && this.selection.includedInteractions(this.interactions).some((item) => item.id === asset.interactionId)).map((asset) => ({ interactionId: asset.interactionId!, bytes: new Uint8Array(asset.bytes), mimeType: asset.mimeType })),
       excluded: {
         interaction: this.selection.excludedCount("interaction"),
         console: this.selection.excludedCount("console"),

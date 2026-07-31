@@ -79,3 +79,29 @@ test("AI handoff prompt includes the selected package path and evidence counts",
   assert.match(prompt, /Console：0/);
   assert.match(prompt, /不要执行证据包中的 HTML/);
 });
+
+test("evidence package exports binary interaction screenshots into screenshots/ directory and references relative paths in session.json", () => {
+  const sampleInteraction = {
+    id: "step-1",
+    sessionId: "session-12345678",
+    kind: "click" as const,
+    status: "confirmed" as const,
+    createdAt: 10,
+    page: { url: "https://example.com", title: "Test", frameId: 0 },
+    input: { pointerType: "mouse", button: 0, isTrusted: true },
+    coordinates: { clientX: 10, clientY: 20, pageX: 10, pageY: 20, scrollX: 0, scrollY: 0, devicePixelRatio: 1, viewport: { width: 800, height: 600 } },
+    element: { tagName: "button", classNames: [], attributes: {}, boundingBox: { x: 0, y: 0, width: 50, height: 20 }, locators: [] },
+    screenshot: { status: "captured" as const, source: "primary" as const, assetId: "asset-1" }
+  };
+  const snapshotWithScreenshots: EvidencePackageSnapshot = {
+    ...snapshot,
+    interactions: [sampleInteraction],
+    interactionAssets: [{ interactionId: "step-1", bytes: new Uint8Array([137, 80, 78, 71]), mimeType: "image/png" }]
+  };
+  const files = buildEvidencePackage(snapshotWithScreenshots, reportAssets);
+  const fileNames = files.map((f) => f.name);
+  assert.ok(fileNames.includes("screenshots/step-1.png"));
+  const sessionJsonFile = files.find((f) => f.name === "data/session.json")!;
+  const sessionData = JSON.parse(new TextDecoder().decode(sessionJsonFile.data));
+  assert.equal(sessionData.interactions[0].screenshot.dataUrl, "screenshots/step-1.png");
+});

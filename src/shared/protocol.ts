@@ -168,7 +168,7 @@ export type InteractionRecord = {
     fromUrl?: string;
     toUrl?: string;
   };
-  screenshot: { status: "pending" | "captured" | "unavailable" | "disabled"; source?: "primary" | "video-frame"; dataUrl?: string; issue?: string };
+  screenshot: { status: "pending" | "captured" | "unavailable" | "disabled"; source?: "primary" | "video-frame"; assetId?: string; dataUrl?: string; issue?: string };
 };
 
 export type DiagnosticStackFrame = { functionName?: string; url?: string; lineNumber?: number; columnNumber?: number };
@@ -308,8 +308,9 @@ export type TargetDomSnapshot = {
 export type EvidenceAsset = {
   id: string;
   sessionId: string;
-  issueSceneId: string;
-  kind: "issue-original" | "issue-annotated";
+  issueSceneId?: string;
+  interactionId?: string;
+  kind: "issue-original" | "issue-annotated" | "interaction-screenshot";
   mimeType: "image/png";
   bytes: ArrayBuffer;
   width: number;

@@ -12,6 +12,7 @@ export type EvidencePackageSnapshot = {
   networkEntries: NetworkEntry[];
   issueScenes?: IssueScene[];
   issueAssets?: Array<{ sceneId: string; kind: "issue-original" | "issue-annotated"; bytes: Uint8Array; mimeType: "image/png" }>;
+  interactionAssets?: Array<{ interactionId: string; bytes: Uint8Array; mimeType: "image/png" }>;
   excluded: { interaction: number; console: number; network: number; issueScene?: number };
   hasMedia: boolean;
 };
@@ -239,7 +240,21 @@ function buildSessionPayload(snapshot: EvidencePackageSnapshot) {
     originalSource: (snapshot.issueAssets ?? []).some((asset) => asset.sceneId === scene.id && asset.kind === "issue-original") ? `issues/${scene.id}/screenshot-original.png` : undefined,
     annotatedSource: (snapshot.issueAssets ?? []).some((asset) => asset.sceneId === scene.id && asset.kind === "issue-annotated") ? `issues/${scene.id}/screenshot-annotated.png` : undefined
   }));
-  return { protocolVersion: 3, session: snapshot.session, interactions: snapshot.interactions, consoleEntries: snapshot.consoleEntries, networkEntries: snapshot.networkEntries, issueScenes, hasMedia: snapshot.hasMedia };
+  const interactions = snapshot.interactions.map((interaction, index) => {
+    const hasBinaryAsset = (snapshot.interactionAssets ?? []).some((asset) => asset.interactionId === interaction.id);
+    const hasDataUrl = Boolean(interaction.screenshot.dataUrl);
+    const dataUrl = (hasBinaryAsset || hasDataUrl) && interaction.screenshot.status === "captured"
+      ? `screenshots/step-${index + 1}.png`
+      : interaction.screenshot.dataUrl;
+    return {
+      ...interaction,
+      screenshot: {
+        ...interaction.screenshot,
+        dataUrl
+      }
+    };
+  });
+  return { protocolVersion: 3, session: snapshot.session, interactions, consoleEntries: snapshot.consoleEntries, networkEntries: snapshot.networkEntries, issueScenes, hasMedia: snapshot.hasMedia };
 }
 
 function buildSessionJson(snapshot: EvidencePackageSnapshot): string {
@@ -272,5 +287,17 @@ export function buildEvidencePackage(snapshot: EvidencePackageSnapshot, assets: 
     { name: "data/session.js", data: strToU8(buildSessionJs(snapshot)) }
   ];
   for (const asset of snapshot.issueAssets ?? []) files.push({ name: `issues/${asset.sceneId}/${asset.kind === "issue-original" ? "screenshot-original" : "screenshot-annotated"}.png`, data: asset.bytes });
+  snapshot.interactions.forEach((interaction, index) => {
+    const asset = (snapshot.interactionAssets ?? []).find((a) => a.interactionId === interaction.id);
+    if (asset) {
+      files.push({ name: `screenshots/step-${index + 1}.png`, data: asset.bytes });
+    } else if (interaction.screenshot.dataUrl && interaction.screenshot.dataUrl.startsWith("data:image/")) {
+      const base64 = interaction.screenshot.dataUrl.split(",")[1] ?? "";
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+      files.push({ name: `screenshots/step-${index + 1}.png`, data: bytes });
+    }
+  });
   return files;
 }
