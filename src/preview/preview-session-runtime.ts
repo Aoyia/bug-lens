@@ -1,3 +1,4 @@
+import fixWebmDuration from "fix-webm-duration";
 import { migrateSessionForExport } from "../export/export-manifest";
 import type { ConsoleEntry, EvidenceAsset, InteractionRecord, IssueScene, NetworkEntry, RecordingSession } from "../shared/protocol";
 import type { db } from "../storage/db";
@@ -80,7 +81,12 @@ export class PreviewSessionRuntime {
       const chunks = (await this.storage.getMediaChunks(this.sessionId))
         .filter((entry) => entry.chunk instanceof ArrayBuffer && entry.chunk.byteLength > 0);
       if (!chunks.length) throw new Error("媒体分片为空或已损坏");
-      this.mediaUrl = URL.createObjectURL(new Blob(chunks.map((entry) => entry.chunk), { type: this.mediaMimeType }));
+      const rawBlob = new Blob(chunks.map((entry) => entry.chunk), { type: this.mediaMimeType });
+      const durationMs = this.session?.timeline.durationMs;
+      const fixedBlob = this.mediaMimeType.includes("webm") && durationMs && durationMs > 0
+        ? await fixWebmDuration(rawBlob, durationMs, { logger: false })
+        : rawBlob;
+      this.mediaUrl = URL.createObjectURL(fixedBlob);
       return { source: this.mediaUrl };
     } catch (error) {
       return { error: String(error) };

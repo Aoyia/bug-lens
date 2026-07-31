@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs",
+    "dev": "node scripts/build.mjs --watch",
     "package": "node scripts/package.mjs",
     "test": "node --test tests/*.test.ts",
     "typecheck": "tsc --noEmit"
@@ -16,6 +17,7 @@
     "typescript": "^5.8.0"
   },
   "dependencies": {
-    "fflate": "^0.8.3"
+    "fflate": "^0.8.3",
+    "fix-webm-duration": "^1.0.6"
   }
 }
