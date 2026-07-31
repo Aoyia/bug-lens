@@ -166,3 +166,36 @@
   font-size: 11px;
   margin-left: 6px;
 }
+
+.stream-clip-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  font-size: 10.5px;
+  color: var(--zen-text-muted);
+  background: transparent;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: all 0.12s ease;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.stream-node:hover .stream-clip-btn {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.stream-clip-btn:hover {
+  background: rgba(22, 93, 255, 0.08) !important;
+  color: #165dff !important;
+  border-color: rgba(22, 93, 255, 0.2) !important;
+}
+
+.stream-clip-btn:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}

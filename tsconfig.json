@@ -9,7 +9,9 @@
     "skipLibCheck": true,
     "noEmit": true,
     "lib": ["ES2022", "DOM"],
-    "types": ["chrome"]
+    "types": ["chrome"],
+    "jsx": "react-jsx",
+    "jsxImportSource": "preact"
   },
-  "include": ["src/**/*.ts", "src/**/*.json"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.json"]
 }

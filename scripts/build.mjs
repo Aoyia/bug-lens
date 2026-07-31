@@ -12,7 +12,7 @@ await mkdir(outdir, { recursive: true });
 
 const entries = {
   background: "src/entrypoints/background/index.ts",
-  popup: "src/entrypoints/popup/index.ts",
+  popup: "src/entrypoints/popup/index.tsx",
   permission: "src/entrypoints/permission/index.ts",
   offscreen: "src/entrypoints/offscreen/index.ts",
   content: "src/entrypoints/content/interaction-collector.ts",
@@ -51,6 +51,8 @@ if (isWatch) {
       outfile: resolve(outdir, `${name}.js`),
       sourcemap: true,
       minify: false,
+      jsx: "automatic",
+      jsxImportSource: "preact",
       plugins: [
         {
           name: "rebuild-notify",
@@ -71,7 +73,7 @@ if (isWatch) {
   }
 
   watchFS(resolve(root, "src"), { recursive: true }, async (eventType, filename) => {
-    if (filename && !filename.endsWith(".ts") && !filename.endsWith(".js")) {
+    if (filename && !filename.endsWith(".ts") && !filename.endsWith(".tsx") && !filename.endsWith(".js")) {
       try {
         await copyStaticAssets();
         const time = new Date().toLocaleTimeString();
@@ -93,7 +95,9 @@ if (isWatch) {
       target: ["chrome125"],
       outfile: resolve(outdir, `${name}.js`),
       sourcemap: false,
-      minify: name === "report-template"
+      minify: name === "report-template",
+      jsx: "automatic",
+      jsxImportSource: "preact"
     });
   }
   await copyStaticAssets();

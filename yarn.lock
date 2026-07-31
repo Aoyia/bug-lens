@@ -134,7 +134,7 @@
 
 "@types/chrome@^0.2.2":
   version "0.2.2"
-  resolved "https://registry.npmjs.org/@types/chrome/-/chrome-0.2.2.tgz"
+  resolved "https://registry.npmmirror.com/@types/chrome/-/chrome-0.2.2.tgz#e4cf14e2f673428fdeb69d3bf2187cacd2136c9b"
   integrity sha512-8rSMZ4cvo2xmaSyQg0sN5yRL7oiDkntLoiHxUhfwQnv1mvnkrdoZ25SlNrKWmYKaeP50WvrfWj1pmc02+U9KKw==
   dependencies:
     "@types/filesystem" "*"
@@ -203,6 +203,16 @@ fix-webm-duration@^1.0.6:
   version "1.0.6"
   resolved "https://registry.npmmirror.com/fix-webm-duration/-/fix-webm-duration-1.0.6.tgz#c2de812c5207ba01e0f0b3ae497e64edc45e6c1e"
   integrity sha512-zVAqi4gE+8ywxJuAyV/rlJVX6CMtvyapEbQx6jyoeX9TMjdqAlt/FdG5d7rXSSkDVzTvS0H7CtwzHcH/vh4FPA==
+
+preact-render-to-string@^6.7.0:
+  version "6.7.0"
+  resolved "https://registry.npmmirror.com/preact-render-to-string/-/preact-render-to-string-6.7.0.tgz#fe10abba7461a439b1846d4ce3c51b87ecf48fe2"
+  integrity sha512-Z4WR8fmLMRpdYqJ9i7vrlXSsSrxVJydwrkEXHapexfARbWfGb7vGcnvNQnIzN0cXciMVOlz/XLoiMCi9gUsy9Q==
+
+preact@^10.29.7:
+  version "10.29.7"
+  resolved "https://registry.npmmirror.com/preact/-/preact-10.29.7.tgz#b70df2eb06e982c7ac65b6df1541e5846ac0f6ba"
+  integrity sha512-DCHYrK/B10yUD3ZjLfhZ3WIE/9Vf9VFUODcRE2dRomTYDpJk6z6L9wecSfhfE6M9ZTHUdyQkoC46arIDhEV84Q==
 
 typescript@^5.8.0:
   version "5.9.3"

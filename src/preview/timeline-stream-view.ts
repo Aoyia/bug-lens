@@ -1,5 +1,6 @@
 import type { ConsoleEntry, InteractionRecord, NetworkEntry, RecordingSession } from "../shared/protocol";
 import { formatElapsedEpochTime } from "../domain/evidence-clock";
+import { calculateClipRange } from "../domain/clip-calculator";
 import { escapeHtml } from "./rendering";
 
 export type TimelineEventNode =
@@ -112,12 +113,17 @@ export class TimelineStreamView {
           <span class="stream-node-time">${escapeHtml(relTime)}</span>
           ${badgeHtml}
           <div class="stream-node-content">${contentHtml}</div>
+          <button class="stream-clip-btn" data-clip-timestamp="${node.timestamp}" title="导出前后 5 秒 1080p 原画视频片段">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
+            <span>剪辑 5s</span>
+          </button>
         </div>
       `;
     }).join("");
 
     this.container.querySelectorAll<HTMLElement>("[data-node-id]").forEach((row) => {
-      row.addEventListener("click", () => {
+      row.addEventListener("click", (e) => {
+        if ((e.target as HTMLElement).closest(".stream-clip-btn")) return;
         this.selectedId = row.dataset.nodeId || null;
         this.container?.querySelectorAll(".stream-node").forEach((n) => n.classList.remove("active"));
         row.classList.add("active");
@@ -127,5 +133,116 @@ export class TimelineStreamView {
         }
       });
     });
+
+    this.container.querySelectorAll<HTMLButtonElement>(".stream-clip-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const timestamp = Number(btn.dataset.clipTimestamp);
+        if (Number.isFinite(timestamp)) {
+          this.exportClip(timestamp, btn);
+        }
+      });
+    });
   }
+
+  private exportClip(timestamp: number, button: HTMLButtonElement): void {
+    if (!this.video || !this.lastSnapshot) return;
+    const originEpochMs = this.lastSnapshot.session?.timeline.startedAtEpochMs ?? this.lastSnapshot.session?.timeline.createdAtEpochMs;
+    if (originEpochMs == null) return;
+
+    const duration = this.video.duration;
+    if (!duration || !Number.isFinite(duration)) return;
+
+    const { startTime, endTime } = calculateClipRange(timestamp, originEpochMs, duration, 2.5);
+    const origHtml = button.innerHTML;
+    button.disabled = true;
+    button.textContent = "导出中…";
+
+    const canvas = document.createElement("canvas");
+    canvas.width = this.video.videoWidth || 1280;
+    canvas.height = this.video.videoHeight || 720;
+    const ctx = canvas.getContext("2d");
+
+    let stream: MediaStream;
+    try {
+      stream = (canvas as any).captureStream ? (canvas as any).captureStream(30) : (this.video as any).captureStream();
+    } catch {
+      button.disabled = false;
+      button.innerHTML = origHtml;
+      return;
+    }
+
+    const { mimeType, extension } = getPreferredVideoType();
+    let mediaRecorder: MediaRecorder;
+    try {
+      mediaRecorder = new MediaRecorder(stream, { mimeType });
+    } catch {
+      try {
+        mediaRecorder = new MediaRecorder(stream);
+      } catch {
+        button.disabled = false;
+        button.innerHTML = origHtml;
+        return;
+      }
+    }
+
+    const chunks: Blob[] = [];
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) chunks.push(e.data);
+    };
+
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(chunks, { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `buglens_clip_${Math.round(startTime)}s-${Math.round(endTime)}s.${extension}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      button.disabled = false;
+      button.innerHTML = origHtml;
+    };
+
+    this.video.currentTime = startTime;
+
+    let animId: number;
+    const drawFrame = () => {
+      if (ctx && this.video) ctx.drawImage(this.video, 0, 0, canvas.width, canvas.height);
+      if (this.video && this.video.currentTime < endTime && !this.video.paused) {
+        animId = requestAnimationFrame(drawFrame);
+      } else {
+        cancelAnimationFrame(animId);
+        if (mediaRecorder.state === "recording") mediaRecorder.stop();
+        this.video?.pause();
+      }
+    };
+
+    mediaRecorder.start();
+    this.video.play().then(() => {
+      drawFrame();
+    }).catch(() => {
+      if (mediaRecorder.state === "recording") mediaRecorder.stop();
+      button.disabled = false;
+      button.innerHTML = origHtml;
+    });
+  }
+}
+
+function getPreferredVideoType(): { mimeType: string; extension: string } {
+  const candidates = [
+    { mimeType: "video/mp4;codecs=avc1.42E01E,mp4a.40.2", extension: "mp4" },
+    { mimeType: "video/mp4", extension: "mp4" },
+    { mimeType: "video/webm;codecs=vp9", extension: "webm" },
+    { mimeType: "video/webm", extension: "webm" }
+  ];
+
+  for (const item of candidates) {
+    if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(item.mimeType)) {
+      return item;
+    }
+  }
+  return { mimeType: "video/mp4", extension: "mp4" };
 }

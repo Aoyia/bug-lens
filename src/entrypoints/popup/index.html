@@ -483,104 +483,74 @@
       line-height: 1.45;
     }
     .error { color: #d92d20; font-size: 11.5px; padding: 6px 8px; border: 1px solid #ffccc7; background: #fff1f0; border-radius: 4px; white-space: pre-wrap; }
+    
+    /* Custom Inline Confirm Dialog (No System Window Confirm) */
+    .confirm-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 16px;
+      backdrop-filter: blur(2px);
+      animation: fade-in 0.15s ease-out;
+    }
+    @keyframes fade-in {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    .confirm-dialog {
+      background: var(--bg-base);
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
+      width: 100%;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+      border: 1px solid var(--border-subtle);
+    }
+    .confirm-message {
+      font-size: 11.5px;
+      color: var(--ink-sub);
+      line-height: 1.4;
+      margin-bottom: 12px;
+    }
+    .confirm-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    .btn-confirm-cancel {
+      padding: 4px 10px;
+      font-size: 11.5px;
+      border: 1px solid var(--border-subtle);
+      background: #f4f5f7;
+      color: var(--ink-sub);
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .btn-confirm-cancel:hover {
+      background: #e5e6eb;
+    }
+    .btn-confirm-danger {
+      padding: 4px 10px;
+      font-size: 11.5px;
+      border: none;
+      background: var(--danger);
+      color: #ffffff;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 500;
+    }
+    .btn-confirm-danger:hover {
+      background: var(--danger-hover);
+    }
     [hidden] { display: none !important; }
   </style>
 </head>
 <body>
-  <main class="shell">
-    <!-- 动态主 Header (录制模式) -->
-    <header id="main-header" class="brand">
-      <div class="brand-left">
-        <img src="icons/icon_idle.png" alt="Bug Lens">
-        <h1>Bug Lens</h1>
-      </div>
-      <div class="header-actions">
-        <button class="icon-action-btn tab" data-view="history" data-i18n-title="history" title="历史记录">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-        </button>
-      </div>
-    </header>
-
-    <!-- 动态主 Header (历史记录模式) -->
-    <header id="history-header" class="history-header-bar" hidden>
-      <button class="back-btn tab" data-view="record" data-i18n-title="backToRecord" title="返回录制">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
-        <span data-i18n="history">历史记录</span>
-      </button>
-      <div class="history-actions">
-        <button id="refresh-history" class="icon-action-btn" data-i18n-title="refreshList" title="刷新列表">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
-        </button>
-        <button id="cleanup" class="icon-action-btn" data-i18n-title="cleanupExpired" title="清理过期记录">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-        </button>
-      </div>
-    </header>
-
-    <section id="record-view">
-      <div class="context-flow">
-        <div class="context-head">
-          <div id="title" class="target-title" data-i18n="loading">正在读取…</div>
-          <div class="status-badge">
-            <span id="dot" class="dot"></span>
-            <span id="status" data-i18n="notRecording">未录制</span>
-            <span id="timer"></span>
-          </div>
-        </div>
-        <div id="url" class="target-url"></div>
-        <div id="evidence" class="evidence"></div>
-
-        <div class="inline-config">
-          <span class="config-text" data-i18n="defaultSafeCollection">默认 · 安全全量采集</span>
-          <button id="toggle-options" class="toggle-options-btn">
-            <span data-i18n="config">配置</span>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-          </button>
-        </div>
-
-        <div id="advanced-options" class="advanced-panel" hidden>
-          <div class="scopes-grid">
-            <label class="scope-chip"><input id="video" type="checkbox" checked><span data-i18n="video">录像</span></label>
-            <label class="scope-chip"><input id="audio" type="checkbox"><span data-i18n="audio">音频</span></label>
-            <label class="scope-chip"><input id="screenshots" type="checkbox" checked><span data-i18n="clickScreenshots">点击截图</span></label>
-            <label class="scope-chip"><input id="console" type="checkbox" checked><span data-i18n="console">Console</span></label>
-            <label class="scope-chip"><input id="network" type="checkbox" checked><span data-i18n="network">Network</span></label>
-            <label class="scope-chip"><input id="bodies" type="checkbox" checked><span data-i18n="responseBodies">响应正文</span></label>
-          </div>
-          <select id="privacy" class="privacy-select">
-            <option value="safe" data-i18n="safeMode">安全模式（推荐脱敏）</option>
-            <option value="raw" data-i18n="rawMode">原始模式（不脱敏）</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="actions">
-        <button id="start" class="action-btn start">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="8"></circle></svg>
-          <span data-i18n="startRecording">开始录制</span>
-        </button>
-        <button id="stop" class="action-btn stop" hidden>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"></rect></svg>
-          <span data-i18n="stopRecording">结束录制</span>
-        </button>
-        <button id="preview" class="action-btn secondary" hidden data-i18n="reopenPreview">重新打开预览</button>
-      </div>
-    </section>
-
-    <section id="history-view" hidden>
-      <div class="search-wrapper">
-        <svg class="search-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-        <input id="search" type="search" placeholder="搜索标题、URL、状态" data-i18n-ph="searchPlaceholder">
-      </div>
-      <div id="sessions" class="sessions"></div>
-      <div class="storage-footer">
-        <span id="storage-used" data-i18n="loading">正在读取…</span> · <span id="storage-count">0 个会话</span>
-        <div id="storage-policy" style="display: none;"></div>
-      </div>
-    </section>
-
-    <div id="error" class="error" hidden></div>
-  </main>
+  <div id="app"></div>
   <script src="popup.js"></script>
 </body>
 </html>
