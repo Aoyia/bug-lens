@@ -348,4 +348,83 @@ function bindSingleSeekbarPlayer(): void {
       window.addEventListener("mouseup", onPointerUp);
     });
   }
+
+  // 视频播放器键盘快捷键控制与 HUD 提示系统
+  const videoContainer = video.closest(".zen-video-container") as HTMLElement | null;
+  if (videoContainer && !videoContainer.hasAttribute("tabindex")) {
+    videoContainer.setAttribute("tabindex", "0");
+  }
+
+  let hudTimer: ReturnType<typeof setTimeout> | undefined;
+  let hudEl = videoContainer?.querySelector<HTMLElement>(".zen-video-hud");
+  if (!hudEl && videoContainer) {
+    hudEl = document.createElement("div");
+    hudEl.className = "zen-video-hud";
+    videoContainer.appendChild(hudEl);
+  }
+
+  const showHud = (text: string) => {
+    if (!hudEl) return;
+    hudEl.textContent = text;
+    hudEl.classList.add("is-visible");
+    if (hudTimer) clearTimeout(hudTimer);
+    hudTimer = setTimeout(() => {
+      hudEl?.classList.remove("is-visible");
+    }, 800);
+  };
+
+  const togglePlay = () => {
+    if (video.paused) {
+      void video.play();
+      showHud("► 播放");
+    } else {
+      video.pause();
+      showHud("❚❚ 暂停");
+    }
+  };
+
+  video.addEventListener("click", () => {
+    videoContainer?.focus();
+    togglePlay();
+  });
+
+  video.addEventListener("dblclick", () => {
+    if (!document.fullscreenElement) {
+      void videoContainer?.requestFullscreen().catch(() => undefined);
+      showHud("⛶ 全屏");
+    } else {
+      void document.exitFullscreen().catch(() => undefined);
+      showHud("🗗 退出全屏");
+    }
+  });
+
+  window.addEventListener("keydown", (e: KeyboardEvent) => {
+    const active = document.activeElement as HTMLElement | null;
+    // 屏蔽在输入框、文本域或富文本编辑区打字时的快捷键
+    if (active && (
+      active.tagName === "INPUT" ||
+      active.tagName === "TEXTAREA" ||
+      active.tagName === "SELECT" ||
+      active.isContentEditable
+    )) {
+      return;
+    }
+
+    const isVideoFocused = !!(videoContainer && (videoContainer === active || videoContainer.contains(active)));
+    if (!isVideoFocused) return;
+
+    const code = e.code;
+    if (code === "Space") {
+      e.preventDefault();
+      togglePlay();
+    } else if (code === "ArrowLeft" || code === "ArrowRight") {
+      e.preventDefault();
+      const delta = e.shiftKey ? 1 : 5;
+      const step = code === "ArrowLeft" ? -delta : delta;
+      const target = Math.max(0, Math.min(video.duration || 0, (video.currentTime || 0) + step));
+      video.currentTime = target;
+      syncTimeAnchor();
+      showHud(step > 0 ? `» +${delta}s` : `« -${delta}s`);
+    }
+  });
 }

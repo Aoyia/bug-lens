@@ -410,5 +410,8 @@
   },
   "readingVideo": {
     "message": "正在读取录像…"
+  },
+  "skipAnnotationVideo": {
+    "message": "跳过批注视频"
   }
 }
