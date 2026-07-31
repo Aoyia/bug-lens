@@ -61,14 +61,14 @@ test("evidence package hides the complete offline report behind one snapshot int
     "report.html",
     "assets/report.js",
     "assets/report.css",
-    "assets/report-data.js",
     "assets/icon_idle.png",
-    "data/session.json"
+    "data/session.json",
+    "data/session.js"
   ]);
   assert.match(files.get("README.md")!, /Checkout page/);
   assert.match(files.get("README.md")!, /用户删除的交互步骤：2/);
   assert.match(files.get("README.md")!, /camera unavailable/);
-  assert.ok(files.get("assets/report-data.js")!.includes("\\u003cscript\\u003e"));
+  assert.ok(files.get("data/session.js")!.includes("\\u003cscript\\u003e"));
   assert.equal(JSON.parse(files.get("data/session.json")!).session.id, session.id);
 });
 

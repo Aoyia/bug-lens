@@ -47,11 +47,32 @@ function activeEvidence(session?: RecordingSession): EvidenceSummary[] {
 }
 
 function evidenceLabel(evidence: EvidenceSummary): string {
-  return ({ video: "录像", audio: "音频", screenshots: "截图", issueScenes: "问题现场", console: "Console", network: "Network", networkBodies: "正文" })[evidence.kind] ?? evidence.kind;
+  const map: Record<string, string> = {
+    video: t("video"),
+    audio: t("audio"),
+    screenshots: t("clickScreenshots"),
+    issueScenes: t("issueScenes"),
+    console: t("console"),
+    network: t("network"),
+    networkBodies: t("responseBodies")
+  };
+  return map[evidence.kind] ?? evidence.kind;
+}
+
+function evidenceStateLabel(state: string): string {
+  const map: Record<string, string> = {
+    captured: t("statusCaptured"),
+    partial: t("statusPartial"),
+    failed: t("statusFailed"),
+    redacted: t("statusRedacted"),
+    pending: t("statusPending"),
+    disabled: t("statusDisabled")
+  };
+  return map[state] ?? state;
 }
 
 function renderEvidence(items: EvidenceSummary[]): string {
-  return items.map((item) => `<span class="chip ${item.state}" title="${escapeHtml(item.detail)}">${evidenceLabel(item)} · ${item.state === "captured" ? "成功" : item.state === "partial" ? "部分" : item.state === "failed" ? "失败" : item.state === "redacted" ? "已脱敏" : item.state === "pending" ? "处理中" : "未采集"}</span>`).join("");
+  return items.map((item) => `<span class="chip ${item.state}" title="${escapeHtml(item.detail)}">${evidenceLabel(item)} · ${evidenceStateLabel(item.state)}</span>`).join("");
 }
 
 function readOptions(): RecordingOptions {
@@ -78,7 +99,9 @@ function setState(session?: RecordingSession): void {
   activeSession = session;
   const active = isActive(session);
   const previewReady = Boolean(session && ["PREVIEW_READY", "EXPORTED"].includes(session.status));
-  $("#status").textContent = active ? (session?.status === "PREPARING" ? "正在启动录制…" : session?.status === "DEGRADED" ? "录制中（部分证据不可用）" : "录制中") : previewReady ? "录制完成" : "未录制";
+  $("#status").textContent = active
+    ? (session?.status === "PREPARING" ? t("recordingStarting") : session?.status === "DEGRADED" ? t("recordingDegraded") : t("recording"))
+    : previewReady ? t("recordingCompleted") : t("notRecording");
   $("#dot").classList.toggle("rec", active);
   ($("#start") as HTMLButtonElement).hidden = active || previewReady;
   ($("#stop") as HTMLButtonElement).hidden = !active;
@@ -97,7 +120,7 @@ function setState(session?: RecordingSession): void {
 
 async function refreshRecord(): Promise<void> {
   activeTab = (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
-  $("#title").textContent = activeTab?.title || "无法读取标签页";
+  $("#title").textContent = activeTab?.title || t("failedToReadTab");
   $("#url").textContent = activeTab?.url || "";
   const response = await chrome.runtime.sendMessage(message("session/status", {}));
   setState(response?.session);
@@ -112,11 +135,11 @@ function sessionHtml(item: SessionOverview): string {
   const date = new Date(session.timeline.createdAtEpochMs).toLocaleString();
   return `<article class="session">
     <div class="session-head">
-      <div class="session-title" title="${escapeHtml(session.target.initialTitle)}">${escapeHtml(session.target.initialTitle || "未命名标签页")}</div>
+      <div class="session-title" title="${escapeHtml(session.target.initialTitle)}">${escapeHtml(session.target.initialTitle || t("unnamedTab"))}</div>
       <div class="session-head-actions">
-        ${isContinuable(session) ? `<button class="btn-continue-sm" data-continue="${session.id}">恢复</button>` : ""}
-        <button class="btn-open-preview" data-open="${session.id}">预览</button>
-        <button class="btn-delete-icon" data-delete="${session.id}" title="删除会话">
+        ${isContinuable(session) ? `<button class="btn-continue-sm" data-continue="${session.id}">${t("resume")}</button>` : ""}
+        <button class="btn-open-preview" data-open="${session.id}">${t("preview")}</button>
+        <button class="btn-delete-icon" data-delete="${session.id}" title="${t("deleteSession")}">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
         </button>
       </div>
@@ -129,9 +152,9 @@ function sessionHtml(item: SessionOverview): string {
 function escapeHtml(value: unknown): string { return String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]!)); }
 
 function renderStorage(storage: StorageOverview): void {
-  $("#storage-used").textContent = `${formatBytes(storage.usedBytes)} 已使用`;
-  $("#storage-policy").textContent = `自动清理 ${storage.policy.retentionDays} 天前会话 · 单会话 ${formatBytes(storage.policy.maxSessionBytes)}`;
-  $("#storage-count").textContent = `${storage.sessionCount} 个会话`;
+  $("#storage-used").textContent = t("storageUsed", formatBytes(storage.usedBytes));
+  $("#storage-policy").textContent = t("storagePolicy", [String(storage.policy.retentionDays), formatBytes(storage.policy.maxSessionBytes)]);
+  $("#storage-count").textContent = t("sessionsCount", String(storage.sessionCount));
 }
 
 async function refreshHistory(): Promise<void> {
@@ -144,8 +167,8 @@ async function refreshHistory(): Promise<void> {
   const emptyHtml = `
     <div class="empty-state">
       <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-      <div class="empty-title">暂无匹配的诊断记录</div>
-      <div class="empty-sub">已完成录制的报告将存放在这里</div>
+      <div class="empty-title">${t("noMatchingHistory")}</div>
+      <div class="empty-sub">${t("emptyHistorySub")}</div>
     </div>
   `;
   $("#sessions").innerHTML = sessions.length ? sessions.map(sessionHtml).join("") : emptyHtml;
@@ -169,9 +192,9 @@ function showView(next: "record" | "history"): void {
 $("#start").addEventListener("click", async () => {
   if (!activeTab?.id) return;
   const options = readOptions();
-  if (!options.captureVideo && options.captureAudio) { setError("音频依附于录像；请先开启录像。"); return; }
+  if (!options.captureVideo && options.captureAudio) { setError(t("audioNeedsVideo")); return; }
   if (!options.captureNetwork) options.captureNetworkBodies = false;
-  if (options.privacyMode === "raw" && !window.confirm("原始模式会保留未脱敏的页面和调试数据。仅在获准且会人工检查的场景使用。")) return;
+  if (options.privacyMode === "raw" && !window.confirm(t("rawModeWarning"))) return;
   setError();
   try {
     const hasPermission = await chrome.permissions.contains({ origins: ["http://*/*", "https://*/*"] }).catch(() => false);
@@ -182,7 +205,7 @@ $("#start").addEventListener("click", async () => {
       return;
     }
     const response = await chrome.runtime.sendMessage(message("session/start", { tabId: activeTab.id, options, commandId: crypto.randomUUID() }));
-    if (!response?.ok) throw new Error(response?.error || "开始录制失败");
+    if (!response?.ok) throw new Error(response?.error || t("startFailed"));
     setState(response.session);
   } catch (error) { setError(error); await refreshRecord(); }
 });
@@ -191,7 +214,7 @@ $("#stop").addEventListener("click", async () => {
   setError();
   try {
     const response = await chrome.runtime.sendMessage(message("session/stop", { commandId: crypto.randomUUID() }));
-    if (!response?.ok) throw new Error(response?.error || "结束录制失败");
+    if (!response?.ok) throw new Error(response?.error || t("stopFailed"));
     setState(response.session);
   } catch (error) { setError(error); }
 });
@@ -205,17 +228,17 @@ $("#video").addEventListener("change", () => { const video = ($("#video") as HTM
 $("#network").addEventListener("change", () => { const network = ($("#network") as HTMLInputElement).checked; ($("#bodies") as HTMLInputElement).disabled = !network; if (!network) ($("#bodies") as HTMLInputElement).checked = false; });
 $("#refresh-history").addEventListener("click", () => void refreshHistory().catch(setError));
 $("#cleanup").addEventListener("click", async () => {
-  if (!window.confirm("确定要清空全部历史记录吗？（已完成的记录将被全量删除，此操作不可恢复）")) return;
+  if (!window.confirm(t("clearHistoryPrompt"))) return;
   const response = await chrome.runtime.sendMessage(message("storage/clear-all", {}));
-  if (!response?.ok) setError(response?.error || "清空历史失败"); else await refreshHistory();
+  if (!response?.ok) setError(response?.error || t("clearHistoryFailed")); else await refreshHistory();
 });
 $("#search").addEventListener("input", () => void refreshHistory().catch(setError));
 $("#sessions").addEventListener("click", async (event) => {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>("button");
   if (!button) return;
   if (button.dataset.open) { await chrome.runtime.sendMessage(message("session/open-preview", { sessionId: button.dataset.open })); return; }
-  if (button.dataset.delete) { if (window.confirm("删除会话及其全部本地证据？此操作不可恢复。")) { const response = await chrome.runtime.sendMessage(message("session/delete", { sessionId: button.dataset.delete })); if (!response?.ok) setError(response?.error || "删除失败"); else await refreshHistory(); } return; }
-  if (button.dataset.continue) { const response = await chrome.runtime.sendMessage(message("session/resume", { sessionId: button.dataset.continue, commandId: crypto.randomUUID() })); if (!response?.ok) setError(response?.error || "继续录制失败"); else { showView("record"); setState(response.session); } }
+  if (button.dataset.delete) { if (window.confirm(t("deleteSessionConfirm"))) { const response = await chrome.runtime.sendMessage(message("session/delete", { sessionId: button.dataset.delete })); if (!response?.ok) setError(response?.error || t("deleteFailed")); else await refreshHistory(); } return; }
+  if (button.dataset.continue) { const response = await chrome.runtime.sendMessage(message("session/resume", { sessionId: button.dataset.continue, commandId: crypto.randomUUID() })); if (!response?.ok) setError(response?.error || t("resumeFailed")); else { showView("record"); setState(response.session); } }
 });
 
 $("#toggle-options")?.addEventListener("click", () => {

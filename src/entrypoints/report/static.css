@@ -1,9 +1,10 @@
+.report-read-only .zen-titlebar-right,
 .report-statuses {
   flex-shrink: 0;
+  margin-right: 0 !important;
 }
 
-.report-status,
-.report-mode-badge {
+.report-status {
   display: inline-flex;
   align-items: center;
   height: 22px;
@@ -31,11 +32,6 @@
 .report-status[data-quality="failed"],
 .report-error {
   color: #b91c1c !important;
-}
-
-.report-mode-badge {
-  color: #165dff;
-  background: rgba(22, 93, 255, 0.08);
 }
 
 .report-read-only .zen-tab-bar {

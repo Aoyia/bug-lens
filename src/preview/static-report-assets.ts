@@ -21,7 +21,7 @@ export async function loadStaticReportAssets(): Promise<StaticReportAssets> {
   const [html, script, icon, ...styles] = await Promise.all([
     loadAsset("report-template.html").then((response) => response.text()),
     loadAsset("report-template.js").then((response) => response.text()),
-    loadAsset("icons/icon_idle.png").then((response) => response.arrayBuffer()).then((buffer) => new Uint8Array(buffer)),
+    loadAsset("icons/icon_idle_32.png").then((response) => response.arrayBuffer()).then((buffer) => new Uint8Array(buffer)),
     ...sharedStyles.map((path) => loadAsset(path).then((response) => response.text()))
   ]);
   return { html, script, icon, styles: styles.join("\n") };

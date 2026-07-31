@@ -1,5 +1,6 @@
 import { defaultAnnotation } from "../../domain/issue-scene";
 import { message, type AnnotationModel, type DomAncestorSnapshot, type ElementDescriptor, type InteractionRecord, type TargetDomSnapshot } from "../../shared/protocol";
+import { detectVue } from "./vue-detector";
 import { t } from "../../shared/i18n";
 import { tryShowOnboardingGuide } from "../../guide/onboarding-tour";
 
@@ -100,11 +101,23 @@ if (existingController) {
 
     Object.assign(root.style, {
       position: "fixed",
+      top: "auto",
       bottom: "24px",
+      left: "auto",
       right: "24px",
+      width: "auto",
+      height: "auto",
+      minWidth: "0",
+      maxWidth: "none",
+      minHeight: "0",
+      maxHeight: "none",
+      margin: "0",
+      boxSizing: "border-box",
       zIndex: "2147483647",
       display: "flex",
+      flexDirection: "row",
       alignItems: "center",
+      justifyContent: "flex-start",
       gap: "10px",
       padding: "8px 14px",
       background: "rgba(29, 33, 41, 0.75)",
@@ -122,31 +135,73 @@ if (existingController) {
 
     root.innerHTML = `
       <style>
+        #__wbr_recording_widget__ {
+          position: fixed !important;
+          top: auto !important;
+          bottom: 24px !important;
+          left: auto !important;
+          right: 24px !important;
+          width: auto !important;
+          height: auto !important;
+          min-width: 0 !important;
+          max-width: none !important;
+          min-height: 0 !important;
+          max-height: none !important;
+          margin: 0 !important;
+          padding: 8px 14px !important;
+          box-sizing: border-box !important;
+          z-index: 2147483647 !important;
+          display: flex !important;
+          flex-direction: row !important;
+          align-items: center !important;
+          justify-content: flex-start !important;
+          gap: 10px !important;
+          background: rgba(29, 33, 41, 0.75) !important;
+          backdrop-filter: blur(12px) !important;
+          -webkit-backdrop-filter: blur(12px) !important;
+          border: 1px solid rgba(255, 255, 255, 0.15) !important;
+          color: #ffffff !important;
+          border-radius: 6px !important;
+          box-shadow: 0 4px 18px rgba(0, 0, 0, 0.28) !important;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+          font-size: 12px !important;
+          line-height: 1 !important;
+          user-select: none !important;
+          transform: none !important;
+          align-self: auto !important;
+        }
         @keyframes wbr-pulse {
           0% { box-shadow: 0 0 0 0 rgba(245, 63, 63, 0.6); }
           70% { box-shadow: 0 0 0 6px rgba(245, 63, 63, 0); }
           100% { box-shadow: 0 0 0 0 rgba(245, 63, 63, 0); }
         }
         .__wbr_dot {
-          width: 8px; height: 8px; border-radius: 50%; background: #f53f3f;
-          display: inline-block;
-          animation: wbr-pulse 1.5s infinite;
+          width: 8px !important; height: 8px !important; border-radius: 50% !important; background: #f53f3f !important;
+          display: inline-block !important;
+          flex-shrink: 0 !important;
+          animation: wbr-pulse 1.5s infinite !important;
         }
         .__wbr_btn {
-          border: none; background: #f53f3f; color: #fff; border-radius: 4px;
-          padding: 5px 10px; font-size: 11px; font-weight: 500; cursor: pointer;
-          transition: background 0.15s ease;
-          outline: none;
+          border: none !important; background: #f53f3f !important; color: #fff !important; border-radius: 4px !important;
+          padding: 5px 10px !important; font-size: 11px !important; font-weight: 500 !important; cursor: pointer !important;
+          transition: background 0.15s ease !important;
+          outline: none !important;
+          height: auto !important;
+          line-height: 1.2 !important;
+          margin: 0 !important;
         }
-        .__wbr_btn:hover { background: #f76565; }
-        .__wbr_btn:active { background: #cb2727; }
-        .__wbr_timer { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; color: #e5e6eb; font-weight: 600; }
+        .__wbr_btn:hover { background: #f76565 !important; }
+        .__wbr_btn:active { background: #cb2727 !important; }
+        .__wbr_btn_export:hover { background: #4080ff !important; }
+        .__wbr_btn_export:active { background: #0e42d2 !important; }
+        .__wbr_timer { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important; font-size: 12px !important; color: #e5e6eb !important; font-weight: 600 !important; }
       </style>
       <span class="__wbr_dot"></span>
       <span data-wbr-rec-tag style="font-weight:600;letter-spacing:0.5px;color:#fff;">REC</span>
       <span id="__wbr_timer_display__" class="__wbr_timer">00:00</span>
       <button id="__wbr_issue_btn__" class="__wbr_btn" style="background:#b42318;" title="${t("shortcut")}: ${shortcutKeyText}">${t("markIssue")} (${shortcutKeyText})</button>
       <button id="__wbr_stop_btn__" class="__wbr_btn">${t("stopRecording")}</button>
+      <button id="__wbr_stop_export_btn__" class="__wbr_btn __wbr_btn_export" style="background:#165dff;">${t("stopAndExport")}</button>
     `;
 
     const attach = () => {
@@ -160,6 +215,15 @@ if (existingController) {
             e.stopPropagation();
             e.preventDefault();
             void chrome.runtime.sendMessage(message("session/stop", { commandId: crypto.randomUUID() }));
+            removeRecordingWidget();
+          }, true);
+        }
+        const stopExportBtn = root.querySelector("#__wbr_stop_export_btn__");
+        if (stopExportBtn) {
+          stopExportBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            void chrome.runtime.sendMessage(message("session/stop", { commandId: crypto.randomUUID(), autoExport: true }));
             removeRecordingWidget();
           }, true);
         }
@@ -241,7 +305,7 @@ if (existingController) {
     const input = element as HTMLInputElement;
     const snapshot: TargetDomSnapshot = {
       capturedAtEpochMs: Date.now(),
-      element: describe(element),
+      element: describe(element, { includeFramework: true }),
       ...snapshotHtml(element),
       ancestors,
       state: {
@@ -1248,14 +1312,15 @@ if (existingController) {
     return candidates.sort((a, b) => b.stabilityScore - a.stabilityScore).slice(0, 8);
   }
 
-  function describe(element: Element): ElementDescriptor {
+  function describe(element: Element, options?: { includeFramework?: boolean }): ElementDescriptor {
     const rect = element.getBoundingClientRect();
     const attributes: Record<string, string> = {};
     for (const attr of Array.from(element.attributes)) {
       if (/^(data-testid|data-test|data-cy|name|type|role|aria-|href)$/.test(attr.name) || attr.name.startsWith("aria-")) attributes[attr.name] = attr.value.slice(0, 512);
     }
     const role = element.getAttribute("role") || undefined;
-    return { tagName: element.tagName.toLowerCase(), id: element.id || undefined, classNames: Array.from(element.classList).slice(0, 12), attributes, text: textOf(element), role, accessibleName: element.getAttribute("aria-label") || undefined, boundingBox: { x: rect.x, y: rect.y, width: rect.width, height: rect.height }, locators: buildLocators(element) };
+    const vueSnapshot = options?.includeFramework && element instanceof HTMLElement ? detectVue(element) : undefined;
+    return { tagName: element.tagName.toLowerCase(), id: element.id || undefined, classNames: Array.from(element.classList).slice(0, 12), attributes, text: textOf(element), role, accessibleName: element.getAttribute("aria-label") || undefined, boundingBox: { x: rect.x, y: rect.y, width: rect.width, height: rect.height }, locators: buildLocators(element), framework: vueSnapshot ? { vue: vueSnapshot } : undefined };
   }
 
   function firstElement(path: EventTarget[]): Element | undefined { return path.find((item): item is Element => item instanceof Element); }

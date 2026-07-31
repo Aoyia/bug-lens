@@ -85,46 +85,66 @@
       display: flex;
       align-items: center;
       gap: 10px;
+      min-width: 0;
+      flex: 1 1 auto;
+      overflow: hidden;
     }
 
     .brand-info {
       display: flex;
       align-items: center;
       gap: 8px;
+      min-width: 0;
+      flex: 1 1 auto;
+      overflow: hidden;
     }
     .brand-logo {
       width: clamp(16px, 0.8vw + 8px, 22px);
       height: clamp(16px, 0.8vw + 8px, 22px);
       object-fit: contain;
       opacity: 0.85;
+      flex-shrink: 0;
     }
     .brand-titles {
       display: flex;
       align-items: center;
       gap: 8px;
+      min-width: 0;
+      flex: 1 1 auto;
+      overflow: hidden;
     }
-    .brand-titles h1 {
+    .brand-titles h1,
+    .brand-titles #title {
       margin: 0;
       font-size: var(--font-sm);
       font-weight: 500;
       color: var(--zen-text-sub);
       letter-spacing: -0.2px;
-      max-width: 320px;
+      max-width: 240px;
+      flex-shrink: 0;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    .brand-titles .muted {
+    .brand-titles .muted,
+    .brand-titles truncated-text.muted {
       font-size: var(--font-xs);
       color: var(--zen-text-muted);
       font-weight: 400;
       white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+      flex: 1 1 auto;
+      max-width: 100%;
     }
 
     .zen-titlebar-right {
       display: flex;
       align-items: center;
       gap: 8px;
+      flex-shrink: 0;
+      margin-left: 12px;
       margin-right: clamp(160px, 22vw, 320px);
     }
 

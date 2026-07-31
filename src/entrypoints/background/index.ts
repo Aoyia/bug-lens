@@ -164,7 +164,7 @@ async function continueInterruptedSession(sessionId: string, commandId: string):
   return startSession({ tabId: tab.id, options: previous.options, commandId, resumedFromSessionId: previous.id });
 }
 
-async function performStopSession(session: RecordingSession, commandId?: string): Promise<RecordingSession | undefined> {
+async function performStopSession(session: RecordingSession, commandId?: string, autoExport = false): Promise<RecordingSession | undefined> {
   if (["PREVIEW_READY", "EXPORTED", "FAILED"].includes(session.status)) return session;
   const stopping = await applySessionEvent(session.id, { type: "stop-requested", atEpochMs: Date.now(), commandId });
   if (commandId && stopping.commandIds?.stop && stopping.commandIds.stop !== commandId) return stopping;
@@ -200,13 +200,13 @@ async function performStopSession(session: RecordingSession, commandId?: string)
       previewPending: true
     }));
     if (!next) throw new Error(`未找到会话 (SESSION_NOT_FOUND:${session.id})`);
-    return await openPendingPreview(next);
+    return await openPendingPreview(next, autoExport);
   } finally {
     recordingCoordinator.finishStopping(session.id);
   }
 }
 
-async function stopSessionImpl(commandId?: string): Promise<RecordingSession | undefined> {
+async function stopSessionImpl(commandId?: string, autoExport = false): Promise<RecordingSession | undefined> {
   let session: RecordingSession | undefined;
   if (commandId) {
     const previousCommand = await db.getCommand(commandId);
@@ -225,18 +225,18 @@ async function stopSessionImpl(commandId?: string): Promise<RecordingSession | u
       session = await db.getSession(claimed.command.sessionId) ?? session;
     }
   }
-  return recordingCoordinator.runStop(session.id, () => performStopSession(session!, commandId));
+  return recordingCoordinator.runStop(session.id, () => performStopSession(session!, commandId, autoExport));
 }
 
-function stopSession(commandId?: string): Promise<RecordingSession | undefined> {
-  return recordingCoordinator.runLifecycle(() => stopSessionImpl(commandId));
+function stopSession(commandId?: string, autoExport = false): Promise<RecordingSession | undefined> {
+  return recordingCoordinator.runLifecycle(() => stopSessionImpl(commandId, autoExport));
 }
 
-async function openPendingPreview(session: RecordingSession): Promise<RecordingSession> {
+async function openPendingPreview(session: RecordingSession, autoExport = false): Promise<RecordingSession> {
   if (!session.previewPending) return session;
-  const previewUrl = chrome.runtime.getURL(`preview.html?sessionId=${encodeURIComponent(session.id)}`);
+  const previewUrl = chrome.runtime.getURL(`preview.html?sessionId=${encodeURIComponent(session.id)}${autoExport ? "&autoExport=1" : ""}`);
   const existing = await chrome.tabs.query({}).then(
-    (tabs) => tabs.some((tab) => tab.url === previewUrl),
+    (tabs) => tabs.some((tab) => Boolean(tab.url && tab.url.startsWith(previewUrl.split("?")[0]) && tab.url.includes(`sessionId=${encodeURIComponent(session.id)}`))),
     () => false
   );
   const opened = existing || await chrome.tabs.create({ url: previewUrl }).then(() => true).catch(() => false);
@@ -357,7 +357,7 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender, sendResponse) => {
       await bootstrapPromise;
       switch (incoming.type) {
         case "session/start": sendResponse({ ok: true, session: await startSession(incoming.payload) }); return;
-        case "session/stop": sendResponse({ ok: true, session: await stopSession(incoming.payload.commandId) }); return;
+        case "session/stop": sendResponse({ ok: true, session: await stopSession(incoming.payload.commandId, incoming.payload.autoExport) }); return;
         case "session/status": sendResponse({ ok: true, session: await db.getActiveSession() }); return;
         case "session/list": sendResponse({ ok: true, sessions: await db.listSessionOverviews(incoming.payload.query) }); return;
         case "session/delete": {
@@ -382,14 +382,10 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender, sendResponse) => {
         case "interaction/confirmed": await interactionCapture.handle(incoming.payload.interaction, sender); sendResponse({ ok: true }); return;
         case "interaction/cancelled": await interactionCapture.cancel(incoming.payload.interactionId, incoming.payload.interaction, incoming.sessionId, sender); sendResponse({ ok: true }); return;
         case "issue-scene/start-selection": {
-          const active = await db.getActiveSession();
-          if (active) void pauseMediaSession(active.id);
           sendResponse({ ok: true });
           return;
         }
         case "issue-scene/cancel-selection": {
-          const active = await db.getActiveSession();
-          if (active) void resumeMediaSession(active.id);
           sendResponse({ ok: true });
           return;
         }
@@ -403,13 +399,10 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender, sendResponse) => {
           const scene = await issueSceneCapture.commit(incoming.payload, sender);
           sendResponse({ ok: true, scene });
           if (incoming.payload.stopAfterCommit) void stopSession(`issue-scene:${scene.id}`);
-          else void resumeMediaSession(scene.sessionId);
           return;
         }
         case "issue-scene/cancel": {
           await issueSceneCapture.cancel(incoming.payload.issueSceneId, incoming.payload.nonce, sender);
-          const active = await db.getActiveSession();
-          if (active) void resumeMediaSession(active.id);
           sendResponse({ ok: true });
           return;
         }

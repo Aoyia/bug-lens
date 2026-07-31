@@ -99,6 +99,28 @@ export type RecordingSession = {
   error?: CaptureIssue;
 };
 
+export type VueComponentNode = {
+  version: 2 | 3;
+  componentName: string;
+  props?: Record<string, unknown>;
+  state?: Record<string, unknown>;
+  isTarget?: boolean;
+};
+
+export type VueStoreSnapshot = {
+  type: "pinia" | "vuex";
+  storeId?: string;
+  state: Record<string, unknown>;
+};
+
+export type VueFrameworkSnapshot = {
+  version: 2 | 3;
+  targetComponent?: VueComponentNode;
+  parentChain: VueComponentNode[];
+  childrenComponents: VueComponentNode[];
+  stores?: VueStoreSnapshot[];
+};
+
 export type ElementDescriptor = {
   tagName: string;
   id?: string;
@@ -109,6 +131,9 @@ export type ElementDescriptor = {
   accessibleName?: string;
   boundingBox: { x: number; y: number; width: number; height: number };
   locators: Array<{ kind: string; expression: string; matchCount: number; stabilityScore: number; reasons: string[] }>;
+  framework?: {
+    vue?: VueFrameworkSnapshot;
+  };
 };
 
 export type InteractionRecord = {
@@ -334,7 +359,7 @@ export type ExportManifest = {
 export type Envelope<T extends string, P = unknown> = { protocolVersion: typeof PROTOCOL_VERSION; messageId: string; type: T; sentAt: number; sessionId?: string; payload: P };
 export type RuntimeMessage =
   | Envelope<"session/start", { tabId: number; options: RecordingOptions; commandId: string; streamId?: string; resumedFromSessionId?: string }>
-  | Envelope<"session/stop", { commandId: string }>
+  | Envelope<"session/stop", { commandId: string; autoExport?: boolean }>
   | Envelope<"session/status", { session?: RecordingSession }>
   | Envelope<"session/list", { query?: string }>
   | Envelope<"session/delete", { sessionId: string }>

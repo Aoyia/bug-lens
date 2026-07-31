@@ -67,6 +67,9 @@
   "stopRecording": {
     "message": "结束录制"
   },
+  "stopAndExport": {
+    "message": "结束并导出"
+  },
   "reopenPreview": {
     "message": "重新打开预览"
   },
@@ -88,7 +91,7 @@
     "message": "导出证据包"
   },
   "exportReport": {
-    "message": "导出网页报告"
+    "message": "导出离线报告"
   },
   "deleteSession": {
     "message": "删除当前会话"
@@ -97,10 +100,10 @@
     "message": "操作时间轴"
   },
   "consoleLogs": {
-    "message": "控制台日志"
+    "message": "Console 日志"
   },
   "networkRequests": {
-    "message": "网络请求"
+    "message": "Network 请求"
   },
   "issueScenes": {
     "message": "问题现场"
@@ -152,5 +155,260 @@
   },
   "guideSkip": {
     "message": "跳过"
+  },
+  "popupTitle": {
+    "message": "Bug Lens"
+  },
+  "recordingStarting": {
+    "message": "正在启动录制…"
+  },
+  "recordingDegraded": {
+    "message": "录制中（部分证据不可用）"
+  },
+  "recordingCompleted": {
+    "message": "录制完成"
+  },
+  "failedToReadTab": {
+    "message": "无法读取标签页"
+  },
+  "unnamedTab": {
+    "message": "未命名标签页"
+  },
+  "resume": {
+    "message": "恢复"
+  },
+  "preview": {
+    "message": "预览"
+  },
+  "delete": {
+    "message": "删除"
+  },
+  "deleteSessionConfirm": {
+    "message": "删除会话及其全部本地证据？此操作不可恢复。"
+  },
+  "clearHistoryConfirm": {
+    "message": "确定要清空全部历史记录吗？（已完成的记录将被全量删除，此操作不可恢复）"
+  },
+  "clearHistoryFailed": {
+    "message": "清空历史失败"
+  },
+  "deleteFailed": {
+    "message": "删除失败"
+  },
+  "resumeFailed": {
+    "message": "继续录制失败"
+  },
+  "startFailed": {
+    "message": "开始录制失败"
+  },
+  "stopFailed": {
+    "message": "结束录制失败"
+  },
+  "noMatchingHistory": {
+    "message": "暂无匹配的诊断记录"
+  },
+  "emptyHistorySub": {
+    "message": "已完成录制的报告将存放在这里"
+  },
+  "storageUsed": {
+    "message": "$BYTES$ 已使用",
+    "placeholders": {
+      "bytes": {
+        "content": "$1"
+      }
+    }
+  },
+  "storagePolicy": {
+    "message": "自动清理 $DAYS$ 天前会话 · 单会话 $MAX$",
+    "placeholders": {
+      "days": {
+        "content": "$1"
+      },
+      "max": {
+        "content": "$2"
+      }
+    }
+  },
+  "audioNeedsVideo": {
+    "message": "音频依附于录像；请先开启录像。"
+  },
+  "rawModeWarning": {
+    "message": "原始模式会保留未脱敏的页面和调试数据。仅在获准且会人工检查的场景使用。"
+  },
+  "statusCaptured": {
+    "message": "成功"
+  },
+  "statusPartial": {
+    "message": "部分"
+  },
+  "statusFailed": {
+    "message": "失败"
+  },
+  "statusRedacted": {
+    "message": "已脱敏"
+  },
+  "statusPending": {
+    "message": "处理中"
+  },
+  "statusDisabled": {
+    "message": "未采集"
+  },
+  "permissionPageTitle": {
+    "message": "Bug Lens - 权限授权中转"
+  },
+  "permissionTitle": {
+    "message": "Bug Lens 权限确认"
+  },
+  "permissionDesc": {
+    "message": "点击下方按钮授予全站访问权限，系统将自动发起授权并连贯启动录制。"
+  },
+  "grantAndStart": {
+    "message": "允许权限并开始录制"
+  },
+  "waitingForAuth": {
+    "message": "等待授权中…"
+  },
+  "copyAiPrompt": {
+    "message": "✨ 复制 AI 提示词"
+  },
+  "toggleAiDrawerTitle": {
+    "message": "查看文件绝对路径与更多选项"
+  },
+  "aiStatusWaitingExport": {
+    "message": "等待导出"
+  },
+  "aiPathPlaceholder": {
+    "message": "请先点击“导出离线报告”，完成下载后获取绝对路径。"
+  },
+  "copyAbsolutePath": {
+    "message": "复制绝对路径"
+  },
+  "showInFolder": {
+    "message": "在文件夹中显示"
+  },
+  "viewFullPrompt": {
+    "message": "查看完整提示词"
+  },
+  "loadingMedia": {
+    "message": "正在读取媒体分片…"
+  },
+  "restoreIssues": {
+    "message": "恢复已删除现场"
+  },
+  "restoreSteps": {
+    "message": "恢复已删除步骤"
+  },
+  "restoreConsole": {
+    "message": "恢复已删除日志"
+  },
+  "restoreNetwork": {
+    "message": "恢复已删除请求"
+  },
+  "allLevels": {
+    "message": "全部级别"
+  },
+  "searchLogText": {
+    "message": "搜索日志文本"
+  },
+  "filterByUrl": {
+    "message": "按 URL 过滤"
+  },
+  "totalCount": {
+    "message": "共 $COUNT$ 条",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "resizerTitle": {
+    "message": "拖拽调整列表与详情区域高度"
+  },
+  "closeEsc": {
+    "message": "关闭 (ESC)"
+  },
+  "prevBtn": {
+    "message": "上一张 (←)"
+  },
+  "nextBtn": {
+    "message": "下一张 (→)"
+  },
+  "stepScreenshots": {
+    "message": "步骤截图"
+  },
+  "zoomOut": {
+    "message": "缩小 (-)"
+  },
+  "zoomIn": {
+    "message": "放大 (+)"
+  },
+  "fitWindow": {
+    "message": "自适应 (0)"
+  },
+  "rotate": {
+    "message": "旋转 (R)"
+  },
+  "copyImage": {
+    "message": "复制图片"
+  },
+  "downloadImage": {
+    "message": "下载截图"
+  },
+  "copiedImageToast": {
+    "message": "已复制图片到剪贴板"
+  },
+  "exportPreparing": {
+    "message": "正在准备…"
+  },
+  "exportWritingVideo": {
+    "message": "正在写入录像 $CURRENT$/$TOTAL$",
+    "placeholders": {
+      "current": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "exportGenerating": {
+    "message": "正在生成 $SIZE$ KiB",
+    "placeholders": {
+      "size": {
+        "content": "$1"
+      }
+    }
+  },
+  "exportSuccessCopied": {
+    "message": "ZIP 下载完成，AI 提示词已自动复制到剪贴板！"
+  },
+  "exportSuccessCanCopy": {
+    "message": "ZIP 下载完成，可复制 AI 提示词"
+  },
+  "exportInterrupted": {
+    "message": "下载状态查询超时，请在 Chrome 下载列表中确认文件是否完成。"
+  },
+  "exportFailed": {
+    "message": "导出失败：$ERROR$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "offlineReportTitle": {
+    "message": "Bug Lens 离线报告"
+  },
+  "readingReportData": {
+    "message": "正在读取报告数据…"
+  },
+  "checkingEvidence": {
+    "message": "正在检查证据"
+  },
+  "tabRecording": {
+    "message": "标签页录像"
+  },
+  "readingVideo": {
+    "message": "正在读取录像…"
   }
 }

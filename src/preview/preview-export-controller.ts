@@ -1,6 +1,7 @@
 import { buildExportManifest } from "../export/export-manifest";
 import { createTemporaryArchive } from "../export/archive-destination";
 import { writeEvidenceArchive } from "../export/export-pipeline";
+import { t } from "../shared/i18n";
 import type { ExportArtifact } from "../shared/protocol";
 import type { db } from "../storage/db";
 import { buildEvidencePackage, type EvidencePackageSnapshot, type StaticReportAssets } from "./evidence-package";
@@ -40,15 +41,15 @@ export class PreviewExportController {
     this.options.onArtifactChanged();
   }
 
-  private async export(): Promise<void> {
+  async export(): Promise<void> {
     const { sessionId, storage, getSnapshot } = this.options;
     this.button.disabled = true;
-    this.button.textContent = "正在准备…";
+    this.button.textContent = t("exportPreparing");
     let temporaryArchive: Awaited<ReturnType<typeof createTemporaryArchive>> | undefined;
     let blobUrl: string | undefined;
     try {
       const snapshot = getSnapshot();
-      if (!snapshot || !sessionId) throw new Error("证据预览尚未加载完成");
+      if (!snapshot || !sessionId) throw new Error(t("loading"));
       const reportAssets = await this.loadAssets();
       const filename = `web-bug-report-${snapshot.session.id.slice(0, 8)}.zip`;
       temporaryArchive = await createTemporaryArchive(filename);
@@ -63,8 +64,8 @@ export class PreviewExportController {
         }),
         onProgress: ({ mediaChunksWritten, bytesWritten }) => {
           this.button.textContent = mediaChunksWritten
-            ? `正在写入录像 ${mediaChunksWritten}/${this.options.getMediaChunkCount()}`
-            : `正在生成 ${Math.max(1, Math.round(bytesWritten / 1024))} KiB`;
+            ? t("exportWritingVideo", [String(mediaChunksWritten), String(this.options.getMediaChunkCount())])
+            : t("exportGenerating", String(Math.max(1, Math.round(bytesWritten / 1024))));
         }
       });
       const archiveFile = await temporaryArchive.getFile();
@@ -80,19 +81,19 @@ export class PreviewExportController {
         const autoCopied = await this.options.onExportComplete?.();
         this.options.notify(
           autoCopied
-            ? "ZIP 下载完成，AI 提示词已自动复制到剪贴板！"
-            : "ZIP 下载完成，可复制 AI 提示词"
+            ? t("exportSuccessCopied")
+            : t("exportSuccessCanCopy")
         );
       } else {
-        this.options.notify(`ZIP ${this.artifact.error || "下载未完成"}`);
+        this.options.notify(`ZIP ${this.artifact.error || t("exportInterrupted")}`);
       }
     } catch (error) {
-      this.options.notify(`导出失败：${String(error)}`);
+      this.options.notify(t("exportFailed", String(error)));
     } finally {
       if (blobUrl) URL.revokeObjectURL(blobUrl);
       await temporaryArchive?.cleanup().catch(() => undefined);
       this.button.disabled = false;
-      this.button.textContent = "导出离线报告";
+      this.button.textContent = t("exportReport");
     }
   }
 
@@ -108,14 +109,14 @@ export class PreviewExportController {
 
   private async waitForDownload(downloadId: number): Promise<ExportArtifact> {
     const sessionId = this.options.sessionId;
-    if (!sessionId) throw new Error("缺少会话 ID");
+    if (!sessionId) throw new Error("Missing session ID");
     for (let attempt = 0; attempt < 120; attempt += 1) {
       const item = await this.searchDownload(downloadId);
       if (item?.state === "complete") return { sessionId, downloadId, state: "complete", filename: item.filename, updatedAtEpochMs: Date.now() };
-      if (item?.state === "interrupted") return { sessionId, downloadId, state: "interrupted", filename: item.filename, error: item.error || "下载中断", updatedAtEpochMs: Date.now() };
+      if (item?.state === "interrupted") return { sessionId, downloadId, state: "interrupted", filename: item.filename, error: item.error || "Download interrupted", updatedAtEpochMs: Date.now() };
       await new Promise((resolve) => window.setTimeout(resolve, 500));
     }
-    return { sessionId, downloadId, state: "interrupted", error: "下载状态查询超时，请在 Chrome 下载列表中确认文件是否完成。", updatedAtEpochMs: Date.now() };
+    return { sessionId, downloadId, state: "interrupted", error: t("exportInterrupted"), updatedAtEpochMs: Date.now() };
   }
 
   private async reconcileDownloadArtifact(): Promise<void> {
@@ -124,7 +125,7 @@ export class PreviewExportController {
     if (download?.state === "complete") {
       this.artifact = { ...this.artifact, state: "complete", filename: download.filename, updatedAtEpochMs: Date.now() };
     } else if (download?.state === "interrupted") {
-      this.artifact = { ...this.artifact, state: "interrupted", filename: download.filename, error: download.error || "下载中断", updatedAtEpochMs: Date.now() };
+      this.artifact = { ...this.artifact, state: "interrupted", filename: download.filename, error: download.error || "Download interrupted", updatedAtEpochMs: Date.now() };
     } else {
       return;
     }

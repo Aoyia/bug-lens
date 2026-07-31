@@ -67,6 +67,9 @@
   "stopRecording": {
     "message": "Stop Recording"
   },
+  "stopAndExport": {
+    "message": "Stop & Export"
+  },
   "reopenPreview": {
     "message": "Reopen Preview"
   },
@@ -88,7 +91,7 @@
     "message": "Export Package"
   },
   "exportReport": {
-    "message": "Export HTML Report"
+    "message": "Export Offline Report"
   },
   "deleteSession": {
     "message": "Delete Session"
@@ -152,5 +155,260 @@
   },
   "guideSkip": {
     "message": "Skip"
+  },
+  "popupTitle": {
+    "message": "Bug Lens"
+  },
+  "recordingStarting": {
+    "message": "Starting recording…"
+  },
+  "recordingDegraded": {
+    "message": "Recording (Some evidence degraded)"
+  },
+  "recordingCompleted": {
+    "message": "Recording completed"
+  },
+  "failedToReadTab": {
+    "message": "Failed to read tab"
+  },
+  "unnamedTab": {
+    "message": "Unnamed Tab"
+  },
+  "resume": {
+    "message": "Resume"
+  },
+  "preview": {
+    "message": "Preview"
+  },
+  "delete": {
+    "message": "Delete"
+  },
+  "deleteSessionConfirm": {
+    "message": "Delete session and all local evidence? This action cannot be undone."
+  },
+  "clearHistoryConfirm": {
+    "message": "Are you sure you want to clear all history? (Active recordings will be preserved, this cannot be undone)"
+  },
+  "clearHistoryFailed": {
+    "message": "Failed to clear history"
+  },
+  "deleteFailed": {
+    "message": "Failed to delete"
+  },
+  "resumeFailed": {
+    "message": "Failed to resume recording"
+  },
+  "startFailed": {
+    "message": "Failed to start recording"
+  },
+  "stopFailed": {
+    "message": "Failed to stop recording"
+  },
+  "noMatchingHistory": {
+    "message": "No matching diagnostic records"
+  },
+  "emptyHistorySub": {
+    "message": "Completed recording reports will be stored here"
+  },
+  "storageUsed": {
+    "message": "$BYTES$ used",
+    "placeholders": {
+      "bytes": {
+        "content": "$1"
+      }
+    }
+  },
+  "storagePolicy": {
+    "message": "Auto clean sessions before $DAYS$ days · Max single session $MAX$",
+    "placeholders": {
+      "days": {
+        "content": "$1"
+      },
+      "max": {
+        "content": "$2"
+      }
+    }
+  },
+  "audioNeedsVideo": {
+    "message": "Audio depends on video recording; please enable video first."
+  },
+  "rawModeWarning": {
+    "message": "Raw mode preserves unsanitized page and debugging data. Only use in authorized scenarios with manual review."
+  },
+  "statusCaptured": {
+    "message": "Captured"
+  },
+  "statusPartial": {
+    "message": "Partial"
+  },
+  "statusFailed": {
+    "message": "Failed"
+  },
+  "statusRedacted": {
+    "message": "Redacted"
+  },
+  "statusPending": {
+    "message": "Pending"
+  },
+  "statusDisabled": {
+    "message": "Disabled"
+  },
+  "permissionPageTitle": {
+    "message": "Bug Lens - Permission Authorization"
+  },
+  "permissionTitle": {
+    "message": "Bug Lens Permission Request"
+  },
+  "permissionDesc": {
+    "message": "Click the button below to grant full-site access permission. The system will initiate authorization and start recording seamlessly."
+  },
+  "grantAndStart": {
+    "message": "Grant Permission & Start Recording"
+  },
+  "waitingForAuth": {
+    "message": "Waiting for authorization…"
+  },
+  "copyAiPrompt": {
+    "message": "✨ Copy AI Prompt"
+  },
+  "toggleAiDrawerTitle": {
+    "message": "View absolute file path and more options"
+  },
+  "aiStatusWaitingExport": {
+    "message": "Awaiting export"
+  },
+  "aiPathPlaceholder": {
+    "message": "Please click 'Export Offline Report' first to obtain the absolute path after downloading."
+  },
+  "copyAbsolutePath": {
+    "message": "Copy Absolute Path"
+  },
+  "showInFolder": {
+    "message": "Show in Folder"
+  },
+  "viewFullPrompt": {
+    "message": "View Full Prompt"
+  },
+  "loadingMedia": {
+    "message": "Loading media chunks…"
+  },
+  "restoreIssues": {
+    "message": "Restore deleted scenes"
+  },
+  "restoreSteps": {
+    "message": "Restore deleted steps"
+  },
+  "restoreConsole": {
+    "message": "Restore deleted logs"
+  },
+  "restoreNetwork": {
+    "message": "Restore deleted requests"
+  },
+  "allLevels": {
+    "message": "All Levels"
+  },
+  "searchLogText": {
+    "message": "Search console log"
+  },
+  "filterByUrl": {
+    "message": "Filter by URL"
+  },
+  "totalCount": {
+    "message": "Total $COUNT$",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "resizerTitle": {
+    "message": "Drag to adjust height"
+  },
+  "closeEsc": {
+    "message": "Close (ESC)"
+  },
+  "prevBtn": {
+    "message": "Previous (←)"
+  },
+  "nextBtn": {
+    "message": "Next (→)"
+  },
+  "stepScreenshots": {
+    "message": "Step Screenshot"
+  },
+  "zoomOut": {
+    "message": "Zoom Out (-)"
+  },
+  "zoomIn": {
+    "message": "Zoom In (+)"
+  },
+  "fitWindow": {
+    "message": "Fit (0)"
+  },
+  "rotate": {
+    "message": "Rotate (R)"
+  },
+  "copyImage": {
+    "message": "Copy Image"
+  },
+  "downloadImage": {
+    "message": "Download Screenshot"
+  },
+  "copiedImageToast": {
+    "message": "Copied image to clipboard"
+  },
+  "exportPreparing": {
+    "message": "Preparing…"
+  },
+  "exportWritingVideo": {
+    "message": "Writing video $CURRENT$/$TOTAL$",
+    "placeholders": {
+      "current": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "exportGenerating": {
+    "message": "Generating $SIZE$ KiB",
+    "placeholders": {
+      "size": {
+        "content": "$1"
+      }
+    }
+  },
+  "exportSuccessCopied": {
+    "message": "ZIP downloaded, AI prompt automatically copied to clipboard!"
+  },
+  "exportSuccessCanCopy": {
+    "message": "ZIP downloaded, AI prompt ready to copy"
+  },
+  "exportInterrupted": {
+    "message": "Download status query timed out, please verify in Chrome downloads."
+  },
+  "exportFailed": {
+    "message": "Export failed: $ERROR$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "offlineReportTitle": {
+    "message": "Bug Lens Offline Report"
+  },
+  "readingReportData": {
+    "message": "Reading report data…"
+  },
+  "checkingEvidence": {
+    "message": "Checking evidence"
+  },
+  "tabRecording": {
+    "message": "Tab Video Recording"
+  },
+  "readingVideo": {
+    "message": "Loading video…"
   }
 }

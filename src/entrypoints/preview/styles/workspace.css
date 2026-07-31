@@ -117,10 +117,12 @@
       box-shadow: none;
     }
     .zen-panel-title {
+      height: 42px;
+      box-sizing: border-box;
       font-size: var(--font-base);
       font-weight: 600;
       color: var(--zen-text-main);
-      padding: 8px 12px;
+      padding: 0 12px;
       margin-bottom: 0;
       display: flex;
       align-items: center;
@@ -168,11 +170,13 @@
     }
 
     .zen-tab-bar {
+      height: 42px;
+      box-sizing: border-box;
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 10px;
-      padding: 6px 12px;
+      padding: 0 12px;
       background: #ffffff;
       border-bottom: 1px solid var(--zen-border);
       flex-shrink: 0;

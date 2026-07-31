@@ -1,6 +1,8 @@
 import type { ConsoleEntry, InteractionRecord, NetworkEntry, RecordingSession } from "../../shared/protocol";
 import type { IssueScenePreview } from "../../preview/issue-scene-view";
 import { EvidenceReportView } from "../../preview/evidence-report-view";
+import { applyI18n, getLocale, t } from "../../shared/i18n";
+import "../../shared/components/truncated-text";
 
 type StaticReportData = {
   protocolVersion: 3;
@@ -18,11 +20,18 @@ declare global {
   }
 }
 
+// 自动翻译离线 HTML DOM 节点
+applyI18n();
+
+if (typeof window !== "undefined") {
+  document.documentElement.lang = getLocale();
+}
+
 const data = window.__WEB_BUG_REPORT_DATA__;
 const meta = document.querySelector<HTMLElement>("#meta")!;
 
 if (!data || data.protocolVersion !== 3) {
-  meta.textContent = "报告数据缺失或版本不兼容，请确认 ZIP 已完整解压。";
+  meta.textContent = t("reportDataMissing", undefined) || "报告数据缺失或版本不兼容，请确认 ZIP 已完整解压。";
   meta.classList.add("report-error");
 } else {
   const view = new EvidenceReportView(document, {
@@ -38,7 +47,11 @@ if (!data || data.protocolVersion !== 3) {
   });
 
   const quality = document.querySelector<HTMLElement>("#quality-status")!;
-  quality.textContent = data.session.quality.overall === "complete" ? "证据完整" : data.session.quality.overall === "partial" ? "证据部分缺失" : "证据采集失败";
+  quality.textContent = data.session.quality.overall === "complete"
+    ? (t("qualityComplete") !== "qualityComplete" ? t("qualityComplete") : "证据完整")
+    : data.session.quality.overall === "partial"
+      ? (t("qualityPartial") !== "qualityPartial" ? t("qualityPartial") : "证据部分缺失")
+      : (t("qualityFailed") !== "qualityFailed" ? t("qualityFailed") : "证据采集失败");
   quality.dataset.quality = data.session.quality.overall;
 
   const video = document.querySelector<HTMLVideoElement>("#video")!;
@@ -50,12 +63,13 @@ if (!data || data.protocolVersion !== 3) {
     video.addEventListener("error", () => {
       video.hidden = true;
       videoEmpty.hidden = false;
-      videoEmpty.textContent = "录像文件无法读取，请确认 media/recording.webm 已完整解压。";
+      videoEmpty.textContent = t("videoDecodeFailed") !== "videoDecodeFailed" ? t("videoDecodeFailed") : "录像文件无法读取，请确认 media/recording.webm 已完整解压。";
     }, { once: true });
   } else {
-    videoEmpty.textContent = "本报告没有可播放的录像；交互和调试证据仍可查看。";
+    videoEmpty.textContent = t("noVideoPlayback") !== "noVideoPlayback" ? t("noVideoPlayback") : "本报告没有可播放的录像；交互和调试证据仍可查看。";
   }
 
-  document.title = `${data.session.target.initialTitle || "Bug Lens"} - 离线报告`;
+  const suffix = t("offlineReportTitle") !== "offlineReportTitle" ? t("offlineReportTitle") : "离线报告";
+  document.title = `${data.session.target.initialTitle || "Bug Lens"} - ${suffix}`;
   view.render();
 }

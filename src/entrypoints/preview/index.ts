@@ -5,11 +5,14 @@ import { PreviewAiHandoff } from "../../preview/preview-ai-handoff";
 import { PreviewExportController } from "../../preview/preview-export-controller";
 import { PreviewSessionRuntime } from "../../preview/preview-session-runtime";
 import { applyI18n } from "../../shared/i18n";
+import "../../shared/components/truncated-text";
 
 applyI18n();
 
 const $ = <T extends HTMLElement>(selector: string) => document.querySelector<T>(selector)!;
-const sessionId = new URLSearchParams(location.search).get("sessionId") || undefined;
+const params = new URLSearchParams(location.search);
+const sessionId = params.get("sessionId") || undefined;
+const autoExport = params.get("autoExport") === "1";
 const runtime = new PreviewSessionRuntime(db);
 
 const reportView = new EvidenceReportView(document, {
@@ -86,6 +89,14 @@ async function load(): Promise<void> {
   window.addEventListener("beforeunload", () => runtime.dispose(), { once: true });
   aiHandoff.render();
   reportView.render();
+  if (autoExport) {
+    if (exportController.currentArtifact?.state !== "complete") {
+      void exportController.export();
+    }
+    const cleanUrl = new URL(location.href);
+    cleanUrl.searchParams.delete("autoExport");
+    history.replaceState(null, "", cleanUrl.toString());
+  }
 }
 
 void load().catch((error) => {

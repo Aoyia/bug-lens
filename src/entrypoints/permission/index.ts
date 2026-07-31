@@ -1,4 +1,7 @@
 import { message, type RecordingOptions } from "../../shared/protocol";
+import { applyI18n } from "../../shared/i18n";
+
+applyI18n();
 
 const $ = <T extends HTMLElement>(selector: string) => document.querySelector<T>(selector)!;
 

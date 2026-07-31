@@ -1,9 +1,11 @@
-import { Zip, ZipPassThrough } from "fflate";
+import { Zip, ZipDeflate, ZipPassThrough } from "fflate";
 
 import type { MediaChunkRecord } from "../storage/db";
 import { Sha256, sha256 } from "./sha256.ts";
 
 export type BinaryChunk = Uint8Array<ArrayBuffer>;
+
+const isTextFile = (filename: string) => /\.(?:json|js|css|html|md)$/i.test(filename);
 
 export type ArchiveSink = {
   write(chunk: BinaryChunk): Promise<void>;
@@ -72,7 +74,7 @@ export async function writeEvidenceArchive(input: {
 
   try {
     for (const file of input.files) {
-      const entry = new ZipPassThrough(file.name);
+      const entry = isTextFile(file.name) ? new ZipDeflate(file.name, { level: 9 }) : new ZipPassThrough(file.name);
       zip.add(entry);
       entry.push(file.data, true);
       integrity[file.name] = { byteLength: file.data.byteLength, sha256: sha256(file.data) };
@@ -102,7 +104,7 @@ export async function writeEvidenceArchive(input: {
     if (mediaEntry && mediaHash) integrity["media/recording.webm"] = { byteLength: mediaBytes, sha256: mediaHash.digestHex() };
     if (input.createManifest) {
       const manifest = input.createManifest(integrity);
-      const entry = new ZipPassThrough(manifest.name);
+      const entry = isTextFile(manifest.name) ? new ZipDeflate(manifest.name, { level: 9 }) : new ZipPassThrough(manifest.name);
       zip.add(entry);
       entry.push(manifest.data, true);
       progress.entriesWritten += 1;

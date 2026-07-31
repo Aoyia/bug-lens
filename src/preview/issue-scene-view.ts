@@ -1,4 +1,5 @@
 import type { IssueScene } from "../shared/protocol.ts";
+import { renderVueSnapshotMarkup } from "./vue-snapshot-view";
 import { escapeHtml } from "./rendering.ts";
 
 export type IssueScenePreview = {
@@ -115,6 +116,7 @@ export class IssueSceneView {
             </div>
             ${locatorsMarkup}
             ${domPathMarkup}
+            ${renderVueSnapshotMarkup(scene.target.element.framework?.vue)}
             <pre style="margin-top:4px">${escapeHtml(dom)}</pre>
           </div>
         </div>

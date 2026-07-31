@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Bug Lens - 权限授权中转</title>
+  <title data-i18n="permissionPageTitle">Bug Lens - 权限授权中转</title>
   <style>
     :root {
       --primary: #165dff;
@@ -110,12 +110,12 @@
 <body>
   <div class="card">
     <img src="icons/icon_idle.png" alt="Bug Lens" class="logo">
-    <h2 id="title">Bug Lens 权限确认</h2>
-    <p id="desc">点击下方按钮授予全站访问权限，系统将自动发起授权并连贯启动录制。</p>
-    <button id="grant-btn" class="grant-btn">允许权限并开始录制</button>
+    <h2 id="title" data-i18n="permissionTitle">Bug Lens 权限确认</h2>
+    <p id="desc" data-i18n="permissionDesc">点击下方按钮授予全站访问权限，系统将自动发起授权并连贯启动录制。</p>
+    <button id="grant-btn" class="grant-btn" data-i18n="grantAndStart">允许权限并开始录制</button>
     <div id="status-container" class="status" hidden>
       <div class="spinner" id="spinner"></div>
-      <span id="status-text">等待授权中…</span>
+      <span id="status-text" data-i18n="waitingForAuth">等待授权中…</span>
     </div>
     <div id="error-box" class="error" hidden></div>
   </div>

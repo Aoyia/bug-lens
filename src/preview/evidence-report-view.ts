@@ -95,8 +95,18 @@ export class EvidenceReportView {
   render(): void {
     const snapshot = this.adapter.getSnapshot();
     if (!snapshot) return;
-    this.root.querySelector<HTMLElement>("#title")!.textContent = snapshot.session.target.initialTitle || "录制预览";
-    this.root.querySelector<HTMLElement>("#meta")!.textContent = `${snapshot.session.target.initialUrl} · ${snapshot.session.timeline.durationMs ? `${Math.round(snapshot.session.timeline.durationMs / 1000)} 秒` : "时长未知"}`;
+    const titleText = snapshot.session.target.initialTitle || "录制预览";
+    const metaText = `${snapshot.session.target.initialUrl} · ${snapshot.session.timeline.durationMs ? `${Math.round(snapshot.session.timeline.durationMs / 1000)} 秒` : "时长未知"}`;
+    const titleEl = this.root.querySelector<HTMLElement>("#title");
+    if (titleEl) {
+      titleEl.textContent = titleText;
+      titleEl.setAttribute("title", titleText);
+    }
+    const metaEl = this.root.querySelector<HTMLElement>("#meta");
+    if (metaEl) {
+      metaEl.textContent = metaText;
+      metaEl.setAttribute("title", metaText);
+    }
     this.renderSummary();
     this.interactionList.render({
       all: snapshot.interactions.all,
