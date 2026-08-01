@@ -444,7 +444,7 @@
       flex-direction: column;
       overflow: auto;
       min-height: 0;
-      padding: 10px 10px;
+      padding: 4px 10px 10px;
     }
     .zen-tab-pane[hidden] {
       display: none !important;

@@ -74,10 +74,11 @@ export async function writeEvidenceArchive(input: {
 
   try {
     for (const file of input.files) {
+      const hash = await sha256(file.data);
       const entry = isTextFile(file.name) ? new ZipDeflate(file.name, { level: 9 }) : new ZipPassThrough(file.name);
       zip.add(entry);
       entry.push(file.data, true);
-      integrity[file.name] = { byteLength: file.data.byteLength, sha256: sha256(file.data) };
+      integrity[file.name] = { byteLength: file.data.byteLength, sha256: hash };
       progress.entriesWritten += 1;
       await flushOutput();
     }

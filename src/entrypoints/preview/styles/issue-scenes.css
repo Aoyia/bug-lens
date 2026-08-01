@@ -51,7 +51,46 @@
 }
 
 .issue-scenes-list { display: flex; flex-direction: column; gap: 16px; padding: 0; }
-.issue-scenes-empty { padding: 18px; color: var(--muted, #86909c); font-size: 13px; }
+.issue-scenes-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 56px 24px;
+  text-align: center;
+  background: #ffffff;
+  border: 1px dashed var(--line, #e5e6eb);
+  border-radius: 8px;
+  margin: 12px 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.issue-scenes-empty-icon {
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.issue-scenes-empty:hover .issue-scenes-empty-icon {
+  transform: scale(1.06);
+}
+
+.issue-scenes-empty-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--zen-text-main, #1d2129);
+  margin-bottom: 6px;
+  line-height: 1.4;
+}
+
+.issue-scenes-empty-desc {
+  font-size: 12.5px;
+  color: var(--muted, #86909c);
+  max-width: 380px;
+  line-height: 1.55;
+}
 .issue-scene-card { border: 1px solid var(--line, #e5e6eb); border-radius: 2px; overflow: hidden; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
 .issue-scene-card-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 14px; background: #fafafa; border-bottom: 1px solid var(--line, #e5e6eb); }
 .issue-scene-card-header strong { margin-right: 8px; font-size: 13px; }

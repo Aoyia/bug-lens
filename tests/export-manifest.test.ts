@@ -14,11 +14,11 @@ const session: RecordingSession = {
   nonce: "nonce"
 };
 
-test("export manifest verifies bytes and migrates v1 sessions to the current schema", () => {
+test("export manifest verifies bytes and migrates v1 sessions to the current schema", async () => {
   const data = new TextEncoder().encode("evidence");
-  const manifest = buildExportManifest(session, { "data/session.json": { byteLength: data.byteLength, sha256: sha256(data) } });
-  assert.deepEqual(verifyExportIntegrity(manifest, { "data/session.json": data }), { valid: true, invalidFiles: [], missingFiles: [] });
-  assert.deepEqual(verifyExportIntegrity(manifest, {}), { valid: false, invalidFiles: [], missingFiles: ["data/session.json"] });
+  const manifest = buildExportManifest(session, { "data/session.json": { byteLength: data.byteLength, sha256: await sha256(data) } });
+  assert.deepEqual(await verifyExportIntegrity(manifest, { "data/session.json": data }), { valid: true, invalidFiles: [], missingFiles: [] });
+  assert.deepEqual(await verifyExportIntegrity(manifest, {}), { valid: false, invalidFiles: [], missingFiles: ["data/session.json"] });
   const migrated = migrateExportPayload({ session });
   assert.equal(migrated.session.schemaVersion, 2);
   assert.deepEqual(migrated.session.storage, { usedBytes: 0 });

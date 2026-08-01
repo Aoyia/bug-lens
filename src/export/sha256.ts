@@ -81,4 +81,18 @@ export class Sha256 {
   }
 }
 
-export function sha256(input: Uint8Array): string { return new Sha256().update(input).digestHex(); }
+/** Synchronous SHA-256 using the pure JS implementation. */
+export function sha256Sync(input: Uint8Array): string { return new Sha256().update(input).digestHex(); }
+
+/** One-shot SHA-256: prefers native Web Crypto API, falls back to pure JS. */
+export async function sha256(input: Uint8Array): Promise<string> {
+  try {
+    const digest = await crypto.subtle.digest("SHA-256", input as Uint8Array<ArrayBuffer>);
+    const bytes = new Uint8Array(digest);
+    let hex = "";
+    for (let i = 0; i < bytes.length; i++) hex += bytes[i].toString(16).padStart(2, "0");
+    return hex;
+  } catch {
+    return sha256Sync(input);
+  }
+}

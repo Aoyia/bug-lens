@@ -36,16 +36,16 @@ export function migrateExportPayload<T extends { session: RecordingSession }>(pa
   return { ...payload, session: migrateSessionForExport(payload.session) };
 }
 
-export function verifyExportIntegrity(
+export async function verifyExportIntegrity(
   manifest: ExportManifest,
   files: Record<string, Uint8Array | undefined>
-): { valid: boolean; invalidFiles: string[]; missingFiles: string[] } {
+): Promise<{ valid: boolean; invalidFiles: string[]; missingFiles: string[] }> {
   const invalidFiles: string[] = [];
   const missingFiles: string[] = [];
   for (const [name, expected] of Object.entries(manifest.files)) {
     const file = files[name];
     if (!file) { missingFiles.push(name); continue; }
-    if (file.byteLength !== expected.byteLength || sha256(file) !== expected.sha256) invalidFiles.push(name);
+    if (file.byteLength !== expected.byteLength || await sha256(file) !== expected.sha256) invalidFiles.push(name);
   }
   return { valid: invalidFiles.length === 0 && missingFiles.length === 0, invalidFiles, missingFiles };
 }

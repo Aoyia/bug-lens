@@ -10,7 +10,17 @@ import { IssueSceneCapture } from "../../recording/issue-scene-capture";
 import { RecordingCoordinator } from "../../recording/recording-coordinator";
 
 const EXTENSION_VERSION = "0.1.0";
-const recordingCoordinator = new RecordingCoordinator();
+const STOPPING_IDS_KEY = "bug-lens-stopping-ids";
+const recordingCoordinator = new RecordingCoordinator({
+  save(ids) {
+    chrome.storage.session.set({ [STOPPING_IDS_KEY]: ids }).catch(() => undefined);
+  },
+  async load() {
+    const result = await chrome.storage.session.get(STOPPING_IDS_KEY);
+    const ids = result[STOPPING_IDS_KEY];
+    return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === "string") : [];
+  }
+});
 const contentScripts = new ContentScriptManager();
 const BROWSER_EPOCH_KEY = "bug-lens-browser-epoch";
 const browserEpochPromise = loadOrCreateBrowserEpoch();
@@ -264,6 +274,7 @@ async function recoverInterruptedSession(session: RecordingSession, code: string
 }
 
 async function bootstrapRuntimeState(): Promise<void> {
+  await recordingCoordinator.restoreStoppingIds();
   await db.cleanupExpiredSessions().catch(() => undefined);
   const browserEpoch = await browserEpochPromise;
   const session = await db.getActiveSession();

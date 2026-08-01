@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { RecordingCoordinator } from "../src/recording/recording-coordinator.ts";
+import { RecordingCoordinator, type StoppingPersistence } from "../src/recording/recording-coordinator.ts";
 
 test("recording lifecycle work is serialized", async () => {
   const coordinator = new RecordingCoordinator();
@@ -34,4 +34,50 @@ test("duplicate stop requests share one flight and stopping state is explicit", 
   assert.equal(coordinator.isStopping("session"), false);
   finish(1);
   assert.equal(await first, 1);
+});
+
+test("stopping state is persisted via StoppingPersistence adapter", async () => {
+  let persisted: string[] = [];
+  const persistence: StoppingPersistence = {
+    save(ids) { persisted = [...ids]; },
+    async load() { return persisted; }
+  };
+  const coordinator = new RecordingCoordinator(persistence);
+
+  coordinator.beginStopping("session-a");
+  assert.deepEqual(persisted, ["session-a"]);
+  assert.equal(coordinator.isStopping("session-a"), true);
+
+  coordinator.beginStopping("session-b");
+  assert.deepEqual(persisted.sort(), ["session-a", "session-b"]);
+
+  coordinator.finishStopping("session-a");
+  assert.deepEqual(persisted, ["session-b"]);
+  assert.equal(coordinator.isStopping("session-a"), false);
+  assert.equal(coordinator.isStopping("session-b"), true);
+
+  coordinator.finishStopping("session-b");
+  assert.deepEqual(persisted, []);
+});
+
+test("restoreStoppingIds recovers state from persistence", async () => {
+  const persistence: StoppingPersistence = {
+    save() {},
+    async load() { return ["restored-1", "restored-2"]; }
+  };
+  const coordinator = new RecordingCoordinator(persistence);
+  assert.equal(coordinator.isStopping("restored-1"), false);
+
+  await coordinator.restoreStoppingIds();
+  assert.equal(coordinator.isStopping("restored-1"), true);
+  assert.equal(coordinator.isStopping("restored-2"), true);
+  assert.equal(coordinator.isStopping("unknown"), false);
+});
+
+test("coordinator works without persistence (backward compatible)", () => {
+  const coordinator = new RecordingCoordinator();
+  coordinator.beginStopping("session");
+  assert.equal(coordinator.isStopping("session"), true);
+  coordinator.finishStopping("session");
+  assert.equal(coordinator.isStopping("session"), false);
 });
