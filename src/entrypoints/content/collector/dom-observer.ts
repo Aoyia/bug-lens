@@ -8,9 +8,27 @@ export type DomObserverDeps = {
   removeIssueUi(): void;
 };
 
+type InputSession = {
+  firstRecord: InteractionRecord;
+  latestRecord: InteractionRecord;
+  eventCount: number;
+  idleTimer: number;
+  maxTimer: number;
+};
+
+type KeyRepeatSession = {
+  firstRecord: InteractionRecord;
+  latestRecord: InteractionRecord;
+  key: string;
+  element: Element;
+  repeatCount: number;
+  idleTimer: number;
+};
+
 export class DomObserver {
   private readonly pending = new Map<string, InteractionRecord>();
-  private readonly pendingInputs = new Map<Element, { timer: number; record: InteractionRecord }>();
+  private readonly inputSessions = new Map<Element, InputSession>();
+  private keyRepeatSession: KeyRepeatSession | undefined;
   private attached = false;
 
   // Store bound handlers for removal
@@ -21,6 +39,7 @@ export class DomObserver {
   private readonly handleSubmit: (event: SubmitEvent) => void;
   private readonly handleKeydownAltS: (event: KeyboardEvent) => void;
   private readonly handleKeydownAction: (event: KeyboardEvent) => void;
+  private readonly handleKeyup: (event: KeyboardEvent) => void;
 
   constructor(private readonly deps: DomObserverDeps) {
     this.handlePointerdown = this.onPointerdown.bind(this);
@@ -30,6 +49,7 @@ export class DomObserver {
     this.handleSubmit = this.onSubmit.bind(this);
     this.handleKeydownAltS = this.onKeydownAltS.bind(this);
     this.handleKeydownAction = this.onKeydownAction.bind(this);
+    this.handleKeyup = this.onKeyup.bind(this);
   }
 
   attach(): void {
@@ -42,6 +62,7 @@ export class DomObserver {
     document.addEventListener("submit", this.handleSubmit as EventListener, { capture: true, passive: true });
     document.addEventListener("keydown", this.handleKeydownAltS, { capture: true });
     document.addEventListener("keydown", this.handleKeydownAction, { capture: true, passive: true });
+    document.addEventListener("keyup", this.handleKeyup, { capture: true, passive: true });
   }
 
   detach(): void {
@@ -54,12 +75,20 @@ export class DomObserver {
     document.removeEventListener("submit", this.handleSubmit as EventListener, true);
     document.removeEventListener("keydown", this.handleKeydownAltS, true);
     document.removeEventListener("keydown", this.handleKeydownAction, true);
+    document.removeEventListener("keyup", this.handleKeyup, true);
   }
 
   clearPending(): void {
     this.pending.clear();
-    for (const item of this.pendingInputs.values()) window.clearTimeout(item.timer);
-    this.pendingInputs.clear();
+    for (const s of this.inputSessions.values()) {
+      window.clearTimeout(s.idleTimer);
+      window.clearTimeout(s.maxTimer);
+    }
+    this.inputSessions.clear();
+    if (this.keyRepeatSession) {
+      window.clearTimeout(this.keyRepeatSession.idleTimer);
+      this.keyRepeatSession = undefined;
+    }
   }
 
   // ─── Private ───
@@ -161,16 +190,47 @@ export class DomObserver {
     this.send(record, "interaction/confirmed");
   }
 
+  private flushInputSession(element: Element): void {
+    const s = this.inputSessions.get(element);
+    if (!s) return;
+    window.clearTimeout(s.idleTimer);
+    window.clearTimeout(s.maxTimer);
+    this.inputSessions.delete(element);
+    const merged: InteractionRecord = {
+      ...s.latestRecord,
+      createdAt: s.firstRecord.createdAt,
+      metadata: {
+        ...s.latestRecord.metadata,
+        inputEventCount: s.eventCount > 1 ? s.eventCount : undefined
+      }
+    };
+    this.sendConfirmed(merged);
+  }
+
   private onInput(event: Event): void {
     const session = this.deps.getSession();
     if (!session || this.deps.isIssueActive() || !event.isTrusted) return;
     const element = this.firstElement(event.composedPath()) ?? (event.target instanceof Element ? event.target : undefined);
     if (!element || isWidgetElement(element)) return;
-    const previous = this.pendingInputs.get(element);
-    if (previous) window.clearTimeout(previous.timer);
     const record = this.createRecord(event, element, "confirmed", "input", this.inputMetadata(element, session, event instanceof InputEvent ? event : undefined));
-    const timer = window.setTimeout(() => { this.pendingInputs.delete(element); this.sendConfirmed(record); }, 500);
-    this.pendingInputs.set(element, { timer, record });
+    const existing = this.inputSessions.get(element);
+    if (existing) {
+      window.clearTimeout(existing.idleTimer);
+      existing.latestRecord = record;
+      existing.eventCount += 1;
+      existing.idleTimer = window.setTimeout(() => this.flushInputSession(element), 1500);
+    } else {
+      const idleTimer = window.setTimeout(() => this.flushInputSession(element), 1500);
+      const maxTimer = window.setTimeout(() => this.flushInputSession(element), 10_000);
+      this.inputSessions.set(element, { firstRecord: record, latestRecord: record, eventCount: 1, idleTimer, maxTimer });
+      element.addEventListener("blur", () => {
+        const active = this.inputSessions.get(element);
+        if (active) {
+          window.clearTimeout(active.idleTimer);
+          active.idleTimer = window.setTimeout(() => this.flushInputSession(element), 300);
+        }
+      }, { once: true });
+    }
   }
 
   private onChange(event: Event): void {
@@ -178,9 +238,17 @@ export class DomObserver {
     if (!session || this.deps.isIssueActive() || !event.isTrusted) return;
     const element = this.firstElement(event.composedPath()) ?? (event.target instanceof Element ? event.target : undefined);
     if (!element || isWidgetElement(element)) return;
-    const previous = this.pendingInputs.get(element);
-    if (previous) { window.clearTimeout(previous.timer); this.pendingInputs.delete(element); }
-    this.sendConfirmed(this.createRecord(event, element, "confirmed", "change", this.inputMetadata(element, session)));
+    const existing = this.inputSessions.get(element);
+    if (existing) {
+      const meta = this.inputMetadata(element, session);
+      existing.latestRecord = {
+        ...existing.latestRecord,
+        metadata: { ...meta, inputEventCount: existing.eventCount > 1 ? existing.eventCount : undefined }
+      };
+      this.flushInputSession(element);
+    } else {
+      this.sendConfirmed(this.createRecord(event, element, "confirmed", "change", this.inputMetadata(element, session)));
+    }
   }
 
   private onSubmit(event: SubmitEvent): void {
@@ -206,11 +274,59 @@ export class DomObserver {
     }
   }
 
+  private flushKeyRepeatSession(): void {
+    const s = this.keyRepeatSession;
+    if (!s) return;
+    window.clearTimeout(s.idleTimer);
+    this.keyRepeatSession = undefined;
+    const merged: InteractionRecord = {
+      ...s.latestRecord,
+      createdAt: s.firstRecord.createdAt,
+      metadata: {
+        ...s.latestRecord.metadata,
+        repeatCount: s.repeatCount
+      }
+    };
+    this.sendConfirmed(merged);
+  }
+
   private onKeydownAction(event: KeyboardEvent): void {
     const session = this.deps.getSession();
     if (!session || this.deps.isIssueActive() || !event.isTrusted || !this.actionableKey(event)) return;
     const element = this.firstElement(event.composedPath()) ?? (event.target instanceof Element ? event.target : document.documentElement);
     if (isWidgetElement(element)) return;
-    this.sendConfirmed(this.createRecord(event, element, "confirmed", "keydown", { key: event.key, code: event.code, altKey: event.altKey, ctrlKey: event.ctrlKey, metaKey: event.metaKey, shiftKey: event.shiftKey, repeat: event.repeat }));
+    if (this.inputSessions.has(element)) this.flushInputSession(element);
+
+    const record = this.createRecord(event, element, "confirmed", "keydown", {
+      key: event.key, code: event.code,
+      altKey: event.altKey, ctrlKey: event.ctrlKey,
+      metaKey: event.metaKey, shiftKey: event.shiftKey,
+      repeat: event.repeat
+    });
+
+    if (event.repeat) {
+      const s = this.keyRepeatSession;
+      if (s && s.key === event.key && s.element === element) {
+        window.clearTimeout(s.idleTimer);
+        s.latestRecord = record;
+        s.repeatCount += 1;
+        s.idleTimer = window.setTimeout(() => this.flushKeyRepeatSession(), 500);
+        return;
+      }
+      this.flushKeyRepeatSession();
+      this.keyRepeatSession = {
+        firstRecord: record, latestRecord: record,
+        key: event.key, element, repeatCount: 1,
+        idleTimer: window.setTimeout(() => this.flushKeyRepeatSession(), 500)
+      };
+      return;
+    }
+
+    this.flushKeyRepeatSession();
+    this.sendConfirmed(record);
+  }
+
+  private onKeyup(event: KeyboardEvent): void {
+    if (this.keyRepeatSession?.key === event.key) this.flushKeyRepeatSession();
   }
 }

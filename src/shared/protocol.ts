@@ -152,6 +152,7 @@ export type InteractionRecord = {
     value?: string;
     valueLength?: number;
     valueRedacted?: boolean;
+    inputEventCount?: number;
     checked?: boolean;
     selectedCount?: number;
     key?: string;
@@ -161,6 +162,7 @@ export type InteractionRecord = {
     metaKey?: boolean;
     shiftKey?: boolean;
     repeat?: boolean;
+    repeatCount?: number;
     formMethod?: string;
     formAction?: string;
     navigationType?: string;
