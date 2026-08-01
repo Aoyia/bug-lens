@@ -1,4 +1,4 @@
-import { test, expect } from "./fixtures/extension.ts";
+import { test, expect, safeUrlForLog } from "./fixtures/extension.ts";
 import type { CdpPopup } from "./fixtures/cdp-popup.ts";
 
 function logE2e(message: string, details?: unknown): void {
@@ -82,7 +82,7 @@ test.describe("Bug Lens Chrome Extension E2E PRIV-001: Safe Mode Sensitive Data 
 
     context.on("console", (message) => {
       logE2e(`Browser console.${message.type()}`, {
-        url: message.page()?.url() ?? "extension-worker-or-popup"
+        url: safeUrlForLog(message.page()?.url()) ?? "extension-worker-or-popup"
       });
     });
 
@@ -314,9 +314,16 @@ test.describe("Bug Lens Chrome Extension E2E PRIV-001: Safe Mode Sensitive Data 
     await previewPage.locator('[data-tab="network"]').click();
     await expect(previewPage.locator("#tab-pane-network")).toContainText("/api/privacy-test");
 
-    const networkRow = previewPage.locator('#tab-pane-network tbody tr, [data-testid="network-row"]').first();
-    if (await networkRow.isVisible()) {
-      await networkRow.click();
+    const networkRow = previewPage.locator('#tab-pane-network .network-row[data-network-id]').first();
+    await expect(networkRow).toBeVisible();
+    await networkRow.click();
+
+    const detailPanel = previewPage.locator(".network-detail-panel");
+    await expect(detailPanel).toBeVisible();
+
+    const detailText = await detailPanel.innerText();
+    for (const c of canaries) {
+      expect(detailText.includes(c.value)).toBe(false);
     }
 
     const previewBodyText = await previewPage.evaluate(() => document.body.innerText);

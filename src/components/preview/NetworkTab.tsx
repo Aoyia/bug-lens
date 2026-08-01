@@ -136,6 +136,7 @@ export const NetworkTab = memo(function NetworkTab({
     <div className="integrated-card-panel">
       <div className="integrated-panel-header">
         <input 
+          id="network-search-input"
           type="text" 
           placeholder="按 URL 过滤" 
           className="panel-search-input" 

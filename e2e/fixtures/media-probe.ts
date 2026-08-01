@@ -16,6 +16,11 @@ export type EvidenceAssetSummary = {
   kind: string;
   mimeType: string;
   byteLength: number;
+  width?: number;
+  height?: number;
+  sessionId?: string;
+  issueSceneId?: string;
+  interactionId?: string;
 };
 
 export type InteractionRecordSummary = EvidenceItemWithTimestamp & {
@@ -138,6 +143,25 @@ export class MediaProbe {
     }, sessionId);
   }
 
+  async exportArtifact(sessionId: string): Promise<import("../../src/shared/protocol.ts").ExportArtifact | undefined> {
+    return this.evaluateWorker(async (id) => {
+      const database = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open("web-bug-recorder");
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      try {
+        return await new Promise<import("../../src/shared/protocol.ts").ExportArtifact | undefined>((resolve, reject) => {
+          const request = database.transaction("exportArtifacts").objectStore("exportArtifacts").get(id);
+          request.onsuccess = () => resolve(request.result as any);
+          request.onerror = () => reject(request.error);
+        });
+      } finally {
+        database.close();
+      }
+    }, sessionId);
+  }
+
   async waitForMediaChunkCountGreaterThan(sessionId: string, baseline: number, timeoutMs = 5_000): Promise<number> {
     return poll(
       () => this.mediaChunkCount(sessionId),
@@ -224,8 +248,9 @@ export class MediaProbe {
     );
   }
 
-  async persistedEvidence(extensionPage: Page, sessionId: string): Promise<PersistedEvidence> {
-    return extensionPage.evaluate(async (id) => {
+  async persistedEvidence(sessionIdOrPage: Page | string, maybeSessionId?: string): Promise<PersistedEvidence> {
+    const idParam = typeof sessionIdOrPage === "string" ? sessionIdOrPage : maybeSessionId!;
+    return this.evaluateWorker(async (id) => {
       const database = await new Promise<IDBDatabase>((resolve, reject) => {
         const request = indexedDB.open("web-bug-recorder");
         request.onsuccess = () => resolve(request.result);
@@ -247,7 +272,7 @@ export class MediaProbe {
         getAll<InteractionRecordSummary>("interactions"),
         getAll<EvidenceItemWithTimestamp>("consoleEntries"),
         getAll<EvidenceItemWithTimestamp>("networkEntries"),
-        getAll<{ id: string; kind: string; mimeType: string; bytes: ArrayBuffer }>("evidenceAssets")
+        getAll<{ id: string; kind: string; mimeType: string; bytes: ArrayBuffer; width?: number; height?: number; sessionId?: string; issueSceneId?: string; interactionId?: string }>("evidenceAssets")
       ]);
       database.close();
       return {
@@ -265,10 +290,15 @@ export class MediaProbe {
           id: asset.id,
           kind: asset.kind,
           mimeType: asset.mimeType,
-          byteLength: asset.bytes?.byteLength ?? 0
+          byteLength: asset.bytes?.byteLength ?? 0,
+          width: asset.width,
+          height: asset.height,
+          sessionId: asset.sessionId,
+          issueSceneId: asset.issueSceneId,
+          interactionId: asset.interactionId
         }))
       };
-    }, sessionId);
+    }, idParam);
   }
 
   async persistedFullEvidence(sessionId: string): Promise<{
@@ -277,6 +307,7 @@ export class MediaProbe {
     interactions: import("../../src/shared/protocol.ts").InteractionRecord[];
     consoleEntries: import("../../src/shared/protocol.ts").ConsoleEntry[];
     networkEntries: import("../../src/shared/protocol.ts").NetworkEntry[];
+    issueScenes: import("../../src/shared/protocol.ts").IssueScene[];
     evidenceAssets: EvidenceAssetSummary[];
   }> {
     return this.evaluateWorker(async (id) => {
@@ -296,13 +327,14 @@ export class MediaProbe {
           request.onsuccess = () => resolve((request.result ?? []) as T[]);
           request.onerror = () => reject(request.error);
         });
-        const [session, chunks, interactions, consoleEntries, networkEntries, assets] = await Promise.all([
+        const [session, chunks, interactions, consoleEntries, networkEntries, assets, issueScenes] = await Promise.all([
           getSession,
           getAll<{ sequence: number; mimeType: string; chunk: ArrayBuffer }>("mediaChunks"),
           getAll<import("../../src/shared/protocol.ts").InteractionRecord>("interactions"),
           getAll<import("../../src/shared/protocol.ts").ConsoleEntry>("consoleEntries"),
           getAll<import("../../src/shared/protocol.ts").NetworkEntry>("networkEntries"),
-          getAll<{ id: string; kind: string; mimeType: string; bytes: ArrayBuffer }>("evidenceAssets")
+          getAll<{ id: string; kind: string; mimeType: string; bytes: ArrayBuffer; width?: number; height?: number; sessionId?: string; issueSceneId?: string; interactionId?: string }>("evidenceAssets"),
+          getAll<import("../../src/shared/protocol.ts").IssueScene>("issueScenes")
         ]);
         return {
           session,
@@ -312,16 +344,70 @@ export class MediaProbe {
           interactions,
           consoleEntries,
           networkEntries,
+          issueScenes,
           evidenceAssets: assets.map((asset) => ({
             id: asset.id,
             kind: asset.kind,
             mimeType: asset.mimeType,
-            byteLength: asset.bytes?.byteLength ?? 0
+            byteLength: asset.bytes?.byteLength ?? 0,
+            width: asset.width,
+            height: asset.height,
+            sessionId: asset.sessionId,
+            issueSceneId: asset.issueSceneId,
+            interactionId: asset.interactionId
           }))
         };
       } finally {
         database.close();
       }
     }, sessionId);
+  }
+
+  async waitForEvidenceCounts(
+    sessionId: string,
+    minCounts: { networkCount?: number; interactionCount?: number; consoleCount?: number; issueSceneCount?: number },
+    timeoutMs = 5_000
+  ): Promise<void> {
+    await poll(
+      async () => {
+        const full = await this.persistedFullEvidence(sessionId);
+        const netOk = minCounts.networkCount == null || full.networkEntries.length >= minCounts.networkCount;
+        const intOk = minCounts.interactionCount == null || full.interactions.length >= minCounts.interactionCount;
+        const conOk = minCounts.consoleCount == null || full.consoleEntries.length >= minCounts.consoleCount;
+        const sceneOk = minCounts.issueSceneCount == null || (full.issueScenes?.length ?? 0) >= minCounts.issueSceneCount;
+        return netOk && intOk && conOk && sceneOk;
+      },
+      Boolean,
+      timeoutMs,
+      `EVIDENCE_COUNTS_TIMEOUT: sessionId=${sessionId}`
+    );
+  }
+
+  async getEvidenceAssetBytes(assetId: string): Promise<{ mimeType: string; bytes: ArrayBuffer; byteLength: number } | undefined> {
+    const raw = await this.evaluateWorker(async (id) => {
+      const database = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open("web-bug-recorder");
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      try {
+        const asset = await new Promise<{ mimeType: string; bytes: ArrayBuffer } | undefined>((resolve, reject) => {
+          const request = database.transaction("evidenceAssets").objectStore("evidenceAssets").get(id);
+          request.onsuccess = () => resolve(request.result as { mimeType: string; bytes: ArrayBuffer } | undefined);
+          request.onerror = () => reject(request.error);
+        });
+        if (!asset || !asset.bytes) return undefined;
+        return {
+          mimeType: asset.mimeType,
+          byteLength: asset.bytes.byteLength ?? 0,
+          byteArray: Array.from(new Uint8Array(asset.bytes))
+        };
+      } finally {
+        database.close();
+      }
+    }, assetId);
+    if (!raw) return undefined;
+    const uint8 = Uint8Array.from(raw.byteArray);
+    return { mimeType: raw.mimeType, bytes: uint8.buffer, byteLength: raw.byteLength };
   }
 }

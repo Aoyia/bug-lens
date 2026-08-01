@@ -23,6 +23,21 @@ async function poll<T>(read: () => Promise<T>, accept: (value: T) => boolean, ti
   throw new Error(`${label}: ${JSON.stringify(last)}`);
 }
 
+function getMacVirtualKeyCode(key: string, fallback?: number): number | undefined {
+  switch (key) {
+    case "ArrowDown": return 125;
+    case "ArrowUp": return 126;
+    case "ArrowLeft": return 123;
+    case "ArrowRight": return 124;
+    case "Enter": return 36;
+    case "Home": return 115;
+    case "End": return 119;
+    case "Tab": return 48;
+    case "Escape": return 53;
+    default: return fallback;
+  }
+}
+
 export class CdpPopup {
   private nextMessageId = 0;
   private readonly pending = new Map<number, { resolve: (message: CdpMessage) => void; reject: (error: unknown) => void }>();
@@ -99,20 +114,102 @@ export class CdpPopup {
     const box = await this.evaluate<{ x: number; y: number } | null>(`(() => {
       const element = document.querySelector(${JSON.stringify(selector)});
       if (!(element instanceof HTMLElement)) return null;
+      element.scrollIntoView({ block: "center", inline: "center" });
       const rect = element.getBoundingClientRect();
-      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      return { x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2) };
     })()`);
     if (!box) throw new Error(`ACTION_POPUP_SELECTOR_MISSING: ${selector}`);
-    await this.send("Input.dispatchMouseEvent", { type: "mousePressed", x: box.x, y: box.y, button: "left", clickCount: 1 });
-    await this.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: box.x, y: box.y, button: "left", clickCount: 1 });
+    await this.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: box.x, y: box.y });
+    await delay(50);
+    await this.send("Input.dispatchMouseEvent", { type: "mousePressed", x: box.x, y: box.y, button: "left", buttons: 1, clickCount: 1 });
+    await delay(50);
+    await this.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: box.x, y: box.y, button: "left", buttons: 0, clickCount: 1 });
+    await delay(100);
+  }
+
+  async pressKey(key: string, windowsVirtualKeyCode?: number, code?: string): Promise<void> {
+    const isNav = ["ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight", "Escape", "Home", "End", "Enter", " "].includes(key);
+    const macVk = getMacVirtualKeyCode(key, windowsVirtualKeyCode);
+    const params: Record<string, unknown> = {
+      type: isNav ? "rawKeyDown" : "keyDown",
+      key,
+      windowsVirtualKeyCode,
+      nativeVirtualKeyCode: macVk,
+      code: code || key,
+      modifiers: 0,
+      isUserGesture: true
+    };
+
+    if (key === "Enter") {
+      params.text = "\r";
+      params.unmodifiedText = "\r";
+    }
+
+    await this.send("Input.dispatchKeyEvent", params);
+    await delay(30);
+    await this.send("Input.dispatchKeyEvent", { ...params, type: "keyUp" });
+  }
+
+  async selectOptionByKeys(selector: string, targetValue: string): Promise<void> {
+    const optionsInfo = await this.evaluate<{ values: string[]; selectedIndex: number } | null>(`(() => {
+      const el = document.querySelector(${JSON.stringify(selector)});
+      if (!(el instanceof HTMLSelectElement)) return null;
+      return {
+        values: Array.from(el.options).map((opt) => opt.value),
+        selectedIndex: el.selectedIndex
+      };
+    })()`);
+
+    if (!optionsInfo) {
+      throw new Error(`ACTION_POPUP_SELECT_KEYS_FAILED: element not found or not select element: ${selector}`);
+    }
+
+    const targetIndex = optionsInfo.values.indexOf(targetValue);
+    if (targetIndex < 0) {
+      throw new Error(`ACTION_POPUP_SELECT_KEYS_FAILED: option with value "${targetValue}" not found in ${selector}`);
+    }
+
+    // 1. 真实鼠标点击 select 聚焦唤起选单
+    await this.click(selector);
+    await delay(150);
+
+    // 2. 物理 Home 键重置到第一项
+    await this.pressKey("Home", 36, "Home");
+    await delay(100);
+
+    // 3. 物理 ArrowDown 到目标项
+    for (let i = 0; i < targetIndex; i += 1) {
+      await this.pressKey("ArrowDown", 40, "ArrowDown");
+      await delay(100);
+    }
+
+    // 4. 物理 Enter 确认选择提交
+    await this.pressKey("Enter", 13, "Enter");
+    await delay(150);
+
+    // 轮询验证最终 value 是否正确，绝无 DOM 篡改
+    await poll(
+      () => this.evaluate<string>(`document.querySelector(${JSON.stringify(selector)})?.value || ""`),
+      (val) => val === targetValue,
+      2_000,
+      `ACTION_POPUP_SELECT_KEYS_FAILED: selector=${selector} expected=${targetValue}`
+    );
   }
 
   async evaluate<T>(expression: string): Promise<T> {
-    const result = await this.send<{ result?: { value?: T; unserializableValue?: string } }>("Runtime.evaluate", {
+    const result = await this.send<{
+      result?: { value?: T; unserializableValue?: string };
+      exceptionDetails?: { text?: string; exception?: { description?: string } };
+    }>("Runtime.evaluate", {
       expression,
       awaitPromise: true,
       returnByValue: true
     });
+    if (result.exceptionDetails) {
+      const text = result.exceptionDetails.text || "unknown error";
+      const desc = result.exceptionDetails.exception?.description || "";
+      throw new Error(`expression 执行失败: ${text}${desc ? ` - ${desc}` : ""}`);
+    }
     const remote = result.result;
     if (remote && "value" in remote) return remote.value as T;
     if (remote?.unserializableValue !== undefined) return JSON.parse(remote.unserializableValue) as T;

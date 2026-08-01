@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>Bug Lens ISSUE-001 E2E Test Target Page</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      padding: 32px;
+      background: #f4f5f7;
+      color: #172b4d;
+    }
+    .card {
+      background: #ffffff;
+      border-radius: 8px;
+      padding: 24px;
+      max-width: 680px;
+      margin: 0 auto;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .header {
+      border-bottom: 2px solid #dfe1e6;
+      padding-bottom: 12px;
+    }
+    .error-banner {
+      background: #ffebe6;
+      border: 2px dashed #de350b;
+      color: #bf2600;
+      padding: 16px;
+      border-radius: 6px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .issue-target {
+      background: #0052cc;
+      color: #ffffff;
+      padding: 14px 24px;
+      font-size: 16px;
+      font-weight: 600;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      width: fit-content;
+      user-select: none;
+    }
+    .issue-target:hover {
+      background: #0065ff;
+    }
+    .counter-badge {
+      font-family: monospace;
+      background: #ebecf0;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-weight: bold;
+    }
+    .action-section {
+      margin-top: 10px;
+      padding-top: 16px;
+      border-top: 1px solid #ebecf0;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .btn-action {
+      background: #36b37e;
+      color: white;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 4px;
+      font-weight: 600;
+      cursor: pointer;
+      width: fit-content;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <h1>ISSUE-001 自动化测试目标页</h1>
+      <p>用于测试问题现场选择、SVG 批注绘制、DOM 快照与无中断录制</p>
+    </div>
+
+    <!-- 可见异常状态区域，适合截图与对比 -->
+    <div class="error-banner" id="visible-error-status">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="12" y1="8" x2="12" y2="12"></line>
+        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+      </svg>
+      <div>[系统异常] 订单支付状态确认服务响应异常 (HTTP 500)</div>
+    </div>
+
+    <div>
+      <p style="margin-bottom: 8px; font-weight: 500;">点击目标元素 (标记现场选择目标)：</p>
+      <!-- 用于问题现场选择的稳定目标元素 -->
+      <button id="issue-target-element" class="issue-target" data-testid="issue-target">
+        重试提交支付状态
+      </button>
+    </div>
+
+    <div>
+      <span>页面业务点击触发计数: </span>
+      <span id="target-click-counter" class="counter-badge" data-testid="issue-target-click-count">0</span>
+    </div>
+
+    <!-- 保存并继续后的普通操作区 -->
+    <div class="action-section">
+      <button id="after-issue-action-btn" class="btn-action" data-testid="after-issue-action">
+        保存现场后普通操作
+      </button>
+      <div id="after-issue-result-text" data-testid="after-issue-result" style="font-weight: 500; color: #42526e;">
+        等待普通操作执行...
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let clickCount = 0;
+    const targetBtn = document.getElementById("issue-target-element");
+    const countDisplay = document.getElementById("target-click-counter");
+
+    targetBtn.addEventListener("click", () => {
+      clickCount += 1;
+      countDisplay.textContent = String(clickCount);
+    });
+
+    const afterBtn = document.getElementById("after-issue-action-btn");
+    const afterResult = document.getElementById("after-issue-result-text");
+
+    afterBtn.addEventListener("click", () => {
+      afterResult.textContent = "普通操作已执行 - " + Date.now();
+    });
+  </script>
+</body>
+</html>

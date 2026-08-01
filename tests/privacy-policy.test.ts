@@ -200,3 +200,152 @@ test("sanitizeDomSnapshot and sanitizeIssueScene redacts targets and narratives"
   assert.match(sanitizedScene.narrative?.actual ?? "", /REDACTED/);
 });
 
+test("safe mode preserves nested JSON structure while redacting nested.secret", () => {
+  const result = sanitizeResponseBody({
+    body: JSON.stringify({
+      nested: {
+        secret: "secret-value",
+        keep: "safe-value"
+      }
+    }),
+    mimeType: "application/json",
+    base64Encoded: false,
+    mode: "safe"
+  });
+
+  assert.equal(result.bodyStatus, "captured");
+  const parsed = JSON.parse(result.body ?? "{}");
+  assert.equal(parsed.nested.secret, "[REDACTED:secret]");
+  assert.equal(parsed.nested.keep, "safe-value");
+});
+
+test("raw mode preserves JSON response body without redaction", () => {
+  const input = {
+    nested: {
+      secret: "secret-value",
+      keep: "safe-value"
+    }
+  };
+  const result = sanitizeResponseBody({
+    body: JSON.stringify(input),
+    mimeType: "application/json",
+    base64Encoded: false,
+    mode: "raw"
+  });
+
+  assert.equal(result.bodyStatus, "captured");
+  assert.deepEqual(JSON.parse(result.body ?? "{}"), input);
+});
+
+test("safe mode redacts sensitive headers while raw mode preserves them", () => {
+  const headers = {
+    Authorization: "Bearer secret-token",
+    "X-Api-Key": "my-api-key",
+    "Content-Type": "application/json"
+  };
+
+  const safeHeaders = sanitizeHeaders(headers, "safe");
+  assert.equal(safeHeaders?.["Authorization"], "[REDACTED:Authorization]");
+  assert.equal(safeHeaders?.["X-Api-Key"], "[REDACTED:X-Api-Key]");
+  assert.equal(safeHeaders?.["Content-Type"], "application/json");
+
+  const rawHeaders = sanitizeHeaders(headers, "raw");
+  assert.deepEqual(rawHeaders, headers);
+});
+
+test("password interactions never retain plaintext password in safe or raw mode", async () => {
+  const { sanitizeInteractionRecord } = await import("../src/domain/privacy-policy.ts");
+  const baseRecord: Parameters<typeof sanitizeInteractionRecord>[0] = {
+    id: "int-pwd-1",
+    sessionId: "sess-1",
+    kind: "input",
+    status: "confirmed",
+    createdAt: Date.now(),
+    page: { url: "https://example.test/login", title: "Login", frameId: 0 },
+    input: { pointerType: "mouse", button: 0, isTrusted: true },
+    coordinates: { clientX: 10, clientY: 20, pageX: 10, pageY: 20, scrollX: 0, scrollY: 0, devicePixelRatio: 1, viewport: { width: 1920, height: 1080 } },
+    element: {
+      tagName: "input",
+      id: "password",
+      classNames: ["form-control"],
+      attributes: { type: "password", name: "password" },
+      text: "",
+      accessibleName: "Password",
+      locators: []
+    },
+    metadata: {
+      value: "my-secret-password-123",
+      inputType: "password"
+    },
+    screenshot: { status: "disabled" }
+  };
+
+  const safeRes = sanitizeInteractionRecord(baseRecord, "safe");
+  assert.equal(safeRes.metadata?.value, undefined);
+  assert.equal(safeRes.metadata?.valueRedacted, true);
+  assert.equal(safeRes.element.text, "[REDACTED]");
+
+  // Test uppercase / lowercase tagName normalization
+  const uppercaseRecord = { ...baseRecord, element: { ...baseRecord.element, tagName: "INPUT" } };
+  const upperRes = sanitizeInteractionRecord(uppercaseRecord, "safe");
+  assert.equal(upperRes.element.text, "[REDACTED]");
+  assert.equal(upperRes.metadata?.value, undefined);
+});
+
+test("raw mode retains normal input value but omits password plaintext in interaction metadata", async () => {
+  const { sanitizeInteractionRecord } = await import("../src/domain/privacy-policy.ts");
+  const normalInput: Parameters<typeof sanitizeInteractionRecord>[0] = {
+    id: "int-email-1",
+    sessionId: "sess-1",
+    kind: "input",
+    status: "confirmed",
+    createdAt: Date.now(),
+    page: { url: "https://example.test/login", title: "Login", frameId: 0 },
+    input: { pointerType: "mouse", button: 0, isTrusted: true },
+    coordinates: { clientX: 10, clientY: 20, pageX: 10, pageY: 20, scrollX: 0, scrollY: 0, devicePixelRatio: 1, viewport: { width: 1920, height: 1080 } },
+    element: {
+      tagName: "input",
+      id: "email",
+      classNames: [],
+      attributes: { type: "email" },
+      locators: []
+    },
+    metadata: {
+      value: "user@example.test"
+    },
+    screenshot: { status: "disabled" }
+  };
+
+  const rawRes = sanitizeInteractionRecord(normalInput, "raw");
+  assert.equal(rawRes.metadata?.value, "user@example.test");
+
+  const passwordInput: Parameters<typeof sanitizeInteractionRecord>[0] = {
+    id: "int-password-1",
+    sessionId: "sess-1",
+    kind: "input",
+    status: "confirmed",
+    createdAt: Date.now(),
+    page: { url: "https://example.test/login", title: "Login", frameId: 0 },
+    input: { pointerType: "mouse", button: 0, isTrusted: true },
+    coordinates: { clientX: 10, clientY: 20, pageX: 10, pageY: 20, scrollX: 0, scrollY: 0, devicePixelRatio: 1, viewport: { width: 1920, height: 1080 } },
+    element: {
+      tagName: "input",
+      id: "password",
+      classNames: [],
+      attributes: { type: "password", value: "secret-password" },
+      text: "secret-password",
+      locators: []
+    },
+    metadata: {
+      value: "secret-password",
+      inputType: "password"
+    },
+    screenshot: { status: "disabled" }
+  };
+
+  const rawPasswordRes = sanitizeInteractionRecord(passwordInput, "raw");
+  assert.equal(rawPasswordRes.metadata?.value, undefined);
+  assert.equal(rawPasswordRes.metadata?.valueRedacted, true);
+  assert.equal(rawPasswordRes.element.text, "[REDACTED]");
+  assert.equal(rawPasswordRes.element.attributes.value, "[REDACTED]");
+});

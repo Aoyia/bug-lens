@@ -6,6 +6,7 @@ import http from "node:http";
 import { browserAppNameFromExecutable, createNativeShortcutDriver, parseChromeShortcut, type ActionShortcut, type NativeShortcutDriver } from "./native-shortcut.ts";
 import { MediaProbe } from "./media-probe.ts";
 import { attachToPopupTarget, type CdpPopup } from "./cdp-popup.ts";
+import { createNativeSaveDialogDriver, type NativeSaveDialogDriver } from "./native-save-dialog.ts";
 
 const pathToExtension = fs.realpathSync(path.resolve(process.cwd(), "dist"));
 
@@ -15,6 +16,19 @@ function envMilliseconds(name: string, fallback: number): number {
 }
 
 const slowMoMs = envMilliseconds("E2E_SLOW_MO_MS", process.env.CI ? 0 : 250);
+
+export function safeUrlForLog(url: string | undefined): string | undefined {
+  if (!url) return undefined;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+      return `${parsed.origin}${parsed.pathname}`;
+    }
+    return url.split("?")[0];
+  } catch {
+    return url.split("?")[0];
+  }
+}
 
 function logE2e(message: string, details?: unknown): void {
   const suffix = details === undefined ? "" : ` ${JSON.stringify(details)}`;
@@ -29,6 +43,8 @@ export type ExtensionFixtures = {
   extensionId: string;
   actionShortcut: ActionShortcut;
   nativeShortcutDriver: NativeShortcutDriver;
+  nativeSaveDialogDriver: NativeSaveDialogDriver;
+  isolatedDownloadDir: string;
   openActionPopup: (targetPage: Page) => Promise<CdpPopup>;
   waitForPopupClosed: (timeoutMs?: number) => Promise<void>;
   activeTabId: () => Promise<number | undefined>;
@@ -52,6 +68,16 @@ export const test = base.extend<ExtensionFixtures>({
       if (req.url === "/api/todo") {
         res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
         res.end(JSON.stringify({ id: 1, title: "Bug Lens E2E", completed: false }));
+        return;
+      }
+      if (req.url === "/api/preview/success") {
+        res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ status: "ok", marker: "[PREV-001 SUCCESS RESPONSE MARKER]" }));
+        return;
+      }
+      if (req.url === "/api/preview/failure") {
+        res.writeHead(500, { "Content-Type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ error: "Internal Server Error", marker: "[PREV-001 FAILURE RESPONSE MARKER]" }));
         return;
       }
       if (req.url?.startsWith("/api/privacy-test")) {
@@ -80,6 +106,18 @@ export const test = base.extend<ExtensionFixtures>({
       if (req.url?.startsWith("/privacy-page.html")) {
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
         res.end(fs.readFileSync(privacyHtmlPath));
+        return;
+      }
+      if (req.url?.startsWith("/issue-page.html")) {
+        const issueHtmlPath = path.resolve(process.cwd(), "e2e/fixtures/issue-page.html");
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(fs.readFileSync(issueHtmlPath));
+        return;
+      }
+      if (req.url?.startsWith("/preview-page.html")) {
+        const previewHtmlPath = path.resolve(process.cwd(), "e2e/fixtures/preview-page.html");
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(fs.readFileSync(previewHtmlPath));
         return;
       }
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
@@ -153,6 +191,21 @@ export const test = base.extend<ExtensionFixtures>({
     await use(driver);
   },
 
+  nativeSaveDialogDriver: async ({}, use) => {
+    const browserAppName = browserAppNameFromExecutable(chromium.executablePath());
+    const driver = createNativeSaveDialogDriver(browserAppName);
+    logE2e("Native save dialog driver ready", { browserAppName });
+    await use(driver);
+  },
+
+  isolatedDownloadDir: async ({}, use) => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "playwright-chrome-download-"));
+    logE2e("Isolated download directory created", { tmpDir });
+    await use(tmpDir);
+    logE2e("Cleaning up isolated download directory", { tmpDir });
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  },
+
   openActionPopup: async ({ context, serviceWorker, extensionId, actionShortcut, nativeShortcutDriver }, use) => {
     const popupUrl = `chrome-extension://${extensionId}/popup.html`;
     const browser = context.browser();
@@ -172,12 +225,12 @@ export const test = base.extend<ExtensionFixtures>({
       if (!target?.id || !target.url) throw new Error("TARGET_TAB_MISSING: Chrome 没有活动标签页");
       const chromeUrl = new URL(target.url);
       if (chromeUrl.origin !== targetUrl.origin || chromeUrl.pathname !== targetUrl.pathname) {
-        throw new Error(`TARGET_TAB_MISMATCH: Playwright=${targetPage.url()} Chrome=${target.url}`);
+        throw new Error(`TARGET_TAB_MISMATCH: Playwright=${safeUrlForLog(targetPage.url())} Chrome=${safeUrlForLog(target.url)}`);
       }
 
       if (await popupTargetExists()) throw new Error("ACTION_POPUP_TARGET_INVALID: 快捷键发送前已有未关闭的 Popup");
 
-      logE2e("Sending native extension shortcut", { shortcut: actionShortcut.raw, targetTabId: target.id, targetUrl: target.url });
+      logE2e("Sending native extension shortcut", { shortcut: actionShortcut.raw, targetTabId: target.id, targetUrl: safeUrlForLog(target.url) });
       await nativeShortcutDriver.press(actionShortcut);
 
       let popup: CdpPopup;
@@ -193,13 +246,13 @@ export const test = base.extend<ExtensionFixtures>({
         await targetPage.waitForFunction(() => document.hasFocus(), undefined, { timeout: 2_000 });
         const retryTarget = await activeTab(serviceWorker);
         if (retryTarget?.id !== target.id || retryTarget.url !== target.url) {
-          throw new Error(`TARGET_TAB_MISMATCH: 快捷键恢复前目标标签已变化。expected=${target.id}:${target.url} actual=${retryTarget?.id}:${retryTarget?.url}`);
+          throw new Error(`TARGET_TAB_MISMATCH: 快捷键恢复前目标标签已变化。expected=${target.id}:${safeUrlForLog(target.url)} actual=${retryTarget?.id}:${safeUrlForLog(retryTarget?.url)}`);
         }
 
         logE2e("Action Popup target was absent; retrying native shortcut once", {
           shortcut: actionShortcut.raw,
           targetTabId: retryTarget.id,
-          targetUrl: retryTarget.url
+          targetUrl: safeUrlForLog(retryTarget.url)
         });
         await nativeShortcutDriver.press(actionShortcut);
         popup = await attachToPopupTarget(browserCdp, popupUrl, 8_000);

@@ -8,3 +8,6 @@ scripts/auto-commit.sh
 plans
 *.zip
 test-results/
+/test-download*.mjs
+/test-ext-*/
+/test-profile-*/

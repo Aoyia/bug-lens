@@ -24,7 +24,7 @@ export const StreamTab = memo(function StreamTab({ snapshot, onSeekVideo, onExpo
   const nodes = useMemo(() => {
     const list: any[] = [];
     
-    if (filterInteractions) {
+    if (filterInteractions && !filterErrorOnly) {
       snapshot.interactions.forEach(item => {
         list.push({ type: 'interaction', timestamp: item.createdAt, id: `step-${item.id}`, data: item });
       });

@@ -56,6 +56,7 @@ export const ConsoleTab = memo(function ConsoleTab({
     <div className="integrated-card-panel">
       <div className="integrated-panel-header">
         <select 
+          id="console-level-filter"
           className="panel-filter-select" 
           value={levelFilter}
           onChange={(e) => setLevelFilter((e.target as HTMLSelectElement).value)}

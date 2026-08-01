@@ -29,7 +29,7 @@ const SENSITIVE_HEADER_NAMES = new Set([
 ]);
 
 const URL_HEADER_NAMES = new Set(["location", "referer", "referrer", "origin"]);
-const SENSITIVE_JSON_KEY = /(?:password|passwd|passcode|token|authorization|secret|cookie|session|email|phone|address|card|cvv|ssn|dateofbirth|dob|apikey|xapikey|xauthtoken|nested)/i;
+const SENSITIVE_JSON_KEY = /(?:password|passwd|passcode|token|authorization|secret|cookie|session|email|phone|address|card|cvv|ssn|dateofbirth|dob|apikey|xapikey|xauthtoken)/i;
 const OPAQUE_PATH_SEGMENT = /^(?:[0-9a-f]{8}-[0-9a-f-]{27,}|[^@/]+@[^@/]+\.[^@/]+|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+|\d{8,}|[A-Za-z0-9_-]{24,})$/i;
 
 function normalizeName(value: string): string {
@@ -154,8 +154,29 @@ export function sanitizeResponseBody(input: {
 }
 
 export function sanitizeInteractionRecord(record: InteractionRecord, mode: PrivacyMode): InteractionRecord {
-  if (mode === "raw") return record;
-  const isPasswordInput = record.element.tagName === "INPUT" && (record.element.attributes.type === "password" || record.metadata?.inputType === "password");
+  const isPasswordInput = (record.element.tagName || "").toUpperCase() === "INPUT" && (record.element.attributes.type === "password" || record.metadata?.inputType === "password");
+
+  if (mode === "raw") {
+    if (!isPasswordInput) return record;
+    return {
+      ...record,
+      metadata: record.metadata ? {
+        ...record.metadata,
+        value: undefined,
+        valueRedacted: record.metadata.value != null || record.metadata.valueRedacted || undefined,
+        valueLength: record.metadata.valueLength ?? (record.metadata.value != null ? record.metadata.value.length : undefined)
+      } : undefined,
+      element: {
+        ...record.element,
+        attributes: record.element.attributes ? {
+          ...record.element.attributes,
+          ...(record.element.attributes.value != null ? { value: "[REDACTED]" } : {})
+        } : record.element.attributes,
+        text: "[REDACTED]",
+        accessibleName: "[REDACTED]"
+      }
+    };
+  }
   const attributes = Object.fromEntries(Object.entries(record.element.attributes).map(([key, value]) => {
     const normKey = normalizeName(key);
     let sanitizedValue: string;
