@@ -4,7 +4,16 @@ import { detectVue } from "../vue-detector";
 // ─── Utilities ───
 
 export function isWidgetElement(el: Element | null): boolean {
-  return Boolean(el && (el.closest("#__wbr_recording_widget__") || el.closest("#__wbr_issue_selection__") || el.closest("#__wbr_issue_editor__")));
+  if (!el) return false;
+  const target = el instanceof Element ? el : (el as unknown as Node).parentElement;
+  if (!target) return false;
+  return Boolean(
+    target.closest("#__wbr_recording_widget__") ||
+    target.closest("#__wbr_issue_selection__") ||
+    target.closest("#__wbr_issue_editor__") ||
+    target.closest("#__wbr_overlay_container__") ||
+    target.closest('[data-wbr-ignore="true"]')
+  );
 }
 
 export function cssEscape(value: string): string { return value.replace(/[^a-zA-Z0-9_-]/g, "\\$&"); }

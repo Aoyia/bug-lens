@@ -149,7 +149,8 @@ export const test = base.extend<ExtensionFixtures>({
       } catch (error) {
         throw error;
       }
-      const popup = await attachToPopupTarget(browserCdp, popupUrl);
+
+      const popup = await attachToPopupTarget(browserCdp, popupUrl, 8_000);
       logE2e("Attached to real Action Popup", { url: popup.url });
       return popup;
     };

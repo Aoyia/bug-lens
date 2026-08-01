@@ -143,11 +143,16 @@ export async function attachToPopupTarget(browserCdp: CDPSession, popupUrl: stri
   if (!target) throw new Error(`ACTION_POPUP_TARGET_TIMEOUT: ${popupUrl}`);
   const attached = await browserCdp.send("Target.attachToTarget", { targetId: target.targetId, flatten: false }) as { sessionId: string };
   const popup = new CdpPopup(browserCdp, attached.sessionId, target.url);
-  await poll(
-    () => popup.evaluate<string>("document.readyState"),
-    (state) => state === "interactive" || state === "complete",
-    timeoutMs,
-    "ACTION_POPUP_LOAD_TIMEOUT"
-  );
-  return popup;
+  try {
+    await poll(
+      () => popup.evaluate<string>("document.readyState"),
+      (state) => state === "interactive" || state === "complete",
+      timeoutMs,
+      "ACTION_POPUP_LOAD_TIMEOUT"
+    );
+    return popup;
+  } catch (error) {
+    await popup.dispose();
+    throw error;
+  }
 }

@@ -150,8 +150,11 @@ class MacOSShortcutDriver implements NativeShortcutDriver {
     const script = [
       'tell application "System Events"',
       `set targetProcess to first application process whose name is ${browserName}`,
-      "set frontmost of targetProcess to true",
-      "delay 0.2",
+      "repeat with i from 1 to 5",
+      "  set frontmost of targetProcess to true",
+      "  delay 0.2",
+      "  if frontmost of targetProcess is true then exit repeat",
+      "end repeat",
       'if frontmost of targetProcess is false then error "Chrome did not become frontmost"',
       `keystroke ${appleScriptString(shortcut.key)} using {${modifierNames.join(", ")}}`,
       "return name of first application process whose frontmost is true",

@@ -135,12 +135,28 @@ export class InteractionCapture {
     }
   }
 
+  private lastCaptureTime = 0;
+  private captureQueue = Promise.resolve();
+
+  private async executeCaptureVisibleTab(windowId: number): Promise<string> {
+    const task = this.captureQueue.then(async () => {
+      const elapsed = Date.now() - this.lastCaptureTime;
+      if (elapsed < 510) {
+        await new Promise((resolve) => setTimeout(resolve, 510 - elapsed));
+      }
+      this.lastCaptureTime = Date.now();
+      const capture = chrome.tabs.captureVisibleTab as unknown as (wId: number, options: { format: "png" }) => Promise<string>;
+      return capture(windowId, { format: "png" });
+    });
+    this.captureQueue = task.then(() => undefined, () => undefined);
+    return task;
+  }
+
   private async captureScreenshot(session: RecordingSession, interaction: InteractionRecord, sender: chrome.runtime.MessageSender): Promise<void> {
     try {
       if ((sender.frameId ?? 0) !== 0) throw new Error("FRAME_GEOMETRY_UNAVAILABLE: iframe 坐标暂无法可靠映射到顶层视口");
       await this.assertTargetTabIsActive(session);
-      const capture = chrome.tabs.captureVisibleTab as unknown as (windowId: number, options: { format: "png" }) => Promise<string>;
-      const dataUrl = await capture(session.target.windowId ?? chrome.windows.WINDOW_ID_CURRENT, { format: "png" });
+      const dataUrl = await this.executeCaptureVisibleTab(session.target.windowId ?? chrome.windows.WINDOW_ID_CURRENT);
       await this.assertTargetTabIsActive(session);
       const annotated = await chrome.runtime.sendMessage(message("offscreen/annotate-image", {
         dataUrl,
@@ -175,10 +191,15 @@ export class InteractionCapture {
       }
     } catch (error) {
       const safeError = sanitizeText(String(error), session.options.privacyMode);
+      const issueCode = safeError.includes("MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND")
+        ? "SCREENSHOT_QUOTA_EXCEEDED"
+        : safeError.includes("TARGET_TAB_NOT_ACTIVE")
+        ? "VISIBLE_TAB_NOT_ACTIVE"
+        : "SCREENSHOT_CAPTURE_FAILED";
       const result = await this.persist(session.id, interaction.id, { type: "screenshot-unavailable", issue: safeError });
       if (!result.budgetRejected && result.previous?.status !== "cancelled" && result.previous?.screenshot.status !== "unavailable") {
         await this.writeSessionEvent(session.id, { type: "quality-delta", delta: { unavailableScreenshotCount: 1 } });
-        await this.writeSessionEvent(session.id, { type: "capture-issue", issue: issue("VISIBLE_TAB_NOT_ACTIVE", safeError, "screenshot") });
+        await this.writeSessionEvent(session.id, { type: "capture-issue", issue: issue(issueCode, safeError, "screenshot") });
       }
     }
   }

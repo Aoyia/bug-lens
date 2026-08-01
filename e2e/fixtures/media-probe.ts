@@ -9,12 +9,31 @@ export type MediaSnapshot = {
   offscreenActive: boolean;
 };
 
+export type EvidenceItemWithTimestamp = { createdAt?: number; createdAtEpochMs?: number; timestamp?: number; occurredAt?: number };
+
+export type EvidenceAssetSummary = {
+  id: string;
+  kind: string;
+  mimeType: string;
+  byteLength: number;
+};
+
+export type InteractionRecordSummary = EvidenceItemWithTimestamp & {
+  id: string;
+  kind: string;
+  screenshot: { status: string; source?: string; assetId?: string };
+};
+
 export type PersistedEvidence = {
   session?: RecordingSession;
   mediaChunks: Array<{ sequence: number; mimeType: string; byteLength: number }>;
   interactionCount: number;
   consoleCount: number;
   networkCount: number;
+  interactions: InteractionRecordSummary[];
+  consoleEntries: EvidenceItemWithTimestamp[];
+  networkEntries: EvidenceItemWithTimestamp[];
+  evidenceAssets: EvidenceAssetSummary[];
 };
 
 async function poll<T>(read: () => Promise<T>, accept: (value: T) => boolean, timeoutMs: number, label: string): Promise<T> {
@@ -76,6 +95,34 @@ export class MediaProbe {
         database.close();
       }
     }, undefined);
+  }
+
+  async getBadgeText(tabId: number): Promise<string> {
+    return this.evaluateWorker(async (targetId) => {
+      return chrome.action.getBadgeText({ tabId: targetId });
+    }, tabId);
+  }
+
+  async isOffscreenRecording(sessionId: string): Promise<boolean> {
+    return this.evaluateWorker(async (id) => {
+      const contexts = await (chrome.runtime.getContexts as unknown as (filter: unknown) => Promise<chrome.runtime.ExtensionContext[]>)({ contextTypes: ["OFFSCREEN_DOCUMENT"] }).catch(() => []);
+      if (!contexts.length) return false;
+      const response = await chrome.runtime.sendMessage({
+        protocolVersion: 3,
+        type: "offscreen/status",
+        sessionId: id,
+        payload: { sessionId: id },
+        sentAtEpochMs: Date.now()
+      }).catch(() => undefined);
+      return Boolean(response?.ok && response?.active);
+    }, sessionId);
+  }
+
+  async isOverlayRemoved(targetPage: Page): Promise<boolean> {
+    if (targetPage.isClosed()) return true;
+    return targetPage.evaluate(() => {
+      return !document.querySelector("#__wbr_stop_btn__") && !document.querySelector("#__wbr_overlay_container__");
+    });
   }
 
   async snapshot(sessionId: string, targetTabId: number): Promise<MediaSnapshot> {
@@ -142,12 +189,13 @@ export class MediaProbe {
         request.onsuccess = () => resolve((request.result ?? []) as T[]);
         request.onerror = () => reject(request.error);
       });
-      const [session, chunks, interactions, consoleEntries, networkEntries] = await Promise.all([
+      const [session, chunks, interactions, consoleEntries, networkEntries, assets] = await Promise.all([
         getSession,
         getAll<{ sequence: number; mimeType: string; chunk: ArrayBuffer }>("mediaChunks"),
-        getAll<unknown>("interactions"),
-        getAll<unknown>("consoleEntries"),
-        getAll<unknown>("networkEntries")
+        getAll<InteractionRecordSummary>("interactions"),
+        getAll<EvidenceItemWithTimestamp>("consoleEntries"),
+        getAll<EvidenceItemWithTimestamp>("networkEntries"),
+        getAll<{ id: string; kind: string; mimeType: string; bytes: ArrayBuffer }>("evidenceAssets")
       ]);
       database.close();
       return {
@@ -157,7 +205,16 @@ export class MediaProbe {
           .sort((left, right) => left.sequence - right.sequence),
         interactionCount: interactions.length,
         consoleCount: consoleEntries.length,
-        networkCount: networkEntries.length
+        networkCount: networkEntries.length,
+        interactions,
+        consoleEntries,
+        networkEntries,
+        evidenceAssets: assets.map((asset) => ({
+          id: asset.id,
+          kind: asset.kind,
+          mimeType: asset.mimeType,
+          byteLength: asset.bytes?.byteLength ?? 0
+        }))
       };
     }, sessionId);
   }
