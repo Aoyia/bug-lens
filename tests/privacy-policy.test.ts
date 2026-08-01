@@ -93,3 +93,110 @@ test("malformed URL path encoding cannot bypass query redaction", () => {
   const result = sanitizeUrl("https://alice:secret@example.test/%ZZ?code=oauth-secret#private", "safe");
   assert.equal(result, "https://example.test/%ZZ?code=[REDACTED]");
 });
+
+test("sanitizeInteractionRecord redacts credentials in element attributes and metadata", () => {
+  const record: Parameters<typeof import("../src/domain/privacy-policy.ts").sanitizeInteractionRecord>[0] = {
+    id: "int-1",
+    sessionId: "sess-1",
+    kind: "click",
+    status: "confirmed",
+    createdAt: Date.now(),
+    page: { url: "https://example.test/page?token=secret", title: "User Password Title", frameId: 0 },
+    input: { pointerType: "mouse", button: 0, isTrusted: true },
+    coordinates: { clientX: 10, clientY: 20, pageX: 10, pageY: 20, scrollX: 0, scrollY: 0, devicePixelRatio: 1, viewport: { width: 1920, height: 1080 } },
+    element: {
+      tagName: "input",
+      id: "user-password",
+      classNames: ["btn", "password-class"],
+      attributes: { href: "https://example.test/auth?code=123", value: "secret" },
+      text: "Submit password",
+      accessibleName: "Password Input",
+      locators: [{ kind: "css", expression: "#user-password", score: 1, reasons: ["valid id"] }]
+    },
+    metadata: {
+      value: "super-secret-password",
+      key: "a",
+      code: "KeyA",
+      fromUrl: "https://example.test/from?key=val",
+      toUrl: "https://example.test/to?key=val"
+    },
+    screenshot: { status: "disabled" }
+  };
+
+  const sanitized = import("../src/domain/privacy-policy.ts").then(({ sanitizeInteractionRecord }) => {
+    const res = sanitizeInteractionRecord(record, "safe");
+    assert.equal(res.page.url, "https://example.test/page?token=[REDACTED]");
+    assert.equal(res.metadata?.value, undefined);
+    assert.equal(res.metadata?.valueRedacted, true);
+    assert.equal(res.metadata?.key, "[REDACTED:key]");
+    assert.equal(res.element.attributes.href, "https://example.test/auth?code=[REDACTED]");
+  });
+  return sanitized;
+});
+
+test("sanitizeConsoleEntry and stackTrace redacts urls and stack traces", async () => {
+  const { sanitizeConsoleEntry } = await import("../src/domain/privacy-policy.ts");
+  const entry: Parameters<typeof sanitizeConsoleEntry>[0] = {
+    id: "con-1",
+    sessionId: "sess-1",
+    timestamp: Date.now(),
+    level: "error",
+    text: "Uncaught Error: secret at user@example.test",
+    source: "https://example.test/app.js?token=secret",
+    category: "js",
+    context: "window",
+    stackTrace: [
+      { functionName: "doSecretWork", url: "https://example.test/worker.js?key=123", lineNumber: 10, columnNumber: 5 }
+    ],
+    args: [
+      { type: "string", description: "token=abc12345" }
+    ]
+  };
+
+  const sanitized = sanitizeConsoleEntry(entry, "safe");
+  assert.equal(sanitized.source, "https://example.test/app.js?token=[REDACTED]");
+  assert.equal(sanitized.stackTrace?.[0].url, "https://example.test/worker.js?key=[REDACTED]");
+  assert.match(sanitized.text, /REDACTED/);
+
+  const rawEntry = sanitizeConsoleEntry(entry, "raw");
+  assert.equal(rawEntry, entry);
+});
+
+test("sanitizeDomSnapshot and sanitizeIssueScene redacts targets and narratives", async () => {
+  const { sanitizeDomSnapshot, sanitizeIssueScene } = await import("../src/domain/privacy-policy.ts");
+  const snapshot: Parameters<typeof sanitizeDomSnapshot>[0] = {
+    capturedAtEpochMs: Date.now(),
+    element: {
+      tagName: "div",
+      classNames: ["secret-box"],
+      attributes: {},
+      locators: []
+    },
+    sanitizedHtml: "<div>user@example.test</div>",
+    ancestors: [
+      { tagName: "body", classNames: ["container"] }
+    ],
+    computedStyle: { color: "red" }
+  };
+
+  const sanitizedSnap = sanitizeDomSnapshot(snapshot, "safe");
+  assert.match(sanitizedSnap.sanitizedHtml ?? "", /REDACTED/);
+
+  const scene: Parameters<typeof sanitizeIssueScene>[0] = {
+    id: "scene-1",
+    sessionId: "sess-1",
+    status: "complete",
+    createdAtEpochMs: Date.now(),
+    page: { url: "https://example.test/path?secret=1", title: "Secret Page", frameId: 0 },
+    target: snapshot,
+    screenshot: { cleanAssetId: "clean-1", annotatedAssetId: "annotated-1" },
+    annotation: { x: 10, y: 20, width: 30, height: 40, label: "Secret area" },
+    narrative: { actual: "Got user@example.test error", expected: "Normal flow", note: "See token=abc" },
+    issues: [{ code: "ERR", message: "Failed user@example.test", source: "issue-scene", recoverable: true, occurredAt: Date.now() }]
+  };
+
+  const sanitizedScene = sanitizeIssueScene(scene, "safe");
+  assert.equal(sanitizedScene.page.url, "https://example.test/path?secret=[REDACTED]");
+  assert.match(sanitizedScene.narrative?.actual ?? "", /REDACTED/);
+});
+

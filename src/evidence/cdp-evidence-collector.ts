@@ -1,8 +1,8 @@
-import { networkDurationMs, networkRequestTime } from "../domain/evidence-clock";
-import { sanitizeConsoleEntry, sanitizeHeaders, sanitizeResponseBody, sanitizeText, sanitizeUrl } from "../domain/privacy-policy";
-import type { RecordingSessionEvent } from "../domain/recording-session";
-import type { EvidenceRepository } from "../storage/db";
-import type { CaptureIssue, RecordingSession } from "../shared/protocol";
+import { networkDurationMs, networkRequestTime } from "../domain/evidence-clock.ts";
+import { sanitizeConsoleEntry, sanitizeHeaders, sanitizeResponseBody, sanitizeText, sanitizeUrl } from "../domain/privacy-policy.ts";
+import type { RecordingSessionEvent } from "../domain/recording-session.ts";
+import type { EvidenceRepository } from "../storage/db.ts";
+import type { CaptureIssue, RecordingSession } from "../shared/protocol.ts";
 
 type SessionEventWriter = (sessionId: string, event: RecordingSessionEvent) => Promise<RecordingSession>;
 
@@ -26,11 +26,19 @@ export class CdpEvidenceCollector {
   private readonly eventQueues = new Map<string, Promise<void>>();
   private readonly pendingHandlers = new Set<Promise<void>>();
 
+  private readonly repository: EvidenceRepository;
+  private readonly writeSessionEvent: SessionEventWriter;
+  private readonly isStopping: (sessionId: string) => boolean;
+
   constructor(
-    private readonly repository: EvidenceRepository,
-    private readonly writeSessionEvent: SessionEventWriter,
-    private readonly isStopping: (sessionId: string) => boolean
-  ) {}
+    repository: EvidenceRepository,
+    writeSessionEvent: SessionEventWriter,
+    isStopping: (sessionId: string) => boolean
+  ) {
+    this.repository = repository;
+    this.writeSessionEvent = writeSessionEvent;
+    this.isStopping = isStopping;
+  }
 
   markAttached(tabId: number): void {
     this.attachedTabs.add(tabId);

@@ -24,7 +24,11 @@ function dataUrlBytes(dataUrl: string): { bytes: ArrayBuffer; mimeType: "image/p
 export class IssueSceneCapture {
   private readonly pending = new Set<Promise<unknown>>();
 
-  constructor(private readonly isStopping: (sessionId: string) => boolean) {}
+  private readonly isStopping: (sessionId: string) => boolean;
+
+  constructor(isStopping: (sessionId: string) => boolean) {
+    this.isStopping = isStopping;
+  }
 
   capture(payload: CapturePayload, sender: Sender): Promise<{ scene: IssueScene; dataUrl?: string }> {
     return this.track(this.captureImpl(payload, sender));
