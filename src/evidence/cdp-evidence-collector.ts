@@ -20,6 +20,15 @@ function captureIssue(code: string, message: string, source: CaptureIssue["sourc
   return { code, message, source, recoverable: true, occurredAt: Date.now() };
 }
 
+function sanitizeRequestBody(postData: string, mode: "safe" | "raw"): string {
+  if (mode === "raw") return postData;
+  if (/^[\s]*[\[{]/.test(postData)) {
+    const sanitized = sanitizeResponseBody({ body: postData, base64Encoded: false, mode });
+    if (sanitized.body) return sanitized.body;
+  }
+  return sanitizeText(postData, mode);
+}
+
 export class CdpEvidenceCollector {
   private readonly attachedTabs = new Set<number>();
   private readonly pendingBodyCaptures = new Set<Promise<void>>();
@@ -253,7 +262,7 @@ export class CdpEvidenceCollector {
           method: value.request!.method ?? "GET",
           type: value.type,
           requestHeaders: value.request?.headers ? sanitizeHeaders(value.request.headers, session.options.privacyMode) : undefined,
-          requestBody: value.request?.postData ? sanitizeText(value.request.postData, session.options.privacyMode) : undefined
+          requestBody: value.request?.postData ? sanitizeRequestBody(value.request.postData, session.options.privacyMode) : undefined
         });
         if (stored.stored) await this.writeSessionEvent(session.id, { type: "quality-delta", delta: { networkEntryCount: 1 } });
         else await this.writeSessionEvent(session.id, { type: "capture-issue", issue: captureIssue("SESSION_STORAGE_LIMIT_REACHED", "已达到会话存储上限，未保存更多 Network 记录。", "storage") });

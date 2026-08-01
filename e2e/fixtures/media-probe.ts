@@ -21,6 +21,9 @@ export type EvidenceAssetSummary = {
 export type InteractionRecordSummary = EvidenceItemWithTimestamp & {
   id: string;
   kind: string;
+  status: string;
+  element: { id?: string; tagName?: string; text?: string };
+  metadata?: { key?: string; code?: string; altKey?: boolean; ctrlKey?: boolean; metaKey?: boolean; shiftKey?: boolean };
   screenshot: { status: string; source?: string; assetId?: string };
 };
 
@@ -97,6 +100,53 @@ export class MediaProbe {
     }, undefined);
   }
 
+  async sessionCount(): Promise<number> {
+    return this.evaluateWorker(async () => {
+      const database = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open("web-bug-recorder");
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      try {
+        return await new Promise<number>((resolve, reject) => {
+          const request = database.transaction("sessions").objectStore("sessions").count();
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        });
+      } finally {
+        database.close();
+      }
+    }, undefined);
+  }
+
+  async mediaChunkCount(sessionId: string): Promise<number> {
+    return this.evaluateWorker(async (id) => {
+      const database = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open("web-bug-recorder");
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      try {
+        return await new Promise<number>((resolve, reject) => {
+          const request = database.transaction("mediaChunks").objectStore("mediaChunks").index("sessionId").count(id);
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        });
+      } finally {
+        database.close();
+      }
+    }, sessionId);
+  }
+
+  async waitForMediaChunkCountGreaterThan(sessionId: string, baseline: number, timeoutMs = 5_000): Promise<number> {
+    return poll(
+      () => this.mediaChunkCount(sessionId),
+      (count) => count > baseline,
+      timeoutMs,
+      `MEDIA_CHUNK_COUNT_TIMEOUT: sessionId=${sessionId} baseline=${baseline}`
+    );
+  }
+
   async getBadgeText(tabId: number): Promise<string> {
     return this.evaluateWorker(async (targetId) => {
       return chrome.action.getBadgeText({ tabId: targetId });
@@ -109,12 +159,14 @@ export class MediaProbe {
       if (!contexts.length) return false;
       const response = await chrome.runtime.sendMessage({
         protocolVersion: 3,
+        messageId: crypto.randomUUID(),
         type: "offscreen/status",
         sessionId: id,
         payload: { sessionId: id },
-        sentAtEpochMs: Date.now()
-      }).catch(() => undefined);
-      return Boolean(response?.ok && response?.active);
+        sentAt: Date.now()
+      });
+      if (!response?.ok) throw new Error(`OFFSCREEN_STATUS_FAILED: ${response?.error ?? "Recorder 状态查询失败"}`);
+      return Boolean(response.active);
     }, sessionId);
   }
 
@@ -216,6 +268,60 @@ export class MediaProbe {
           byteLength: asset.bytes?.byteLength ?? 0
         }))
       };
+    }, sessionId);
+  }
+
+  async persistedFullEvidence(sessionId: string): Promise<{
+    session?: RecordingSession;
+    mediaChunks: Array<{ sequence: number; mimeType: string; byteLength: number }>;
+    interactions: import("../../src/shared/protocol.ts").InteractionRecord[];
+    consoleEntries: import("../../src/shared/protocol.ts").ConsoleEntry[];
+    networkEntries: import("../../src/shared/protocol.ts").NetworkEntry[];
+    evidenceAssets: EvidenceAssetSummary[];
+  }> {
+    return this.evaluateWorker(async (id) => {
+      const database = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open("web-bug-recorder");
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      try {
+        const getSession = new Promise<RecordingSession | undefined>((resolve, reject) => {
+          const request = database.transaction("sessions").objectStore("sessions").get(id);
+          request.onsuccess = () => resolve(request.result as RecordingSession | undefined);
+          request.onerror = () => reject(request.error);
+        });
+        const getAll = <T>(storeName: string): Promise<T[]> => new Promise((resolve, reject) => {
+          const request = database.transaction(storeName).objectStore(storeName).index("sessionId").getAll(id);
+          request.onsuccess = () => resolve((request.result ?? []) as T[]);
+          request.onerror = () => reject(request.error);
+        });
+        const [session, chunks, interactions, consoleEntries, networkEntries, assets] = await Promise.all([
+          getSession,
+          getAll<{ sequence: number; mimeType: string; chunk: ArrayBuffer }>("mediaChunks"),
+          getAll<import("../../src/shared/protocol.ts").InteractionRecord>("interactions"),
+          getAll<import("../../src/shared/protocol.ts").ConsoleEntry>("consoleEntries"),
+          getAll<import("../../src/shared/protocol.ts").NetworkEntry>("networkEntries"),
+          getAll<{ id: string; kind: string; mimeType: string; bytes: ArrayBuffer }>("evidenceAssets")
+        ]);
+        return {
+          session,
+          mediaChunks: chunks
+            .map((entry) => ({ sequence: entry.sequence, mimeType: entry.mimeType, byteLength: entry.chunk?.byteLength ?? 0 }))
+            .sort((left, right) => left.sequence - right.sequence),
+          interactions,
+          consoleEntries,
+          networkEntries,
+          evidenceAssets: assets.map((asset) => ({
+            id: asset.id,
+            kind: asset.kind,
+            mimeType: asset.mimeType,
+            byteLength: asset.bytes?.byteLength ?? 0
+          }))
+        };
+      } finally {
+        database.close();
+      }
     }, sessionId);
   }
 }

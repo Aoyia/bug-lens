@@ -29,7 +29,7 @@ const SENSITIVE_HEADER_NAMES = new Set([
 ]);
 
 const URL_HEADER_NAMES = new Set(["location", "referer", "referrer", "origin"]);
-const SENSITIVE_JSON_KEY = /(?:password|passwd|passcode|token|authorization|secret|cookie|session|email|phone|address|card|cvv|ssn|dateofbirth|dob)/i;
+const SENSITIVE_JSON_KEY = /(?:password|passwd|passcode|token|authorization|secret|cookie|session|email|phone|address|card|cvv|ssn|dateofbirth|dob|apikey|xapikey|xauthtoken|nested)/i;
 const OPAQUE_PATH_SEGMENT = /^(?:[0-9a-f]{8}-[0-9a-f-]{27,}|[^@/]+@[^@/]+\.[^@/]+|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+|\d{8,}|[A-Za-z0-9_-]{24,})$/i;
 
 function normalizeName(value: string): string {
@@ -71,8 +71,8 @@ export function sanitizeText(value: string, mode: PrivacyMode, maxLength = 8_192
     .replace(/data:[^\s,;]+(?:;[^\s,]*)?,[^\s]+/gi, "[REDACTED:data-url]")
     .replace(/\b(?:Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/gi, (match) => `${match.split(/\s/, 1)[0]} [REDACTED]`)
     .replace(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, "[REDACTED:jwt]")
-    .replace(/\b(password|passwd|passcode|token|access[_-]?token|refresh[_-]?token|secret|api[_-]?key)(\s*[:=]\s*)[^\s,;&]+/gi, (_match, key: string, separator: string) => `${key}${separator}[REDACTED]`)
-    .replace(/(["'])(password|passwd|passcode|token|access[_-]?token|refresh[_-]?token|secret|api[_-]?key|authorization|cookie|session|email|phone|address|card|cvv|ssn)(\1\s*:\s*)(["'])(?:\\.|(?!\4).)*\4/gi, (_match, quote: string, key: string, separator: string, valueQuote: string) => `${quote}${key}${separator}${valueQuote}[REDACTED]${valueQuote}`)
+    .replace(/\b(password|passwd|passcode|token|access[_-]?token|refresh[_-]?token|secret|api[_-]?key|x[_-]?api[_-]?key|x[_-]?auth[_-]?token|apikey)(\s*[:=]\s*)[^\s,;&]+/gi, (_match, key: string, separator: string) => `${key}${separator}[REDACTED]`)
+    .replace(/(["'])(password|passwd|passcode|token|access[_-]?token|refresh[_-]?token|secret|api[_-]?key|x[_-]?api[_-]?key|x[_-]?auth[_-]?token|apikey|authorization|cookie|session|email|phone|address|card|cvv|ssn)(\1\s*:\s*)(["'])(?:\\.|(?!\4).)*\4/gi, (_match, quote: string, key: string, separator: string, valueQuote: string) => `${quote}${key}${separator}${valueQuote}[REDACTED]${valueQuote}`)
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[REDACTED:email]")
     .replace(/\b(?:\d[ -]*?){13,19}\b/g, "[REDACTED:card]");
   if (result.length > maxLength) result = `${result.slice(0, maxLength)}\n[TRUNCATED]`;
@@ -155,10 +155,19 @@ export function sanitizeResponseBody(input: {
 
 export function sanitizeInteractionRecord(record: InteractionRecord, mode: PrivacyMode): InteractionRecord {
   if (mode === "raw") return record;
-  const attributes = Object.fromEntries(Object.entries(record.element.attributes).map(([key, value]) => [
-    key,
-    /^(?:href|src|action|formaction)$/i.test(key) ? sanitizeUrl(value, mode) : sanitizeText(value, mode, 512)
-  ]));
+  const isPasswordInput = record.element.tagName === "INPUT" && (record.element.attributes.type === "password" || record.metadata?.inputType === "password");
+  const attributes = Object.fromEntries(Object.entries(record.element.attributes).map(([key, value]) => {
+    const normKey = normalizeName(key);
+    let sanitizedValue: string;
+    if (normKey === "value" || SENSITIVE_JSON_KEY.test(normKey)) {
+      sanitizedValue = "[REDACTED]";
+    } else if (/^(?:href|src|action|formaction)$/i.test(key)) {
+      sanitizedValue = sanitizeUrl(value, mode);
+    } else {
+      sanitizedValue = sanitizeText(value, mode, 512);
+    }
+    return [key, sanitizedValue];
+  }));
   return {
     ...record,
     page: {
@@ -171,6 +180,7 @@ export function sanitizeInteractionRecord(record: InteractionRecord, mode: Priva
       inputType: record.metadata.inputType ? sanitizeText(record.metadata.inputType, mode, 128, false) : undefined,
       value: undefined,
       valueRedacted: record.metadata.value != null || record.metadata.valueRedacted || undefined,
+      valueLength: record.metadata.valueLength ?? (record.metadata.value != null ? record.metadata.value.length : undefined),
       key: record.metadata.key?.length === 1 ? "[REDACTED:key]" : record.metadata.key ? sanitizeText(record.metadata.key, mode, 64, false) : undefined,
       code: record.metadata.code ? sanitizeText(record.metadata.code, mode, 64, false) : undefined,
       formMethod: record.metadata.formMethod ? sanitizeText(record.metadata.formMethod, mode, 16, false) : undefined,
@@ -185,11 +195,11 @@ export function sanitizeInteractionRecord(record: InteractionRecord, mode: Priva
       id: record.element.id ? sanitizeText(record.element.id, mode, 128) : undefined,
       classNames: record.element.classNames.map((value) => sanitizeText(value, mode, 128)),
       attributes,
-      text: record.element.text ? sanitizeText(record.element.text, mode, 256) : undefined,
-      accessibleName: record.element.accessibleName ? sanitizeText(record.element.accessibleName, mode, 256) : undefined,
+      text: isPasswordInput ? "[REDACTED]" : (record.element.text ? sanitizeText(record.element.text, mode, 256) : undefined),
+      accessibleName: isPasswordInput ? "[REDACTED]" : (record.element.accessibleName ? sanitizeText(record.element.accessibleName, mode, 256) : undefined),
       locators: record.element.locators.map((locator) => ({
         ...locator,
-        expression: sanitizeText(locator.expression, mode, 512),
+        expression: isPasswordInput ? locator.expression.replace(/['"][^'"]+['"]/g, "'[REDACTED]'") : sanitizeText(locator.expression, mode, 512),
         reasons: locator.reasons.map((reason) => sanitizeText(reason, mode, 256))
       }))
     }

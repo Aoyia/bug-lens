@@ -30,6 +30,8 @@ export type ExtensionFixtures = {
   actionShortcut: ActionShortcut;
   nativeShortcutDriver: NativeShortcutDriver;
   openActionPopup: (targetPage: Page) => Promise<CdpPopup>;
+  waitForPopupClosed: (timeoutMs?: number) => Promise<void>;
+  activeTabId: () => Promise<number | undefined>;
   mediaProbe: MediaProbe;
   serverUrl: string;
 };
@@ -45,10 +47,39 @@ async function activeTab(serviceWorker: Worker): Promise<ActiveTab | undefined> 
 export const test = base.extend<ExtensionFixtures>({
   serverUrl: async ({}, use) => {
     const mockHtmlPath = path.resolve(process.cwd(), "e2e/fixtures/mock-page.html");
+    const privacyHtmlPath = path.resolve(process.cwd(), "e2e/fixtures/privacy-page.html");
     const server = http.createServer((req, res) => {
       if (req.url === "/api/todo") {
         res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
         res.end(JSON.stringify({ id: 1, title: "Bug Lens E2E", completed: false }));
+        return;
+      }
+      if (req.url?.startsWith("/api/privacy-test")) {
+        let body = "";
+        req.on("data", (chunk) => { body += chunk; });
+        req.on("end", () => {
+          try {
+            const parsed = JSON.parse(body || "{}");
+            res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+            res.end(JSON.stringify({
+              status: "ok",
+              requestId: "req-privacy-12345",
+              echoEmail: parsed.email ?? "",
+              echoPassword: parsed.password ?? "",
+              echoToken: parsed.token ?? "",
+              echoApiKey: parsed.apiKey ?? "",
+              echoSecret: parsed.nested?.secret ?? ""
+            }));
+          } catch {
+            res.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
+            res.end(JSON.stringify({ error: "Invalid JSON" }));
+          }
+        });
+        return;
+      }
+      if (req.url?.startsWith("/privacy-page.html")) {
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(fs.readFileSync(privacyHtmlPath));
         return;
       }
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
@@ -127,6 +158,10 @@ export const test = base.extend<ExtensionFixtures>({
     const browser = context.browser();
     if (!browser) throw new Error("BROWSER_CDP_UNAVAILABLE: 未找到 Playwright Browser");
     const browserCdp = await browser.newBrowserCDPSession();
+    const popupTargetExists = async (): Promise<boolean> => {
+      const result = await browserCdp.send("Target.getTargets") as { targetInfos: Array<{ url: string }> };
+      return result.targetInfos.some((entry) => entry.url === popupUrl);
+    };
     const open = async (targetPage: Page): Promise<CdpPopup> => {
       if (targetPage.isClosed()) throw new Error("TARGET_TAB_MISSING: 目标页面已经关闭");
       await targetPage.bringToFront();
@@ -140,17 +175,35 @@ export const test = base.extend<ExtensionFixtures>({
         throw new Error(`TARGET_TAB_MISMATCH: Playwright=${targetPage.url()} Chrome=${target.url}`);
       }
 
-      const existing = context.pages().find((page) => !page.isClosed() && page.url() === popupUrl);
-      if (existing) throw new Error("ACTION_POPUP_TARGET_INVALID: 快捷键发送前已有未关闭的 Popup");
+      if (await popupTargetExists()) throw new Error("ACTION_POPUP_TARGET_INVALID: 快捷键发送前已有未关闭的 Popup");
 
+      logE2e("Sending native extension shortcut", { shortcut: actionShortcut.raw, targetTabId: target.id, targetUrl: target.url });
+      await nativeShortcutDriver.press(actionShortcut);
+
+      let popup: CdpPopup;
       try {
-        logE2e("Sending native extension shortcut", { shortcut: actionShortcut.raw, targetTabId: target.id, targetUrl: target.url });
-        await nativeShortcutDriver.press(actionShortcut);
+        popup = await attachToPopupTarget(browserCdp, popupUrl, 8_000);
       } catch (error) {
-        throw error;
-      }
+        if (!String(error).includes("ACTION_POPUP_TARGET_TIMEOUT")) throw error;
+        if (await popupTargetExists()) {
+          throw new Error(`ACTION_POPUP_TARGET_INVALID: Popup target 已存在但无法附加。${String(error)}`);
+        }
 
-      const popup = await attachToPopupTarget(browserCdp, popupUrl, 8_000);
+        await targetPage.bringToFront();
+        await targetPage.waitForFunction(() => document.hasFocus(), undefined, { timeout: 2_000 });
+        const retryTarget = await activeTab(serviceWorker);
+        if (retryTarget?.id !== target.id || retryTarget.url !== target.url) {
+          throw new Error(`TARGET_TAB_MISMATCH: 快捷键恢复前目标标签已变化。expected=${target.id}:${target.url} actual=${retryTarget?.id}:${retryTarget?.url}`);
+        }
+
+        logE2e("Action Popup target was absent; retrying native shortcut once", {
+          shortcut: actionShortcut.raw,
+          targetTabId: retryTarget.id,
+          targetUrl: retryTarget.url
+        });
+        await nativeShortcutDriver.press(actionShortcut);
+        popup = await attachToPopupTarget(browserCdp, popupUrl, 8_000);
+      }
       logE2e("Attached to real Action Popup", { url: popup.url });
       return popup;
     };
@@ -159,6 +212,32 @@ export const test = base.extend<ExtensionFixtures>({
     } finally {
       await browserCdp.detach().catch(() => undefined);
     }
+  },
+
+  waitForPopupClosed: async ({ context, extensionId }, use) => {
+    const popupUrl = `chrome-extension://${extensionId}/popup.html`;
+    const browser = context.browser();
+    if (!browser) throw new Error("BROWSER_CDP_UNAVAILABLE: 未找到 Playwright Browser");
+    const browserCdp = await browser.newBrowserCDPSession();
+    const waitForClosed = async (timeoutMs = 5_000): Promise<void> => {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        const result = await browserCdp.send("Target.getTargets") as { targetInfos: Array<{ url: string }> };
+        const exists = result.targetInfos.some((entry) => entry.url === popupUrl);
+        if (!exists) return;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      throw new Error("ACTION_POPUP_CLOSE_TIMEOUT: Popup target 未能在预期时间内关闭");
+    };
+    try {
+      await use(waitForClosed);
+    } finally {
+      await browserCdp.detach().catch(() => undefined);
+    }
+  },
+
+  activeTabId: async ({ serviceWorker }, use) => {
+    await use(async () => (await activeTab(serviceWorker))?.id);
   },
 
   mediaProbe: async ({ context, serviceWorker }, use) => {

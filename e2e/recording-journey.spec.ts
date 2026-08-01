@@ -51,6 +51,7 @@ test.describe("Bug Lens Chrome Extension E2E User Journey", () => {
       captureStatus: activeMedia.capture?.status,
       offscreenActive: activeMedia.offscreenActive
     });
+    expect(await mediaProbe.isOffscreenRecording(session.id)).toBe(true);
 
     await targetPage.bringToFront();
     // 页面焦点为截图关键前置条件，若未获得焦点应显式超时报错
