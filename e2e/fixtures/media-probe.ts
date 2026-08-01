@@ -1,0 +1,164 @@
+import type { BrowserContext, Page, Worker } from "@playwright/test";
+import type { RecordingSession } from "../../src/shared/protocol.ts";
+
+type CapturedTab = { tabId: number; status: "pending" | "active" | "stopped" | "error" };
+
+export type MediaSnapshot = {
+  session?: RecordingSession;
+  capture?: CapturedTab;
+  offscreenActive: boolean;
+};
+
+export type PersistedEvidence = {
+  session?: RecordingSession;
+  mediaChunks: Array<{ sequence: number; mimeType: string; byteLength: number }>;
+  interactionCount: number;
+  consoleCount: number;
+  networkCount: number;
+};
+
+async function poll<T>(read: () => Promise<T>, accept: (value: T) => boolean, timeoutMs: number, label: string): Promise<T> {
+  const deadline = Date.now() + timeoutMs;
+  let last!: T;
+  while (Date.now() < deadline) {
+    last = await read();
+    if (accept(last)) return last;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error(`${label}: ${JSON.stringify(last)}`);
+}
+
+export class MediaProbe {
+  private serviceWorker: Worker;
+  private readonly context: BrowserContext;
+
+  constructor(context: BrowserContext, serviceWorker: Worker) {
+    this.context = context;
+    this.serviceWorker = serviceWorker;
+  }
+
+  private async evaluateWorker<T, A>(pageFunction: (arg: A) => T | Promise<T>, arg: A): Promise<T> {
+    const evaluate = (worker: Worker) => (worker.evaluate as unknown as (fn: (value: A) => T | Promise<T>, value: A) => Promise<T>)(pageFunction, arg);
+    try {
+      return await evaluate(this.serviceWorker);
+    } catch (firstError) {
+      const replacement = this.context.serviceWorkers().find((worker) => worker.url().startsWith("chrome-extension://") && worker !== this.serviceWorker)
+        ?? await this.context.waitForEvent("serviceworker", {
+          predicate: (worker) => worker.url().startsWith("chrome-extension://"),
+          timeout: 2_000
+        }).catch(() => undefined);
+      if (!replacement || replacement === this.serviceWorker) throw firstError;
+      this.serviceWorker = replacement;
+      return evaluate(this.serviceWorker);
+    }
+  }
+
+  async activeSession(): Promise<RecordingSession | undefined> {
+    return this.evaluateWorker(async () => {
+      const database = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open("web-bug-recorder");
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      try {
+        const active = await new Promise<{ sessionId?: string } | undefined>((resolve, reject) => {
+          const request = database.transaction("control").objectStore("control").get("active-session");
+          request.onsuccess = () => resolve(request.result as { sessionId?: string } | undefined);
+          request.onerror = () => reject(request.error);
+        });
+        if (!active?.sessionId) return undefined;
+        return await new Promise<RecordingSession | undefined>((resolve, reject) => {
+          const request = database.transaction("sessions").objectStore("sessions").get(active.sessionId!);
+          request.onsuccess = () => resolve(request.result as RecordingSession | undefined);
+          request.onerror = () => reject(request.error);
+        });
+      } finally {
+        database.close();
+      }
+    }, undefined);
+  }
+
+  async snapshot(sessionId: string, targetTabId: number): Promise<MediaSnapshot> {
+    const [session, captures, offscreen] = await Promise.all([
+      this.activeSession(),
+      this.evaluateWorker(async () => chrome.tabCapture.getCapturedTabs(), undefined) as Promise<CapturedTab[]>,
+      this.evaluateWorker(async () => chrome.offscreen.hasDocument(), undefined)
+    ]);
+    return {
+      session,
+      capture: captures.find((entry) => entry.tabId === targetTabId),
+      offscreenActive: offscreen
+    };
+  }
+
+  async waitForSession(targetTabId: number, timeoutMs = 5_000): Promise<RecordingSession> {
+    const session = await poll(
+      () => this.activeSession(),
+      (value) => Boolean(value && value.target.tabId === targetTabId && value.status !== "PREPARING"),
+      timeoutMs,
+      "SESSION_START_TIMEOUT"
+    );
+    if (!session) throw new Error("SESSION_START_TIMEOUT: 未找到活动会话");
+    return session;
+  }
+
+  async waitForActive(sessionId: string, targetTabId: number, timeoutMs = 5_000): Promise<MediaSnapshot> {
+    return poll(
+      async () => {
+        const current = await this.snapshot(sessionId, targetTabId);
+        const mediaIssue = current.session?.quality.issues.find((entry) => ["MEDIA_STREAM_ID_FAILED", "MEDIA_RECORDER_FAILED"].includes(entry.code));
+        if (mediaIssue) throw new Error(`${mediaIssue.code}: ${mediaIssue.message}`);
+        return current;
+      },
+      (value) => value.session?.id === sessionId && value.capture?.status === "active" && value.offscreenActive,
+      timeoutMs,
+      "TAB_CAPTURE_NOT_ACTIVE"
+    );
+  }
+
+  async waitForStopped(sessionId: string, targetTabId: number, timeoutMs = 10_000): Promise<MediaSnapshot> {
+    return poll(
+      () => this.snapshot(sessionId, targetTabId),
+      (value) => value.capture?.status !== "active" && value.capture?.status !== "pending" && !value.offscreenActive,
+      timeoutMs,
+      "MEDIA_STOP_TIMEOUT"
+    );
+  }
+
+  async persistedEvidence(extensionPage: Page, sessionId: string): Promise<PersistedEvidence> {
+    return extensionPage.evaluate(async (id) => {
+      const database = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open("web-bug-recorder");
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      const getSession = new Promise<RecordingSession | undefined>((resolve, reject) => {
+        const request = database.transaction("sessions").objectStore("sessions").get(id);
+        request.onsuccess = () => resolve(request.result as RecordingSession | undefined);
+        request.onerror = () => reject(request.error);
+      });
+      const getAll = <T>(storeName: string): Promise<T[]> => new Promise((resolve, reject) => {
+        const request = database.transaction(storeName).objectStore(storeName).index("sessionId").getAll(id);
+        request.onsuccess = () => resolve((request.result ?? []) as T[]);
+        request.onerror = () => reject(request.error);
+      });
+      const [session, chunks, interactions, consoleEntries, networkEntries] = await Promise.all([
+        getSession,
+        getAll<{ sequence: number; mimeType: string; chunk: ArrayBuffer }>("mediaChunks"),
+        getAll<unknown>("interactions"),
+        getAll<unknown>("consoleEntries"),
+        getAll<unknown>("networkEntries")
+      ]);
+      database.close();
+      return {
+        session,
+        mediaChunks: chunks
+          .map((entry) => ({ sequence: entry.sequence, mimeType: entry.mimeType, byteLength: entry.chunk?.byteLength ?? 0 }))
+          .sort((left, right) => left.sequence - right.sequence),
+        interactionCount: interactions.length,
+        consoleCount: consoleEntries.length,
+        networkCount: networkEntries.length
+      };
+    }, sessionId);
+  }
+}

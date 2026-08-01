@@ -16,11 +16,13 @@
     "package": "node scripts/package.mjs",
     "test": "node --test tests/*.test.ts",
     "test:e2e": "node scripts/build.mjs && playwright test --headed",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && tsc --project tsconfig.e2e.json",
+    "typecheck:e2e": "tsc --project tsconfig.e2e.json"
   },
   "devDependencies": {
     "@playwright/test": "^1.50.0",
     "@types/chrome": "^0.2.2",
+    "@types/node": "^20.19.43",
     "esbuild": "^0.28.1",
     "fake-indexeddb": "^6.2.5",
     "preact-render-to-string": "^6.7.0",
