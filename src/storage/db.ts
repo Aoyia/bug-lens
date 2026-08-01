@@ -121,17 +121,30 @@ async function getMediaSummary(sessionId: string): Promise<{ count: number; mime
   });
 }
 
+function sumBytesByCursor(database: IDBDatabase, storeName: StoreName, sessionId: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const tx = database.transaction(storeName);
+    const index = tx.objectStore(storeName).index("sessionId");
+    const request = index.openCursor(IDBKeyRange.only(sessionId));
+    let total = 0;
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) { resolve(total); return; }
+      total += estimateBytes(cursor.value);
+      cursor.continue();
+    };
+    request.onerror = () => reject(request.error);
+  });
+}
+
 async function measureSessionBytes(sessionId: string): Promise<number> {
-  const [interactions, consoleEntries, networkEntries, chunks, issueScenes, assets] = await Promise.all([
-    list<InteractionRecord>("interactions", "sessionId", sessionId),
-    list<ConsoleEntry>("consoleEntries", "sessionId", sessionId),
-    list<NetworkEntry>("networkEntries", "sessionId", sessionId),
-    list<MediaChunkRecord>("mediaChunks", "sessionId", sessionId),
-    list<IssueScene>("issueScenes", "sessionId", sessionId),
-    list<EvidenceAsset>("evidenceAssets", "sessionId", sessionId)
-  ]);
-  return [...interactions, ...consoleEntries, ...networkEntries, ...chunks, ...issueScenes, ...assets]
-    .reduce((total, entry) => total + estimateBytes(entry), 0);
+  const database = await openDb();
+  const storeNames: StoreName[] = ["interactions", "consoleEntries", "networkEntries", "mediaChunks", "issueScenes", "evidenceAssets"];
+  let total = 0;
+  for (const storeName of storeNames) {
+    total += await sumBytesByCursor(database, storeName, sessionId);
+  }
+  return total;
 }
 
 async function deleteIssueScene(issueSceneId: string): Promise<void> {
