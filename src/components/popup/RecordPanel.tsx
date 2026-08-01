@@ -32,7 +32,7 @@ export const RecordPanel = memo(function RecordPanel({
   onOpenPreview
 }: RecordPanelProps) {
   return (
-    <div className="context-flow">
+    <div className="context-flow" data-testid="record-panel">
       <div className="context-head">
         <div id="title" className="target-title">{activeTab?.title || t("failedToReadTab")}</div>
         <div className="status-badge">
@@ -52,7 +52,7 @@ export const RecordPanel = memo(function RecordPanel({
 
       <div className="actions" style={{ marginTop: "10px" }}>
         {!active && !ready && (
-          <button id="start" className="action-btn start" onClick={onStart}>
+          <button id="start" data-testid="start-recording-btn" className="action-btn start" onClick={onStart}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
               <circle cx="12" cy="12" r="8"></circle>
             </svg>
@@ -60,7 +60,7 @@ export const RecordPanel = memo(function RecordPanel({
           </button>
         )}
         {active && (
-          <button id="stop" className="action-btn stop" disabled={activeSession?.status === "STOPPING"} onClick={onStop}>
+          <button id="stop" data-testid="stop-recording-btn" className="action-btn stop" disabled={activeSession?.status === "STOPPING"} onClick={onStop}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
               <rect x="6" y="6" width="12" height="12" rx="2"></rect>
             </svg>
@@ -68,7 +68,7 @@ export const RecordPanel = memo(function RecordPanel({
           </button>
         )}
         {ready && (
-          <button id="preview" className="action-btn secondary" onClick={onOpenPreview}>{t("reopenPreview")}</button>
+          <button id="preview" data-testid="preview-btn" className="action-btn secondary" onClick={onOpenPreview}>{t("reopenPreview")}</button>
         )}
       </div>
     </div>

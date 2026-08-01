@@ -2,9 +2,15 @@ import { t } from "../shared/i18n";
 
 export async function tryShowOnboardingGuide(widgetContainer: HTMLElement): Promise<void> {
   try {
+    // 自动化测试检测：当在 WebDriver (Playwright / Puppeteer / Selenium) 驱动的环境下运行，自动跳过新手引导
+    if (typeof navigator !== "undefined" && navigator.webdriver) return;
+
     if (typeof chrome === "undefined" || !chrome.storage?.local) return;
-    const storage = (await chrome.storage.local.get(["hasCompletedGuide"]).catch(() => ({}))) as { hasCompletedGuide?: boolean };
-    if (storage?.hasCompletedGuide) return;
+    const storage = (await chrome.storage.local.get(["hasCompletedGuide", "skipOnboardingGuide"]).catch(() => ({}))) as {
+      hasCompletedGuide?: boolean;
+      skipOnboardingGuide?: boolean;
+    };
+    if (storage?.hasCompletedGuide || storage?.skipOnboardingGuide) return;
 
     if (!widgetContainer || !widgetContainer.isConnected) return;
 

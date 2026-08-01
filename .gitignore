@@ -7,3 +7,4 @@ scripts/auto-commit.sh
 .agents
 plans
 *.zip
+test-results/

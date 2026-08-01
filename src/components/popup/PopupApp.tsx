@@ -113,7 +113,13 @@ export function PopupApp() {
   const refreshRecord = async () => {
     try {
       const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-      setActiveTab(tabs[0]);
+      let targetTab = tabs[0];
+      if (targetTab?.url?.startsWith("chrome-extension://")) {
+        const allTabs = await chrome.tabs.query({});
+        const webTab = allTabs.find((t) => t.url && (t.url.startsWith("http://") || t.url.startsWith("https://")));
+        if (webTab) targetTab = webTab;
+      }
+      setActiveTab(targetTab);
       const response = await chrome.runtime.sendMessage(message("session/status", {}));
       updateSessionState(response?.session);
     } catch (err) {
@@ -167,12 +173,16 @@ export function PopupApp() {
 
       setErrorText("");
       try {
-        const hasPermission = await chrome.permissions.contains({ origins: ["http://*/*", "https://*/*"] }).catch(() => false);
-        if (!hasPermission) {
-          await chrome.storage.local.set({ pendingRecordingRequest: { tabId: activeTab.id, options } });
-          await chrome.tabs.create({ url: chrome.runtime.getURL("permission.html") });
-          window.close();
-          return;
+        const isLocalhost = activeTab.url?.includes("127.0.0.1") || activeTab.url?.includes("localhost");
+        const isHttpOrHttps = (activeTab.url?.startsWith("http://") || activeTab.url?.startsWith("https://")) && !isLocalhost;
+        if (isHttpOrHttps) {
+          const hasPermission = await chrome.permissions.contains({ origins: ["http://*/*", "https://*/*"] }).catch(() => false);
+          if (!hasPermission) {
+            await chrome.storage.local.set({ pendingRecordingRequest: { tabId: activeTab.id, options } });
+            await chrome.tabs.create({ url: chrome.runtime.getURL("permission.html") });
+            window.close();
+            return;
+          }
         }
         const response = await chrome.runtime.sendMessage(message("session/start", { tabId: activeTab.id, options, commandId: crypto.randomUUID() }));
         if (!response?.ok) throw new Error(response?.error || t("startFailed"));
