@@ -31,43 +31,8 @@ export class RecordingWidget {
     if (this.container || window.top !== window) return;
     const root = document.createElement("div");
     root.id = "__wbr_recording_widget__";
+    root.className = "__wbr_recording_widget__";
     root.setAttribute("data-wbr-ignore", "true");
-
-    Object.assign(root.style, {
-      position: "fixed",
-      top: "auto",
-      bottom: "24px",
-      left: "auto",
-      right: "24px",
-      width: "auto",
-      height: "36px",
-      minWidth: "0",
-      maxWidth: "none",
-      minHeight: "0",
-      maxHeight: "none",
-      margin: "0",
-      boxSizing: "border-box",
-      zIndex: "2147483647",
-      display: "flex",
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "flex-start",
-      gap: "10px",
-      padding: "6px 14px",
-      background: "rgba(29, 33, 41, 0.78)",
-      backdropFilter: "blur(14px)",
-      webkitBackdropFilter: "blur(14px)",
-      border: "1px solid rgba(255, 255, 255, 0.16)",
-      color: "#ffffff",
-      borderRadius: "10px",
-      boxShadow: "0 6px 20px rgba(0, 0, 0, 0.28)",
-      fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-      fontSize: "12px",
-      lineHeight: "1",
-      userSelect: "none",
-      overflow: "hidden",
-      transition: "height 0.32s cubic-bezier(0.25, 1, 0.5, 1), border-radius 0.32s cubic-bezier(0.25, 1, 0.5, 1), padding 0.32s cubic-bezier(0.25, 1, 0.5, 1), background 0.32s ease, box-shadow 0.32s ease"
-    });
 
     root.innerHTML = `
       <style>

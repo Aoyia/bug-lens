@@ -127,56 +127,56 @@ export const IssueSceneTab = memo(function IssueSceneTab({
                 )}
               </div>
               <div className="issue-scene-details">
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", paddingBottom: "8px", borderBottom: "1px solid #f2f3f5" }}>
+                <div className="scene-grid-row">
                   <div>
-                    <span style={{ fontSize: "11px", fontWeight: 600, color: "#86909c" }}>实际表现</span>
-                    <p style={{ margin: "2px 0 0", fontSize: "13px", fontWeight: 500, color: "#1d2129" }}>{description?.actual || "未填写"}</p>
+                    <span className="scene-label">实际表现</span>
+                    <p className="scene-text-actual">{description?.actual || "未填写"}</p>
                   </div>
                   <div>
-                    <span style={{ fontSize: "11px", fontWeight: 600, color: "#86909c" }}>预期表现</span>
-                    <p style={{ margin: "2px 0 0", fontSize: "13px", color: "#4e5969" }}>{description?.expected || "未填写"}</p>
+                    <span className="scene-label">预期表现</span>
+                    <p className="scene-text-expected">{description?.expected || "未填写"}</p>
                   </div>
                 </div>
                 {description?.note && (
-                  <div style={{ paddingBottom: "8px", borderBottom: "1px solid #f2f3f5" }}>
-                    <span style={{ fontSize: "11px", fontWeight: 600, color: "#86909c" }}>补充说明</span>
-                    <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#4e5969" }}>{description.note}</p>
+                  <div className="scene-note-wrap">
+                    <span className="scene-label">补充说明</span>
+                    <p className="scene-note-text">{description.note}</p>
                   </div>
                 )}
-                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span style={{ fontSize: "11px", fontWeight: 600, color: "#86909c" }}>目标元素</span>
+                <div className="scene-flex-column">
+                  <div className="scene-flex-space-between">
+                    <span className="scene-label">目标元素</span>
                     <span className="issue-scene-target-meta">
                       {scene.target.element.tagName}{scene.target.element.role ? ` · ${scene.target.element.role}` : ""} ({Math.round(scene.target.element.boundingBox.width)}×{Math.round(scene.target.element.boundingBox.height)}px)
                     </span>
                   </div>
 
                   {bestLocator && (
-                    <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", background: "#f2f3f5", padding: "3px 8px", borderRadius: "2px", marginTop: "4px" }}>
-                      <span style={{ fontWeight: 700, fontSize: "10px", background: "#e8f3ff", color: "#165dff", padding: "1px 4px", borderRadius: "2px", whiteSpace: "nowrap" }}>
+                    <div className="locator-bar">
+                      <span className="locator-badge">
                         {bestLocator.kind}
                       </span>
-                      <code style={{ fontFamily: "SFMono-Regular,Consolas,monospace", color: "#1d2129", fontWeight: 600, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={bestLocator.expression}>
+                      <code className="locator-code" title={bestLocator.expression}>
                         {bestLocator.expression}
                       </code>
-                      <span style={{ color: "#86909c", fontSize: "10px", whiteSpace: "nowrap" }}>
+                      <span className="locator-stats">
                         匹配: {bestLocator.matchCount} | 稳定: {bestLocator.stabilityScore}
                       </span>
                     </div>
                   )}
 
                   {ancestorItems.length > 0 && (
-                    <div style={{ marginTop: "4px", fontSize: "11px", color: "#4e5969", overflowX: "auto", whiteSpace: "nowrap" }}>
-                      <span style={{ fontWeight: 600, color: "#86909c", marginRight: "4px" }}>路径:</span>{" "}
+                    <div className="scene-path-bar">
+                      <span className="scene-path-label">路径:</span>{" "}
                       {ancestorItems.map((item, idx) => (
                         <span key={idx}>
                           {idx === ancestorItems.length - 1 ? (
-                            <strong style={{ color: "#ef233c", fontWeight: 600 }}>{item}</strong>
+                            <strong className="scene-path-current">{item}</strong>
                           ) : (
                             <span>{item}</span>
                           )}
                           {idx < ancestorItems.length - 1 && (
-                            <span style={{ color: "#c9cdd4" }}> &gt; </span>
+                            <span className="scene-path-sep"> &gt; </span>
                           )}
                         </span>
                       ))}

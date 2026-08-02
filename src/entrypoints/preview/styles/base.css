@@ -1,35 +1,35 @@
     :root {
-      /* 禅意纸感色盘 Zen Porcelain Color System */
-      --zen-bg-base: #f5f6f9;
+      /* 禅意纸感色盘 Zen Porcelain Color System -> 挂载至全局 Design Tokens */
+      --zen-bg-base: var(--bl-bg-surface, #f5f6f9);
       --zen-bg-surface: rgba(255, 255, 255, 0.75);
-      --zen-bg-glass: rgba(255, 255, 255, 0.55);
+      --zen-bg-glass: var(--bl-bg-glass, rgba(255, 255, 255, 0.55));
       --zen-bg-hover: rgba(255, 255, 255, 0.95);
       --zen-bg-dark: #12151c;
       
-      --zen-border: rgba(0, 0, 0, 0.06);
-      --zen-border-subtle: rgba(0, 0, 0, 0.03);
-      --zen-border-accent: rgba(22, 93, 255, 0.35);
+      --zen-border: var(--bl-border, rgba(0, 0, 0, 0.06));
+      --zen-border-subtle: var(--bl-border-subtle, rgba(0, 0, 0, 0.03));
+      --zen-border-accent: var(--bl-primary-border, rgba(22, 93, 255, 0.35));
 
-      --zen-primary: #165dff;
-      --zen-primary-hover: #3676ff;
-      --zen-primary-light: rgba(22, 93, 255, 0.08);
+      --zen-primary: var(--bl-primary, #165dff);
+      --zen-primary-hover: var(--bl-primary-hover, #3676ff);
+      --zen-primary-light: var(--bl-primary-light, rgba(22, 93, 255, 0.08));
       
-      --zen-text-main: #1d2129;
-      --zen-text-sub: #5f6b7c;
-      --zen-text-muted: #8c97a8;
+      --zen-text-main: var(--bl-text-main, #1d2129);
+      --zen-text-sub: var(--bl-text-sub, #5f6b7c);
+      --zen-text-muted: var(--bl-text-muted, #8c97a8);
 
       --zen-shadow-glass: none;
       --zen-shadow-float: none;
 
-      --zen-radius-window: 2px;
-      --zen-radius-panel: 2px;
-      --zen-radius-btn: 2px;
+      --zen-radius-window: var(--bl-radius-sm, 2px);
+      --zen-radius-panel: var(--bl-radius-sm, 2px);
+      --zen-radius-btn: var(--bl-radius-sm, 2px);
 
       /* 屏幕尺寸响应式变量 (Fluid Typography & Dynamic Scale) */
-      --font-xs: clamp(10px, 0.3vw + 3px, 11.5px);
-      --font-sm: clamp(11px, 0.35vw + 3px, 12.5px);
-      --font-base: clamp(12px, 0.4vw + 4px, 14px);
-      --font-md: clamp(13.5px, 0.45vw + 4px, 16px);
+      --font-xs: var(--bl-font-xs, clamp(10px, 0.3vw + 3px, 11.5px));
+      --font-sm: var(--bl-font-sm, clamp(11px, 0.35vw + 3px, 12.5px));
+      --font-base: var(--bl-font-base, clamp(12px, 0.4vw + 4px, 14px));
+      --font-md: var(--bl-font-md, clamp(13.5px, 0.45vw + 4px, 16px));
 
       --btn-height: clamp(24px, 0.7vw + 8px, 30px);
       --btn-padding: 3px clamp(8px, 0.4vw + 2px, 12px);

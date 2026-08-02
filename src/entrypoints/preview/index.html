@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title data-i18n="previewTitle">录制预览 - Bug Lens Desktop</title>
+  <link rel="stylesheet" href="tokens.css">
   <link rel="stylesheet" href="preview-base.css">
   <link rel="stylesheet" href="preview-workspace.css">
   <link rel="stylesheet" href="preview-interactions.css">
@@ -27,15 +28,31 @@
         </div>
       </div>
       <div class="zen-titlebar-right">
-        <!-- 1 步直达一键复制 AI 提示词 -->
-        <button id="copy-ai-prompt" class="secondary">
-          <span data-i18n="copyAiPrompt"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>复制 AI 提示词</span>
-        </button>
-        <!-- 悬浮查看路径与高级选项 -->
-        <button id="toggle-ai-drawer" class="ghost" data-i18n-title="toggleAiDrawerTitle" title="查看文件绝对路径与更多选项">
-          <span id="ai-status" class="ai-status" data-i18n="aiStatusWaitingExport">等待导出</span>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 2px;"><polyline points="6 9 12 15 18 9"></polyline></svg>
-        </button>
+        <div class="ai-prompt-popover-wrapper">
+          <!-- 1 步直达一键复制 AI 提示词 -->
+          <button id="copy-ai-prompt" class="secondary">
+            <span data-i18n="copyAiPrompt"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>复制 AI 提示词</span>
+          </button>
+          <!-- 悬浮查看路径与高级选项 -->
+          <button id="toggle-ai-drawer" class="ghost" data-i18n-title="toggleAiDrawerTitle" title="查看文件绝对路径与更多选项">
+            <span id="ai-status" class="ai-status" data-i18n="aiStatusWaitingExport">等待导出</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 2px;"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </button>
+
+          <!-- AI 分析轻量悬浮抽屉 (挂载至按钮组正下方) -->
+          <section id="ai-drawer" class="zen-ai-drawer" hidden>
+            <div id="ai-path" class="ai-path" data-i18n="aiPathPlaceholder">请先点击“导出离线报告”，完成下载后获取绝对路径。</div>
+            <div class="ai-actions">
+              <button id="copy-ai-path" class="secondary" hidden data-i18n="copyAbsolutePath">复制绝对路径</button>
+              <button id="show-ai-file" class="ghost" hidden data-i18n="showInFolder">在文件夹中显示</button>
+            </div>
+            <details>
+              <summary style="margin-top: 6px;" data-i18n="viewFullPrompt">查看完整提示词</summary>
+              <pre id="ai-prompt" class="ai-prompt"></pre>
+            </details>
+          </section>
+        </div>
+
         <div class="export-btn-wrapper">
           <button id="export" data-i18n="exportReport">导出离线报告</button>
           <div id="export-progress-bar" class="export-progress-bar" hidden>
@@ -44,19 +61,6 @@
         </div>
       </div>
     </header>
-
-    <!-- AI 分析轻量悬浮抽屉 (默认折叠) -->
-    <section id="ai-drawer" class="zen-ai-drawer" hidden>
-      <div id="ai-path" class="ai-path" data-i18n="aiPathPlaceholder">请先点击“导出离线报告”，完成下载后获取绝对路径。</div>
-      <div class="ai-actions">
-        <button id="copy-ai-path" class="secondary" hidden data-i18n="copyAbsolutePath">复制绝对路径</button>
-        <button id="show-ai-file" class="ghost" hidden data-i18n="showInFolder">在文件夹中显示</button>
-      </div>
-      <details>
-        <summary style="margin-top: 6px;" data-i18n="viewFullPrompt">查看完整提示词</summary>
-        <pre id="ai-prompt" class="ai-prompt"></pre>
-      </details>
-    </section>
 
     <!-- 桌面一体化主工作区 -->
     <main class="zen-workspace">

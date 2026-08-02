@@ -93,7 +93,7 @@ export const StreamTab = memo(function StreamTab({ snapshot, onSeekVideo, onExpo
       </div>
       <div className="stream-timeline">
         {nodes.length === 0 ? (
-          <div style={{ padding: "20px", color: "#888", textAlign: "center" }}>没有匹配的全景事件记录</div>
+          <div className="stream-empty-text">没有匹配的全景事件记录</div>
         ) : (
           nodes.map(node => {
             const relTime = originEpochMs != null ? formatElapsedEpochTime(node.timestamp, originEpochMs) : new Date(node.timestamp).toLocaleTimeString();
@@ -104,7 +104,7 @@ export const StreamTab = memo(function StreamTab({ snapshot, onSeekVideo, onExpo
               const data = node.data as InteractionRecord;
               badgeHtml = (
                 <span className="stream-node-badge kind-interaction">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:"2px"}}><path d="M3 3l7 18 3-7 7-3L3 3z"></path></svg>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="stream-icon-svg"><path d="M3 3l7 18 3-7 7-3L3 3z"></path></svg>
                    交互
                 </span>
               );
@@ -118,7 +118,7 @@ export const StreamTab = memo(function StreamTab({ snapshot, onSeekVideo, onExpo
               const badgeClass = data.level === "error" ? "kind-console-error" : (data.level === "warn" || data.level === "warning" ? "kind-console-warn" : "kind-console-log");
               badgeHtml = (
                 <span className={`stream-node-badge ${badgeClass}`}>
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:"2px"}}><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="stream-icon-svg"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
                    Console.{data.level}
                 </span>
               );
@@ -131,7 +131,7 @@ export const StreamTab = memo(function StreamTab({ snapshot, onSeekVideo, onExpo
               const statusText = status || (data.error ? "FAIL" : "...");
               badgeHtml = (
                 <span className={`stream-node-badge ${badgeClass}`}>
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:"2px"}}><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="stream-icon-svg"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
                    Network {statusText}
                 </span>
               );

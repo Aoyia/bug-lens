@@ -72,6 +72,16 @@
   gap: 4px;
 }
 
+.stream-empty-text {
+  padding: 20px;
+  color: var(--bl-text-muted, #86909c);
+  text-align: center;
+}
+
+.stream-icon-svg {
+  margin-right: 2px;
+}
+
 .stream-timeline::-webkit-scrollbar {
   width: 5px;
 }

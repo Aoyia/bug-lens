@@ -43,18 +43,7 @@ export class IssueEditor {
 
     const root = document.createElement("div");
     root.id = "__wbr_issue_editor__";
-    Object.assign(root.style, {
-      position: "fixed",
-      inset: "0",
-      zIndex: "2147483647",
-      background: "rgba(10, 13, 18, 0.88)",
-      color: "#1d2129",
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif"
-    });
+    root.className = "__wbr_issue_editor_modal__";
     root.innerHTML = `<style>
       #__wbr_issue_editor__ textarea,
       #__wbr_issue_editor__ input {

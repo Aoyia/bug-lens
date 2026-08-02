@@ -39,6 +39,9 @@ async function copyStaticAssets() {
   }
   await cp(resolve(root, "src/entrypoints/report/index.html"), resolve(outdir, "report-template.html"));
   await cp(resolve(root, "src/entrypoints/report/static.css"), resolve(outdir, "report-static.css"));
+  await cp(resolve(root, "src/shared/styles/tokens.css"), resolve(outdir, "tokens.css"));
+  await cp(resolve(root, "src/entrypoints/popup/styles/popup.css"), resolve(outdir, "popup.css"));
+  await cp(resolve(root, "src/entrypoints/content/collector/styles/content-collector.css"), resolve(outdir, "content-collector.css"));
   for (const style of ["base", "workspace", "interactions", "console", "network", "image-viewer", "issue-scenes", "stream"]) {
     await cp(
       resolve(root, `src/entrypoints/preview/styles/${style}.css`),
