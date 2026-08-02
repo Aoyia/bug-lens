@@ -1,17 +1,22 @@
-import { copyTextToClipboard } from "./clipboard";
+import { copyTextToClipboard } from "./clipboard.ts";
+
 
 export type PreviewTab = "steps" | "console" | "network" | "issues";
 
 export class PreviewPageShell {
   private tab: PreviewTab = "issues";
+  private readonly root: Document;
+  private onTabChange?: () => void;
 
-  constructor(private readonly root: Document, onTabChange: () => void) {
+  constructor(root: Document, onTabChange: () => void) {
+    this.root = root;
     this.bindTabs(onTabChange);
     this.bindAiDrawer();
     this.bindDelegatedCopyActions();
     this.bindTooltips();
     this.bindNetworkResizer();
   }
+
 
   get activeTab(): PreviewTab {
     return this.tab;
@@ -24,17 +29,51 @@ export class PreviewPageShell {
     window.setTimeout(() => { toast.hidden = true; }, 2500);
   }
 
+  selectTab(tabName: PreviewTab | string): void {
+    const button = this.root.querySelector<HTMLButtonElement>(`.zen-tab-btn[data-tab="${tabName}"]`);
+    if (button) {
+      this.switchToTab(button, false);
+    }
+  }
+
+  private switchToTab(button: HTMLButtonElement, triggerCallback = true): void {
+    const buttons = Array.from(this.root.querySelectorAll<HTMLButtonElement>(".zen-tab-btn[data-tab]"));
+    buttons.forEach((item) => {
+      item.classList.remove("active");
+      item.setAttribute("aria-selected", "false");
+    });
+    button.classList.add("active");
+    button.setAttribute("aria-selected", "true");
+    this.tab = (button.dataset.tab as PreviewTab) || "steps";
+    this.root.querySelectorAll<HTMLElement>(".zen-tab-pane").forEach((pane) => {
+      pane.hidden = pane.id !== `tab-pane-${this.tab}`;
+    });
+    if (triggerCallback && this.onTabChange) {
+      this.onTabChange();
+    }
+  }
+
   private bindTabs(onTabChange: () => void): void {
-    this.root.querySelectorAll<HTMLButtonElement>(".zen-tab-btn[data-tab]").forEach((button) => {
-      button.addEventListener("click", () => {
-        this.root.querySelectorAll(".zen-tab-btn").forEach((item) => item.classList.remove("active"));
-        button.classList.add("active");
-        this.tab = (button.dataset.tab as PreviewTab) || "steps";
-        this.root.querySelectorAll<HTMLElement>(".zen-tab-pane").forEach((pane) => {
-          pane.hidden = pane.id !== `tab-pane-${this.tab}`;
-        });
-        onTabChange();
-      });
+    this.onTabChange = onTabChange;
+    const buttons = Array.from(this.root.querySelectorAll<HTMLButtonElement>(".zen-tab-btn[data-tab]"));
+
+    buttons.forEach((button) => {
+      button.addEventListener("click", () => this.switchToTab(button));
+    });
+
+    // Left/Right 键键盘导航
+    this.root.addEventListener("keydown", (e) => {
+      const active = this.root.activeElement as HTMLElement | null;
+      if (!active?.classList.contains("zen-tab-btn")) return;
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      e.preventDefault();
+      const idx = buttons.indexOf(active as HTMLButtonElement);
+      if (idx === -1) return;
+      const next = e.key === "ArrowRight"
+        ? buttons[(idx + 1) % buttons.length]
+        : buttons[(idx - 1 + buttons.length) % buttons.length];
+      next?.focus();
+      this.switchToTab(next);
     });
   }
 
@@ -120,6 +159,21 @@ export class PreviewPageShell {
     let isDragging = false;
     let startY = 0;
     let startHeight = 0;
+
+    // 拖拽激活时的全屏透明蒙层，防止鼠标快速滑过 video/iframe 导致事件丢失
+    let dragOverlay: HTMLDivElement | null = null;
+
+    const createOverlay = () => {
+      dragOverlay = this.root.createElement("div");
+      dragOverlay.style.cssText = "position:fixed;inset:0;z-index:9999;cursor:row-resize;";
+      this.root.body.appendChild(dragOverlay);
+    };
+
+    const removeOverlay = () => {
+      dragOverlay?.remove();
+      dragOverlay = null;
+    };
+
     resizer.addEventListener("mousedown", (event) => {
       isDragging = true;
       startY = event.clientY;
@@ -127,6 +181,7 @@ export class PreviewPageShell {
       resizer.classList.add("dragging");
       this.root.body.style.cursor = "row-resize";
       this.root.body.style.userSelect = "none";
+      createOverlay();
     });
     this.root.addEventListener("mousemove", (event) => {
       if (!isDragging) return;
@@ -140,6 +195,7 @@ export class PreviewPageShell {
       resizer.classList.remove("dragging");
       this.root.body.style.cursor = "";
       this.root.body.style.userSelect = "";
+      removeOverlay();
     });
   }
 }

@@ -269,10 +269,10 @@ test.describe("Bug Lens Chrome Extension E2E PREV-001: Preview Core Browsing & T
     // ==========================================
     const tabs = [
       { key: "issues", paneId: "tab-pane-issues" },
-      { key: "stream", paneId: "tab-pane-stream" },
       { key: "steps", paneId: "tab-pane-steps" },
       { key: "console", paneId: "tab-pane-console" },
-      { key: "network", paneId: "tab-pane-network" }
+      { key: "network", paneId: "tab-pane-network" },
+      { key: "stream", paneId: "tab-pane-stream" }
     ];
 
     for (const item of tabs) {

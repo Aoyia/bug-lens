@@ -39,6 +39,7 @@ export type EvidenceReportAdapter = ReadOnlyReportAdapter | EditableReportAdapte
 export class EvidenceReportView {
   private readonly shell: PreviewPageShell;
   private readonly imageViewer: ImageViewer;
+  private hasInitializedDefaultTab = false;
 
   // Preact mount containers
   private readonly consoleContainer: HTMLElement;
@@ -74,6 +75,29 @@ export class EvidenceReportView {
   render(): void {
     const snapshot = this.adapter.getSnapshot();
     if (!snapshot) return;
+
+    if (!this.hasInitializedDefaultTab) {
+      const issueCount = snapshot.issueScenes?.included.length ?? 0;
+      const stepCount = snapshot.interactions.included.length;
+      const consoleCount = snapshot.consoleEntries.included.length;
+      const networkCount = snapshot.networkEntries.included.length;
+
+      let defaultTab: "issues" | "steps" | "console" | "network" = "issues";
+      if (issueCount > 0) {
+        defaultTab = "issues";
+      } else if (stepCount > 0) {
+        defaultTab = "steps";
+      } else if (consoleCount > 0) {
+        defaultTab = "console";
+      } else if (networkCount > 0) {
+        defaultTab = "network";
+      } else {
+        defaultTab = "issues";
+      }
+
+      this.shell.selectTab(defaultTab);
+      this.hasInitializedDefaultTab = true;
+    }
 
     // Title & meta
     const titleText = snapshot.session.target.initialTitle || "录制预览";

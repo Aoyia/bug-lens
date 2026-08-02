@@ -404,3 +404,36 @@ export function isEnvelope(value: unknown): value is RuntimeMessage {
 }
 
 export function uuid(): string { return crypto.randomUUID(); }
+
+export type RuntimeMessageResponseMap = {
+  "session/start": { ok: true; session: RecordingSession };
+  "session/stop": { ok: true; session?: RecordingSession };
+  "session/status": { ok: true; session?: RecordingSession };
+  "session/list": { ok: true; sessions: SessionOverview[] };
+  "session/delete": { ok: true; deleted: boolean };
+  "session/open-preview": { ok: true };
+  "session/resume": { ok: true; session: RecordingSession };
+  "storage/get": { ok: true; storage: StorageOverview };
+  "storage/update": { ok: true; policy: StoragePolicy };
+  "storage/cleanup": { ok: true; deletedSessionIds: string[] };
+  "storage/clear-all": { ok: true; deletedSessionIds: string[] };
+  "interaction/candidate": { ok: true };
+  "interaction/confirmed": { ok: true };
+  "interaction/cancelled": { ok: true };
+  "issue-scene/capture": { ok: true; scene: IssueScene; dataUrl?: string };
+  "issue-scene/commit": { ok: true; scene: IssueScene };
+  "issue-scene/cancel": { ok: true };
+  "issue-scene/start-selection": { ok: true };
+  "issue-scene/cancel-selection": { ok: true };
+  "content/hello": { ok: true; active: boolean; sessionId?: string; nonce?: string; startedAtEpochMs?: number; privacyMode?: "safe" | "raw" };
+  "content/reset": { ok: true };
+  "offscreen/start-media": { ok: true };
+  "offscreen/stop-media": { ok: true };
+  "offscreen/pause-media": { ok: true };
+  "offscreen/resume-media": { ok: true };
+  "offscreen/status": { ok: true; active?: boolean };
+  "offscreen/annotate-image": { ok: true };
+  "offscreen/render-issue-image": { ok: true };
+  "offscreen/media-chunk": { ok: boolean; error?: string };
+  "offscreen/media-state": { ok: true };
+};

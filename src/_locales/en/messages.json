@@ -396,6 +396,9 @@
       }
     }
   },
+  "exportCanceled": {
+    "message": "Export canceled"
+  },
   "offlineReportTitle": {
     "message": "Bug Lens Offline Report"
   },

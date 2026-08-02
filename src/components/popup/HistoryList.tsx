@@ -29,12 +29,12 @@ export const HistoryList = memo(function HistoryList({
 }: HistoryListProps) {
   return (
     <div>
-      <div className="search-wrapper">
-        <svg className="search-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <div className="search-wrapper" role="search">
+        <svg className="search-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <circle cx="11" cy="11" r="8"></circle>
           <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
         </svg>
-        <input id="search" type="search" placeholder={t("searchPlaceholder")} value={searchQuery} onInput={(e) => onSearchChange(e.currentTarget.value)} />
+        <input id="search" type="search" aria-label={t("searchPlaceholder")} placeholder={t("searchPlaceholder")} value={searchQuery} onInput={(e) => onSearchChange(e.currentTarget.value)} />
       </div>
 
       <div id="sessions" className="sessions">
@@ -52,14 +52,14 @@ export const HistoryList = memo(function HistoryList({
             const date = new Date(session.timeline.createdAtEpochMs).toLocaleString();
             const isContinuable = session.quality.issues.some((entry) => entry.code.startsWith("SESSION_") || entry.code === "MEDIA_CONTEXT_LOST");
             return (
-              <article key={session.id} className="session">
+              <article key={session.id} className="session" aria-label={session.target.initialTitle || t("unnamedTab")}>
                 <div className="session-head">
                   <div className="session-title" title={session.target.initialTitle}>{session.target.initialTitle || t("unnamedTab")}</div>
                   <div className="session-head-actions">
-                    {isContinuable && <button className="btn-continue-sm" onClick={() => onResumeSession(session.id)}>{t("resume")}</button>}
-                    <button className="btn-open-preview" onClick={() => onOpenPreview(session.id)}>{t("preview")}</button>
-                    <button className="btn-delete-icon" title={t("deleteSession")} onClick={() => onDeleteSession(session.id)}>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    {isContinuable && <button className="btn-continue-sm" onClick={() => onResumeSession(session.id)} aria-label={`${t("resume")} - ${session.target.initialTitle || t("unnamedTab")}`}>{t("resume")}</button>}
+                    <button className="btn-open-preview" onClick={() => onOpenPreview(session.id)} aria-label={`${t("preview")} - ${session.target.initialTitle || t("unnamedTab")}`}>{t("preview")}</button>
+                    <button className="btn-delete-icon" title={t("deleteSession")} aria-label={`${t("deleteSession")} - ${session.target.initialTitle || t("unnamedTab")}`} onClick={() => onDeleteSession(session.id)}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <polyline points="3 6 5 6 21 6"></polyline>
                         <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
                       </svg>

@@ -428,3 +428,7 @@ function bindSingleSeekbarPlayer(): void {
     }
   });
 }
+
+import { bindShortcutsPanel } from "../../preview/shortcuts-panel.ts";
+
+bindShortcutsPanel();

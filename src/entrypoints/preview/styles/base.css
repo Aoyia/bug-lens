@@ -272,3 +272,164 @@
     details summary:hover {
       color: var(--zen-primary);
     }
+
+    /* =====================================================
+       导出进度条 Export Progress Bar
+       ===================================================== */
+    .export-btn-wrapper {
+      position: relative;
+      display: inline-flex;
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .export-progress-bar {
+      position: absolute;
+      bottom: -3px;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: rgba(22, 93, 255, 0.15);
+      border-radius: 0 0 2px 2px;
+      overflow: hidden;
+    }
+
+    .export-progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #165dff, #3676ff);
+      border-radius: 0 0 2px 2px;
+      transition: width 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .export-progress-fill.done {
+      background: linear-gradient(90deg, #00b42a, #27c240);
+      transition: width 0.2s ease;
+    }
+
+    /* =====================================================
+       快捷键速查面板 Keyboard Shortcuts Panel
+       ===================================================== */
+    .shortcuts-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 2000;
+      background: rgba(18, 21, 28, 0.45);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Author 样式 display:flex 会覆盖 UA [hidden]{display:none}，必须显式声明 */
+    .shortcuts-backdrop[hidden] {
+      display: none;
+    }
+
+    .shortcuts-panel {
+      background: rgba(255, 255, 255, 0.96);
+      border: 1px solid var(--zen-border);
+      border-radius: 8px;
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.14);
+      padding: 20px 24px;
+      width: clamp(320px, 40vw, 480px);
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+
+    .shortcuts-panel h2 {
+      margin: 0 0 16px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--zen-text-main);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .shortcuts-panel h2 button {
+      background: none;
+      border: none;
+      padding: 2px 6px;
+      height: auto;
+      font-size: 18px;
+      color: var(--zen-text-muted);
+      cursor: pointer;
+      border-radius: 4px;
+    }
+
+    .shortcuts-panel h2 button:hover {
+      background: rgba(0,0,0,0.06);
+      color: var(--zen-text-main);
+    }
+
+    .shortcuts-section {
+      margin-bottom: 14px;
+    }
+
+    .shortcuts-section-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--zen-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-bottom: 8px;
+    }
+
+    .shortcut-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 5px 0;
+      border-bottom: 1px solid var(--zen-border-subtle);
+    }
+
+    .shortcut-row:last-child {
+      border-bottom: none;
+    }
+
+    .shortcut-desc {
+      font-size: 12px;
+      color: var(--zen-text-sub);
+    }
+
+    .shortcut-keys {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .shortcut-key {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 22px;
+      height: 20px;
+      padding: 0 5px;
+      font-size: 11px;
+      font-weight: 600;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      color: var(--zen-text-sub);
+      background: rgba(0, 0, 0, 0.05);
+      border: 1px solid rgba(0, 0, 0, 0.10);
+      border-radius: 4px;
+      border-bottom-width: 2px;
+    }
+
+    /* =====================================================
+       焦点可见性增强 Focus Visibility
+       ===================================================== */
+    :focus-visible {
+      outline: 2px solid var(--zen-primary);
+      outline-offset: 2px;
+    }
+
+    button:focus-visible {
+      outline: 2px solid var(--zen-primary);
+      outline-offset: 2px;
+    }
+
+    /* Tab 按钮焦点 */
+    .zen-tab-btn:focus-visible {
+      outline: 2px solid var(--zen-primary);
+      outline-offset: -2px;
+    }

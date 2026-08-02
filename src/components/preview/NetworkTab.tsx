@@ -1,10 +1,11 @@
 import { memo } from "preact/compat";
 import { useState, useCallback, useRef, useEffect } from "preact/hooks";
-import type { NetworkEntry, RecordingSession } from "../../shared/protocol";
-import { formatElapsedEpochTime } from "../../domain/evidence-clock";
-import { generateCurlCommand } from "../../domain/curl-generator";
-import { copyTextToClipboard } from "../../preview/clipboard";
-import { escapeHtml, renderCodeBlockHtml } from "../../preview/rendering";
+import type { NetworkEntry, RecordingSession } from "../../shared/protocol.ts";
+import { formatElapsedEpochTime } from "../../domain/evidence-clock.ts";
+import { generateCurlCommand } from "../../domain/curl-generator.ts";
+import { copyTextToClipboard } from "../../preview/clipboard.ts";
+import { escapeHtml, renderCodeBlockHtml } from "../../preview/rendering.ts";
+import { useFilteredList } from "../../hooks/useFilteredList.ts";
 
 export interface NetworkTabProps {
   snapshot: {
@@ -61,6 +62,12 @@ function renderNetworkDetailHtml(entry?: NetworkEntry): string {
   `;
 }
 
+import { filterNetworkEntries, selectActiveNetworkId } from "../../preview/network-filter.ts";
+
+const networkFilterFn = (entry: NetworkEntry, query: string) => filterNetworkEntries([entry], query).length > 0;
+
+
+
 export const NetworkTab = memo(function NetworkTab({
   snapshot,
   editable,
@@ -69,16 +76,12 @@ export const NetworkTab = memo(function NetworkTab({
   onSeekVideo,
   onNotify,
 }: NetworkTabProps) {
-  const [searchQuery, setSearchQuery] = useState("");
+  const { searchQuery, setSearchQuery, filtered: entries, countText } = useFilteredList(
+    snapshot.included,
+    networkFilterFn
+  );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const detailRef = useRef<HTMLDivElement>(null);
-
-  const query = searchQuery.trim().toLowerCase();
-  const entries = snapshot.included.filter((entry) => !query || entry.url.toLowerCase().includes(query));
-
-  const countText = searchQuery.trim()
-    ? `匹配 ${entries.length} / ${snapshot.included.length} 条`
-    : `共 ${snapshot.included.length} 条`;
 
   // Auto-select logic
   let activeSelectedId = selectedId;

@@ -396,6 +396,9 @@
       }
     }
   },
+  "exportCanceled": {
+    "message": "已取消导出"
+  },
   "offlineReportTitle": {
     "message": "Bug Lens 离线报告"
   },

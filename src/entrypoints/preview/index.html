@@ -36,7 +36,12 @@
           <span id="ai-status" class="ai-status" data-i18n="aiStatusWaitingExport">等待导出</span>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 2px;"><polyline points="6 9 12 15 18 9"></polyline></svg>
         </button>
-        <button id="export" data-i18n="exportReport">导出离线报告</button>
+        <div class="export-btn-wrapper">
+          <button id="export" data-i18n="exportReport">导出离线报告</button>
+          <div id="export-progress-bar" class="export-progress-bar" hidden>
+            <div id="export-progress-fill" class="export-progress-fill" style="width:0%"></div>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -90,22 +95,22 @@
       <div class="zen-right-panel">
         <div class="zen-tab-box">
           <!-- 极简 Segmented Tab Header -->
-          <div class="zen-tab-bar">
+          <div class="zen-tab-bar" role="tablist" aria-label="调试工作区">
             <div class="zen-tabs">
-              <button class="zen-tab-btn active" data-tab="issues">
+              <button class="zen-tab-btn active" data-tab="issues" role="tab" aria-selected="true" aria-controls="tab-pane-issues" id="tab-btn-issues">
                 <span data-i18n="issueScenes">问题现场</span>
               </button>
-              <button class="zen-tab-btn" data-tab="stream">
-                <span data-i18n="timelineStream">全景瀑布流</span>
-              </button>
-              <button class="zen-tab-btn" data-tab="steps">
+              <button class="zen-tab-btn" data-tab="steps" role="tab" aria-selected="false" aria-controls="tab-pane-steps" id="tab-btn-steps">
                 <span data-i18n="timeline">交互步骤</span>
               </button>
-              <button class="zen-tab-btn" data-tab="console">
+              <button class="zen-tab-btn" data-tab="console" role="tab" aria-selected="false" aria-controls="tab-pane-console" id="tab-btn-console">
                 <span data-i18n="consoleLogs">Console 日志</span>
               </button>
-              <button class="zen-tab-btn" data-tab="network">
+              <button class="zen-tab-btn" data-tab="network" role="tab" aria-selected="false" aria-controls="tab-pane-network" id="tab-btn-network">
                 <span data-i18n="networkRequests">Network 请求</span>
+              </button>
+              <button class="zen-tab-btn" data-tab="stream" role="tab" aria-selected="false" aria-controls="tab-pane-stream" id="tab-btn-stream">
+                <span data-i18n="timelineStream">全景瀑布流</span>
               </button>
             </div>
             
@@ -118,34 +123,19 @@
           </div>
 
           <!-- Tab 面板 1：问题现场 (单卡片整合) -->
-          <div id="tab-pane-issues" class="zen-tab-pane">
+          <div id="tab-pane-issues" class="zen-tab-pane" role="tabpanel" aria-labelledby="tab-btn-issues">
             <div class="integrated-card-panel">
               <div id="issue-scenes" class="issue-scenes-list"></div>
             </div>
           </div>
 
-          <!-- Tab 面板 2：全景瀑布流 -->
-          <div id="tab-pane-stream" class="zen-tab-pane" hidden>
-            <div class="integrated-card-panel">
-              <div class="stream-header">
-                <div class="stream-filter-tags">
-                  <label class="stream-filter-label"><input type="checkbox" id="stream-filter-interactions" checked /> <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l7 18 3-7 7-3L3 3z"></path></svg> 交互步骤</label>
-                  <label class="stream-filter-label"><input type="checkbox" id="stream-filter-console" checked /> <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg> Console 日志</label>
-                  <label class="stream-filter-label"><input type="checkbox" id="stream-filter-network" checked /> <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg> Network 请求</label>
-                  <label class="stream-filter-label error-chip"><input type="checkbox" id="stream-filter-error-only" /> <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg> 仅看错误与异常</label>
-                </div>
-              </div>
-              <div id="timeline-stream-container" class="stream-timeline"></div>
-            </div>
-          </div>
-
           <!-- Tab 面板 2：交互步骤 (时间轴线性流式面板) -->
-          <div id="tab-pane-steps" class="zen-tab-pane" hidden>
+          <div id="tab-pane-steps" class="zen-tab-pane" hidden role="tabpanel" aria-labelledby="tab-btn-steps">
             <div id="interactions" class="list large-list"></div>
           </div>
 
           <!-- Tab 面板 3：Console 日志 (单卡片整合) -->
-          <div id="tab-pane-console" class="zen-tab-pane" hidden>
+          <div id="tab-pane-console" class="zen-tab-pane" hidden role="tabpanel" aria-labelledby="tab-btn-console">
             <div class="integrated-card-panel">
               <div class="integrated-panel-header">
                 <select id="console-level-filter" class="panel-filter-select">
@@ -163,7 +153,7 @@
           </div>
 
           <!-- Tab 面板 4：Network 请求 (单卡片整合) -->
-          <div id="tab-pane-network" class="zen-tab-pane" hidden>
+          <div id="tab-pane-network" class="zen-tab-pane" hidden role="tabpanel" aria-labelledby="tab-btn-network">
             <div class="integrated-card-panel">
               <div class="integrated-panel-header">
                 <input id="network-search-input" type="text" placeholder="按 URL 过滤" class="panel-search-input" data-i18n-ph="filterByUrl" />
@@ -176,14 +166,29 @@
               </div>
             </div>
           </div>
+
+          <!-- Tab 面板 5：全景瀑布流 -->
+          <div id="tab-pane-stream" class="zen-tab-pane" hidden role="tabpanel" aria-labelledby="tab-btn-stream">
+            <div class="integrated-card-panel">
+              <div class="stream-header">
+                <div class="stream-filter-tags">
+                  <label class="stream-filter-label"><input type="checkbox" id="stream-filter-interactions" checked /> <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l7 18 3-7 7-3L3 3z"></path></svg> 交互步骤</label>
+                  <label class="stream-filter-label"><input type="checkbox" id="stream-filter-console" checked /> <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg> Console 日志</label>
+                  <label class="stream-filter-label"><input type="checkbox" id="stream-filter-network" checked /> <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg> Network 请求</label>
+                  <label class="stream-filter-label error-chip"><input type="checkbox" id="stream-filter-error-only" /> <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg> 仅看错误与异常</label>
+                </div>
+              </div>
+              <div id="timeline-stream-container" class="stream-timeline"></div>
+            </div>
+          </div>
         </div>
       </div>
     </main>
   </div>
 
   <!-- Image Lightbox Modal -->
-  <div id="image-modal" class="arco-preview-backdrop" hidden>
-    <button id="modal-close-btn" class="arco-preview-close-fixed" data-i18n-title="closeEsc" title="关闭 (ESC)">
+  <div id="image-modal" class="arco-preview-backdrop" hidden role="dialog" aria-modal="true" aria-label="图片查看器">
+    <button id="modal-close-btn" class="arco-preview-close-fixed" data-i18n-title="closeEsc" title="关闭 (ESC)" aria-label="关闭图片查看器 (ESC)">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
     </button>
 
@@ -230,6 +235,80 @@
 
   <div id="toast-message" class="toast" hidden data-i18n="copiedImageToast">已复制图片到剪贴板</div>
   <div id="zen-popover-tooltip" class="zen-popover-tooltip" hidden></div>
+
+  <!-- 快捷键速查面板 Keyboard Shortcuts Panel -->
+  <div id="shortcuts-backdrop" class="shortcuts-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="shortcuts-title">
+    <div class="shortcuts-panel">
+      <h2 id="shortcuts-title">
+        键盘快捷键
+        <button id="shortcuts-close-btn" aria-label="关闭快捷键速查 (Esc)">×</button>
+      </h2>
+
+      <div class="shortcuts-section">
+        <div class="shortcuts-section-title">视频播放器</div>
+        <div class="shortcut-row">
+          <span class="shortcut-desc">播放 / 暂停</span>
+          <span class="shortcut-keys"><kbd class="shortcut-key">Space</kbd></span>
+        </div>
+        <div class="shortcut-row">
+          <span class="shortcut-desc">后退 5 秒</span>
+          <span class="shortcut-keys"><kbd class="shortcut-key">←</kbd></span>
+        </div>
+        <div class="shortcut-row">
+          <span class="shortcut-desc">前进 5 秒</span>
+          <span class="shortcut-keys"><kbd class="shortcut-key">→</kbd></span>
+        </div>
+        <div class="shortcut-row">
+          <span class="shortcut-desc">后退 1 秒（精细调节）</span>
+          <span class="shortcut-keys"><kbd class="shortcut-key">Shift</kbd> + <kbd class="shortcut-key">←</kbd></span>
+        </div>
+        <div class="shortcut-row">
+          <span class="shortcut-desc">前进 1 秒（精细调节）</span>
+          <span class="shortcut-keys"><kbd class="shortcut-key">Shift</kbd> + <kbd class="shortcut-key">→</kbd></span>
+        </div>
+        <div class="shortcut-row">
+          <span class="shortcut-desc">全屏 / 退出全屏</span>
+          <span class="shortcut-keys"><kbd class="shortcut-key">双击</kbd> 视频</span>
+        </div>
+      </div>
+
+      <div class="shortcuts-section">
+        <div class="shortcuts-section-title">图片查看器</div>
+        <div class="shortcut-row">
+          <span class="shortcut-desc">关闭</span>
+          <span class="shortcut-keys"><kbd class="shortcut-key">Esc</kbd></span>
+        </div>
+        <div class="shortcut-row">
+          <span class="shortcut-desc">上 / 下一张</span>
+          <span class="shortcut-keys"><kbd class="shortcut-key">←</kbd> / <kbd class="shortcut-key">→</kbd></span>
+        </div>
+        <div class="shortcut-row">
+          <span class="shortcut-desc">放大 / 缩小</span>
+          <span class="shortcut-keys"><kbd class="shortcut-key">+</kbd> / <kbd class="shortcut-key">-</kbd></span>
+        </div>
+        <div class="shortcut-row">
+          <span class="shortcut-desc">旋转</span>
+          <span class="shortcut-keys"><kbd class="shortcut-key">R</kbd></span>
+        </div>
+        <div class="shortcut-row">
+          <span class="shortcut-desc">重置缩放</span>
+          <span class="shortcut-keys"><kbd class="shortcut-key">0</kbd></span>
+        </div>
+      </div>
+
+      <div class="shortcuts-section">
+        <div class="shortcuts-section-title">调试工作区</div>
+        <div class="shortcut-row">
+          <span class="shortcut-desc">切换 Tab</span>
+          <span class="shortcut-keys"><kbd class="shortcut-key">←</kbd> / <kbd class="shortcut-key">→</kbd>（Tab 焦点时）</span>
+        </div>
+        <div class="shortcut-row">
+          <span class="shortcut-desc">显示此速查面板</span>
+          <span class="shortcut-keys"><kbd class="shortcut-key">?</kbd></span>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script src="preview.js"></script>
 </body>

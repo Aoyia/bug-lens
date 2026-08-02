@@ -1,11 +1,17 @@
-import { buildExportManifest } from "../export/export-manifest";
-import { createTemporaryArchive } from "../export/archive-destination";
-import { writeEvidenceArchive } from "../export/export-pipeline";
-import { t } from "../shared/i18n";
-import type { ExportArtifact } from "../shared/protocol";
-import type { db } from "../storage/db";
-import { buildEvidencePackage, type EvidencePackageSnapshot, type StaticReportAssets } from "./evidence-package";
-import { loadStaticReportAssets } from "./static-report-assets";
+import { buildExportManifest } from "../export/export-manifest.ts";
+import { createTemporaryArchive } from "../export/archive-destination.ts";
+import { writeEvidenceArchive } from "../export/export-pipeline.ts";
+import { t } from "../shared/i18n.ts";
+import type { ExportArtifact } from "../shared/protocol.ts";
+import type { db } from "../storage/db.ts";
+import { buildEvidencePackage, type EvidencePackageSnapshot, type StaticReportAssets } from "./evidence-package.ts";
+import { loadStaticReportAssets } from "./static-report-assets.ts";
+
+function isUserCanceled(error?: unknown): boolean {
+  if (!error) return false;
+  const str = String(error).toUpperCase();
+  return str.includes("USER_CANCELED") || str.includes("USER CANCELLED") || str.includes("USER CANCELED");
+}
 
 export type PreviewExportStorage = Pick<typeof db, "getExportArtifact" | "saveExportArtifact" | "iterateMediaChunks">;
 
@@ -19,20 +25,50 @@ export type PreviewExportOptions = {
   onArtifactChanged(): void;
   onExportComplete?: () => Promise<boolean>;
   loadAssets?: () => Promise<StaticReportAssets>;
+  createArchive?: typeof createTemporaryArchive;
+  writeArchive?: typeof writeEvidenceArchive;
 };
 
 export class PreviewExportController {
   private artifact?: ExportArtifact;
   private readonly button: HTMLButtonElement;
   private readonly loadAssets: () => Promise<StaticReportAssets>;
+  private readonly options: PreviewExportOptions;
 
-  constructor(private readonly options: PreviewExportOptions) {
+  constructor(options: PreviewExportOptions) {
+    this.options = options;
     this.button = options.root.querySelector<HTMLButtonElement>("#export")!;
     this.loadAssets = options.loadAssets ?? loadStaticReportAssets;
     this.button.addEventListener("click", () => void this.export());
   }
 
+
   get currentArtifact(): ExportArtifact | undefined { return this.artifact; }
+
+  private progressBar: HTMLElement | null = null;
+  private progressFill: HTMLElement | null = null;
+
+  private setProgress(percent: number, done = false): void {
+    if (!this.progressBar) {
+      this.progressBar = this.options.root.querySelector<HTMLElement>("#export-progress-bar");
+      this.progressFill = this.options.root.querySelector<HTMLElement>("#export-progress-fill");
+    }
+    if (!this.progressBar || !this.progressFill) return;
+    this.progressBar.hidden = false;
+    if (done) {
+      this.progressFill.style.width = "100%";
+      this.progressFill.classList.add("done");
+      setTimeout(() => {
+        if (this.progressBar) this.progressBar.hidden = true;
+        this.progressFill?.classList.remove("done");
+        if (this.progressFill) this.progressFill.style.width = "0%";
+      }, 2000);
+    }
+ else {
+      this.progressFill.classList.remove("done");
+      this.progressFill.style.width = `${Math.min(99, Math.max(2, percent))}%`;
+    }
+  }
 
   async load(): Promise<void> {
     if (!this.options.sessionId) return;
@@ -43,8 +79,11 @@ export class PreviewExportController {
 
   async export(): Promise<void> {
     const { sessionId, storage, getSnapshot } = this.options;
+    const createArchive = this.options.createArchive ?? createTemporaryArchive;
+    const writeArchive = this.options.writeArchive ?? writeEvidenceArchive;
     this.button.disabled = true;
     this.button.textContent = t("exportPreparing");
+    this.setProgress(2);
     let temporaryArchive: Awaited<ReturnType<typeof createTemporaryArchive>> | undefined;
     let blobUrl: string | undefined;
     try {
@@ -52,8 +91,10 @@ export class PreviewExportController {
       if (!snapshot || !sessionId) throw new Error(t("loading"));
       const reportAssets = await this.loadAssets();
       const filename = `web-bug-report-${snapshot.session.id.slice(0, 8)}.zip`;
-      temporaryArchive = await createTemporaryArchive(filename);
-      await writeEvidenceArchive({
+      temporaryArchive = await createArchive(filename);
+      const totalChunks = this.options.getMediaChunkCount();
+      await writeArchive({
+
         files: buildEvidencePackage(snapshot, reportAssets),
         sessionId,
         mediaSource: storage,
@@ -63,13 +104,19 @@ export class PreviewExportController {
           data: new TextEncoder().encode(JSON.stringify(buildExportManifest(snapshot.session, integrity), null, 2))
         }),
         onProgress: ({ mediaChunksWritten, bytesWritten }) => {
-          this.button.textContent = mediaChunksWritten
-            ? t("exportWritingVideo", [String(mediaChunksWritten), String(this.options.getMediaChunkCount())])
-            : t("exportGenerating", String(Math.max(1, Math.round(bytesWritten / 1024))));
+          if (mediaChunksWritten && totalChunks > 0) {
+            const pct = 5 + (mediaChunksWritten / totalChunks) * 90;
+            this.setProgress(pct);
+            this.button.textContent = t("exportWritingVideo", [String(mediaChunksWritten), String(totalChunks)]);
+          } else {
+            this.setProgress(30);
+            this.button.textContent = t("exportGenerating", String(Math.max(1, Math.round(bytesWritten / 1024))));
+          }
         }
       });
       const archiveFile = await temporaryArchive.getFile();
       blobUrl = URL.createObjectURL(archiveFile);
+      this.setProgress(97);
       const downloadId = await chrome.downloads.download({ url: blobUrl, filename, saveAs: true });
       this.artifact = { sessionId, downloadId, state: "in_progress", updatedAtEpochMs: Date.now() };
       await storage.saveExportArtifact(this.artifact);
@@ -78,6 +125,7 @@ export class PreviewExportController {
       await storage.saveExportArtifact(this.artifact);
       this.options.onArtifactChanged();
       if (this.artifact.state === "complete") {
+        this.setProgress(100, true);
         const autoCopied = await this.options.onExportComplete?.();
         this.options.notify(
           autoCopied
@@ -85,10 +133,20 @@ export class PreviewExportController {
             : t("exportSuccessCanCopy")
         );
       } else {
-        this.options.notify(`ZIP ${this.artifact.error || t("exportInterrupted")}`);
+        this.setProgress(0);
+        if (isUserCanceled(this.artifact.error)) {
+          this.options.notify(t("exportCanceled"));
+        } else {
+          this.options.notify(t("exportFailed", this.artifact.error || t("exportInterrupted")));
+        }
       }
     } catch (error) {
-      this.options.notify(t("exportFailed", String(error)));
+      this.setProgress(0);
+      if (isUserCanceled(error)) {
+        this.options.notify(t("exportCanceled"));
+      } else {
+        this.options.notify(t("exportFailed", String(error)));
+      }
     } finally {
       if (blobUrl) URL.revokeObjectURL(blobUrl);
       await temporaryArchive?.cleanup().catch(() => undefined);
@@ -114,7 +172,8 @@ export class PreviewExportController {
       const item = await this.searchDownload(downloadId);
       if (item?.state === "complete") return { sessionId, downloadId, state: "complete", filename: item.filename, updatedAtEpochMs: Date.now() };
       if (item?.state === "interrupted") return { sessionId, downloadId, state: "interrupted", filename: item.filename, error: item.error || "Download interrupted", updatedAtEpochMs: Date.now() };
-      await new Promise((resolve) => window.setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
     }
     return { sessionId, downloadId, state: "interrupted", error: t("exportInterrupted"), updatedAtEpochMs: Date.now() };
   }

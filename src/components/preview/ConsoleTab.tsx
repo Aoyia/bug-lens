@@ -1,6 +1,8 @@
 import { memo } from "preact/compat";
 import { useState, useCallback } from "preact/hooks";
-import type { ConsoleEntry, RecordingSession } from "../../shared/protocol";
+import type { ConsoleEntry, RecordingSession } from "../../shared/protocol.ts";
+import { useFilteredList } from "../../hooks/useFilteredList.ts";
+import { filterConsoleEntries } from "../../preview/console-filter.ts";
 
 export interface ConsoleTabProps {
   snapshot: {
@@ -15,6 +17,7 @@ export interface ConsoleTabProps {
 }
 
 export const ConsoleTab = memo(function ConsoleTab({
+
   snapshot,
   editable,
   onExclude,
@@ -22,23 +25,21 @@ export const ConsoleTab = memo(function ConsoleTab({
   onSeekVideo,
 }: ConsoleTabProps) {
   const [levelFilter, setLevelFilter] = useState("all");
-  const [searchQuery, setSearchQuery] = useState("");
 
-  const matches = useCallback((entry: ConsoleEntry) => {
-    const level = (entry.level || "log").toLowerCase();
-    if (levelFilter === "error" && level !== "error") return false;
-    if (levelFilter === "warning" && level !== "warn" && level !== "warning") return false;
-    if (levelFilter === "info" && level !== "info") return false;
-    if (levelFilter === "debug" && level !== "debug" && level !== "log") return false;
-    if (levelFilter !== "all" && !["error", "warning", "info", "debug"].includes(levelFilter)) return false;
-    const query = searchQuery.trim().toLowerCase();
-    return !query || [entry.text, entry.source, level].some((value) => (value || "").toLowerCase().includes(query));
-  }, [levelFilter, searchQuery]);
+  const matchFn = useCallback((entry: ConsoleEntry, query: string) => {
+    return filterConsoleEntries([entry], levelFilter, query).length > 0;
+  }, [levelFilter]);
 
-  const entries = snapshot.included.filter(matches);
-  const countText = levelFilter !== "all" || searchQuery.trim()
+
+  const { searchQuery, setSearchQuery, filtered: entries, countText } = useFilteredList(
+    snapshot.included,
+    matchFn
+  );
+
+  // Override countText when level filter is active
+  const displayCountText = levelFilter !== "all" || searchQuery.trim()
     ? `匹配 ${entries.length} / ${snapshot.included.length} 条`
-    : `共 ${snapshot.included.length} 条`;
+    : countText;
 
   const handleExclude = useCallback(async (e: MouseEvent, id: string) => {
     e.stopPropagation();
@@ -74,7 +75,7 @@ export const ConsoleTab = memo(function ConsoleTab({
           value={searchQuery}
           onInput={(e) => setSearchQuery((e.target as HTMLInputElement).value)}
         />
-        <span className="panel-filter-count">{countText}</span>
+        <span className="panel-filter-count">{displayCountText}</span>
       </div>
       <div className="integrated-panel-body">
         {entries.length > 0 ? (

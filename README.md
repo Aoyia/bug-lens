@@ -47,7 +47,7 @@ graph LR
 
 ### Option 1: Direct Download (Recommended)
 
-1. Download the pre-compiled package: [bug-lens-v0.3.0.zip](https://github.com/Aoyia/bug-lens/releases/download/v0.3.0/bug-lens-v0.3.0.zip) (or visit the [Releases Page](https://github.com/Aoyia/bug-lens/releases/latest)).
+1. Download the pre-compiled package: [bug-lens-v0.4.0.zip](https://github.com/Aoyia/bug-lens/releases/download/v0.4.0/bug-lens-v0.4.0.zip) (or visit the [Releases Page](https://github.com/Aoyia/bug-lens/releases/latest)).
 2. Unzip the downloaded ZIP file to any local folder.
 3. Open `chrome://extensions/` in Google Chrome and enable **"Developer mode"** in the top right corner.
 4. Click **"Load unpacked"** and select the unzipped directory.
@@ -80,4 +80,3 @@ Have questions or feature requests? Feel free to open an [Issue](https://github.
 ## License
 
 This project is licensed under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0). Any modification or derivative work must also be open-sourced under AGPL-3.0.
-

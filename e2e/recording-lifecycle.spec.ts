@@ -80,7 +80,26 @@ test.describe("Bug Lens Chrome Extension recording lifecycle", () => {
     expect(chunkCountBeforeReopen).toBeGreaterThan(0);
     logE2e("Confirmed initial media chunk generated", { chunkCountBeforeReopen });
 
-    // 9. 重新把目标页面置前并确认焦点
+    // 9. 刷新目标页面：刷新会销毁旧 Content Script，但不能结束 TabCapture
+    // 或创建新的 Recording Session。新页面加载后应重新出现录制控件。
+    logE2e("Reloading target page while recording");
+    await targetPage.reload({ waitUntil: "domcontentloaded" });
+    await targetPage.waitForSelector("#__wbr_recording_widget__", { timeout: 10_000 });
+    await expect(targetPage.locator("#__wbr_recording_widget__")).toBeVisible();
+
+    const sessionAfterReload = await mediaProbe.activeSession();
+    expect(sessionAfterReload?.id).toBe(initialSessionId);
+    expect(sessionAfterReload?.target.tabId).toBe(targetTabId);
+    expect(await mediaProbe.isOffscreenRecording(initialSessionId)).toBe(true);
+    const chunkCountAfterReload = await mediaProbe.waitForMediaChunkCountGreaterThan(initialSessionId, chunkCountBeforeReopen, 5_000);
+    expect(chunkCountAfterReload).toBeGreaterThan(chunkCountBeforeReopen);
+    logE2e("Reload preserved the session, widget, and media capture", {
+      sessionId: sessionAfterReload?.id,
+      chunkCountBeforeReload: chunkCountBeforeReopen,
+      chunkCountAfterReload
+    });
+
+    // 10. 重新把目标页面置前并确认焦点
     await targetPage.bringToFront();
     await targetPage.waitForFunction(() => document.hasFocus(), undefined, { timeout: 2_000 });
 

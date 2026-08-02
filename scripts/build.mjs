@@ -1,11 +1,12 @@
 import { build, context } from "esbuild";
-import { cp, mkdir, rm } from "node:fs/promises";
+import { cp, mkdir, rm, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { watch as watchFS } from "node:fs";
 
 const root = resolve(process.cwd());
 const outdir = resolve(root, "dist");
 const isWatch = process.argv.includes("--watch");
+const isE2e = process.argv.includes("--e2e") || process.env.E2E_BUILD === "true";
 
 await rm(outdir, { recursive: true, force: true });
 await mkdir(outdir, { recursive: true });
@@ -21,7 +22,16 @@ const entries = {
 };
 
 async function copyStaticAssets() {
-  await cp(resolve(root, "src/manifest.json"), resolve(outdir, "manifest.json"));
+  const manifestPath = resolve(root, "src/manifest.json");
+  if (isE2e) {
+    const raw = await readFile(manifestPath, "utf-8");
+    const json = JSON.parse(raw);
+    json.host_permissions = ["http://*/*", "https://*/*"];
+    await writeFile(resolve(outdir, "manifest.json"), JSON.stringify(json, null, 2));
+  } else {
+    await cp(manifestPath, resolve(outdir, "manifest.json"));
+  }
+
   await cp(resolve(root, "src/icons"), resolve(outdir, "icons"), { recursive: true });
   await cp(resolve(root, "src/_locales"), resolve(outdir, "_locales"), { recursive: true });
   for (const file of ["popup.html", "permission.html", "offscreen.html", "preview.html"]) {
@@ -101,5 +111,5 @@ if (isWatch) {
     });
   }
   await copyStaticAssets();
-  console.log(`Built extension to ${outdir}`);
+  console.log(`Built extension to ${outdir}${isE2e ? " (with E2E pre-granted host permissions)" : ""}`);
 }

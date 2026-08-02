@@ -1,16 +1,19 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "preact/hooks";
-import { message, type EvidenceSummary, type RecordingOptions, type RecordingSession, type SessionOverview, type StorageOverview } from "../../shared/protocol";
-import { applyI18n, t } from "../../shared/i18n";
-import { RecordPanel } from "./RecordPanel";
-import { OptionsGrid } from "./OptionsGrid";
-import { HistoryList } from "./HistoryList";
+import { useState, useEffect, useCallback, useMemo } from "preact/hooks";
+import { type EvidenceSummary, type RecordingOptions, type RecordingSession, type SessionOverview, type StorageOverview } from "../../shared/protocol.ts";
+import { applyI18n, t } from "../../shared/i18n.ts";
+import { useRpc } from "../../hooks/useRpc.ts";
+import { useSessionState } from "../../hooks/useSessionState.ts";
+import { RecordPanel } from "./RecordPanel.tsx";
+import { OptionsGrid } from "./OptionsGrid.tsx";
+import { HistoryList } from "./HistoryList.tsx";
 
 export function PopupApp() {
+  const { send } = useRpc();
+  const { activeSession, timerText, active, previewReady, controlsLocked, updateSessionState } = useSessionState();
+
   const [currentView, setCurrentView] = useState<"record" | "history">("record");
-  const [activeSession, setActiveSession] = useState<RecordingSession | undefined>(undefined);
   const [activeTab, setActiveTab] = useState<chrome.tabs.Tab | undefined>(undefined);
   const [errorText, setErrorText] = useState<string>("");
-  const [timerText, setTimerText] = useState<string>("");
   const [advancedOpen, setAdvancedOpen] = useState<boolean>(false);
 
   // Options state
@@ -27,30 +30,15 @@ export function PopupApp() {
   const [sessions, setSessions] = useState<SessionOverview[]>([]);
   const [storage, setStorage] = useState<StorageOverview | undefined>(undefined);
 
-  const timerRef = useRef<number | undefined>(undefined);
-
   useEffect(() => {
     applyI18n();
     refreshRecord();
-  }, []);
-
-  const isActive = useCallback((session?: RecordingSession): boolean => {
-    return Boolean(session && ["PREPARING", "RECORDING", "DEGRADED", "STOPPING"].includes(session.status));
-  }, []);
-
-  const isPreviewReady = useCallback((session?: RecordingSession): boolean => {
-    return Boolean(session && ["PREVIEW_READY", "EXPORTED"].includes(session.status));
   }, []);
 
   const formatBytes = useCallback((bytes: number): string => {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KiB`;
     return `${(bytes / 1024 / 1024).toFixed(bytes >= 100 * 1024 * 1024 ? 0 : 1)} MiB`;
-  }, []);
-
-  const formatDuration = useCallback((ms: number): string => {
-    const seconds = Math.max(0, Math.floor(ms / 1000));
-    return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
   }, []);
 
   const activeEvidence = useCallback((session?: RecordingSession): EvidenceSummary[] => {
@@ -92,24 +80,6 @@ export function PopupApp() {
     return map[state] ?? state;
   }, []);
 
-  const updateSessionState = (session?: RecordingSession) => {
-    setActiveSession(session);
-    if (timerRef.current) {
-      window.clearInterval(timerRef.current);
-      timerRef.current = undefined;
-    }
-    const active = isActive(session);
-    if (active && session?.timeline.startedAtEpochMs) {
-      const updateTimer = () => {
-        setTimerText(formatDuration(Date.now() - session.timeline.startedAtEpochMs!));
-      };
-      updateTimer();
-      timerRef.current = window.setInterval(updateTimer, 1000);
-    } else {
-      setTimerText("");
-    }
-  };
-
   const refreshRecord = async () => {
     try {
       const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -120,8 +90,8 @@ export function PopupApp() {
         if (webTab) targetTab = webTab;
       }
       setActiveTab(targetTab);
-      const response = await chrome.runtime.sendMessage(message("session/status", {}));
-      updateSessionState(response?.session);
+      const result = await send("session/status", {});
+      if (result.ok) updateSessionState(result.data?.session);
     } catch (err) {
       setErrorText(String(err));
     }
@@ -129,13 +99,13 @@ export function PopupApp() {
 
   const refreshHistory = async () => {
     try {
-      const [sessionsResponse, storageResponse] = await Promise.all([
-        chrome.runtime.sendMessage(message("session/list", { query: searchQuery })),
-        chrome.runtime.sendMessage(message("storage/get", {}))
+      const [sessionsResult, storageResult] = await Promise.all([
+        send("session/list", { query: searchQuery }),
+        send("storage/get", {})
       ]);
-      setSessions((sessionsResponse?.sessions ?? []) as SessionOverview[]);
-      if (storageResponse?.storage) {
-        setStorage(storageResponse.storage as StorageOverview);
+      if (sessionsResult.ok) setSessions((sessionsResult.data?.sessions ?? []) as SessionOverview[]);
+      if (storageResult.ok && storageResult.data?.storage) {
+        setStorage(storageResult.data.storage as StorageOverview);
       }
     } catch (err) {
       setErrorText(String(err));
@@ -184,9 +154,9 @@ export function PopupApp() {
             return;
           }
         }
-        const response = await chrome.runtime.sendMessage(message("session/start", { tabId: activeTab.id, options, commandId: crypto.randomUUID() }));
-        if (!response?.ok) throw new Error(response?.error || t("startFailed"));
-        updateSessionState(response.session);
+        const result = await send("session/start", { tabId: activeTab.id!, options, commandId: crypto.randomUUID() });
+        if (!result.ok) throw new Error(result.error || t("startFailed"));
+        updateSessionState(result.data?.session);
       } catch (error) {
         setErrorText(String(error));
         await refreshRecord();
@@ -206,9 +176,9 @@ export function PopupApp() {
   const handleStop = useCallback(async () => {
     setErrorText("");
     try {
-      const response = await chrome.runtime.sendMessage(message("session/stop", { commandId: crypto.randomUUID() }));
-      if (!response?.ok) throw new Error(response?.error || t("stopFailed"));
-      updateSessionState(response.session);
+      const result = await send("session/stop", { commandId: crypto.randomUUID() });
+      if (!result.ok) throw new Error(result.error || t("stopFailed"));
+      updateSessionState(result.data?.session);
     } catch (error) {
       setErrorText(String(error));
     }
@@ -217,22 +187,22 @@ export function PopupApp() {
   const handleOpenPreview = useCallback((sessionId?: string) => {
     const id = sessionId || activeSession?.id;
     if (id) {
-      void chrome.runtime.sendMessage(message("session/open-preview", { sessionId: id }));
+      void send("session/open-preview", { sessionId: id });
     }
   }, [activeSession]);
 
   const handleDeleteSession = useCallback(async (sessionId: string) => {
-    const response = await chrome.runtime.sendMessage(message("session/delete", { sessionId }));
-    if (!response?.ok) setErrorText(response?.error || t("deleteFailed"));
+    const result = await send("session/delete", { sessionId });
+    if (!result.ok) setErrorText(result.error || t("deleteFailed"));
     else await refreshHistory();
   }, [searchQuery]);
 
   const handleResumeSession = useCallback(async (sessionId: string) => {
-    const response = await chrome.runtime.sendMessage(message("session/resume", { sessionId, commandId: crypto.randomUUID() }));
-    if (!response?.ok) setErrorText(response?.error || t("resumeFailed"));
+    const result = await send("session/resume", { sessionId, commandId: crypto.randomUUID() });
+    if (!result.ok) setErrorText(result.error || t("resumeFailed"));
     else {
       setCurrentView("record");
-      updateSessionState(response.session);
+      updateSessionState(result.data?.session);
     }
   }, []);
 
@@ -240,16 +210,12 @@ export function PopupApp() {
     setConfirmModal({
       message: t("clearHistoryPrompt"),
       onConfirm: async () => {
-        const response = await chrome.runtime.sendMessage(message("storage/clear-all", {}));
-        if (!response?.ok) setErrorText(response?.error || t("clearHistoryFailed"));
+        const result = await send("storage/clear-all", {});
+        if (!result.ok) setErrorText(result.error || t("clearHistoryFailed"));
         else await refreshHistory();
       }
     });
   }, [searchQuery]);
-
-  const active = isActive(activeSession);
-  const ready = isPreviewReady(activeSession);
-  const controlsLocked = active || ready;
 
   const getStatusText = useCallback(() => {
     if (active) {
@@ -257,9 +223,9 @@ export function PopupApp() {
       if (activeSession?.status === "DEGRADED") return t("recordingDegraded");
       return t("recording");
     }
-    if (ready) return t("recordingCompleted");
+    if (previewReady) return t("recordingCompleted");
     return t("notRecording");
-  }, [active, ready, activeSession?.status]);
+  }, [active, previewReady, activeSession?.status]);
 
   return (
     <main className="shell">
@@ -310,7 +276,7 @@ export function PopupApp() {
           activeSession={activeSession}
           activeTab={activeTab}
           active={active}
-          ready={ready}
+          ready={previewReady}
           timerText={timerText}
           getStatusText={getStatusText}
           activeEvidence={activeEvidence}

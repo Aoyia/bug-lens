@@ -1,6 +1,7 @@
 import { memo } from "preact/compat";
-import { useState } from "preact/hooks";
+import { useState, useMemo } from "preact/hooks";
 import type { InteractionRecord, ElementDescriptor } from "../../shared/protocol";
+import { groupInteractions, type GroupedInteractionCard } from "../../domain/interaction-grouping";
 
 function formatPlaywrightLocator(locator: { kind: string; expression: string }, element: ElementDescriptor): string {
   const expression = locator.expression;
@@ -44,6 +45,19 @@ export const InteractionsTab = memo(function InteractionsTab({
   onSeekVideo
 }: InteractionsTabProps) {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const [expandedCardIds, setExpandedCardIds] = useState<Record<string, boolean>>({});
+
+  const groupedCards = useMemo(() => {
+    return groupInteractions(snapshot.included);
+  }, [snapshot.included]);
+
+  const toggleExpand = (cardId: string, e: MouseEvent) => {
+    e.stopPropagation();
+    setExpandedCardIds((prev) => ({
+      ...prev,
+      [cardId]: !prev[cardId]
+    }));
+  };
 
   if (snapshot.included.length === 0) {
     return (
@@ -57,11 +71,16 @@ export const InteractionsTab = memo(function InteractionsTab({
 
   return (
     <>
-      {snapshot.included.map((item, index) => {
-        const originalIndex = snapshot.all.indexOf(item);
-        const isActive = activeIndex === originalIndex;
-        const element = item.element;
-        const coordinates = item.coordinates;
+      {groupedCards.map((card, cardIndex) => {
+        const primary = card.primaryRecord;
+        const primaryOriginalIndex = snapshot.all.indexOf(primary);
+        const isActive = activeIndex === primaryOriginalIndex;
+        const isExpanded = !!expandedCardIds[card.id];
+        const element = primary.element;
+        const coordinates = primary.coordinates;
+
+        const screenshotRecord = card.aggregatedMeta.primaryScreenshotRecord || primary;
+        const screenshotDataUrl = screenshotRecord.screenshot.dataUrl;
 
         const size = element.boundingBox
           ? `${Math.round(element.boundingBox.width)}×${Math.round(element.boundingBox.height)} px`
@@ -72,50 +91,68 @@ export const InteractionsTab = memo(function InteractionsTab({
           : "-";
 
         const viewport = coordinates?.viewport
-          ? `${coordinates.viewport.width}×${coordinates.viewport.height} (${item.input?.pointerType ?? "mouse"})`
+          ? `${coordinates.viewport.width}×${coordinates.viewport.height} (${primary.input?.pointerType ?? "mouse"})`
           : "-";
 
         const classNames = element.classNames?.length ? element.classNames.join(" ") : "-";
-
         const role = element.role
           ? `${element.role}${element.accessibleName || element.text ? ` ("${element.accessibleName || element.text}")` : ""}`
           : "-";
-
-        const frame = item.page.frameId === 0 ? "顶层页面" : `Frame #${item.page.frameId}`;
-
+        const frame = primary.page.frameId === 0 ? "顶层页面" : `Frame #${primary.page.frameId}`;
         const locators = element.locators || [];
+
+        // 计算文本/输入展示内容
+        const inputLength = card.aggregatedMeta.finalValueLength ?? (card.aggregatedMeta.finalValue ? card.aggregatedMeta.finalValue.length : undefined);
+        const textDisplay = card.aggregatedMeta.finalValue
+          ? `值: "${card.aggregatedMeta.finalValue}"`
+          : inputLength !== undefined
+            ? `已写入 ${inputLength} 字符 (脱敏)`
+            : (element.text || "-");
 
         return (
           <article
-            key={item.id}
-            className={`item ${isActive ? "active" : ""}`}
-            data-index={originalIndex}
-            data-step={index + 1}
+            key={card.id}
+            className={`item grouped-card ${isActive ? "active" : ""} ${card.kind}`}
+            data-index={primaryOriginalIndex}
+            data-step={cardIndex + 1}
             onClick={(e) => {
-              if ((e.target as HTMLElement).closest(".delete")) return;
-              setActiveIndex(originalIndex);
+              if ((e.target as HTMLElement).closest(".delete, .accordion-btn, .copy-locator-btn")) return;
+              setActiveIndex(primaryOriginalIndex);
               if ((e.target as HTMLElement).classList.contains("shot")) {
-                onOpenImage(item.id);
+                onOpenImage(screenshotRecord.id);
               } else if (snapshot.hasMedia) {
-                onSeekVideo?.(item.createdAt);
+                onSeekVideo?.(card.aggregatedMeta.startTime);
               }
             }}
           >
             <div className="top">
-              <strong data-tooltip={element.text || element.tagName}>
-                {element.text || element.tagName}
+              <strong data-tooltip={card.aggregatedMeta.title}>
+                {card.aggregatedMeta.title}
               </strong>
               <div className="item-actions">
-                <span className={`badge ${item.screenshot.status === "unavailable" ? "partial" : ""}`}>
-                  {item.screenshot.source ?? item.screenshot.status}
+                {inputLength !== undefined && (
+                  <span className="badge badge-input-len" title={`包含写入文本内容 ${inputLength} 字符`}>
+                    ✍️ 写入 {inputLength} 字符
+                  </span>
+                )}
+                {card.aggregatedMeta.hasEnterSubmit && (
+                  <span className="badge badge-enter" title="包含回车提交">Enter</span>
+                )}
+                {card.children.length > 1 && (
+                  <span className="badge badge-count" title={`由 ${card.children.length} 个物理事件聚合`}>
+                    {card.children.length} 步骤
+                  </span>
+                )}
+                <span className={`badge ${primary.screenshot.status === "unavailable" ? "partial" : ""}`}>
+                  {primary.screenshot.source ?? primary.screenshot.status}
                 </span>
                 {editable && (
                   <button
                     className="item-delete-btn delete"
-                    title="从预览和导出中删除此步骤"
+                    title="从预览和导出中删除此聚合步骤"
                     onClick={(e) => {
                       e.stopPropagation();
-                      onExclude?.(item.id);
+                      card.children.forEach((child) => onExclude?.(child.id));
                     }}
                   >
                     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.0" strokeLinecap="round" strokeLinejoin="round">
@@ -128,15 +165,69 @@ export const InteractionsTab = memo(function InteractionsTab({
                 )}
               </div>
             </div>
-            <div className="text">{item.page.url} · {new Date(item.createdAt).toLocaleTimeString()}</div>
+            <div className="text">
+              {primary.page.url} · {new Date(card.aggregatedMeta.startTime).toLocaleTimeString()}
+              {card.children.length > 1 && ` ~ ${new Date(card.aggregatedMeta.endTime).toLocaleTimeString()}`}
+            </div>
+
+            <div className="aggregated-summary-bar">
+              <span className="summary-desc">{card.aggregatedMeta.description}</span>
+              {card.children.length > 1 && (
+                <button
+                  className={`accordion-btn ${isExpanded ? "expanded" : ""}`}
+                  type="button"
+                  onClick={(e) => toggleExpand(card.id, e)}
+                >
+                  {isExpanded ? "收起明细 ▲" : "展开微步骤 明细 ▼"}
+                </button>
+              )}
+            </div>
+
+            {/* 当多步骤且展开时，渲染子时间线 */}
+            {card.children.length > 1 && isExpanded && (
+              <div className="sub-steps-container">
+                <div className="sub-steps-header">微观物理事件列表</div>
+                <div className="sub-steps-timeline">
+                  {card.children.map((child, subIdx) => (
+                    <div className="sub-step-item" key={child.id}>
+                      <span className="sub-step-idx">{subIdx + 1}.</span>
+                      <span className={`sub-step-kind kind-${child.kind}`}>{child.kind}</span>
+                      <span className="sub-step-time">{new Date(child.createdAt).toLocaleTimeString()}</span>
+                      
+                      {child.kind === "input" && (
+                        <span className="sub-step-detail highlight-input-detail">
+                          {child.metadata?.value !== undefined 
+                            ? `✍️ 写入内容: "${child.metadata.value}"` 
+                            : child.metadata?.valueLength !== undefined 
+                              ? `✍️ 写入 ${child.metadata.valueLength} 字符 (脱敏)` 
+                              : "✍️ 写入文本"}
+                          {child.metadata?.inputEventCount && child.metadata.inputEventCount > 1 
+                            ? ` (${child.metadata.inputEventCount} 次打字)` 
+                            : ""}
+                        </span>
+                      )}
+
+                      {child.kind !== "input" && child.metadata?.value !== undefined && (
+                        <span className="sub-step-detail">值: "{child.metadata.value}"</span>
+                      )}
+
+                      {child.metadata?.key && (
+                        <span className="sub-step-detail">按键: {child.metadata.key}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="step-body-grid">
-              {item.screenshot.dataUrl && (
+              {screenshotDataUrl && (
                 <div className="step-media">
                   <img
                     className="shot step-shot"
-                    src={item.screenshot.dataUrl}
-                    alt="点击截图"
-                    data-img-id={item.id}
+                    src={screenshotDataUrl}
+                    alt="点击/操作截图"
+                    data-img-id={screenshotRecord.id}
                     title="点击放大查看大图"
                   />
                 </div>
@@ -148,13 +239,13 @@ export const InteractionsTab = memo(function InteractionsTab({
                     <tbody>
                       <tr><td className="td-label">标签</td><td className="td-value">{element.tagName.toLowerCase()}</td></tr>
                       <tr><td className="td-label">类名</td><td className="td-value" data-tooltip={classNames}>{classNames}</td></tr>
-                      <tr><td className="td-label">文本</td><td className="td-value" data-tooltip={element.text || ""}>{element.text || "-"}</td></tr>
+                      <tr><td className="td-label">文本/输入</td><td className={`td-value ${inputLength !== undefined ? "highlight-value-text" : ""}`} data-tooltip={textDisplay}>{textDisplay}</td></tr>
                       <tr><td className="td-label">Role</td><td className="td-value">{role}</td></tr>
                     </tbody>
                   </table>
                 </div>
                 <div className="step-section">
-                  <div className="step-section-title">点击上下文</div>
+                  <div className="step-section-title">上下文</div>
                   <table className="target-element-table">
                     <tbody>
                       <tr><td className="td-label">尺寸</td><td className="td-value">{size}</td></tr>

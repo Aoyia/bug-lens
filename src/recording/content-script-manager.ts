@@ -1,4 +1,4 @@
-import { message } from "../shared/protocol";
+import { message } from "../shared/protocol.ts";
 
 const SCRIPT_ID = "web-bug-recorder-content";
 
@@ -11,9 +11,12 @@ export class ContentScriptManager {
   }
 
   async restore(tabId: number): Promise<void> {
-    const registrations = await chrome.scripting.getRegisteredContentScripts({ ids: [SCRIPT_ID] }).catch(() => []);
-    this.registered = registrations.length > 0;
-    if (!this.registered) await this.activate(tabId);
+    // A navigation destroys the document and every content-script instance in
+    // it, even when the dynamic registration itself is still present. Always
+    // execute the script for the current document as a deterministic fallback
+    // (the script is idempotent and performs a content/hello handshake).
+    await this.ensureRegistered();
+    await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, files: ["content.js"] }).catch(() => undefined);
   }
 
   async remove(tabId?: number): Promise<void> {

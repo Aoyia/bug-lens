@@ -35,8 +35,8 @@ export const RecordPanel = memo(function RecordPanel({
     <div className="context-flow" data-testid="record-panel">
       <div className="context-head">
         <div id="title" className="target-title">{activeTab?.title || t("failedToReadTab")}</div>
-        <div className="status-badge">
-          <span id="dot" className={`dot ${active ? "rec" : ""}`}></span>
+        <div className="status-badge" role="status" aria-live="polite" aria-atomic="true">
+          <span id="dot" className={`dot ${active ? "rec" : ""}`} aria-hidden="true"></span>
           <span id="status">{getStatusText()}</span>
           {timerText && <span id="timer" style={{ marginLeft: "4px" }}>{timerText}</span>}
         </div>
@@ -52,16 +52,16 @@ export const RecordPanel = memo(function RecordPanel({
 
       <div className="actions" style={{ marginTop: "10px" }}>
         {!active && !ready && (
-          <button id="start" data-testid="start-recording-btn" className="action-btn start" onClick={onStart}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+          <button id="start" data-testid="start-recording-btn" className="action-btn start" onClick={onStart} aria-label={t("startRecording")}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <circle cx="12" cy="12" r="8"></circle>
             </svg>
             <span>{t("startRecording")}</span>
           </button>
         )}
         {active && (
-          <button id="stop" data-testid="stop-recording-btn" className="action-btn stop" disabled={activeSession?.status === "STOPPING"} onClick={onStop}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+          <button id="stop" data-testid="stop-recording-btn" className="action-btn stop" disabled={activeSession?.status === "STOPPING"} onClick={onStop} aria-label={t("stopRecording")}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <rect x="6" y="6" width="12" height="12" rx="2"></rect>
             </svg>
             <span>{t("stopRecording")}</span>

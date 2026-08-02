@@ -9,7 +9,7 @@ import { InteractionCapture } from "../../recording/interaction-capture";
 import { IssueSceneCapture } from "../../recording/issue-scene-capture";
 import { RecordingCoordinator } from "../../recording/recording-coordinator";
 
-const EXTENSION_VERSION = "0.1.0";
+const EXTENSION_VERSION = "0.4.0";
 const STOPPING_IDS_KEY = "bug-lens-stopping-ids";
 const recordingCoordinator = new RecordingCoordinator({
   save(ids) {
@@ -439,6 +439,43 @@ chrome.debugger.onDetach.addListener((source, reason) => {
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   void (async () => { await bootstrapPromise; const session = await db.getActiveSession(); if (session?.target.tabId === tabId) await stopSession(`system:tab-removed:${session.id}`); })();
+});
+
+/**
+ * A page navigation replaces the document (and therefore its content-script
+ * instance), but it must not end a tab capture session. Re-inject the current
+ * document's content script after the navigation settles so the recording
+ * widget and interaction collectors can handshake with the existing session.
+ */
+async function restoreSessionAfterNavigation(tabId: number): Promise<void> {
+  const session = await db.getActiveSession();
+  if (!session || !["PREPARING", "RECORDING", "DEGRADED"].includes(session.status) || session.target.tabId !== tabId) return;
+
+  await contentScripts.restore(tabId);
+
+  // Chrome may detach the debugger while replacing the page target. Reattach
+  // only when it is no longer attached; an already-attached target is left
+  // alone to avoid the "Already attached" error.
+  if (session.options.captureConsole || session.options.captureNetwork) {
+    const targets = await chrome.debugger.getTargets().catch(() => []);
+    if (targets.some((target) => target.tabId === tabId && target.attached)) {
+      cdpCollector.markAttached(tabId);
+    } else {
+      const debuggerIssue = await cdpCollector.attach(tabId, session);
+      if (debuggerIssue) await applySessionEvent(session.id, { type: "capture-issue", issue: debuggerIssue });
+    }
+  }
+
+  await chrome.action.setBadgeText({ tabId, text: "REC" }).catch(() => undefined);
+  await chrome.action.setBadgeBackgroundColor({ tabId, color: "#d92d20" }).catch(() => undefined);
+  await chrome.action.setIcon({ tabId, path: "icons/icon_recording.png" }).catch(() => undefined);
+}
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  // `complete` gives the new document a stable body for the widget. The
+  // dynamic registration still runs at document_start for early collection.
+  if (changeInfo.status !== "complete") return;
+  void bootstrapPromise.then(() => recordingCoordinator.runLifecycle(() => restoreSessionAfterNavigation(tabId))).catch(() => undefined);
 });
 
 chrome.runtime.onStartup.addListener(() => { void bootstrapPromise; });
