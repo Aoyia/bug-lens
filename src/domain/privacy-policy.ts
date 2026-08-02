@@ -97,6 +97,7 @@ export function sanitizeHeaders(
 export function sanitizeResponseBody(input: {
   body: string;
   mimeType?: string;
+  resourceType?: string;
   base64Encoded: boolean;
   mode: PrivacyMode;
   maxBytes?: number;
@@ -104,7 +105,12 @@ export function sanitizeResponseBody(input: {
   const byteLength = input.base64Encoded
     ? Math.max(0, Math.floor(input.body.length * 3 / 4) - (input.body.endsWith("==") ? 2 : input.body.endsWith("=") ? 1 : 0))
     : new TextEncoder().encode(input.body).byteLength;
-  const maxBytes = Math.max(16 * 1024, input.maxBytes ?? Number.MAX_SAFE_INTEGER);
+  const resType = (input.resourceType || "").toLowerCase();
+  const mime = (input.mimeType || "").toLowerCase();
+  const isStaticResource = ["script", "stylesheet", "image", "media", "font", "other", "manifest"].includes(resType) ||
+    mime.includes("javascript") || mime.includes("css") || mime.startsWith("image/") || mime.startsWith("font/") || mime.startsWith("audio/") || mime.startsWith("video/");
+  const defaultCap = isStaticResource ? 4 * 1024 : Number.MAX_SAFE_INTEGER;
+  const maxBytes = Math.max(1 * 1024, Math.min(input.maxBytes ?? Number.MAX_SAFE_INTEGER, defaultCap));
   const truncate = (value: string): { value: string; truncated: boolean; byteLength: number } => {
     const bytes = new TextEncoder().encode(value);
     if (bytes.byteLength <= maxBytes) return { value, truncated: false, byteLength: bytes.byteLength };
@@ -144,10 +150,10 @@ export function sanitizeResponseBody(input: {
       };
       body = JSON.stringify(redactValue(JSON.parse(input.body)));
     } catch {
-      body = sanitizeText(input.body, "safe", 262_144);
+      body = sanitizeText(input.body, "safe", maxBytes);
     }
   } else {
-    body = sanitizeText(input.body, "safe", 262_144);
+    body = sanitizeText(input.body, "safe", maxBytes);
   }
   const captured = truncate(body);
   return { bodyStatus: "captured", body: captured.value, base64Encoded: false, byteLength, originalByteLength: byteLength, capturedByteLength: captured.byteLength, truncated: captured.truncated };
@@ -202,8 +208,11 @@ export function sanitizeInteractionRecord(record: InteractionRecord, mode: Priva
       value: undefined,
       valueRedacted: record.metadata.value != null || record.metadata.valueRedacted || undefined,
       valueLength: record.metadata.valueLength ?? (record.metadata.value != null ? record.metadata.value.length : undefined),
-      key: record.metadata.key?.length === 1 ? "[REDACTED:key]" : record.metadata.key ? sanitizeText(record.metadata.key, mode, 64, false) : undefined,
+      key: (record.metadata.isShortcut || record.metadata.metaKey || record.metadata.ctrlKey || record.metadata.altKey)
+        ? (record.metadata.key ? sanitizeText(record.metadata.key, mode, 64, false) : undefined)
+        : (record.metadata.key?.length === 1 ? "[REDACTED:key]" : record.metadata.key ? sanitizeText(record.metadata.key, mode, 64, false) : undefined),
       code: record.metadata.code ? sanitizeText(record.metadata.code, mode, 64, false) : undefined,
+      shortcut: record.metadata.shortcut ? sanitizeText(record.metadata.shortcut, mode, 64, false) : undefined,
       formMethod: record.metadata.formMethod ? sanitizeText(record.metadata.formMethod, mode, 16, false) : undefined,
       formAction: record.metadata.formAction ? sanitizeUrl(record.metadata.formAction, mode) : undefined,
       navigationType: record.metadata.navigationType ? sanitizeText(record.metadata.navigationType, mode, 64, false) : undefined,

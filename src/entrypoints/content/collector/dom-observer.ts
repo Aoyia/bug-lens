@@ -106,7 +106,54 @@ export class DomObserver {
   }
 
   private actionableKey(event: KeyboardEvent): boolean {
-    return event.ctrlKey || event.metaKey || event.altKey || ["Enter", "Escape", "Tab", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "PageUp", "PageDown", "Home", "End", "Delete", "Insert", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"].includes(event.key);
+    if (["Meta", "Control", "Alt", "Shift"].includes(event.key)) {
+      return false;
+    }
+    const isShortcut = event.ctrlKey || event.metaKey || event.altKey;
+    const isActionKey = ["Enter", "Escape", "Tab"].includes(event.key);
+    return isShortcut || isActionKey;
+  }
+
+  private onKeydownAction(event: KeyboardEvent): void {
+    const session = this.deps.getSession();
+    if (!session || this.deps.isIssueActive() || !event.isTrusted || !this.actionableKey(event)) return;
+
+    const isShortcut = event.metaKey || event.ctrlKey || event.altKey;
+    const shortcutStr = isShortcut ? this.formatShortcut(event) : undefined;
+
+    const element = this.firstElement(event.composedPath()) ?? (event.target instanceof Element ? event.target : document.documentElement);
+    if (isWidgetElement(element)) return;
+    if (this.inputSessions.has(element)) this.flushInputSession(element);
+
+    const record = this.createRecord(event, element, "confirmed", "keydown", {
+      key: event.key, code: event.code,
+      altKey: event.altKey, ctrlKey: event.ctrlKey,
+      metaKey: event.metaKey, shiftKey: event.shiftKey,
+      repeat: event.repeat,
+      isShortcut: isShortcut || undefined,
+      shortcut: shortcutStr
+    });
+
+    if (event.repeat) {
+      const s = this.keyRepeatSession;
+      if (s && s.key === event.key && s.element === element) {
+        window.clearTimeout(s.idleTimer);
+        s.latestRecord = record;
+        s.repeatCount += 1;
+        s.idleTimer = window.setTimeout(() => this.flushKeyRepeatSession(), 500);
+        return;
+      }
+      this.flushKeyRepeatSession();
+      this.keyRepeatSession = {
+        firstRecord: record, latestRecord: record,
+        key: event.key, element, repeatCount: 1,
+        idleTimer: window.setTimeout(() => this.flushKeyRepeatSession(), 500)
+      };
+      return;
+    }
+
+    this.flushKeyRepeatSession();
+    this.sendConfirmed(record);
   }
 
   private createRecord(
@@ -290,40 +337,16 @@ export class DomObserver {
     this.sendConfirmed(merged);
   }
 
-  private onKeydownAction(event: KeyboardEvent): void {
-    const session = this.deps.getSession();
-    if (!session || this.deps.isIssueActive() || !event.isTrusted || !this.actionableKey(event)) return;
-    const element = this.firstElement(event.composedPath()) ?? (event.target instanceof Element ? event.target : document.documentElement);
-    if (isWidgetElement(element)) return;
-    if (this.inputSessions.has(element)) this.flushInputSession(element);
-
-    const record = this.createRecord(event, element, "confirmed", "keydown", {
-      key: event.key, code: event.code,
-      altKey: event.altKey, ctrlKey: event.ctrlKey,
-      metaKey: event.metaKey, shiftKey: event.shiftKey,
-      repeat: event.repeat
-    });
-
-    if (event.repeat) {
-      const s = this.keyRepeatSession;
-      if (s && s.key === event.key && s.element === element) {
-        window.clearTimeout(s.idleTimer);
-        s.latestRecord = record;
-        s.repeatCount += 1;
-        s.idleTimer = window.setTimeout(() => this.flushKeyRepeatSession(), 500);
-        return;
-      }
-      this.flushKeyRepeatSession();
-      this.keyRepeatSession = {
-        firstRecord: record, latestRecord: record,
-        key: event.key, element, repeatCount: 1,
-        idleTimer: window.setTimeout(() => this.flushKeyRepeatSession(), 500)
-      };
-      return;
+  private formatShortcut(event: KeyboardEvent): string | undefined {
+    const parts: string[] = [];
+    if (event.metaKey) parts.push("Cmd");
+    if (event.ctrlKey) parts.push("Ctrl");
+    if (event.altKey) parts.push("Alt");
+    if (event.shiftKey) parts.push("Shift");
+    if (!["Meta", "Control", "Alt", "Shift"].includes(event.key)) {
+      parts.push(event.key.length === 1 ? event.key.toUpperCase() : event.key);
     }
-
-    this.flushKeyRepeatSession();
-    this.sendConfirmed(record);
+    return parts.length > 1 ? parts.join("+") : undefined;
   }
 
   private onKeyup(event: KeyboardEvent): void {

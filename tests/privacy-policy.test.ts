@@ -83,6 +83,19 @@ test("response bodies are truncated with original and retained byte counts", () 
   assert.match(result.body ?? "", /\[TRUNCATED\]$/);
 });
 
+test("static resource bodies are strictly capped at 4KB", () => {
+  const result = sanitizeResponseBody({
+    body: "console.log('test');\n" + "a".repeat(10 * 1024),
+    mimeType: "application/javascript",
+    resourceType: "Script",
+    base64Encoded: false,
+    mode: "safe",
+    maxBytes: 256 * 1024
+  });
+  assert.equal(result.truncated, true);
+  assert.equal(result.capturedByteLength, 4 * 1024);
+});
+
 test("safe free text redacts quoted JSON credentials", () => {
   const result = sanitizeText('{"password":"hunter2","access_token":"abc123","ok":true}', "safe");
   assert.doesNotMatch(result, /hunter2|abc123/);
@@ -130,6 +143,15 @@ test("sanitizeInteractionRecord redacts credentials in element attributes and me
     assert.equal(res.metadata?.valueRedacted, true);
     assert.equal(res.metadata?.key, "[REDACTED:key]");
     assert.equal(res.element.attributes.href, "https://example.test/auth?code=[REDACTED]");
+
+    // 快捷键应当保留 key 字符
+    const shortcutRecord = {
+      ...record,
+      metadata: { ...record.metadata, key: "r", metaKey: true, isShortcut: true, shortcut: "Cmd+R" }
+    };
+    const resShortcut = sanitizeInteractionRecord(shortcutRecord, "safe");
+    assert.equal(resShortcut.metadata?.key, "r");
+    assert.equal(resShortcut.metadata?.shortcut, "Cmd+R");
   });
   return sanitized;
 });

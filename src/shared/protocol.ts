@@ -27,6 +27,7 @@ export type RecordingOptions = {
   captureConsole: boolean;
   captureNetwork: boolean;
   captureNetworkBodies: boolean;
+  captureStaticBodies?: boolean;
   privacyMode: "safe" | "raw";
   mediaTimesliceMs: number;
   maxResponseBodyBytes: number;
@@ -163,6 +164,9 @@ export type InteractionRecord = {
     shiftKey?: boolean;
     repeat?: boolean;
     repeatCount?: number;
+    isModifierOnly?: boolean;
+    isShortcut?: boolean;
+    shortcut?: string;
     formMethod?: string;
     formAction?: string;
     navigationType?: string;
@@ -192,6 +196,29 @@ export type ConsoleEntry = {
   networkRequestId?: string;
   workerId?: string;
 };
+export type ConciseCallFrame = {
+  functionName?: string;
+  url?: string;
+  lineNumber?: number;
+  columnNumber?: number;
+  asyncBoundary?: string;
+};
+
+export type InitiatorEvidence = {
+  type: "script" | "parser" | "preflight" | "other";
+  topFrame?: ConciseCallFrame;
+  asyncAnchorFrame?: ConciseCallFrame;
+  stack?: ConciseCallFrame[];
+};
+
+export type CacheSource = "network" | "memory" | "disk" | "service-worker" | "prefetch";
+
+export type CacheEvidence = {
+  source: CacheSource;
+  revalidated: boolean;
+  protocol?: string;
+};
+
 export type NetworkInitiator = {
   type: string;
   url?: string;
@@ -199,6 +226,7 @@ export type NetworkInitiator = {
   columnNumber?: number;
   requestId?: string;
   stackTrace?: DiagnosticStackFrame[];
+  concise?: InitiatorEvidence;
 };
 export type NetworkRedirect = {
   url: string;
@@ -266,6 +294,7 @@ export type NetworkEntry = {
     encodedDataLength?: number;
     bodyStatus: "pending" | "captured" | "redacted" | "not-present" | "unavailable";
     body?: string;
+    bodyPath?: string;
     base64Encoded?: boolean;
     byteLength?: number;
     redactionReason?: "binary-body";
@@ -273,6 +302,7 @@ export type NetworkEntry = {
     originalByteLength?: number;
     capturedByteLength?: number;
     error?: string;
+    cache?: CacheEvidence;
   };
 };
 

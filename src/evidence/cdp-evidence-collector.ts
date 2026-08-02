@@ -1,4 +1,5 @@
 import { networkDurationMs, networkRequestTime } from "../domain/evidence-clock.ts";
+import { deriveCacheEvidence, sliceInitiator, type CdpInitiator } from "../domain/initiator-slicer.ts";
 import { sanitizeConsoleEntry, sanitizeHeaders, sanitizeResponseBody, sanitizeText, sanitizeUrl } from "../domain/privacy-policy.ts";
 import type { RecordingSessionEvent } from "../domain/recording-session.ts";
 import type { EvidenceRepository } from "../storage/db.ts";
@@ -34,6 +35,7 @@ export class CdpEvidenceCollector {
   private readonly pendingBodyCaptures = new Set<Promise<void>>();
   private readonly eventQueues = new Map<string, Promise<void>>();
   private readonly pendingHandlers = new Set<Promise<void>>();
+  private readonly memoryCacheRequests = new Set<string>();
 
   private readonly repository: EvidenceRepository;
   private readonly writeSessionEvent: SessionEventWriter;
@@ -232,12 +234,33 @@ export class CdpEvidenceCollector {
       await this.repository.updateNetworkEntry(id, (entry) => ({ ...entry, response: { ...entry.response, bodyStatus: "not-present" } }));
       return;
     }
+
+    const resType = (current.type || "").toLowerCase();
+    const mime = (current.response?.mimeType || "").toLowerCase();
+    const isStaticResource = ["script", "stylesheet", "image", "media", "font", "other", "manifest"].includes(resType) ||
+      mime.includes("javascript") || mime.includes("css") || mime.startsWith("image/") || mime.startsWith("font/") || mime.startsWith("audio/") || mime.startsWith("video/");
+
+    if (isStaticResource && !session.options.captureStaticBodies) {
+      await this.repository.updateNetworkEntry(id, (entry) => ({
+        ...entry,
+        response: { ...entry.response, bodyStatus: "not-present" }
+      }));
+      return;
+    }
+
     try {
       const command = chrome.debugger.sendCommand(source, "Network.getResponseBody", { requestId }) as Promise<{ body?: string; base64Encoded?: boolean }>;
       const result = await withTimeout(command, 3_000, "RESPONSE_BODY_TIMEOUT: 响应正文读取超过 3 秒");
       const rawBody = result.body ?? "";
       const base64Encoded = Boolean(result.base64Encoded);
-      const sanitized = sanitizeResponseBody({ body: rawBody, base64Encoded, mimeType: current.response?.mimeType, mode: session.options.privacyMode, maxBytes: session.options.maxResponseBodyBytes });
+      const sanitized = sanitizeResponseBody({
+        body: rawBody,
+        base64Encoded,
+        mimeType: current.response?.mimeType,
+        resourceType: current.type,
+        mode: session.options.privacyMode,
+        maxBytes: session.options.maxResponseBodyBytes
+      });
       const stored = await this.repository.updateNetworkEntryWithinBudget(id, (entry) => ({ ...entry, response: { ...entry.response, ...sanitized } }));
       if (!stored.stored) await this.writeSessionEvent(session.id, { type: "capture-issue", issue: captureIssue("SESSION_STORAGE_LIMIT_REACHED", "已达到会话存储上限，未保存更多 Network 正文。", "storage") });
     } catch (error) {
@@ -298,6 +321,12 @@ export class CdpEvidenceCollector {
       return;
     }
 
+    if (session.options.captureNetwork && method === "Network.requestServedFromCache") {
+      const reqId = (params as { requestId?: string })?.requestId;
+      if (reqId) this.memoryCacheRequests.add(`${tabId}:${reqId}`);
+      return;
+    }
+
     if (session.options.captureNetwork && method === "Network.requestWillBeSent") {
       const value = params as {
         request?: {
@@ -306,6 +335,7 @@ export class CdpEvidenceCollector {
           headers?: Record<string, string>;
           postData?: string;
         };
+        initiator?: CdpInitiator;
         type?: string;
         timestamp?: number;
         wallTime?: number;
@@ -315,6 +345,8 @@ export class CdpEvidenceCollector {
       const requestId = value.requestId ?? crypto.randomUUID();
       await this.enqueue(`${tabId}:${requestId}`, async () => {
         const timing = networkRequestTime({ timestamp: value.timestamp, wallTime: value.wallTime });
+        const rawInitiator = value.initiator;
+        const conciseInitiator = sliceInitiator(rawInitiator, session.options.privacyMode);
         const stored = await this.repository.saveNetworkWithinBudget({
           id: `${session.id}:${requestId}`,
           sessionId: session.id,
@@ -323,6 +355,15 @@ export class CdpEvidenceCollector {
           url: sanitizeUrl(value.request!.url!, session.options.privacyMode),
           method: value.request!.method ?? "GET",
           type: value.type,
+          initiator: rawInitiator
+            ? {
+                type: rawInitiator.type || "other",
+                url: rawInitiator.url,
+                lineNumber: rawInitiator.lineNumber,
+                columnNumber: rawInitiator.columnNumber,
+                concise: conciseInitiator
+              }
+            : undefined,
           requestHeaders: value.request?.headers ? sanitizeHeaders(value.request.headers, session.options.privacyMode) : undefined,
           requestBody: value.request?.postData ? sanitizeRequestBody(value.request.postData, session.options.privacyMode) : undefined
         });
@@ -338,18 +379,42 @@ export class CdpEvidenceCollector {
     if (!requestId) return;
     const id = `${session.id}:${requestId}`;
     if (method === "Network.responseReceived") {
-      const value = params as { response?: { status?: number; mimeType?: string; headers?: Record<string, unknown> } };
+      const value = params as {
+        response?: {
+          status?: number;
+          mimeType?: string;
+          headers?: Record<string, unknown>;
+          protocol?: string;
+          fromDiskCache?: boolean;
+          fromServiceWorker?: boolean;
+          fromPrefetchCache?: boolean;
+        };
+      };
+      const servedFromMemory = this.memoryCacheRequests.has(`${tabId}:${requestId}`);
+      const cacheEvidence = deriveCacheEvidence(
+        {
+          fromDiskCache: value.response?.fromDiskCache,
+          fromServiceWorker: value.response?.fromServiceWorker,
+          fromPrefetchCache: value.response?.fromPrefetchCache,
+          status: value.response?.status,
+          protocol: value.response?.protocol
+        },
+        servedFromMemory
+      );
+
       await this.enqueue(`${tabId}:${requestId}`, () => this.repository.updateNetworkEntry(id, (current) => ({
         ...current,
         status: value.response?.status,
         response: {
           mimeType: value.response?.mimeType,
           headers: sanitizeHeaders(value.response?.headers, session.options.privacyMode),
-          bodyStatus: "pending"
+          bodyStatus: "pending",
+          cache: cacheEvidence
         }
       })).then(() => undefined));
     } else if (method === "Network.loadingFinished") {
       const value = params as { timestamp?: number };
+      this.memoryCacheRequests.delete(`${tabId}:${requestId}`);
       this.trackBodyCapture(this.enqueue(`${tabId}:${requestId}`, async () => {
         await this.repository.updateNetworkEntry(id, (current) => ({
           ...current,
@@ -360,6 +425,7 @@ export class CdpEvidenceCollector {
       }));
     } else if (method === "Network.loadingFailed") {
       const value = params as { errorText?: string; timestamp?: number };
+      this.memoryCacheRequests.delete(`${tabId}:${requestId}`);
       const safeError = sanitizeText(value.errorText ?? "请求失败", session.options.privacyMode);
       await this.enqueue(`${tabId}:${requestId}`, () => this.repository.updateNetworkEntry(id, (current) => ({
         ...current,
@@ -370,3 +436,4 @@ export class CdpEvidenceCollector {
     }
   }
 }
+

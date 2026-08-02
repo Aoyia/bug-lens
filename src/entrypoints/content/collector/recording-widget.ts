@@ -1,5 +1,5 @@
-import { t } from "../../../shared/i18n";
-import { tryShowOnboardingGuide } from "../../../guide/onboarding-tour";
+import { t } from "../../../shared/i18n.ts";
+import { tryShowOnboardingGuide } from "../../../guide/onboarding-tour.ts";
 
 export type WidgetCallbacks = {
   onStop(): void;
@@ -12,10 +12,15 @@ export type WidgetCallbacks = {
 export class RecordingWidget {
   private container: HTMLDivElement | undefined;
   private timerInterval: number | undefined;
+  private autoCollapseTimer: number | undefined;
+  private isDragging = false;
+  private cleanupCollapseListeners?: () => void;
+  private readonly callbacks: WidgetCallbacks;
   private readonly isMac: boolean;
   readonly shortcutKeyText: string;
 
-  constructor(private readonly callbacks: WidgetCallbacks) {
+  constructor(callbacks: WidgetCallbacks) {
+    this.callbacks = callbacks;
     this.isMac = typeof navigator !== "undefined" && Boolean(/(Mac|iPhone|iPod|iPad)/i.test(navigator.platform || navigator.userAgent));
     this.shortcutKeyText = this.isMac ? "Option+S" : "Alt+S";
   }
@@ -35,7 +40,7 @@ export class RecordingWidget {
       left: "auto",
       right: "24px",
       width: "auto",
-      height: "auto",
+      height: "36px",
       minWidth: "0",
       maxWidth: "none",
       minHeight: "0",
@@ -48,36 +53,38 @@ export class RecordingWidget {
       alignItems: "center",
       justifyContent: "flex-start",
       gap: "10px",
-      padding: "8px 14px",
-      background: "rgba(29, 33, 41, 0.75)",
-      backdropFilter: "blur(12px)",
-      webkitBackdropFilter: "blur(12px)",
-      border: "1px solid rgba(255, 255, 255, 0.15)",
+      padding: "6px 14px",
+      background: "rgba(29, 33, 41, 0.78)",
+      backdropFilter: "blur(14px)",
+      webkitBackdropFilter: "blur(14px)",
+      border: "1px solid rgba(255, 255, 255, 0.16)",
       color: "#ffffff",
-      borderRadius: "6px",
-      boxShadow: "0 4px 18px rgba(0, 0, 0, 0.28)",
+      borderRadius: "10px",
+      boxShadow: "0 6px 20px rgba(0, 0, 0, 0.28)",
       fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
       fontSize: "12px",
       lineHeight: "1",
-      userSelect: "none"
+      userSelect: "none",
+      overflow: "hidden",
+      transition: "height 0.32s cubic-bezier(0.25, 1, 0.5, 1), border-radius 0.32s cubic-bezier(0.25, 1, 0.5, 1), padding 0.32s cubic-bezier(0.25, 1, 0.5, 1), background 0.32s ease, box-shadow 0.32s ease"
     });
 
     root.innerHTML = `
       <style>
         #__wbr_recording_widget__ {
           position: fixed !important;
-          top: auto !important;
-          bottom: 24px !important;
-          left: auto !important;
-          right: 24px !important;
+          top: auto;
+          bottom: 24px;
+          left: auto;
+          right: 24px;
           width: auto !important;
-          height: auto !important;
+          height: 36px !important;
           min-width: 0 !important;
           max-width: none !important;
           min-height: 0 !important;
           max-height: none !important;
           margin: 0 !important;
-          padding: 8px 14px !important;
+          padding: 6px 14px !important;
           box-sizing: border-box !important;
           z-index: 2147483647 !important;
           display: flex !important;
@@ -85,19 +92,79 @@ export class RecordingWidget {
           align-items: center !important;
           justify-content: flex-start !important;
           gap: 10px !important;
-          background: rgba(29, 33, 41, 0.75) !important;
-          backdrop-filter: blur(12px) !important;
-          -webkit-backdrop-filter: blur(12px) !important;
-          border: 1px solid rgba(255, 255, 255, 0.15) !important;
+          background: rgba(29, 33, 41, 0.78) !important;
+          backdrop-filter: blur(14px) !important;
+          -webkit-backdrop-filter: blur(14px) !important;
+          border: 1px solid rgba(255, 255, 255, 0.16) !important;
           color: #ffffff !important;
-          border-radius: 6px !important;
-          box-shadow: 0 4px 18px rgba(0, 0, 0, 0.28) !important;
+          border-radius: 10px !important;
+          box-shadow: 0 6px 20px rgba(0, 0, 0, 0.28) !important;
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
           font-size: 12px !important;
           line-height: 1 !important;
           user-select: none !important;
           transform: none !important;
           align-self: auto !important;
+          overflow: hidden !important;
+          transition: height 0.32s cubic-bezier(0.25, 1, 0.5, 1), border-radius 0.32s cubic-bezier(0.25, 1, 0.5, 1), padding 0.32s cubic-bezier(0.25, 1, 0.5, 1), background 0.32s ease, box-shadow 0.32s ease !important;
+        }
+        #__wbr_recording_widget__.__wbr_collapsed__ {
+          height: 30px !important;
+          padding: 4px 12px !important;
+          background: rgba(20, 24, 31, 0.58) !important;
+          backdrop-filter: blur(20px) !important;
+          -webkit-backdrop-filter: blur(20px) !important;
+          border-radius: 15px !important;
+          border: 1px solid rgba(255, 255, 255, 0.12) !important;
+          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2) !important;
+          opacity: 0.88 !important;
+          gap: 8px !important;
+          transition: height 0.32s cubic-bezier(0.25, 1, 0.5, 1), border-radius 0.32s cubic-bezier(0.25, 1, 0.5, 1), padding 0.32s cubic-bezier(0.25, 1, 0.5, 1), background 0.32s ease, opacity 0.32s ease !important;
+        }
+        #__wbr_recording_widget__.__wbr_collapsed__:hover {
+          opacity: 1 !important;
+          border-color: rgba(255, 255, 255, 0.25) !important;
+        }
+        .__wbr_btn_group {
+          display: flex !important;
+          flex-direction: row !important;
+          align-items: center !important;
+          gap: 8px !important;
+          max-width: 420px !important;
+          opacity: 1 !important;
+          overflow: hidden !important;
+          white-space: nowrap !important;
+          flex-shrink: 0 !important;
+          transition: max-width 0.32s cubic-bezier(0.4, 0.0, 0.2, 1), opacity 0.22s ease-out, transform 0.32s cubic-bezier(0.4, 0.0, 0.2, 1) !important;
+          transform: scale(1) !important;
+          transform-origin: left center !important;
+        }
+        #__wbr_recording_widget__.__wbr_collapsed__ .__wbr_btn_group {
+          max-width: 0px !important;
+          opacity: 0 !important;
+          gap: 0px !important;
+          transform: scale(0.9) !important;
+          pointer-events: none !important;
+        }
+        .__wbr_drag_handle {
+          cursor: grab !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          padding: 0 2px 0 0 !important;
+          color: rgba(255, 255, 255, 0.45) !important;
+          font-size: 13px !important;
+          letter-spacing: -2px !important;
+          user-select: none !important;
+          line-height: 1 !important;
+          flex-shrink: 0 !important;
+          touch-action: none !important;
+        }
+        .__wbr_drag_handle:hover {
+          color: rgba(255, 255, 255, 0.9) !important;
+        }
+        .__wbr_drag_handle:active {
+          cursor: grabbing !important;
         }
         @keyframes wbr-pulse {
           0% { box-shadow: 0 0 0 0 rgba(245, 63, 63, 0.6); }
@@ -118,21 +185,33 @@ export class RecordingWidget {
           height: auto !important;
           line-height: 1.2 !important;
           margin: 0 !important;
+          white-space: nowrap !important;
+          flex-shrink: 0 !important;
         }
         .__wbr_btn:hover { background: #f76565 !important; }
         .__wbr_btn:active { background: #cb2727 !important; }
         .__wbr_btn_export:hover { background: #4080ff !important; }
         .__wbr_btn_export:active { background: #0e42d2 !important; }
-        .__wbr_timer { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important; font-size: 12px !important; color: #e5e6eb !important; font-weight: 600 !important; }
+        .__wbr_timer { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important; font-size: 12px !important; color: #e5e6eb !important; font-weight: 600 !important; flex-shrink: 0 !important; }
       </style>
+      <span class="__wbr_drag_handle" title="拖拽移动位置">⋮⋮</span>
       <span class="__wbr_dot"></span>
-      <span data-wbr-rec-tag style="font-weight:600;letter-spacing:0.5px;color:#fff;">REC</span>
-      <span id="__wbr_health_msg__" style="font-size:11px;color:#ffc107;display:none;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title=""></span>
+      <span data-wbr-rec-tag style="font-weight:600;letter-spacing:0.5px;color:#fff;flex-shrink:0;">REC</span>
       <span id="__wbr_timer_display__" class="__wbr_timer">00:00</span>
-      <button id="__wbr_issue_btn__" class="__wbr_btn" style="background:#b42318;" title="${t("shortcut")}: ${this.shortcutKeyText}">${t("markIssue")} (${this.shortcutKeyText})</button>
-      <button id="__wbr_stop_btn__" class="__wbr_btn">${t("stopRecording")}</button>
-      <button id="__wbr_stop_export_btn__" class="__wbr_btn __wbr_btn_export" style="background:#165dff;">${t("stopAndExport")}</button>
+      <div class="__wbr_btn_group">
+        <span id="__wbr_health_msg__" style="font-size:11px;color:#ffc107;display:none;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title=""></span>
+        <button id="__wbr_issue_btn__" class="__wbr_btn" style="background:#b42318;" title="${t("shortcut")}: ${this.shortcutKeyText}">${t("markIssue")} (${this.shortcutKeyText})</button>
+        <button id="__wbr_stop_btn__" class="__wbr_btn">${t("stopRecording")}</button>
+        <button id="__wbr_stop_export_btn__" class="__wbr_btn __wbr_btn_export" style="background:#165dff;">${t("stopAndExport")}</button>
+      </div>
     `;
+
+    // Clear saved drag position on new recording session so it resets to default position
+    try {
+      if (typeof sessionStorage !== "undefined") {
+        sessionStorage.removeItem("__wbr_widget_pos__");
+      }
+    } catch {}
 
     const attach = () => {
       if (document.body) {
@@ -162,6 +241,106 @@ export class RecordingWidget {
           this.callbacks.onMarkIssue();
         }, true);
 
+        // Setup Drag Handle Logic
+        const dragHandle = root.querySelector<HTMLElement>(".__wbr_drag_handle");
+        if (dragHandle) {
+          const onMouseDown = (e: MouseEvent) => {
+            e.stopPropagation();
+            e.preventDefault();
+            this.isDragging = true;
+            if (this.autoCollapseTimer) {
+              window.clearTimeout(this.autoCollapseTimer);
+              this.autoCollapseTimer = undefined;
+            }
+            root.classList.remove("__wbr_collapsed__");
+
+            const rect = root.getBoundingClientRect();
+            const offsetX = e.clientX - rect.left;
+            const offsetY = e.clientY - rect.top;
+
+            const onMouseMove = (moveEvt: MouseEvent) => {
+              moveEvt.preventDefault();
+              const winWidth = window.innerWidth || document.documentElement.clientWidth;
+              const winHeight = window.innerHeight || document.documentElement.clientHeight;
+
+              let left = moveEvt.clientX - offsetX;
+              let top = moveEvt.clientY - offsetY;
+
+              const maxLeft = Math.max(0, winWidth - rect.width);
+              const maxTop = Math.max(0, winHeight - rect.height);
+              left = Math.min(Math.max(0, left), maxLeft);
+              top = Math.min(Math.max(0, top), maxTop);
+
+              // 统一采用右边缘定位 (right)，使收缩时固定右边，左侧向右平移收缩
+              const right = Math.max(0, winWidth - (left + rect.width));
+
+              const topPx = `${top}px`;
+              const rightPx = `${right}px`;
+              root.style.setProperty("top", topPx, "important");
+              root.style.setProperty("right", rightPx, "important");
+              root.style.setProperty("bottom", "auto", "important");
+              root.style.setProperty("left", "auto", "important");
+            };
+
+            const onMouseUp = () => {
+              this.isDragging = false;
+              window.removeEventListener("mousemove", onMouseMove);
+              window.removeEventListener("mouseup", onMouseUp);
+
+              try {
+                if (typeof sessionStorage !== "undefined") {
+                  const savedPos = {
+                    right: root.style.right,
+                    top: root.style.top
+                  };
+                  sessionStorage.setItem("__wbr_widget_pos__", JSON.stringify(savedPos));
+                }
+              } catch {}
+
+              this.resetCollapseTimer();
+            };
+
+            window.addEventListener("mousemove", onMouseMove);
+            window.addEventListener("mouseup", onMouseUp);
+          };
+
+          dragHandle.addEventListener("mousedown", onMouseDown as EventListener);
+        }
+
+        // Setup Auto-Collapse 3s Logic
+        const onUserActivity = () => {
+          this.resetCollapseTimer();
+        };
+
+        root.addEventListener("mouseenter", onUserActivity);
+        root.addEventListener("mousemove", onUserActivity);
+        root.addEventListener("focusin", onUserActivity);
+
+        const onMouseLeave = () => {
+          if (this.autoCollapseTimer) {
+            window.clearTimeout(this.autoCollapseTimer);
+          }
+          if (!this.isDragging) {
+            this.autoCollapseTimer = window.setTimeout(() => {
+              if (this.container && !this.isDragging) {
+                this.container.classList.add("__wbr_collapsed__");
+              }
+            }, 1500);
+          }
+        };
+
+        root.addEventListener("mouseleave", onMouseLeave);
+
+        this.cleanupCollapseListeners = () => {
+          root.removeEventListener("mouseenter", onUserActivity);
+          root.removeEventListener("mousemove", onUserActivity);
+          root.removeEventListener("focusin", onUserActivity);
+          root.removeEventListener("mouseleave", onMouseLeave);
+        };
+
+        // Start initial collapse countdown
+        this.resetCollapseTimer();
+
         const startTime = this.callbacks.getStartedAtEpochMs();
         const updateTimer = () => {
           const display = root.querySelector("#__wbr_timer_display__");
@@ -182,8 +361,27 @@ export class RecordingWidget {
     attach();
   }
 
+  private resetCollapseTimer(): void {
+    if (this.autoCollapseTimer) {
+      window.clearTimeout(this.autoCollapseTimer);
+      this.autoCollapseTimer = undefined;
+    }
+    if (this.container) {
+      this.container.classList.remove("__wbr_collapsed__");
+    }
+    if (!this.isDragging) {
+      this.autoCollapseTimer = window.setTimeout(() => {
+        if (this.container && !this.isDragging) {
+          this.container.classList.add("__wbr_collapsed__");
+        }
+      }, 1500);
+    }
+  }
+
   unmount(): void {
     if (this.timerInterval) { clearInterval(this.timerInterval); this.timerInterval = undefined; }
+    if (this.autoCollapseTimer) { window.clearTimeout(this.autoCollapseTimer); this.autoCollapseTimer = undefined; }
+    if (this.cleanupCollapseListeners) { this.cleanupCollapseListeners(); this.cleanupCollapseListeners = undefined; }
     if (this.container) { this.container.remove(); this.container = undefined; }
   }
 
@@ -235,3 +433,4 @@ export class RecordingWidget {
     }
   }
 }
+

@@ -7,6 +7,7 @@ import { CdpEvidenceCollector } from "../../evidence/cdp-evidence-collector";
 import { ContentScriptManager } from "../../recording/content-script-manager";
 import { InteractionCapture } from "../../recording/interaction-capture";
 import { IssueSceneCapture } from "../../recording/issue-scene-capture";
+import { NavigationCapture } from "../../recording/navigation-capture";
 import { RecordingCoordinator } from "../../recording/recording-coordinator";
 import { StreamHealthMonitor } from "../../recording/stream-health-monitor";
 
@@ -58,6 +59,7 @@ async function applySessionEvent(sessionId: string, event: RecordingSessionEvent
 
 const cdpCollector = new CdpEvidenceCollector(db, applySessionEvent, (sessionId) => recordingCoordinator.isStopping(sessionId));
 const interactionCapture = new InteractionCapture(db, applySessionEvent, (sessionId) => recordingCoordinator.isStopping(sessionId));
+const navigationCapture = new NavigationCapture(db, interactionCapture);
 const issueSceneCapture = new IssueSceneCapture((sessionId) => recordingCoordinator.isStopping(sessionId));
 
 async function reconcileSessionQuality(sessionId: string): Promise<void> {
@@ -156,6 +158,7 @@ async function startSessionImpl(payload: Extract<RuntimeMessage, { type: "sessio
     }
     const started = await applySessionEvent(session.id, { type: "started", atEpochMs: Date.now(), issues });
     if (["RECORDING", "DEGRADED"].includes(started.status)) {
+      navigationCapture.attach();
       streamHealthMonitor.initialize(payload.tabId, session.id, {
         captureVideo: options.captureVideo && mediaStarted,
         captureConsoleOrNetwork: (options.captureConsole || options.captureNetwork) && !debuggerIssue
@@ -167,6 +170,7 @@ async function startSessionImpl(payload: Extract<RuntimeMessage, { type: "sessio
     }
     return started;
   } catch (error) {
+    navigationCapture.detach();
     if (mediaStarted) await chrome.runtime.sendMessage(message("offscreen/stop-media", { sessionId: session.id }, session.id)).catch(() => undefined);
     const failure = issue("SESSION_START_FAILED", sanitizeText(String(error), options.privacyMode), "media", false);
     const failed = await applySessionEvent(session.id, { type: "failed", issue: failure });
@@ -198,6 +202,7 @@ async function performStopSession(session: RecordingSession, commandId?: string,
   const stopping = await applySessionEvent(session.id, { type: "stop-requested", atEpochMs: Date.now(), commandId });
   if (commandId && stopping.commandIds?.stop && stopping.commandIds.stop !== commandId) return stopping;
   recordingCoordinator.beginStopping(session.id);
+  navigationCapture.detach();
   const cleanupErrors: string[] = [];
   try {
     await cdpCollector.detach(session.target.tabId);

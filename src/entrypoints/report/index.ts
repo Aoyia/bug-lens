@@ -27,7 +27,22 @@ if (typeof window !== "undefined") {
   document.documentElement.lang = getLocale();
 }
 
-const data = window.__WEB_BUG_REPORT_DATA__;
+function loadReportData(): StaticReportData | undefined {
+  if (typeof window !== "undefined" && window.__WEB_BUG_REPORT_DATA__) {
+    return window.__WEB_BUG_REPORT_DATA__;
+  }
+  const scriptEl = document.getElementById("__BUG_LENS_DATA__");
+  if (scriptEl && scriptEl.textContent) {
+    try {
+      return JSON.parse(scriptEl.textContent) as StaticReportData;
+    } catch {
+      // Ignore parse failure
+    }
+  }
+  return undefined;
+}
+
+const data = loadReportData();
 const meta = document.querySelector<HTMLElement>("#meta")!;
 
 if (!data || data.protocolVersion !== 3) {

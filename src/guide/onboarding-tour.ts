@@ -1,4 +1,4 @@
-import { t } from "../shared/i18n";
+import { t } from "../shared/i18n.ts";
 
 export async function tryShowOnboardingGuide(widgetContainer: HTMLElement): Promise<void> {
   try {

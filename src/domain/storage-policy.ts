@@ -14,6 +14,7 @@ export const DEFAULT_RECORDING_OPTIONS: RecordingOptions = {
   captureConsole: true,
   captureNetwork: true,
   captureNetworkBodies: true,
+  captureStaticBodies: false,
   privacyMode: "safe",
   mediaTimesliceMs: 1_000,
   maxResponseBodyBytes: DEFAULT_STORAGE_POLICY.maxResponseBodyBytes,
@@ -44,6 +45,7 @@ export function normalizeRecordingOptions(value: Partial<RecordingOptions> | und
     captureConsole: value?.captureConsole !== false,
     captureNetwork: value?.captureNetwork !== false,
     captureNetworkBodies: value?.captureNetworkBodies !== false && value?.captureNetwork !== false,
+    captureStaticBodies: Boolean(value?.captureStaticBodies) && value?.captureNetworkBodies !== false,
     mediaTimesliceMs: boundedInteger(value?.mediaTimesliceMs, 1_000, 250, 10_000),
     maxResponseBodyBytes: boundedInteger(value?.maxResponseBodyBytes, policy.maxResponseBodyBytes, 16 * 1024, 64 * 1024 * 1024),
     maxSessionBytes: boundedInteger(value?.maxSessionBytes, policy.maxSessionBytes, 16 * 1024 * 1024, 4 * 1024 * 1024 * 1024)

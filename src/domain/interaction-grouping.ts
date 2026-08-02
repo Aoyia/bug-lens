@@ -105,7 +105,15 @@ function buildCard(children: InteractionRecord[]): GroupedInteractionCard {
   if (children.length === 1) {
     const record = children[0];
     const elemName = record.element.accessibleName || record.element.text || record.element.id || record.element.tagName.toLowerCase();
-    const actionLabel = record.kind === "click" ? "点击" : record.kind === "input" ? "输入" : record.kind === "keydown" ? `按键 ${record.metadata?.key ?? ""}` : record.kind;
+    const actionLabel = record.kind === "click"
+      ? "点击"
+      : record.kind === "input"
+      ? "输入"
+      : record.kind === "keydown"
+      ? (record.metadata?.shortcut ? `快捷键 ${record.metadata.shortcut}` : `按键 ${record.metadata?.key ?? ""}`)
+      : record.kind === "navigation"
+      ? `页面导航 (${record.metadata?.navigationType ?? "navigation"})`
+      : record.kind;
     
     return {
       id: record.id,
@@ -114,7 +122,7 @@ function buildCard(children: InteractionRecord[]): GroupedInteractionCard {
       children,
       aggregatedMeta: {
         title: `${actionLabel} (${elemName})`,
-        description: record.metadata?.value ? `输入: "${record.metadata.value}"` : record.metadata?.valueLength ? `输入: ${record.metadata.valueLength} 字符 (脱敏)` : record.page.url,
+        description: record.kind === "navigation" ? (record.metadata?.toUrl ?? record.page.url) : record.metadata?.value ? `输入: "${record.metadata.value}"` : record.metadata?.valueLength ? `输入: ${record.metadata.valueLength} 字符 (脱敏)` : record.page.url,
         startTime: record.createdAt,
         endTime: record.createdAt,
         hasEnterSubmit: record.kind === "keydown" && record.metadata?.key === "Enter",
