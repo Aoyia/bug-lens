@@ -111,13 +111,14 @@ if (existingController) {
     widget.setIssueSelecting(false);
   }
 
-  function refreshSession(next: ContentSession | undefined): void {
+  function refreshSession(next: ContentSession | undefined, health?: import("../../shared/protocol").RecordingHealthInfo): void {
     observer.clearPending();
     if (!next) removeIssueUi();
     session = next;
     window.__WEB_BUG_RECORDER_SESSION__ = next;
     if (next) {
       widget.mount();
+      if (health) widget.updateHealth(health);
       monitor.start();
     } else {
       widget.unmount();
@@ -131,11 +132,21 @@ if (existingController) {
 
   window.__WEB_BUG_RECORDER_CONTROLLER__ = { refresh: refreshSession };
   chrome.runtime.onMessage.addListener((raw: unknown) => {
-    if (raw && typeof raw === "object" && (raw as { type?: unknown }).type === "content/reset") refreshSession(undefined);
+    if (!raw || typeof raw !== "object") return;
+    const msg = raw as { type?: string; sessionId?: string; payload?: { health?: import("../../shared/protocol").RecordingHealthInfo } };
+    if (msg.type === "content/reset") refreshSession(undefined);
+    if (msg.type === "content/health-update" && msg.payload?.health) {
+      if (session && msg.sessionId === session.sessionId) {
+        widget.updateHealth(msg.payload.health);
+      }
+    }
   });
   chrome.runtime.sendMessage(message("content/hello", { url: location.href, title: document.title })).then((response) => {
-    refreshSession(response?.active && response.sessionId && response.nonce
-      ? { sessionId: response.sessionId, nonce: response.nonce, startedAtEpochMs: response.startedAtEpochMs, privacyMode: response.privacyMode === "raw" ? "raw" : "safe" }
-      : undefined);
+    refreshSession(
+      response?.active && response.sessionId && response.nonce
+        ? { sessionId: response.sessionId, nonce: response.nonce, startedAtEpochMs: response.startedAtEpochMs, privacyMode: response.privacyMode === "raw" ? "raw" : "safe" }
+        : undefined,
+      response?.health
+    );
   }).catch(() => undefined);
 }

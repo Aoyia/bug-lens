@@ -49,13 +49,29 @@ export class CdpEvidenceCollector {
     this.isStopping = isStopping;
   }
 
+  private readonly reattachTimers = new Map<number, ReturnType<typeof setTimeout>>();
+
   markAttached(tabId: number): void {
+    this.cancelReattach(tabId);
     this.attachedTabs.add(tabId);
+  }
+
+  async verifyOwnership(tabId: number): Promise<boolean> {
+    try {
+      await chrome.debugger.sendCommand({ tabId }, "Runtime.evaluate", { expression: "1" });
+      this.cancelReattach(tabId);
+      this.attachedTabs.add(tabId);
+      return true;
+    } catch {
+      this.attachedTabs.delete(tabId);
+      return false;
+    }
   }
 
   async attach(tabId: number, session: RecordingSession): Promise<CaptureIssue | undefined> {
     try {
       await chrome.debugger.attach({ tabId }, "1.3");
+      this.cancelReattach(tabId);
       this.attachedTabs.add(tabId);
       if (session.options.captureConsole) {
         await chrome.debugger.sendCommand({ tabId }, "Runtime.enable");
@@ -75,6 +91,7 @@ export class CdpEvidenceCollector {
   }
 
   async detach(tabId: number): Promise<void> {
+    this.cancelReattach(tabId);
     this.attachedTabs.delete(tabId);
     await chrome.debugger.detach({ tabId }).catch(() => undefined);
   }
@@ -90,15 +107,60 @@ export class CdpEvidenceCollector {
     );
   }
 
-  async handleDetach(source: chrome.debugger.Debuggee, reason: string): Promise<void> {
-    if (typeof source.tabId !== "number" || reason === "target_closed") return;
-    this.attachedTabs.delete(source.tabId);
+  async handleDetach(source: chrome.debugger.Debuggee, reason: string, onReattachSuccess?: () => void): Promise<void> {
+    if (typeof source.tabId !== "number") return;
+    const tabId = source.tabId;
+    this.attachedTabs.delete(tabId);
+    this.cancelReattach(tabId);
+    if (reason === "target_closed") return;
+
     const session = await this.repository.getActiveSession();
-    if (!session || session.status === "STOPPING" || this.isStopping(session.id) || session.target.tabId !== source.tabId) return;
+    if (!session || session.status === "STOPPING" || this.isStopping(session.id) || session.target.tabId !== tabId) return;
     await this.writeSessionEvent(session.id, {
       type: "capture-issue",
       issue: captureIssue("DEBUGGER_DETACHED_BY_DEVTOOLS", reason)
     });
+    this.scheduleReattach(tabId, session, 2000, onReattachSuccess);
+  }
+
+  private scheduleReattach(tabId: number, session: RecordingSession, delayMs: number, onReattachSuccess?: () => void): void {
+    if (this.reattachTimers.has(tabId)) clearTimeout(this.reattachTimers.get(tabId));
+    const timer = setTimeout(async () => {
+      this.reattachTimers.delete(tabId);
+      const current = await this.repository.getActiveSession();
+      if (!current || current.id !== session.id || current.status === "STOPPING" || this.isStopping(current.id)) return;
+      const targets = await chrome.debugger.getTargets().catch(() => []);
+      const target = targets.find((t) => t.tabId === tabId);
+      if (target?.attached && this.attachedTabs.has(tabId)) {
+        return;
+      }
+      if (target?.attached && !this.attachedTabs.has(tabId)) {
+        const nextDelay = Math.min(delayMs * 2, 10000);
+        this.scheduleReattach(tabId, current, nextDelay, onReattachSuccess);
+        return;
+      }
+      const attachError = await this.attach(tabId, current);
+      if (attachError) {
+        const nextDelay = Math.min(delayMs * 2, 10000);
+        this.scheduleReattach(tabId, current, nextDelay, onReattachSuccess);
+      } else {
+        onReattachSuccess?.();
+      }
+    }, delayMs);
+    this.reattachTimers.set(tabId, timer);
+  }
+
+  cancelReattach(tabId?: number): void {
+    if (typeof tabId === "number") {
+      const timer = this.reattachTimers.get(tabId);
+      if (timer) {
+        clearTimeout(timer);
+        this.reattachTimers.delete(tabId);
+      }
+    } else {
+      for (const timer of this.reattachTimers.values()) clearTimeout(timer);
+      this.reattachTimers.clear();
+    }
   }
 
   async drain(): Promise<string[]> {

@@ -122,3 +122,19 @@ export async function writeEvidenceArchive(input: {
     throw error;
   }
 }
+
+export async function validateArchiveIntegrity(
+  files: ArchiveFile[],
+  expectedIntegrity: ArchiveEntryIntegrity
+): Promise<boolean> {
+  const expectedKeys = Object.keys(expectedIntegrity);
+  if (files.length !== expectedKeys.length) return false;
+  for (const file of files) {
+    const expected = expectedIntegrity[file.name];
+    if (!expected) return false;
+    if (file.data.byteLength !== expected.byteLength) return false;
+    const actualHash = await sha256(file.data);
+    if (actualHash !== expected.sha256) return false;
+  }
+  return true;
+}

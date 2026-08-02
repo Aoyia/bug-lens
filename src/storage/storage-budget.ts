@@ -3,6 +3,12 @@ import type { RecordingSession } from "../shared/protocol.ts";
 import { openEvidenceDatabase, type StoreName } from "./indexed-db-schema.ts";
 
 export type BudgetWriteResult = { stored: boolean; usedBytes: number; limitReached: boolean };
+export type StorageBudgetListener = (sessionId: string, result: BudgetWriteResult) => void;
+let budgetListener: StorageBudgetListener | undefined;
+
+export function setStorageBudgetListener(listener: StorageBudgetListener | undefined): void {
+  budgetListener = listener;
+}
 
 export async function putWithinSessionBudget<T extends { sessionId: string }>(storeName: StoreName, value: T): Promise<BudgetWriteResult> {
   const database = await openEvidenceDatabase();
@@ -29,14 +35,22 @@ export async function putWithinSessionBudget<T extends { sessionId: string }>(st
           return;
         }
         const nextUsedBytes = Math.max(0, usedBytes + estimateBytes(value) - estimateBytes(previous));
+        const isNearLimit = nextUsedBytes >= session.options.maxSessionBytes * 0.9;
         store.put(value);
-        sessions.put({ ...session, storage: { usedBytes: nextUsedBytes, limitReached: false } });
-        result = { stored: true, usedBytes: nextUsedBytes, limitReached: false };
+        sessions.put({ ...session, storage: { usedBytes: nextUsedBytes, limitReached: isNearLimit } });
+        result = { stored: true, usedBytes: nextUsedBytes, limitReached: isNearLimit };
       };
       valueRequest.onerror = () => reject(valueRequest.error);
     };
     sessionRequest.onerror = () => reject(sessionRequest.error);
-    transaction.oncomplete = () => result ? resolve(result) : reject(new Error("证据写入事务未产生结果"));
+    transaction.oncomplete = () => {
+      if (result) {
+        if (budgetListener) budgetListener(value.sessionId, result);
+        resolve(result);
+      } else {
+        reject(new Error("证据写入事务未产生结果"));
+      }
+    };
     transaction.onerror = () => reject(transaction.error);
     transaction.onabort = () => reject(transaction.error ?? new Error("证据写入事务已中止"));
   });

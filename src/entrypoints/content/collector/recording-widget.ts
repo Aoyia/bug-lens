@@ -127,6 +127,7 @@ export class RecordingWidget {
       </style>
       <span class="__wbr_dot"></span>
       <span data-wbr-rec-tag style="font-weight:600;letter-spacing:0.5px;color:#fff;">REC</span>
+      <span id="__wbr_health_msg__" style="font-size:11px;color:#ffc107;display:none;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title=""></span>
       <span id="__wbr_timer_display__" class="__wbr_timer">00:00</span>
       <button id="__wbr_issue_btn__" class="__wbr_btn" style="background:#b42318;" title="${t("shortcut")}: ${this.shortcutKeyText}">${t("markIssue")} (${this.shortcutKeyText})</button>
       <button id="__wbr_stop_btn__" class="__wbr_btn">${t("stopRecording")}</button>
@@ -205,6 +206,32 @@ export class RecordingWidget {
     if (recTag) {
       recTag.textContent = paused ? "PAUSED" : "REC";
       recTag.style.color = paused ? "#ffc107" : "#fff";
+    }
+  }
+
+  updateHealth(health?: import("../../../shared/protocol").RecordingHealthInfo): void {
+    if (!this.container || !health) return;
+    const dot = this.container.querySelector<HTMLElement>(".__wbr_dot");
+    const recTag = this.container.querySelector<HTMLElement>("[data-wbr-rec-tag]");
+    const msgEl = this.container.querySelector<HTMLElement>("#__wbr_health_msg__");
+
+    if (dot) {
+      dot.style.background = health.badgeColor;
+      dot.style.animation = health.code === "RECORDING" ? "wbr-pulse 1.5s infinite" : "none";
+    }
+    if (recTag) {
+      recTag.textContent = health.badgeText;
+      recTag.style.color = health.badgeColor;
+    }
+    if (msgEl) {
+      if (health.code !== "RECORDING" && health.message) {
+        msgEl.style.display = "inline-block";
+        msgEl.textContent = `⚠️ ${health.message}`;
+        msgEl.title = health.message;
+      } else {
+        msgEl.style.display = "none";
+        msgEl.textContent = "";
+      }
     }
   }
 }

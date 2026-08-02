@@ -227,6 +227,15 @@ test("CdpEvidenceCollector handles Runtime.consoleAPICalled, Runtime.exceptionTh
   };
   (repository as any).setActiveSession(session);
 
+  (globalThis as any).chrome = {
+    debugger: {
+      attach: async (_target: any, _version: string) => {},
+      detach: async (_target: any) => {},
+      sendCommand: async () => {},
+      getTargets: async () => []
+    }
+  };
+
   let writtenEvent: any;
   const collector = new CdpEvidenceCollector(repository, async (_id, evt) => { writtenEvent = evt; return session; }, () => false);
   collector.markAttached(3);
@@ -257,4 +266,46 @@ test("CdpEvidenceCollector handles Runtime.consoleAPICalled, Runtime.exceptionTh
   await collector.handleDetach({ tabId: 3 }, "User canceled");
   assert.equal(writtenEvent?.type, "capture-issue");
   assert.equal(writtenEvent?.issue?.code, "DEBUGGER_DETACHED_BY_DEVTOOLS");
+  collector.cancelReattach(3);
+});
+
+test("CdpEvidenceCollector verifyOwnership and target_closed handleDetach", async () => {
+  const repository = createMockRepository();
+  const session: RecordingSession = {
+    id: "sess-verify",
+    schemaVersion: 2,
+    extensionVersion: "0.1.0",
+    status: "RECORDING",
+    target: { tabId: 4, initialUrl: "https://example.test", initialTitle: "Test" },
+    options: {
+      captureAudio: false, captureVideo: true, captureScreenshots: true, captureConsole: true, captureNetwork: true, captureNetworkBodies: true, privacyMode: "safe", mediaTimesliceMs: 1000, maxResponseBodyBytes: 1024, maxSessionBytes: 100
+    },
+    timeline: { createdAtEpochMs: Date.now() },
+    quality: { overall: "complete", interactionCount: 0, confirmedInteractionCount: 0, primaryScreenshotCount: 0, fallbackScreenshotCount: 0, unavailableScreenshotCount: 0, consoleEntryCount: 0, networkEntryCount: 0, issues: [] },
+    nonce: "nonce-verify"
+  };
+  (repository as any).setActiveSession(session);
+
+  let shouldFailSendCommand = false;
+  (globalThis as any).chrome = {
+    debugger: {
+      sendCommand: async (_target: any, method: string) => {
+        if (shouldFailSendCommand) throw new Error("Not owned");
+      }
+    }
+  };
+
+  let writtenEvent: any = undefined;
+  const collector = new CdpEvidenceCollector(repository, async (_id, evt) => { writtenEvent = evt; return session; }, () => false);
+
+  const owned = await collector.verifyOwnership(4);
+  assert.equal(owned, true);
+
+  shouldFailSendCommand = true;
+  const notOwned = await collector.verifyOwnership(4);
+  assert.equal(notOwned, false);
+
+  // handleDetach with target_closed should not write capture-issue or schedule reattach
+  await collector.handleDetach({ tabId: 4 }, "target_closed");
+  assert.equal(writtenEvent, undefined);
 });

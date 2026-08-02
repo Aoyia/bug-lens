@@ -8,9 +8,25 @@ import { ContentScriptManager } from "../../recording/content-script-manager";
 import { InteractionCapture } from "../../recording/interaction-capture";
 import { IssueSceneCapture } from "../../recording/issue-scene-capture";
 import { RecordingCoordinator } from "../../recording/recording-coordinator";
+import { StreamHealthMonitor } from "../../recording/stream-health-monitor";
+
+import { setStorageBudgetListener } from "../../storage/storage-budget";
+import { validateStorageHealthUpdate } from "../../storage/storage-health-coordinator";
 
 const EXTENSION_VERSION = "0.4.0";
 const STOPPING_IDS_KEY = "bug-lens-stopping-ids";
+const streamHealthMonitor = new StreamHealthMonitor();
+
+setStorageBudgetListener((sessionId, result) => {
+  if (streamHealthMonitor.getSessionId() !== sessionId) return;
+  if (!result.stored) {
+    streamHealthMonitor.updateStream("storage", "failed");
+  } else if (result.limitReached) {
+    streamHealthMonitor.updateStream("storage", "disrupted");
+  } else {
+    streamHealthMonitor.updateStream("storage", "ok");
+  }
+});
 const recordingCoordinator = new RecordingCoordinator({
   save(ids) {
     chrome.storage.session.set({ [STOPPING_IDS_KEY]: ids }).catch(() => undefined);
@@ -140,9 +156,12 @@ async function startSessionImpl(payload: Extract<RuntimeMessage, { type: "sessio
     }
     const started = await applySessionEvent(session.id, { type: "started", atEpochMs: Date.now(), issues });
     if (["RECORDING", "DEGRADED"].includes(started.status)) {
-      await chrome.action.setBadgeText({ tabId: payload.tabId, text: "REC" }).catch(() => undefined);
-      await chrome.action.setBadgeBackgroundColor({ tabId: payload.tabId, color: "#d92d20" }).catch(() => undefined);
-      await chrome.action.setIcon({ tabId: payload.tabId, path: "icons/icon_recording.png" }).catch(() => undefined);
+      streamHealthMonitor.initialize(payload.tabId, session.id, {
+        captureVideo: options.captureVideo && mediaStarted,
+        captureConsoleOrNetwork: (options.captureConsole || options.captureNetwork) && !debuggerIssue
+      });
+      if (debuggerIssue) streamHealthMonitor.updateStream("cdp", "disrupted");
+      if (options.captureVideo && !mediaStarted) streamHealthMonitor.updateStream("media", "disrupted");
     } else if (mediaStarted) {
       await chrome.runtime.sendMessage(message("offscreen/stop-media", { sessionId: session.id }, session.id)).catch(() => undefined);
     }
@@ -154,7 +173,7 @@ async function startSessionImpl(payload: Extract<RuntimeMessage, { type: "sessio
     await db.clearActive(session.id);
     await cdpCollector.detach(payload.tabId);
     await contentScripts.remove(payload.tabId);
-    await chrome.action.setBadgeText({ tabId: payload.tabId, text: "" }).catch(() => undefined);
+    streamHealthMonitor.reset(payload.tabId);
     return failed;
   }
 }
@@ -197,8 +216,7 @@ async function performStopSession(session: RecordingSession, commandId?: string,
   } finally {
     await cdpCollector.detach(session.target.tabId);
     await contentScripts.remove(session.target.tabId);
-    await chrome.action.setBadgeText({ tabId: session.target.tabId, text: "" }).catch(() => undefined);
-    await chrome.action.setIcon({ tabId: session.target.tabId, path: "icons/icon_idle.png" }).catch(() => undefined);
+    streamHealthMonitor.reset(session.target.tabId);
   }
 
   const cleanupIssue = cleanupErrors.length
@@ -268,8 +286,7 @@ async function recoverInterruptedSession(session: RecordingSession, code: string
   if (!recovered) return;
   await cdpCollector.detach(session.target.tabId);
   await contentScripts.remove(session.target.tabId);
-  await chrome.action.setBadgeText({ tabId: session.target.tabId, text: "" }).catch(() => undefined);
-  await chrome.action.setIcon({ tabId: session.target.tabId, path: "icons/icon_idle.png" }).catch(() => undefined);
+  streamHealthMonitor.reset(session.target.tabId);
   await openPendingPreview(recovered);
 }
 
@@ -309,6 +326,11 @@ async function bootstrapRuntimeState(): Promise<void> {
 
   await contentScripts.restore(session.target.tabId);
 
+  streamHealthMonitor.initialize(session.target.tabId, session.id, {
+    captureVideo: session.options.captureVideo,
+    captureConsoleOrNetwork: session.options.captureConsole || session.options.captureNetwork
+  });
+
   const mediaWasExpected = session.options.captureVideo && !session.quality.issues.some((entry) => entry.code === "MEDIA_STREAM_ID_FAILED" || entry.code === "MEDIA_RECORDER_FAILED");
   if (mediaWasExpected) {
     const contexts = await (chrome.runtime.getContexts as unknown as (filter: unknown) => Promise<chrome.runtime.ExtensionContext[]>)({ contextTypes: ["OFFSCREEN_DOCUMENT"] }).catch(() => []);
@@ -317,22 +339,26 @@ async function bootstrapRuntimeState(): Promise<void> {
       : undefined;
     if (!mediaStatus?.active) {
       await applySessionEvent(session.id, { type: "capture-issue", issue: issue("MEDIA_CONTEXT_LOST", "后台恢复后未找到活动的媒体录制上下文。", "media", false) });
+      streamHealthMonitor.updateStream("media", "disrupted");
     }
   }
 
   if (session.options.captureConsole || session.options.captureNetwork) {
-    const targets = await chrome.debugger.getTargets().catch(() => []);
-    if (targets.some((target) => target.tabId === session.target.tabId && target.attached)) {
-      cdpCollector.markAttached(session.target.tabId);
+    const isOwner = await cdpCollector.verifyOwnership(session.target.tabId);
+    if (isOwner) {
+      streamHealthMonitor.updateStream("cdp", "ok");
     } else {
       const debuggerIssue = await cdpCollector.attach(session.target.tabId, session);
-      if (debuggerIssue) await applySessionEvent(session.id, { type: "capture-issue", issue: debuggerIssue });
+      if (debuggerIssue) {
+        await applySessionEvent(session.id, { type: "capture-issue", issue: debuggerIssue });
+        streamHealthMonitor.updateStream("cdp", "disrupted");
+      } else {
+        streamHealthMonitor.updateStream("cdp", "ok");
+      }
     }
   }
 
-  await chrome.action.setBadgeText({ tabId: session.target.tabId, text: "REC" }).catch(() => undefined);
-  await chrome.action.setBadgeBackgroundColor({ tabId: session.target.tabId, color: "#d92d20" }).catch(() => undefined);
-  await chrome.action.setIcon({ tabId: session.target.tabId, path: "icons/icon_recording.png" }).catch(() => undefined);
+  await streamHealthMonitor.sync();
 }
 
 const bootstrapPromise = bootstrapRuntimeState().catch(() => undefined);
@@ -357,10 +383,38 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender, sendResponse) => {
   if (incoming.type === "offscreen/start-media" || incoming.type === "offscreen/stop-media" || incoming.type === "offscreen/pause-media" || incoming.type === "offscreen/resume-media" || incoming.type === "offscreen/status" || incoming.type === "offscreen/annotate-image" || incoming.type === "offscreen/render-issue-image") return;
   void (async () => {
     try {
+      if (incoming.type === "offscreen/storage-state") {
+        const active = await db.getActiveSession();
+        const valid = validateStorageHealthUpdate({
+          senderUrl: sender.url,
+          expectedOffscreenUrl: chrome.runtime.getURL("offscreen.html"),
+          incomingSessionId: incoming.payload.sessionId,
+          currentActiveSessionId: active?.id
+        });
+        if (valid) {
+          if (!incoming.payload.stored) {
+            streamHealthMonitor.updateStream("storage", "failed");
+          } else if (incoming.payload.limitReached) {
+            streamHealthMonitor.updateStream("storage", "disrupted");
+          } else {
+            streamHealthMonitor.updateStream("storage", "ok");
+          }
+        }
+        sendResponse({ ok: true });
+        return;
+      }
       if (incoming.type === "offscreen/media-state") {
-        const session = await db.getSession(incoming.payload.sessionId);
-        if (session && incoming.payload.state === "error" && sender.url === chrome.runtime.getURL("offscreen.html")) {
-          await applySessionEvent(session.id, { type: "capture-issue", issue: issue("MEDIA_RECORDER_FAILED", sanitizeText(incoming.payload.error ?? "媒体录制失败", session.options.privacyMode), "media", false) });
+        const activeSession = await db.getActiveSession();
+        const validSender = sender.url === chrome.runtime.getURL("offscreen.html");
+        if (activeSession && activeSession.id === incoming.payload.sessionId && validSender) {
+          if (incoming.payload.state === "error") {
+            const isFatal = incoming.payload.error?.includes("SESSION_STORAGE_LIMIT_REACHED") || incoming.payload.error?.includes("FATAL");
+            await applySessionEvent(activeSession.id, { type: "capture-issue", issue: issue("MEDIA_RECORDER_FAILED", sanitizeText(incoming.payload.error ?? "媒体录制失败", activeSession.options.privacyMode), "media", false) });
+            streamHealthMonitor.updateStream("media", isFatal ? "failed" : "disrupted");
+            if (incoming.payload.error?.includes("SESSION_STORAGE_LIMIT_REACHED")) {
+              streamHealthMonitor.updateStream("storage", "failed");
+            }
+          }
         }
         sendResponse({ ok: true });
         return;
@@ -386,7 +440,15 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender, sendResponse) => {
         case "content/hello": {
           const session = await db.getActiveSession();
           const allowed = Boolean(session && ["PREPARING", "RECORDING", "DEGRADED"].includes(session.status) && session.target.tabId === sender.tab?.id);
-          sendResponse({ ok: true, active: allowed, sessionId: allowed ? session?.id : undefined, nonce: allowed ? session?.nonce : undefined, startedAtEpochMs: allowed ? session?.timeline.startedAtEpochMs : undefined, privacyMode: allowed ? session?.options.privacyMode : undefined });
+          sendResponse({
+            ok: true,
+            active: allowed,
+            sessionId: allowed ? session?.id : undefined,
+            nonce: allowed ? session?.nonce : undefined,
+            startedAtEpochMs: allowed ? session?.timeline.startedAtEpochMs : undefined,
+            privacyMode: allowed ? session?.options.privacyMode : undefined,
+            health: allowed ? streamHealthMonitor.getHealth() : undefined
+          });
           return;
         }
         case "interaction/candidate":
@@ -419,6 +481,13 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender, sendResponse) => {
         }
         case "offscreen/media-chunk": {
           const result = await db.saveMediaChunkWithinBudget({ id: `${incoming.payload.sessionId}:${incoming.payload.sequence}`, ...incoming.payload });
+          if (!result.stored) {
+            streamHealthMonitor.updateStream("storage", "failed");
+          } else if (result.limitReached) {
+            streamHealthMonitor.updateStream("storage", "disrupted");
+          } else {
+            streamHealthMonitor.updateStream("storage", "ok");
+          }
           sendResponse({ ok: result.stored, error: result.stored ? undefined : "SESSION_STORAGE_LIMIT_REACHED" });
           return;
         }
@@ -434,7 +503,15 @@ chrome.debugger.onEvent.addListener((source, method, params) => {
 });
 
 chrome.debugger.onDetach.addListener((source, reason) => {
-  void bootstrapPromise.then(() => cdpCollector.handleDetach(source, reason));
+  void bootstrapPromise.then(async () => {
+    const session = await db.getActiveSession();
+    if (session && session.target.tabId === source.tabId && !["STOPPING", "PREVIEW_READY", "EXPORTED", "FAILED"].includes(session.status) && !recordingCoordinator.isStopping(session.id)) {
+      streamHealthMonitor.updateStream("cdp", "disrupted");
+      await cdpCollector.handleDetach(source, reason, () => {
+        streamHealthMonitor.updateStream("cdp", "ok");
+      });
+    }
+  });
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {
@@ -451,24 +528,29 @@ async function restoreSessionAfterNavigation(tabId: number): Promise<void> {
   const session = await db.getActiveSession();
   if (!session || !["PREPARING", "RECORDING", "DEGRADED"].includes(session.status) || session.target.tabId !== tabId) return;
 
+  streamHealthMonitor.updateStream("content", "reconnecting");
   await contentScripts.restore(tabId);
+  streamHealthMonitor.updateStream("content", "ok");
 
   // Chrome may detach the debugger while replacing the page target. Reattach
   // only when it is no longer attached; an already-attached target is left
   // alone to avoid the "Already attached" error.
   if (session.options.captureConsole || session.options.captureNetwork) {
-    const targets = await chrome.debugger.getTargets().catch(() => []);
-    if (targets.some((target) => target.tabId === tabId && target.attached)) {
-      cdpCollector.markAttached(tabId);
+    const isOwner = await cdpCollector.verifyOwnership(tabId);
+    if (isOwner) {
+      streamHealthMonitor.updateStream("cdp", "ok");
     } else {
       const debuggerIssue = await cdpCollector.attach(tabId, session);
-      if (debuggerIssue) await applySessionEvent(session.id, { type: "capture-issue", issue: debuggerIssue });
+      if (debuggerIssue) {
+        await applySessionEvent(session.id, { type: "capture-issue", issue: debuggerIssue });
+        streamHealthMonitor.updateStream("cdp", "disrupted");
+      } else {
+        streamHealthMonitor.updateStream("cdp", "ok");
+      }
     }
   }
 
-  await chrome.action.setBadgeText({ tabId, text: "REC" }).catch(() => undefined);
-  await chrome.action.setBadgeBackgroundColor({ tabId, color: "#d92d20" }).catch(() => undefined);
-  await chrome.action.setIcon({ tabId, path: "icons/icon_recording.png" }).catch(() => undefined);
+  await streamHealthMonitor.sync();
 }
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {

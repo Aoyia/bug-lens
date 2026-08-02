@@ -1,6 +1,29 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { PreviewExportController } from "../src/preview/preview-export-controller.ts";
+import { validateArchiveIntegrity } from "../src/export/export-pipeline.ts";
+import { sha256 } from "../src/export/sha256.ts";
+
+test("validateArchiveIntegrity - 校验完整性、哈希与缺失/多余文件断言", async () => {
+  const data1 = new TextEncoder().encode("hello world");
+  const hash1 = await sha256(data1);
+
+  const files = [{ name: "manifest.json", data: data1 }];
+  const expected = { "manifest.json": { byteLength: data1.byteLength, sha256: hash1 } };
+
+  assert.equal(await validateArchiveIntegrity(files, expected), true);
+
+  // 1. 哈希不匹配
+  const wrongExpected = { "manifest.json": { byteLength: data1.byteLength, sha256: "badhash" } };
+  assert.equal(await validateArchiveIntegrity(files, wrongExpected), false);
+
+  // 2. 多余文件/缺失文件
+  const extraExpected = {
+    "manifest.json": { byteLength: data1.byteLength, sha256: hash1 },
+    "session.json": { byteLength: 10, sha256: "abc" }
+  };
+  assert.equal(await validateArchiveIntegrity(files, extraExpected), false);
+});
 
 function createMockDocument() {
   const elements: Record<string, any> = {};

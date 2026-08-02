@@ -1,12 +1,14 @@
 import { isEnvelope, message, type RuntimeMessage } from "../../shared/protocol";
 import { db } from "../../storage/db";
+import { evaluateOffscreenStorageWrite } from "../../storage/storage-health-coordinator";
 
 let recorder: MediaRecorder | undefined;
 let capturedStream: MediaStream | undefined;
 let playbackContext: AudioContext | undefined;
 let sequence = 0;
 let activeSessionId: string | undefined;
-let mediaLimitReached = false;
+let storageWarningSent = false;
+let recordingBlocked = false;
 const pendingWrites = new Set<Promise<void>>();
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, messageText: string): Promise<T> {
@@ -28,7 +30,8 @@ async function startMedia(payload: Extract<RuntimeMessage, { type: "offscreen/st
   if (recorder && recorder.state !== "inactive") throw new Error("媒体录制已在进行中 (MEDIA_ALREADY_RECORDING)");
   activeSessionId = payload.sessionId;
   sequence = 0;
-  mediaLimitReached = false;
+  storageWarningSent = false;
+  recordingBlocked = false;
   const constraints: MediaStreamConstraints = {
     video: { mandatory: { chromeMediaSource: "tab", chromeMediaSourceId: payload.streamId } } as unknown as MediaTrackConstraints,
     audio: payload.captureAudio ? { mandatory: { chromeMediaSource: "tab", chromeMediaSourceId: payload.streamId } } as unknown as MediaTrackConstraints : false
@@ -47,7 +50,7 @@ async function startMedia(payload: Extract<RuntimeMessage, { type: "offscreen/st
       audioBitsPerSecond: payload.captureAudio ? 128_000 : undefined
     });
     recorder.ondataavailable = (event) => {
-      if (!event.data.size || !activeSessionId || mediaLimitReached) return;
+      if (!event.data.size || !activeSessionId || recordingBlocked) return;
       const sessionId = activeSessionId;
       const chunkSequence = sequence++;
       const mimeType = event.data.type || recorder?.mimeType || "video/webm";
@@ -55,10 +58,18 @@ async function startMedia(payload: Extract<RuntimeMessage, { type: "offscreen/st
       write = event.data.arrayBuffer()
         .then(async (buffer) => {
           const result = await db.saveMediaChunkWithinBudget({ id: `${sessionId}:${chunkSequence}`, sessionId, chunk: buffer, sequence: chunkSequence, mimeType, recordedAt: Date.now() });
-          if (result.stored) return;
-          mediaLimitReached = true;
-          await chrome.runtime.sendMessage(message("offscreen/media-state", { sessionId, state: "error", error: "SESSION_STORAGE_LIMIT_REACHED: 已停止录像以遵守单会话大小限制。" }, sessionId)).catch(() => undefined);
-          if (recorder?.state === "recording") recorder.stop();
+          const decision = evaluateOffscreenStorageWrite(sessionId, result, storageWarningSent);
+          if (decision.shouldNotify && decision.message) {
+            void chrome.runtime.sendMessage(decision.message).catch(() => undefined);
+          }
+          if (result.stored && result.limitReached) {
+            storageWarningSent = true;
+          }
+          if (!result.stored) {
+            recordingBlocked = true;
+            await chrome.runtime.sendMessage(message("offscreen/media-state", { sessionId, state: "error", error: "SESSION_STORAGE_LIMIT_REACHED: 已停止录像以遵守单会话大小限制。" }, sessionId)).catch(() => undefined);
+            if (recorder?.state === "recording") recorder.stop();
+          }
         })
         .catch(async (error) => {
           await chrome.runtime.sendMessage(message("offscreen/media-state", { sessionId, state: "error", error: `媒体分片写入失败：${String(error)}` }, sessionId)).catch(() => undefined);
@@ -100,7 +111,8 @@ async function stopMedia(sessionId: string): Promise<void> {
   capturedStream = undefined;
   recorder = undefined;
   activeSessionId = undefined;
-  mediaLimitReached = false;
+  storageWarningSent = false;
+  recordingBlocked = false;
   if (stopError) throw stopError;
   if (failures.length) throw new Error(`媒体数据块写入失败 (MEDIA_CHUNK_WRITE_FAILED:${failures.map((failure) => String(failure.reason)).join("; ")})`);
 }

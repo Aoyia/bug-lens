@@ -100,7 +100,7 @@ export class PreviewExportController {
         mediaSource: storage,
         sink: temporaryArchive.sink,
         createManifest: (integrity) => ({
-          name: "data/manifest.json",
+          name: "manifest.json",
           data: new TextEncoder().encode(JSON.stringify(buildExportManifest(snapshot.session, integrity), null, 2))
         }),
         onProgress: ({ mediaChunksWritten, bytesWritten }) => {

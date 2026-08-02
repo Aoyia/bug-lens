@@ -360,6 +360,31 @@ export type ExportManifest = {
   migration: { currentSchemaVersion: number; supportedFrom: number[] };
 };
 
+export type RecordingHealthCode =
+  | "RECORDING"
+  | "RECONNECTING"
+  | "PARTIAL_DISRUPTION"
+  | "VIDEO_DISRUPTED"
+  | "STORAGE_NEAR_LIMIT"
+  | "UNRECOVERABLE";
+
+export type StreamHealthState = "ok" | "reconnecting" | "disrupted" | "failed" | "disabled";
+
+export type StreamHealthVector = {
+  media: StreamHealthState;
+  cdp: StreamHealthState;
+  content: StreamHealthState;
+  storage: StreamHealthState;
+};
+
+export type RecordingHealthInfo = {
+  code: RecordingHealthCode;
+  badgeText: string;
+  badgeColor: string;
+  message: string;
+  streams: StreamHealthVector;
+};
+
 export type Envelope<T extends string, P = unknown> = { protocolVersion: typeof PROTOCOL_VERSION; messageId: string; type: T; sentAt: number; sessionId?: string; payload: P };
 export type RuntimeMessage =
   | Envelope<"session/start", { tabId: number; options: RecordingOptions; commandId: string; streamId?: string; resumedFromSessionId?: string }>
@@ -383,6 +408,7 @@ export type RuntimeMessage =
   | Envelope<"issue-scene/cancel-selection", Record<string, never>>
   | Envelope<"content/hello", { url: string; title: string }>
   | Envelope<"content/reset", Record<string, never>>
+  | Envelope<"content/health-update", { health: RecordingHealthInfo }>
   | Envelope<"offscreen/start-media", { streamId: string; sessionId: string; captureAudio: boolean; timesliceMs: number }>
   | Envelope<"offscreen/stop-media", { sessionId: string }>
   | Envelope<"offscreen/pause-media", { sessionId: string }>
@@ -391,7 +417,8 @@ export type RuntimeMessage =
   | Envelope<"offscreen/annotate-image", { dataUrl: string; clientX: number; clientY: number; viewportWidth: number; viewportHeight: number }>
   | Envelope<"offscreen/render-issue-image", { sessionId: string; issueSceneId: string; originalAssetId: string; annotatedAssetId: string; annotation: AnnotationModel; devicePixelRatio?: number }>
   | Envelope<"offscreen/media-chunk", { sessionId: string; chunk: ArrayBuffer; sequence: number; mimeType: string; recordedAt: number }>
-  | Envelope<"offscreen/media-state", { sessionId: string; state: "started" | "stopped" | "error"; error?: string }>;
+  | Envelope<"offscreen/media-state", { sessionId: string; state: "started" | "stopped" | "error"; error?: string }>
+  | Envelope<"offscreen/storage-state", { sessionId: string; usedBytes: number; limitReached: boolean; stored: boolean }>;
 
 export function message<T extends RuntimeMessage["type"], P>(type: T, payload: P, sessionId?: string): Envelope<T, P> {
   return { protocolVersion: PROTOCOL_VERSION, messageId: crypto.randomUUID(), type, sentAt: Date.now(), sessionId, payload } as Envelope<T, P>;
@@ -425,8 +452,9 @@ export type RuntimeMessageResponseMap = {
   "issue-scene/cancel": { ok: true };
   "issue-scene/start-selection": { ok: true };
   "issue-scene/cancel-selection": { ok: true };
-  "content/hello": { ok: true; active: boolean; sessionId?: string; nonce?: string; startedAtEpochMs?: number; privacyMode?: "safe" | "raw" };
+  "content/hello": { ok: true; active: boolean; sessionId?: string; nonce?: string; startedAtEpochMs?: number; privacyMode?: "safe" | "raw"; health?: RecordingHealthInfo };
   "content/reset": { ok: true };
+  "content/health-update": { ok: true };
   "offscreen/start-media": { ok: true };
   "offscreen/stop-media": { ok: true };
   "offscreen/pause-media": { ok: true };
@@ -436,4 +464,5 @@ export type RuntimeMessageResponseMap = {
   "offscreen/render-issue-image": { ok: true };
   "offscreen/media-chunk": { ok: boolean; error?: string };
   "offscreen/media-state": { ok: true };
+  "offscreen/storage-state": { ok: true };
 };

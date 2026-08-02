@@ -64,7 +64,7 @@ export class MediaProbe {
     this.serviceWorker = serviceWorker;
   }
 
-  private async evaluateWorker<T, A>(pageFunction: (arg: A) => T | Promise<T>, arg: A): Promise<T> {
+  async evaluateWorker<T, A>(pageFunction: (arg: A) => T | Promise<T>, arg: A): Promise<T> {
     const evaluate = (worker: Worker) => (worker.evaluate as unknown as (fn: (value: A) => T | Promise<T>, value: A) => Promise<T>)(pageFunction, arg);
     try {
       return await evaluate(this.serviceWorker);
@@ -103,6 +103,25 @@ export class MediaProbe {
         database.close();
       }
     }, undefined);
+  }
+
+  async getSession(sessionId: string): Promise<RecordingSession | undefined> {
+    return this.evaluateWorker(async (id) => {
+      const database = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open("web-bug-recorder");
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      try {
+        return await new Promise<RecordingSession | undefined>((resolve, reject) => {
+          const request = database.transaction("sessions").objectStore("sessions").get(id);
+          request.onsuccess = () => resolve(request.result as RecordingSession | undefined);
+          request.onerror = () => reject(request.error);
+        });
+      } finally {
+        database.close();
+      }
+    }, sessionId);
   }
 
   async sessionCount(): Promise<number> {
@@ -170,6 +189,7 @@ export class MediaProbe {
       `MEDIA_CHUNK_COUNT_TIMEOUT: sessionId=${sessionId} baseline=${baseline}`
     );
   }
+
 
   async getBadgeText(tabId: number): Promise<string> {
     return this.evaluateWorker(async (targetId) => {
