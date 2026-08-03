@@ -400,10 +400,10 @@ async function performStopSession(
     return stopping;
   recordingCoordinator.beginStopping(session.id);
   navigationCapture.detach();
+  streamHealthMonitor.reset(session.target.tabId);
   const cleanupErrors: string[] = [];
   try {
     await cdpCollector.detach(session.target.tabId);
-    await contentScripts.remove(session.target.tabId);
 
     const mediaResponse = await chrome.runtime
       .sendMessage(

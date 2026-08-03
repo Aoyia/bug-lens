@@ -67,6 +67,9 @@
   "stopRecording": {
     "message": "Stop Recording"
   },
+  "saving": {
+    "message": "Saving..."
+  },
   "stopAndExport": {
     "message": "Stop & Export"
   },

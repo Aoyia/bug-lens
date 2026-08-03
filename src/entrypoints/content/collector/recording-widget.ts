@@ -16,9 +16,14 @@ export class RecordingWidget {
   private autoCollapseTimer: number | undefined;
   private isDragging = false;
   private cleanupCollapseListeners?: () => void;
+  private _isSaving = false;
   private readonly callbacks: WidgetCallbacks;
   private readonly isMac: boolean;
   readonly shortcutKeyText: string;
+
+  get isSaving(): boolean {
+    return this._isSaving;
+  }
 
   constructor(callbacks: WidgetCallbacks) {
     this.callbacks = callbacks;
@@ -98,6 +103,38 @@ export class RecordingWidget {
         #__wbr_recording_widget__.__wbr_collapsed__:hover {
           opacity: 1 !important;
           border-color: rgba(255, 255, 255, 0.25) !important;
+        }
+        @keyframes wbr-spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        .__wbr_spinner {
+          display: inline-block !important;
+          width: 11px !important;
+          height: 11px !important;
+          border: 2px solid rgba(255, 255, 255, 0.3) !important;
+          border-top-color: #ffffff !important;
+          border-radius: 50% !important;
+          animation: wbr-spin 0.8s linear infinite !important;
+          margin-right: 6px !important;
+          vertical-align: -1px !important;
+        }
+        #__wbr_recording_widget__.__wbr_saving__ {
+          height: 30px !important;
+          padding: 4px 14px !important;
+          background: rgba(20, 24, 31, 0.88) !important;
+          backdrop-filter: blur(20px) !important;
+          -webkit-backdrop-filter: blur(20px) !important;
+          border-radius: 15px !important;
+          border: 1px solid rgba(255, 255, 255, 0.2) !important;
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3) !important;
+          pointer-events: none !important;
+        }
+        #__wbr_recording_widget__.__wbr_saving__ .__wbr_drag_handle,
+        #__wbr_recording_widget__.__wbr_saving__ .__wbr_dot,
+        #__wbr_recording_widget__.__wbr_saving__ [data-wbr-rec-tag],
+        #__wbr_recording_widget__.__wbr_saving__ .__wbr_btn_group {
+          display: none !important;
         }
         .__wbr_btn_group {
           display: flex !important;
@@ -319,6 +356,7 @@ export class RecordingWidget {
 
         // Setup Auto-Collapse 3s Logic
         const onUserActivity = () => {
+          if (this._isSaving) return;
           this.resetCollapseTimer();
         };
 
@@ -327,12 +365,13 @@ export class RecordingWidget {
         root.addEventListener("focusin", onUserActivity);
 
         const onMouseLeave = () => {
+          if (this._isSaving) return;
           if (this.autoCollapseTimer) {
             window.clearTimeout(this.autoCollapseTimer);
           }
           if (!this.isDragging) {
             this.autoCollapseTimer = window.setTimeout(() => {
-              if (this.container && !this.isDragging) {
+              if (this.container && !this.isDragging && !this._isSaving) {
                 this.container.classList.add("__wbr_collapsed__");
               }
             }, 1500);
@@ -352,6 +391,7 @@ export class RecordingWidget {
         this.resetCollapseTimer();
 
         const updateTimer = () => {
+          if (this._isSaving) return;
           const display = root.querySelector("#__wbr_timer_display__");
           if (display) {
             const startTime = this.callbacks.getStartedAtEpochMs();
@@ -377,6 +417,7 @@ export class RecordingWidget {
   }
 
   private resetCollapseTimer(): void {
+    if (this._isSaving) return;
     if (this.autoCollapseTimer) {
       window.clearTimeout(this.autoCollapseTimer);
       this.autoCollapseTimer = undefined;
@@ -386,7 +427,7 @@ export class RecordingWidget {
     }
     if (!this.isDragging) {
       this.autoCollapseTimer = window.setTimeout(() => {
-        if (this.container && !this.isDragging) {
+        if (this.container && !this.isDragging && !this._isSaving) {
           this.container.classList.add("__wbr_collapsed__");
         }
       }, 1500);
@@ -394,6 +435,7 @@ export class RecordingWidget {
   }
 
   unmount(): void {
+    this._isSaving = false;
     if (this.timerInterval) {
       clearInterval(this.timerInterval);
       this.timerInterval = undefined;
@@ -409,6 +451,29 @@ export class RecordingWidget {
     if (this.container) {
       this.container.remove();
       this.container = undefined;
+    }
+  }
+
+  setSavingState(saving: boolean): void {
+    this._isSaving = saving;
+    if (this.timerInterval) {
+      clearInterval(this.timerInterval);
+      this.timerInterval = undefined;
+    }
+    if (this.autoCollapseTimer) {
+      window.clearTimeout(this.autoCollapseTimer);
+      this.autoCollapseTimer = undefined;
+    }
+    if (!this.container) return;
+    if (saving) {
+      this.container.classList.remove("__wbr_collapsed__");
+      this.container.classList.add("__wbr_saving__");
+      const display = this.container.querySelector("#__wbr_timer_display__");
+      if (display) {
+        display.innerHTML = `<span class="__wbr_spinner"></span>${t("saving")}`;
+      }
+    } else {
+      this.container.classList.remove("__wbr_saving__");
     }
   }
 

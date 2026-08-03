@@ -57,19 +57,19 @@ if (existingController) {
 
   const widget: RecordingWidget = new RecordingWidget({
     onStop() {
+      widget.setSavingState(true);
       void chrome.runtime.sendMessage(
         message("session/stop", { commandId: crypto.randomUUID() })
       );
-      widget.unmount();
     },
     onStopAndExport() {
+      widget.setSavingState(true);
       void chrome.runtime.sendMessage(
         message("session/stop", {
           commandId: crypto.randomUUID(),
           autoExport: true,
         })
       );
-      widget.unmount();
     },
     onStopAndDiscard() {
       void chrome.runtime.sendMessage(

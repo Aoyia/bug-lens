@@ -67,6 +67,9 @@
   "stopRecording": {
     "message": "结束录制"
   },
+  "saving": {
+    "message": "保存中..."
+  },
   "stopAndExport": {
     "message": "结束并导出"
   },
