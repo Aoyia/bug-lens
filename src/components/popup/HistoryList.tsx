@@ -1,5 +1,9 @@
 import { memo } from "preact/compat";
-import { type EvidenceSummary, type SessionOverview, type StorageOverview } from "../../shared/protocol";
+import {
+  type EvidenceSummary,
+  type SessionOverview,
+  type StorageOverview,
+} from "../../shared/protocol";
 import { t } from "../../shared/i18n";
 
 interface HistoryListProps {
@@ -25,22 +29,49 @@ export const HistoryList = memo(function HistoryList({
   onSearchChange,
   onOpenPreview,
   onDeleteSession,
-  onResumeSession
+  onResumeSession,
 }: HistoryListProps) {
   return (
     <div>
       <div className="search-wrapper" role="search">
-        <svg className="search-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <svg
+          className="search-icon"
+          width="12"
+          height="12"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
           <circle cx="11" cy="11" r="8"></circle>
           <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
         </svg>
-        <input id="search" type="search" aria-label={t("searchPlaceholder")} placeholder={t("searchPlaceholder")} value={searchQuery} onInput={(e) => onSearchChange(e.currentTarget.value)} />
+        <input
+          id="search"
+          type="search"
+          aria-label={t("searchPlaceholder")}
+          placeholder={t("searchPlaceholder")}
+          value={searchQuery}
+          onInput={(e) => onSearchChange(e.currentTarget.value)}
+        />
       </div>
 
       <div id="sessions" className="sessions">
         {sessions.length === 0 ? (
           <div className="empty-state">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              width="32"
+              height="32"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
             </svg>
             <div className="empty-title">{t("noMatchingHistory")}</div>
@@ -49,17 +80,61 @@ export const HistoryList = memo(function HistoryList({
         ) : (
           sessions.map((item) => {
             const { session } = item;
-            const date = new Date(session.timeline.createdAtEpochMs).toLocaleString();
-            const isContinuable = session.quality.issues.some((entry) => entry.code.startsWith("SESSION_") || entry.code === "MEDIA_CONTEXT_LOST");
+            const date = new Date(
+              session.timeline.createdAtEpochMs
+            ).toLocaleString();
+            const isContinuable = session.quality.issues.some(
+              (entry) =>
+                entry.code.startsWith("SESSION_") ||
+                entry.code === "MEDIA_CONTEXT_LOST"
+            );
             return (
-              <article key={session.id} className="session" aria-label={session.target.initialTitle || t("unnamedTab")}>
+              <article
+                key={session.id}
+                className="session"
+                aria-label={session.target.initialTitle || t("unnamedTab")}
+              >
                 <div className="session-head">
-                  <div className="session-title" title={session.target.initialTitle}>{session.target.initialTitle || t("unnamedTab")}</div>
+                  <div
+                    className="session-title"
+                    title={session.target.initialTitle}
+                  >
+                    {session.target.initialTitle || t("unnamedTab")}
+                  </div>
                   <div className="session-head-actions">
-                    {isContinuable && <button className="btn-continue-sm" onClick={() => onResumeSession(session.id)} aria-label={`${t("resume")} - ${session.target.initialTitle || t("unnamedTab")}`}>{t("resume")}</button>}
-                    <button className="btn-open-preview" onClick={() => onOpenPreview(session.id)} aria-label={`${t("preview")} - ${session.target.initialTitle || t("unnamedTab")}`}>{t("preview")}</button>
-                    <button className="btn-delete-icon" title={t("deleteSession")} aria-label={`${t("deleteSession")} - ${session.target.initialTitle || t("unnamedTab")}`} onClick={() => onDeleteSession(session.id)}>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    {isContinuable && (
+                      <button
+                        className="btn-continue-sm"
+                        onClick={() => onResumeSession(session.id)}
+                        aria-label={`${t("resume")} - ${session.target.initialTitle || t("unnamedTab")}`}
+                      >
+                        {t("resume")}
+                      </button>
+                    )}
+                    <button
+                      className="btn-open-preview"
+                      onClick={() => onOpenPreview(session.id)}
+                      aria-label={`${t("preview")} - ${session.target.initialTitle || t("unnamedTab")}`}
+                    >
+                      {t("preview")}
+                    </button>
+                    <button
+                      className="btn-delete-icon"
+                      title={t("deleteSession")}
+                      aria-label={`${t("deleteSession")} - ${session.target.initialTitle || t("unnamedTab")}`}
+                      onClick={() => onDeleteSession(session.id)}
+                    >
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
                         <polyline points="3 6 5 6 21 6"></polyline>
                         <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
                       </svg>
@@ -67,11 +142,17 @@ export const HistoryList = memo(function HistoryList({
                   </div>
                 </div>
                 <div className="session-meta">
-                  <span className="session-status-tag">{session.status}</span> · {date} · {formatBytes(item.sizeBytes)} · {session.target.initialUrl}
+                  <span className="session-status-tag">{session.status}</span> ·{" "}
+                  {date} · {formatBytes(item.sizeBytes)} ·{" "}
+                  {session.target.initialUrl}
                 </div>
                 <div className="evidence">
                   {item.evidence.map((ev) => (
-                    <span key={ev.kind} className={`chip ${ev.state}`} title={ev.detail}>
+                    <span
+                      key={ev.kind}
+                      className={`chip ${ev.state}`}
+                      title={ev.detail}
+                    >
                       {evidenceLabel(ev)} · {evidenceStateLabel(ev.state)}
                     </span>
                   ))}
@@ -83,7 +164,17 @@ export const HistoryList = memo(function HistoryList({
       </div>
 
       <div className="storage-footer">
-        <span id="storage-used">{storage ? t("storageUsed", formatBytes(storage.usedBytes)) : t("loading")}</span> · <span id="storage-count">{storage ? t("sessionsCount", String(storage.sessionCount)) : "0 个会话"}</span>
+        <span id="storage-used">
+          {storage
+            ? t("storageUsed", formatBytes(storage.usedBytes))
+            : t("loading")}
+        </span>{" "}
+        ·{" "}
+        <span id="storage-count">
+          {storage
+            ? t("sessionsCount", String(storage.sessionCount))
+            : "0 个会话"}
+        </span>
       </div>
     </div>
   );

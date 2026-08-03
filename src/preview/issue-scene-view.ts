@@ -6,4 +6,7 @@ export type IssueScenePreview = {
   annotatedSource?: string;
 };
 
-export type IssueSceneCollection = { all: IssueScenePreview[]; included: IssueScenePreview[] };
+export type IssueSceneCollection = {
+  all: IssueScenePreview[];
+  included: IssueScenePreview[];
+};

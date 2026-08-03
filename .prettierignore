@@ -1,0 +1,5 @@
+dist
+node_modules
+*.zip
+.husky
+pnpm-lock.yaml

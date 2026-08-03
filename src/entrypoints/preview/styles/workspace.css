@@ -1,509 +1,526 @@
-    /* 桌面一体化主工作台 Desktop Workspace Canvas - 无缝紧凑 */
-    .zen-workspace {
-      flex: 1;
-      display: grid;
-      grid-template-columns: 1fr 1.618fr;
-      gap: 1px;
-      padding: 0;
-      background: var(--zen-border);
-      overflow: hidden;
-    }
+/* 桌面一体化主工作台 Desktop Workspace Canvas - 无缝紧凑 */
+.zen-workspace {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1.618fr;
+  gap: 1px;
+  padding: 0;
+  background: var(--zen-border);
+  overflow: hidden;
+}
 
-    @media (max-width: 1440px) {
-      .zen-workspace {
-        grid-template-columns: 44% 56%;
-      }
-    }
+@media (max-width: 1440px) {
+  .zen-workspace {
+    grid-template-columns: 44% 56%;
+  }
+}
 
-    @media (max-width: 1200px) {
-      .zen-workspace {
-        grid-template-columns: 48% 52%;
-      }
-    }
+@media (max-width: 1200px) {
+  .zen-workspace {
+    grid-template-columns: 48% 52%;
+  }
+}
 
-    /* 左侧主画面面板 Left Panel: Metrics & Video */
-    .zen-left-panel {
-      display: flex;
-      flex-direction: column;
-      height: 100%;
-      overflow: hidden;
-      background: #ffffff;
-    }
+/* 左侧主画面面板 Left Panel: Metrics & Video */
+.zen-left-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: #ffffff;
+}
 
-    /* 剃刀原理极简 Metrics 单行流式胶囊 - 柔和高级雅致调色 */
-    .metrics {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      flex-shrink: 1;
-      overflow-x: auto;
-      scrollbar-width: none;
-      -ms-overflow-style: none;
-      white-space: nowrap;
-    }
-    .metrics::-webkit-scrollbar {
-      display: none;
-    }
-    .metric {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      font-size: 11.5px;
-      padding: 2px 6px;
-      border-radius: 4px;
-      line-height: 1.3;
-      user-select: none;
-      white-space: nowrap;
-      flex-shrink: 0;
-      transition: all 0.15s ease;
-    }
-    .skip-annotation-toggle {
-      margin-right: auto;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 12px;
-      color: #4e5969;
-      cursor: pointer;
-      user-select: none;
-      white-space: nowrap;
-      flex-shrink: 0;
-    }
-    .skip-annotation-toggle input {
-      margin: 0;
-      cursor: pointer;
-    }
-    .metric strong {
-      font-weight: 700;
-      font-size: 12px;
-    }
-    /* 有效步骤：淡雅品牌蓝 */
-    .metric-steps {
-      background: rgba(22, 93, 255, 0.08);
-      color: #165dff;
-    }
-    .metric-steps strong {
-      color: #0e42d2;
-    }
-    /* 已删除：低调中性灰 */
-    .metric-deleted {
-      background: rgba(100, 116, 139, 0.08);
-      color: #64748b;
-    }
-    .metric-deleted strong {
-      color: #475569;
-    }
-    /* 步骤截图：淡翡翠绿 */
-    .metric-screenshots {
-      background: rgba(16, 185, 129, 0.09);
-      color: #059669;
-    }
-    .metric-screenshots strong {
-      color: #047857;
-    }
-    /* Console：淡琥珀橙 */
-    .metric-console {
-      background: rgba(245, 158, 11, 0.09);
-      color: #d97706;
-    }
-    .metric-console strong {
-      color: #b45309;
-    }
-    /* Network：淡皇家蓝紫 */
-    .metric-network {
-      background: rgba(139, 92, 246, 0.09);
-      color: #7c3aed;
-    }
-    .metric-network strong {
-      color: #6d28d9;
-    }
+/* 剃刀原理极简 Metrics 单行流式胶囊 - 柔和高级雅致调色 */
+.metrics {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 1;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  white-space: nowrap;
+}
+.metrics::-webkit-scrollbar {
+  display: none;
+}
+.metric {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1.3;
+  user-select: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+.skip-annotation-toggle {
+  margin-right: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #4e5969;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.skip-annotation-toggle input {
+  margin: 0;
+  cursor: pointer;
+}
+.metric strong {
+  font-weight: 700;
+  font-size: 12px;
+}
+/* 有效步骤：淡雅品牌蓝 */
+.metric-steps {
+  background: rgba(22, 93, 255, 0.08);
+  color: #165dff;
+}
+.metric-steps strong {
+  color: #0e42d2;
+}
+/* 已删除：低调中性灰 */
+.metric-deleted {
+  background: rgba(100, 116, 139, 0.08);
+  color: #64748b;
+}
+.metric-deleted strong {
+  color: #475569;
+}
+/* 步骤截图：淡翡翠绿 */
+.metric-screenshots {
+  background: rgba(16, 185, 129, 0.09);
+  color: #059669;
+}
+.metric-screenshots strong {
+  color: #047857;
+}
+/* Console：淡琥珀橙 */
+.metric-console {
+  background: rgba(245, 158, 11, 0.09);
+  color: #d97706;
+}
+.metric-console strong {
+  color: #b45309;
+}
+/* Network：淡皇家蓝紫 */
+.metric-network {
+  background: rgba(139, 92, 246, 0.09);
+  color: #7c3aed;
+}
+.metric-network strong {
+  color: #6d28d9;
+}
 
-    /* 浮动 AI 导引 Popover Drawer */
-    .ai-prompt-popover-wrapper {
-      position: relative;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
+/* 浮动 AI 导引 Popover Drawer */
+.ai-prompt-popover-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 
-    .zen-ai-drawer {
-      position: absolute;
-      top: calc(100% + 10px);
-      right: 0;
-      width: clamp(420px, 32vw, 560px);
-      max-width: calc(100vw - 32px);
-      z-index: 1000;
-      background: rgba(255, 255, 255, 0.98);
-      backdrop-filter: blur(24px);
-      -webkit-backdrop-filter: blur(24px);
-      border: 1px solid var(--bl-border, rgba(0, 0, 0, 0.08));
-      border-radius: var(--bl-radius-md, 8px);
-      padding: 14px 16px;
-      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15), 0 2px 6px rgba(0, 0, 0, 0.04);
-      animation: zen-slide-down 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-    }
+.zen-ai-drawer {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: clamp(420px, 32vw, 560px);
+  max-width: calc(100vw - 32px);
+  z-index: 1000;
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--bl-border, rgba(0, 0, 0, 0.08));
+  border-radius: var(--bl-radius-md, 8px);
+  padding: 14px 16px;
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.15),
+    0 2px 6px rgba(0, 0, 0, 0.04);
+  animation: zen-slide-down 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
 
-    .zen-ai-drawer::before {
-      content: "";
-      position: absolute;
-      top: -5px;
-      right: 48px;
-      width: 8px;
-      height: 8px;
-      background: #ffffff;
-      border-left: 1px solid var(--bl-border, rgba(0, 0, 0, 0.08));
-      border-top: 1px solid var(--bl-border, rgba(0, 0, 0, 0.08));
-      transform: rotate(45deg);
-      z-index: 1001;
-    }
+.zen-ai-drawer::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  right: 48px;
+  width: 8px;
+  height: 8px;
+  background: #ffffff;
+  border-left: 1px solid var(--bl-border, rgba(0, 0, 0, 0.08));
+  border-top: 1px solid var(--bl-border, rgba(0, 0, 0, 0.08));
+  transform: rotate(45deg);
+  z-index: 1001;
+}
 
-    .zen-ai-drawer[hidden] {
-      display: none !important;
-    }
-    @keyframes zen-slide-down {
-      from { opacity: 0; transform: translateY(-8px) scale(0.98); }
-      to { opacity: 1; transform: translateY(0) scale(1); }
-    }
-    .zen-video-container {
-      flex: 1;
-      background: #ffffff;
-      border: none;
-      border-radius: 0;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      box-shadow: none;
-      outline: none;
-      position: relative;
-    }
-    .zen-video-container:focus-visible {
-      box-shadow: inset 0 0 0 2px rgba(22, 93, 255, 0.4);
-    }
-    .zen-video-hud {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%) scale(0.9);
-      background: rgba(0, 0, 0, 0.75);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-      color: #ffffff;
-      padding: 10px 18px;
-      border-radius: 20px;
-      font-size: 14px;
-      font-weight: 600;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      pointer-events: none;
-      z-index: 100;
-      opacity: 0;
-      transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-      user-select: none;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
-    }
-    .zen-video-hud.is-visible {
-      opacity: 1;
-      transform: translate(-50%, -50%) scale(1);
-    }
-    .zen-panel-title {
-      height: 42px;
-      box-sizing: border-box;
-      font-size: var(--font-base);
-      font-weight: 600;
-      color: var(--zen-text-main);
-      padding: 0 10px;
-      margin-bottom: 0;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      flex-shrink: 0;
-      border-bottom: 1px solid var(--zen-border);
-      overflow: hidden;
-    }
-    .zen-panel-title > span {
-      white-space: nowrap;
-      flex-shrink: 0;
-    }
-    .video-viewport {
-      flex: 1;
-      position: relative;
-      background: #000000;
-      border-radius: 0;
-      overflow: hidden;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border: none;
-    }
-    .video {
-      width: 100%;
-      height: 100%;
-      max-height: 100%;
-      object-fit: contain;
-      outline: none;
-    }
+.zen-ai-drawer[hidden] {
+  display: none !important;
+}
+@keyframes zen-slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.zen-video-container {
+  flex: 1;
+  background: #ffffff;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: none;
+  outline: none;
+  position: relative;
+}
+.zen-video-container:focus-visible {
+  box-shadow: inset 0 0 0 2px rgba(22, 93, 255, 0.4);
+}
+.zen-video-hud {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.9);
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #ffffff;
+  padding: 10px 18px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+  z-index: 100;
+  opacity: 0;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+.zen-video-hud.is-visible {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+.zen-panel-title {
+  height: 42px;
+  box-sizing: border-box;
+  font-size: var(--font-base);
+  font-weight: 600;
+  color: var(--zen-text-main);
+  padding: 0 10px;
+  margin-bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--zen-border);
+  overflow: hidden;
+}
+.zen-panel-title > span {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.video-viewport {
+  flex: 1;
+  position: relative;
+  background: #000000;
+  border-radius: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+}
+.video {
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  outline: none;
+}
 
-    /* 禅意极简分段单轨播放控制栏 (Zen Segmented Single Seekbar Player) */
-    .zen-player-controls {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      height: 38px;
-      padding: 0 14px;
-      background: rgba(255, 255, 255, 0.85);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border-top: 1px solid var(--zen-border);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
-      flex-shrink: 0;
-      user-select: none;
-    }
-    .zen-player-controls[hidden] {
-      display: none !important;
-    }
-    .player-btn {
-      background: transparent;
-      border: none;
-      color: var(--zen-text-sub);
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 26px;
-      height: 26px;
-      border-radius: var(--zen-radius-btn);
-      padding: 0;
-      transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-    .player-btn svg {
-      display: block;
-    }
-    .player-btn svg[hidden] {
-      display: none !important;
-    }
-    .player-btn:hover {
-      background: var(--zen-primary-light);
-      color: var(--zen-primary);
-    }
-    .player-time-text {
-      font-family: ui-monospace, SFMono-Regular, "SF Pro Display", Menlo, Monaco, Consolas, monospace;
-      font-size: 11px;
-      font-weight: 500;
-      color: var(--zen-text-sub);
-      letter-spacing: 0.2px;
-      white-space: nowrap;
-    }
-    .zen-seekbar-container {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      height: 100%;
-      cursor: pointer;
-      padding: 0 4px;
-    }
-    .seekbar-track {
-      width: 100%;
-      height: 5px;
-      background: rgba(0, 0, 0, 0.06);
-      border-radius: 99px;
-      position: relative;
-      overflow: visible;
-      transition: height 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-    .zen-seekbar-container:hover .seekbar-track,
-    .zen-seekbar-container.is-dragging .seekbar-track {
-      height: 7px;
-    }
-    .seekbar-yellow-segment {
-      position: absolute;
-      top: 0;
-      height: 100%;
-      background: linear-gradient(180deg, #ffc53d 0%, #f59e0b 100%);
-      box-shadow: 0 1px 4px rgba(245, 158, 11, 0.35);
-      border-radius: 99px;
-      z-index: 1;
-      transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-    .seekbar-yellow-segment:hover {
-      background: linear-gradient(180deg, #ffd666 0%, #d97706 100%);
-      transform: scaleY(1.2);
-    }
-    .seekbar-fill {
-      position: absolute;
-      top: 0;
-      left: 0;
-      height: 100%;
-      background: linear-gradient(90deg, #165dff 0%, #3676ff 100%);
-      box-shadow: 0 1px 3px rgba(22, 93, 255, 0.25);
-      border-radius: 99px;
-      z-index: 2;
-      pointer-events: none;
-    }
-    .seekbar-thumb {
-      position: absolute;
-      top: 50%;
-      left: 0%;
-      width: 16px;
-      height: 16px;
-      border-radius: 50%;
-      background-color: #ffffff;
-      background-image: url("icons/icon_idle_32.png");
-      background-size: cover;
-      background-position: center;
-      background-repeat: no-repeat;
-      border: 1px solid #ffffff;
-      z-index: 3;
-      pointer-events: none;
-      transform: translate(-50%, -50%);
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.05);
-      transition: width 0.15s cubic-bezier(0.16, 1, 0.3, 1), height 0.15s cubic-bezier(0.16, 1, 0.3, 1), background-image 0.15s ease;
-    }
-    .seekbar-thumb.is-playing {
-      background-image: url("icons/icon_recording_32.png");
-    }
-    .zen-seekbar-container:hover .seekbar-thumb,
-    .seekbar-thumb.is-dragging {
-      width: 18px;
-      height: 18px;
-      background-image: url("icons/icon_recording_32.png");
-    }
+/* 禅意极简分段单轨播放控制栏 (Zen Segmented Single Seekbar Player) */
+.zen-player-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 38px;
+  padding: 0 14px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-top: 1px solid var(--zen-border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  flex-shrink: 0;
+  user-select: none;
+}
+.zen-player-controls[hidden] {
+  display: none !important;
+}
+.player-btn {
+  background: transparent;
+  border: none;
+  color: var(--zen-text-sub);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--zen-radius-btn);
+  padding: 0;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.player-btn svg {
+  display: block;
+}
+.player-btn svg[hidden] {
+  display: none !important;
+}
+.player-btn:hover {
+  background: var(--zen-primary-light);
+  color: var(--zen-primary);
+}
+.player-time-text {
+  font-family:
+    ui-monospace, SFMono-Regular, "SF Pro Display", Menlo, Monaco, Consolas,
+    monospace;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--zen-text-sub);
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+.zen-seekbar-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  height: 100%;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.seekbar-track {
+  width: 100%;
+  height: 5px;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 99px;
+  position: relative;
+  overflow: visible;
+  transition: height 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.zen-seekbar-container:hover .seekbar-track,
+.zen-seekbar-container.is-dragging .seekbar-track {
+  height: 7px;
+}
+.seekbar-yellow-segment {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  background: linear-gradient(180deg, #ffc53d 0%, #f59e0b 100%);
+  box-shadow: 0 1px 4px rgba(245, 158, 11, 0.35);
+  border-radius: 99px;
+  z-index: 1;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.seekbar-yellow-segment:hover {
+  background: linear-gradient(180deg, #ffd666 0%, #d97706 100%);
+  transform: scaleY(1.2);
+}
+.seekbar-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: linear-gradient(90deg, #165dff 0%, #3676ff 100%);
+  box-shadow: 0 1px 3px rgba(22, 93, 255, 0.25);
+  border-radius: 99px;
+  z-index: 2;
+  pointer-events: none;
+}
+.seekbar-thumb {
+  position: absolute;
+  top: 50%;
+  left: 0%;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background-color: #ffffff;
+  background-image: url("icons/icon_idle_32.png");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  border: 1px solid #ffffff;
+  z-index: 3;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.25),
+    0 0 0 1px rgba(0, 0, 0, 0.05);
+  transition:
+    width 0.15s cubic-bezier(0.16, 1, 0.3, 1),
+    height 0.15s cubic-bezier(0.16, 1, 0.3, 1),
+    background-image 0.15s ease;
+}
+.seekbar-thumb.is-playing {
+  background-image: url("icons/icon_recording_32.png");
+}
+.zen-seekbar-container:hover .seekbar-thumb,
+.seekbar-thumb.is-dragging {
+  width: 18px;
+  height: 18px;
+  background-image: url("icons/icon_recording_32.png");
+}
 
-    /* 右侧双栏/多面板工作区 Right Panel: Zen Tabbed Workspace - 紧凑极简 */
-    .zen-right-panel {
-      display: flex;
-      flex-direction: column;
-      height: 100%;
-      overflow: hidden;
-      background: #ffffff;
-    }
+/* 右侧双栏/多面板工作区 Right Panel: Zen Tabbed Workspace - 紧凑极简 */
+.zen-right-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: #ffffff;
+}
 
-    .zen-tab-box {
-      background: #ffffff;
-      border: none;
-      border-radius: 0;
-      display: flex;
-      flex-direction: column;
-      height: 100%;
-      overflow: hidden;
-      box-shadow: none;
-    }
+.zen-tab-box {
+  background: #ffffff;
+  border: none;
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  box-shadow: none;
+}
 
-    .zen-tab-bar {
-      height: 42px;
-      box-sizing: border-box;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      padding: 0 10px;
-      background: #ffffff;
-      border-bottom: 1px solid var(--zen-border);
-      flex-shrink: 0;
-    }
+.zen-tab-bar {
+  height: 42px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 10px;
+  background: #ffffff;
+  border-bottom: 1px solid var(--zen-border);
+  flex-shrink: 0;
+}
 
-    .zen-tabs {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      background: transparent;
-      padding: 0;
-      border-radius: var(--zen-radius-btn);
-      flex-shrink: 0;
-    }
+.zen-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  padding: 0;
+  border-radius: var(--zen-radius-btn);
+  flex-shrink: 0;
+}
 
-    .zen-tab-btn {
-      background: transparent;
-      border: none;
-      color: var(--zen-text-sub);
-      font-size: var(--font-sm);
-      font-weight: 500;
-      padding: 0 10px;
-      height: var(--btn-height);
-      line-height: var(--btn-height);
-      border-radius: var(--zen-radius-btn);
-      cursor: pointer;
-      white-space: nowrap;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.18s ease;
-      box-shadow: none;
-    }
-    .zen-tab-btn:first-child {
-      padding-left: 0;
-    }
-    .zen-tab-btn:hover {
-      color: var(--zen-text-main);
-      background: rgba(0, 0, 0, 0.04);
-    }
-    .zen-tab-btn.active {
-      background: transparent;
-      color: var(--zen-primary);
-      font-weight: 600;
-    }
+.zen-tab-btn {
+  background: transparent;
+  border: none;
+  color: var(--zen-text-sub);
+  font-size: var(--font-sm);
+  font-weight: 500;
+  padding: 0 10px;
+  height: var(--btn-height);
+  line-height: var(--btn-height);
+  border-radius: var(--zen-radius-btn);
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.18s ease;
+  box-shadow: none;
+}
+.zen-tab-btn:first-child {
+  padding-left: 0;
+}
+.zen-tab-btn:hover {
+  color: var(--zen-text-main);
+  background: rgba(0, 0, 0, 0.04);
+}
+.zen-tab-btn.active {
+  background: transparent;
+  color: var(--zen-primary);
+  font-weight: 600;
+}
 
-    .zen-tab-actions {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      flex-shrink: 0;
-    }
-    .zen-tab-actions button.ghost {
-      white-space: nowrap;
-      height: calc(var(--btn-height) - 4px);
-      font-size: var(--font-xs);
-      padding: 0 10px;
-      border-radius: var(--zen-radius-btn);
-      line-height: calc(var(--btn-height) - 4px);
-    }
+.zen-tab-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.zen-tab-actions button.ghost {
+  white-space: nowrap;
+  height: calc(var(--btn-height) - 4px);
+  font-size: var(--font-xs);
+  padding: 0 10px;
+  border-radius: var(--zen-radius-btn);
+  line-height: calc(var(--btn-height) - 4px);
+}
 
-    .zen-tab-pane {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      overflow: auto;
-      min-height: 0;
-      padding: 4px 10px 10px;
-    }
-    .zen-tab-pane[hidden] {
-      display: none !important;
-    }
+.zen-tab-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+  min-height: 0;
+  padding: 4px 10px 10px;
+}
+.zen-tab-pane[hidden] {
+  display: none !important;
+}
 
-    .zen-steps-layout {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      height: 100%;
-      overflow: hidden;
-    }
+.zen-steps-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  height: 100%;
+  overflow: hidden;
+}
 
-    .zen-sub-box {
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      height: 100%;
-    }
+.zen-sub-box {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 100%;
+}
 
-    .large-list {
-      max-height: 100% !important;
-      height: 100% !important;
-    }
+.large-list {
+  max-height: 100% !important;
+  height: 100% !important;
+}
 
-    .zen-box-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding-bottom: 6px;
-      margin-bottom: 6px;
-      border-bottom: 1px solid var(--zen-border-subtle);
-      flex-shrink: 0;
-    }
-    .zen-box-header h2 {
-      margin: 0;
-      font-size: var(--font-base);
-      font-weight: 600;
-      color: var(--zen-text-main);
-    }
+.zen-box-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 6px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--zen-border-subtle);
+  flex-shrink: 0;
+}
+.zen-box-header h2 {
+  margin: 0;
+  font-size: var(--font-base);
+  font-weight: 600;
+  color: var(--zen-text-main);
+}

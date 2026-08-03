@@ -15,7 +15,15 @@ export type SessionStatus =
 export type CaptureIssue = {
   code: string;
   message: string;
-  source: "media" | "debugger" | "interaction" | "screenshot" | "issue-scene" | "storage" | "export" | "migration";
+  source:
+    | "media"
+    | "debugger"
+    | "interaction"
+    | "screenshot"
+    | "issue-scene"
+    | "storage"
+    | "export"
+    | "migration";
   recoverable: boolean;
   occurredAt: number;
 };
@@ -46,8 +54,16 @@ export type SessionStorage = {
   limitReached?: boolean;
 };
 
-export type EvidenceKind = "video" | "screenshots" | "issueScenes" | "console" | "network" | "networkBodies" | "audio";
-export type EvidenceState = "captured" | "partial" | "failed" | "redacted" | "disabled" | "pending";
+export type EvidenceKind =
+  | "video"
+  | "screenshots"
+  | "issueScenes"
+  | "console"
+  | "network"
+  | "networkBodies"
+  | "audio";
+export type EvidenceState =
+  "captured" | "partial" | "failed" | "redacted" | "disabled" | "pending";
 export type EvidenceSummary = {
   kind: EvidenceKind;
   state: EvidenceState;
@@ -87,9 +103,19 @@ export type RecordingSession = {
   schemaVersion: 1 | 2;
   extensionVersion: string;
   status: SessionStatus;
-  target: { tabId: number; windowId?: number; initialUrl: string; initialTitle: string };
+  target: {
+    tabId: number;
+    windowId?: number;
+    initialUrl: string;
+    initialTitle: string;
+  };
   options: RecordingOptions;
-  timeline: { createdAtEpochMs: number; startedAtEpochMs?: number; stoppedAtEpochMs?: number; durationMs?: number };
+  timeline: {
+    createdAtEpochMs: number;
+    startedAtEpochMs?: number;
+    stoppedAtEpochMs?: number;
+    durationMs?: number;
+  };
   quality: QualitySummary;
   nonce: string;
   commandIds?: { start: string; stop?: string };
@@ -131,7 +157,13 @@ export type ElementDescriptor = {
   role?: string;
   accessibleName?: string;
   boundingBox: { x: number; y: number; width: number; height: number };
-  locators: Array<{ kind: string; expression: string; matchCount: number; stabilityScore: number; reasons: string[] }>;
+  locators: Array<{
+    kind: string;
+    expression: string;
+    matchCount: number;
+    stabilityScore: number;
+    reasons: string[];
+  }>;
   framework?: {
     vue?: VueFrameworkSnapshot;
   };
@@ -146,7 +178,16 @@ export type InteractionRecord = {
   confirmedAt?: number;
   page: { url: string; title: string; frameId: number };
   input: { pointerType: string; button: number; isTrusted: boolean };
-  coordinates: { clientX: number; clientY: number; pageX: number; pageY: number; scrollX: number; scrollY: number; devicePixelRatio: number; viewport: { width: number; height: number } };
+  coordinates: {
+    clientX: number;
+    clientY: number;
+    pageX: number;
+    pageY: number;
+    scrollX: number;
+    scrollY: number;
+    devicePixelRatio: number;
+    viewport: { width: number; height: number };
+  };
   element: ElementDescriptor;
   metadata?: {
     inputType?: string;
@@ -174,11 +215,27 @@ export type InteractionRecord = {
     fromUrl?: string;
     toUrl?: string;
   };
-  screenshot: { status: "pending" | "captured" | "unavailable" | "disabled"; source?: "primary" | "video-frame"; assetId?: string; dataUrl?: string; issue?: string };
+  screenshot: {
+    status: "pending" | "captured" | "unavailable" | "disabled";
+    source?: "primary" | "video-frame";
+    assetId?: string;
+    dataUrl?: string;
+    issue?: string;
+  };
 };
 
-export type DiagnosticStackFrame = { functionName?: string; url?: string; lineNumber?: number; columnNumber?: number };
-export type ConsoleArgument = { type: string; subtype?: string; description?: string; valuePreview?: string };
+export type DiagnosticStackFrame = {
+  functionName?: string;
+  url?: string;
+  lineNumber?: number;
+  columnNumber?: number;
+};
+export type ConsoleArgument = {
+  type: string;
+  subtype?: string;
+  description?: string;
+  valuePreview?: string;
+};
 export type ConsoleEntry = {
   id: string;
   sessionId: string;
@@ -211,7 +268,8 @@ export type InitiatorEvidence = {
   stack?: ConciseCallFrame[];
 };
 
-export type CacheSource = "network" | "memory" | "disk" | "service-worker" | "prefetch";
+export type CacheSource =
+  "network" | "memory" | "disk" | "service-worker" | "prefetch";
 
 export type CacheEvidence = {
   source: CacheSource;
@@ -292,7 +350,8 @@ export type NetworkEntry = {
     securityState?: string;
     timing?: Record<string, number>;
     encodedDataLength?: number;
-    bodyStatus: "pending" | "captured" | "redacted" | "not-present" | "unavailable";
+    bodyStatus:
+      "pending" | "captured" | "redacted" | "not-present" | "unavailable";
     body?: string;
     bodyPath?: string;
     base64Encoded?: boolean;
@@ -306,18 +365,50 @@ export type NetworkEntry = {
   };
 };
 
-export type IssueSceneStatus = "capturing" | "draft" | "committed" | "complete" | "partial" | "failed";
+export type IssueSceneStatus =
+  "capturing" | "draft" | "committed" | "complete" | "partial" | "failed";
 export type UserAnnotationItem =
-  | { type: "rect"; color: string; xRatio: number; yRatio: number; widthRatio: number; heightRatio: number }
-  | { type: "arrow"; color: string; startXRatio: number; startYRatio: number; endXRatio: number; endYRatio: number }
-  | { type: "text"; color: string; xRatio: number; yRatio: number; text: string; fontSize?: number };
+  | {
+      type: "rect";
+      color: string;
+      xRatio: number;
+      yRatio: number;
+      widthRatio: number;
+      heightRatio: number;
+    }
+  | {
+      type: "arrow";
+      color: string;
+      startXRatio: number;
+      startYRatio: number;
+      endXRatio: number;
+      endYRatio: number;
+    }
+  | {
+      type: "text";
+      color: string;
+      xRatio: number;
+      yRatio: number;
+      text: string;
+      fontSize?: number;
+    };
 
 export type AnnotationModel = {
   type: "arrow-box";
   color: "#ef233c";
   point: { xRatio: number; yRatio: number };
-  targetBox?: { xRatio: number; yRatio: number; widthRatio: number; heightRatio: number };
-  targetBoxes?: Array<{ xRatio: number; yRatio: number; widthRatio: number; heightRatio: number }>;
+  targetBox?: {
+    xRatio: number;
+    yRatio: number;
+    widthRatio: number;
+    heightRatio: number;
+  };
+  targetBoxes?: Array<{
+    xRatio: number;
+    yRatio: number;
+    widthRatio: number;
+    heightRatio: number;
+  }>;
   label?: string;
   userAnnotations?: UserAnnotationItem[];
 };
@@ -334,7 +425,13 @@ export type TargetDomSnapshot = {
   sanitizedHtml?: string;
   htmlTruncated?: boolean;
   ancestors: DomAncestorSnapshot[];
-  state: { disabled?: boolean; checked?: boolean; selected?: boolean; expanded?: boolean; hidden?: boolean };
+  state: {
+    disabled?: boolean;
+    checked?: boolean;
+    selected?: boolean;
+    expanded?: boolean;
+    hidden?: boolean;
+  };
   computedStyle: Record<string, string>;
 };
 export type EvidenceAsset = {
@@ -356,12 +453,27 @@ export type IssueScene = {
   observedAtEpochMs: number;
   selectionStartedAtEpochMs?: number;
   committedAtEpochMs?: number;
-  page: { url: string; title: string; frameId: number; viewport: { width: number; height: number }; scrollX: number; scrollY: number; devicePixelRatio: number };
+  page: {
+    url: string;
+    title: string;
+    frameId: number;
+    viewport: { width: number; height: number };
+    scrollX: number;
+    scrollY: number;
+    devicePixelRatio: number;
+  };
   target: TargetDomSnapshot;
   targets?: TargetDomSnapshot[];
   narrative?: { actual: string; expected?: string; note?: string };
   annotation: AnnotationModel;
-  screenshot: { status: "pending" | "captured" | "partial" | "unavailable"; originalAssetId?: string; annotatedAssetId?: string; width?: number; height?: number; issue?: string };
+  screenshot: {
+    status: "pending" | "captured" | "partial" | "unavailable";
+    originalAssetId?: string;
+    annotatedAssetId?: string;
+    width?: number;
+    height?: number;
+    issue?: string;
+  };
   issues: CaptureIssue[];
 };
 export type ExportSelection = {
@@ -398,7 +510,8 @@ export type RecordingHealthCode =
   | "STORAGE_NEAR_LIMIT"
   | "UNRECOVERABLE";
 
-export type StreamHealthState = "ok" | "reconnecting" | "disrupted" | "failed" | "disabled";
+export type StreamHealthState =
+  "ok" | "reconnecting" | "disrupted" | "failed" | "disabled";
 
 export type StreamHealthVector = {
   media: StreamHealthState;
@@ -415,10 +528,29 @@ export type RecordingHealthInfo = {
   streams: StreamHealthVector;
 };
 
-export type Envelope<T extends string, P = unknown> = { protocolVersion: typeof PROTOCOL_VERSION; messageId: string; type: T; sentAt: number; sessionId?: string; payload: P };
+export type Envelope<T extends string, P = unknown> = {
+  protocolVersion: typeof PROTOCOL_VERSION;
+  messageId: string;
+  type: T;
+  sentAt: number;
+  sessionId?: string;
+  payload: P;
+};
 export type RuntimeMessage =
-  | Envelope<"session/start", { tabId: number; options: RecordingOptions; commandId: string; streamId?: string; resumedFromSessionId?: string }>
-  | Envelope<"session/stop", { commandId: string; autoExport?: boolean }>
+  | Envelope<
+      "session/start",
+      {
+        tabId: number;
+        options: RecordingOptions;
+        commandId: string;
+        streamId?: string;
+        resumedFromSessionId?: string;
+      }
+    >
+  | Envelope<
+      "session/stop",
+      { commandId?: string; autoExport?: boolean; discard?: boolean }
+    >
   | Envelope<"session/status", { session?: RecordingSession }>
   | Envelope<"session/list", { query?: string }>
   | Envelope<"session/delete", { sessionId: string }>
@@ -430,37 +562,129 @@ export type RuntimeMessage =
   | Envelope<"storage/clear-all", Record<string, never>>
   | Envelope<"interaction/candidate", { interaction: InteractionRecord }>
   | Envelope<"interaction/confirmed", { interaction: InteractionRecord }>
-  | Envelope<"interaction/cancelled", { interactionId: string; interaction?: InteractionRecord }>
-  | Envelope<"issue-scene/capture", { captureId: string; nonce: string; observedAtEpochMs: number; selectionStartedAtEpochMs?: number; page: IssueScene["page"]; target: TargetDomSnapshot; targets?: TargetDomSnapshot[]; annotation: AnnotationModel }>
-  | Envelope<"issue-scene/commit", { issueSceneId: string; nonce: string; narrative: { actual: string; expected?: string; note?: string }; annotation: AnnotationModel; stopAfterCommit: boolean }>
+  | Envelope<
+      "interaction/cancelled",
+      { interactionId: string; interaction?: InteractionRecord }
+    >
+  | Envelope<
+      "issue-scene/capture",
+      {
+        captureId: string;
+        nonce: string;
+        observedAtEpochMs: number;
+        selectionStartedAtEpochMs?: number;
+        page: IssueScene["page"];
+        target: TargetDomSnapshot;
+        targets?: TargetDomSnapshot[];
+        annotation: AnnotationModel;
+      }
+    >
+  | Envelope<
+      "issue-scene/commit",
+      {
+        issueSceneId: string;
+        nonce: string;
+        narrative: { actual: string; expected?: string; note?: string };
+        annotation: AnnotationModel;
+        stopAfterCommit: boolean;
+      }
+    >
   | Envelope<"issue-scene/cancel", { issueSceneId: string; nonce: string }>
   | Envelope<"issue-scene/start-selection", Record<string, never>>
   | Envelope<"issue-scene/cancel-selection", Record<string, never>>
   | Envelope<"content/hello", { url: string; title: string }>
   | Envelope<"content/reset", Record<string, never>>
   | Envelope<"content/health-update", { health: RecordingHealthInfo }>
-  | Envelope<"offscreen/start-media", { streamId: string; sessionId: string; captureAudio: boolean; timesliceMs: number }>
+  | Envelope<
+      "offscreen/start-media",
+      {
+        streamId: string;
+        sessionId: string;
+        captureAudio: boolean;
+        timesliceMs: number;
+      }
+    >
   | Envelope<"offscreen/stop-media", { sessionId: string }>
   | Envelope<"offscreen/pause-media", { sessionId: string }>
   | Envelope<"offscreen/resume-media", { sessionId: string }>
   | Envelope<"offscreen/status", { sessionId: string }>
-  | Envelope<"offscreen/annotate-image", { dataUrl: string; clientX: number; clientY: number; viewportWidth: number; viewportHeight: number }>
-  | Envelope<"offscreen/render-issue-image", { sessionId: string; issueSceneId: string; originalAssetId: string; annotatedAssetId: string; annotation: AnnotationModel; devicePixelRatio?: number }>
-  | Envelope<"offscreen/media-chunk", { sessionId: string; chunk: ArrayBuffer; sequence: number; mimeType: string; recordedAt: number }>
-  | Envelope<"offscreen/media-state", { sessionId: string; state: "started" | "stopped" | "error"; error?: string }>
-  | Envelope<"offscreen/storage-state", { sessionId: string; usedBytes: number; limitReached: boolean; stored: boolean }>;
+  | Envelope<
+      "offscreen/annotate-image",
+      {
+        dataUrl: string;
+        clientX: number;
+        clientY: number;
+        viewportWidth: number;
+        viewportHeight: number;
+      }
+    >
+  | Envelope<
+      "offscreen/render-issue-image",
+      {
+        sessionId: string;
+        issueSceneId: string;
+        originalAssetId: string;
+        annotatedAssetId: string;
+        annotation: AnnotationModel;
+        devicePixelRatio?: number;
+      }
+    >
+  | Envelope<
+      "offscreen/media-chunk",
+      {
+        sessionId: string;
+        chunk: ArrayBuffer;
+        sequence: number;
+        mimeType: string;
+        recordedAt: number;
+      }
+    >
+  | Envelope<
+      "offscreen/media-state",
+      {
+        sessionId: string;
+        state: "started" | "stopped" | "error";
+        error?: string;
+      }
+    >
+  | Envelope<
+      "offscreen/storage-state",
+      {
+        sessionId: string;
+        usedBytes: number;
+        limitReached: boolean;
+        stored: boolean;
+      }
+    >;
 
-export function message<T extends RuntimeMessage["type"], P>(type: T, payload: P, sessionId?: string): Envelope<T, P> {
-  return { protocolVersion: PROTOCOL_VERSION, messageId: crypto.randomUUID(), type, sentAt: Date.now(), sessionId, payload } as Envelope<T, P>;
+export function message<T extends RuntimeMessage["type"], P>(
+  type: T,
+  payload: P,
+  sessionId?: string
+): Envelope<T, P> {
+  return {
+    protocolVersion: PROTOCOL_VERSION,
+    messageId: crypto.randomUUID(),
+    type,
+    sentAt: Date.now(),
+    sessionId,
+    payload,
+  } as Envelope<T, P>;
 }
 
 export function isEnvelope(value: unknown): value is RuntimeMessage {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Record<string, unknown>;
-  return candidate.protocolVersion === PROTOCOL_VERSION && typeof candidate.type === "string" && typeof candidate.messageId === "string";
+  return (
+    candidate.protocolVersion === PROTOCOL_VERSION &&
+    typeof candidate.type === "string" &&
+    typeof candidate.messageId === "string"
+  );
 }
 
-export function uuid(): string { return crypto.randomUUID(); }
+export function uuid(): string {
+  return crypto.randomUUID();
+}
 
 export type RuntimeMessageResponseMap = {
   "session/start": { ok: true; session: RecordingSession };
@@ -482,7 +706,15 @@ export type RuntimeMessageResponseMap = {
   "issue-scene/cancel": { ok: true };
   "issue-scene/start-selection": { ok: true };
   "issue-scene/cancel-selection": { ok: true };
-  "content/hello": { ok: true; active: boolean; sessionId?: string; nonce?: string; startedAtEpochMs?: number; privacyMode?: "safe" | "raw"; health?: RecordingHealthInfo };
+  "content/hello": {
+    ok: true;
+    active: boolean;
+    sessionId?: string;
+    nonce?: string;
+    startedAtEpochMs?: number;
+    privacyMode?: "safe" | "raw";
+    health?: RecordingHealthInfo;
+  };
   "content/reset": { ok: true };
   "content/health-update": { ok: true };
   "offscreen/start-media": { ok: true };

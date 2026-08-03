@@ -1,17 +1,31 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { RecordingCoordinator, type StoppingPersistence } from "../src/recording/recording-coordinator.ts";
+import {
+  RecordingCoordinator,
+  type StoppingPersistence,
+} from "../src/recording/recording-coordinator.ts";
 
 test("recording lifecycle work is serialized", async () => {
   const coordinator = new RecordingCoordinator();
   const events: string[] = [];
   let releaseFirst!: () => void;
   let markStarted!: () => void;
-  const firstGate = new Promise<void>((resolve) => { releaseFirst = resolve; });
-  const started = new Promise<void>((resolve) => { markStarted = resolve; });
-  const first = coordinator.runLifecycle(async () => { events.push("first:start"); markStarted(); await firstGate; events.push("first:end"); });
-  const second = coordinator.runLifecycle(async () => { events.push("second"); });
+  const firstGate = new Promise<void>((resolve) => {
+    releaseFirst = resolve;
+  });
+  const started = new Promise<void>((resolve) => {
+    markStarted = resolve;
+  });
+  const first = coordinator.runLifecycle(async () => {
+    events.push("first:start");
+    markStarted();
+    await firstGate;
+    events.push("first:end");
+  });
+  const second = coordinator.runLifecycle(async () => {
+    events.push("second");
+  });
   await started;
   assert.deepEqual(events, ["first:start"]);
   releaseFirst();
@@ -23,9 +37,17 @@ test("duplicate stop requests share one flight and stopping state is explicit", 
   const coordinator = new RecordingCoordinator();
   let calls = 0;
   let finish!: (value: number) => void;
-  const pending = new Promise<number>((resolve) => { finish = resolve; });
-  const first = coordinator.runStop("session", async () => { calls += 1; return pending; });
-  const second = coordinator.runStop("session", async () => { calls += 1; return 2; });
+  const pending = new Promise<number>((resolve) => {
+    finish = resolve;
+  });
+  const first = coordinator.runStop("session", async () => {
+    calls += 1;
+    return pending;
+  });
+  const second = coordinator.runStop("session", async () => {
+    calls += 1;
+    return 2;
+  });
   assert.equal(first, second);
   assert.equal(calls, 1);
   coordinator.beginStopping("session");
@@ -39,8 +61,12 @@ test("duplicate stop requests share one flight and stopping state is explicit", 
 test("stopping state is persisted via StoppingPersistence adapter", async () => {
   let persisted: string[] = [];
   const persistence: StoppingPersistence = {
-    save(ids) { persisted = [...ids]; },
-    async load() { return persisted; }
+    save(ids) {
+      persisted = [...ids];
+    },
+    async load() {
+      return persisted;
+    },
   };
   const coordinator = new RecordingCoordinator(persistence);
 
@@ -63,7 +89,9 @@ test("stopping state is persisted via StoppingPersistence adapter", async () => 
 test("restoreStoppingIds recovers state from persistence", async () => {
   const persistence: StoppingPersistence = {
     save() {},
-    async load() { return ["restored-1", "restored-2"]; }
+    async load() {
+      return ["restored-1", "restored-2"];
+    },
   };
   const coordinator = new RecordingCoordinator(persistence);
   assert.equal(coordinator.isStopping("restored-1"), false);

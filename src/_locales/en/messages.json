@@ -70,6 +70,9 @@
   "stopAndExport": {
     "message": "Stop & Export"
   },
+  "stopAndDiscard": {
+    "message": "Discard Recording"
+  },
   "reopenPreview": {
     "message": "Reopen Preview"
   },

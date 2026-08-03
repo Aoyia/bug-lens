@@ -38,15 +38,28 @@ export const OptionsGrid = memo(function OptionsGrid({
   onSetCaptureConsole,
   onSetCaptureNetwork,
   onSetCaptureNetworkBodies,
-  onSetPrivacyMode
+  onSetPrivacyMode,
 }: OptionsGridProps) {
   return (
     <div>
       <div className="inline-config">
         <span className="config-text">{t("defaultSafeCollection")}</span>
-        <button id="toggle-options" className={`toggle-options-btn ${advancedOpen ? "open" : ""}`} onClick={onToggleAdvanced}>
+        <button
+          id="toggle-options"
+          className={`toggle-options-btn ${advancedOpen ? "open" : ""}`}
+          onClick={onToggleAdvanced}
+        >
           <span>{t("config")}</span>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <polyline points="6 9 12 15 18 9"></polyline>
           </svg>
         </button>
@@ -56,31 +69,86 @@ export const OptionsGrid = memo(function OptionsGrid({
         <div id="advanced-options" className="advanced-panel">
           <div className="scopes-grid">
             <label className="scope-chip">
-              <input id="video" type="checkbox" checked={captureVideo} disabled={controlsLocked} onChange={(e) => { onSetCaptureVideo(e.currentTarget.checked); if (!e.currentTarget.checked) onSetCaptureAudio(false); }} />
+              <input
+                id="video"
+                type="checkbox"
+                checked={captureVideo}
+                disabled={controlsLocked}
+                onChange={(e) => {
+                  onSetCaptureVideo(e.currentTarget.checked);
+                  if (!e.currentTarget.checked) onSetCaptureAudio(false);
+                }}
+              />
               <span>{t("video")}</span>
             </label>
             <label className="scope-chip">
-              <input id="audio" type="checkbox" checked={captureAudio} disabled={controlsLocked || !captureVideo} onChange={(e) => onSetCaptureAudio(e.currentTarget.checked)} />
+              <input
+                id="audio"
+                type="checkbox"
+                checked={captureAudio}
+                disabled={controlsLocked || !captureVideo}
+                onChange={(e) => onSetCaptureAudio(e.currentTarget.checked)}
+              />
               <span>{t("audio")}</span>
             </label>
             <label className="scope-chip">
-              <input id="screenshots" type="checkbox" checked={captureScreenshots} disabled={controlsLocked} onChange={(e) => onSetCaptureScreenshots(e.currentTarget.checked)} />
+              <input
+                id="screenshots"
+                type="checkbox"
+                checked={captureScreenshots}
+                disabled={controlsLocked}
+                onChange={(e) =>
+                  onSetCaptureScreenshots(e.currentTarget.checked)
+                }
+              />
               <span>{t("clickScreenshots")}</span>
             </label>
             <label className="scope-chip">
-              <input id="console" type="checkbox" checked={captureConsole} disabled={controlsLocked} onChange={(e) => onSetCaptureConsole(e.currentTarget.checked)} />
+              <input
+                id="console"
+                type="checkbox"
+                checked={captureConsole}
+                disabled={controlsLocked}
+                onChange={(e) => onSetCaptureConsole(e.currentTarget.checked)}
+              />
               <span>{t("console")}</span>
             </label>
             <label className="scope-chip">
-              <input id="network" type="checkbox" checked={captureNetwork} disabled={controlsLocked} onChange={(e) => { onSetCaptureNetwork(e.currentTarget.checked); if (!e.currentTarget.checked) onSetCaptureNetworkBodies(false); }} />
+              <input
+                id="network"
+                type="checkbox"
+                checked={captureNetwork}
+                disabled={controlsLocked}
+                onChange={(e) => {
+                  onSetCaptureNetwork(e.currentTarget.checked);
+                  if (!e.currentTarget.checked)
+                    onSetCaptureNetworkBodies(false);
+                }}
+              />
               <span>{t("network")}</span>
             </label>
             <label className="scope-chip">
-              <input id="bodies" type="checkbox" checked={captureNetworkBodies} disabled={controlsLocked || !captureNetwork} onChange={(e) => onSetCaptureNetworkBodies(e.currentTarget.checked)} />
+              <input
+                id="bodies"
+                type="checkbox"
+                checked={captureNetworkBodies}
+                disabled={controlsLocked || !captureNetwork}
+                onChange={(e) =>
+                  onSetCaptureNetworkBodies(e.currentTarget.checked)
+                }
+              />
               <span>{t("responseBodies")}</span>
             </label>
           </div>
-          <select id="privacy" className="privacy-select" value={privacyMode} disabled={controlsLocked} onChange={(e) => onSetPrivacyMode(e.currentTarget.value as "safe" | "raw")}>
+          <select
+            id="privacy"
+            className="privacy-select"
+            value={privacyMode}
+            disabled={controlsLocked}
+            onChange={(e) =>
+              onSetPrivacyMode(e.currentTarget.value as "safe" | "raw")
+            }
+          >
             <option value="safe">{t("safeMode")}</option>
             <option value="raw">{t("rawMode")}</option>
           </select>

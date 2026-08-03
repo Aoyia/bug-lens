@@ -4,14 +4,24 @@ import test from "node:test";
 import { applySessionEvent } from "../src/domain/recording-session.ts";
 import type { CaptureIssue, RecordingSession } from "../src/shared/protocol.ts";
 
-function session(status: RecordingSession["status"] = "PREPARING"): RecordingSession {
+function session(
+  status: RecordingSession["status"] = "PREPARING"
+): RecordingSession {
   return {
     id: "session-1",
     schemaVersion: 1,
     extensionVersion: "0.1.0",
     status,
-    target: { tabId: 7, initialUrl: "https://example.test", initialTitle: "Example" },
-    options: { captureAudio: false, privacyMode: "safe", mediaTimesliceMs: 1_000 },
+    target: {
+      tabId: 7,
+      initialUrl: "https://example.test",
+      initialTitle: "Example",
+    },
+    options: {
+      captureAudio: false,
+      privacyMode: "safe",
+      mediaTimesliceMs: 1_000,
+    },
     timeline: { createdAtEpochMs: 1_000 },
     quality: {
       overall: "complete",
@@ -22,29 +32,50 @@ function session(status: RecordingSession["status"] = "PREPARING"): RecordingSes
       unavailableScreenshotCount: 0,
       consoleEntryCount: 0,
       networkEntryCount: 0,
-      issues: []
+      issues: [],
     },
     nonce: "nonce-1",
-    commandIds: { start: "start-1" }
+    commandIds: { start: "start-1" },
   };
 }
 
 function issue(code: string): CaptureIssue {
-  return { code, message: code, source: "media", recoverable: false, occurredAt: 1_100 };
+  return {
+    code,
+    message: code,
+    source: "media",
+    recoverable: false,
+    occurredAt: 1_100,
+  };
 }
 
 test("media failure during startup remains degraded after startup completes", () => {
-  const degraded = applySessionEvent(session(), { type: "capture-issue", issue: issue("MEDIA_FAILED") });
-  const started = applySessionEvent(degraded, { type: "started", atEpochMs: 1_200 });
+  const degraded = applySessionEvent(session(), {
+    type: "capture-issue",
+    issue: issue("MEDIA_FAILED"),
+  });
+  const started = applySessionEvent(degraded, {
+    type: "started",
+    atEpochMs: 1_200,
+  });
 
   assert.equal(started.status, "DEGRADED");
   assert.equal(started.quality.overall, "partial");
-  assert.deepEqual(started.quality.issues.map((item) => item.code), ["MEDIA_FAILED"]);
+  assert.deepEqual(
+    started.quality.issues.map((item) => item.code),
+    ["MEDIA_FAILED"]
+  );
 });
 
 test("independent quality deltas accumulate instead of overwriting each other", () => {
-  const withConsole = applySessionEvent(session("RECORDING"), { type: "quality-delta", delta: { consoleEntryCount: 1 } });
-  const withNetwork = applySessionEvent(withConsole, { type: "quality-delta", delta: { networkEntryCount: 1 } });
+  const withConsole = applySessionEvent(session("RECORDING"), {
+    type: "quality-delta",
+    delta: { consoleEntryCount: 1 },
+  });
+  const withNetwork = applySessionEvent(withConsole, {
+    type: "quality-delta",
+    delta: { networkEntryCount: 1 },
+  });
 
   assert.equal(withNetwork.quality.consoleEntryCount, 1);
   assert.equal(withNetwork.quality.networkEntryCount, 1);
@@ -52,7 +83,10 @@ test("independent quality deltas accumulate instead of overwriting each other", 
 
 test("late capture events cannot regress a preview-ready session", () => {
   const ready = session("PREVIEW_READY");
-  const result = applySessionEvent(ready, { type: "capture-issue", issue: issue("LATE_ERROR") });
+  const result = applySessionEvent(ready, {
+    type: "capture-issue",
+    issue: issue("LATE_ERROR"),
+  });
 
   assert.deepEqual(result, ready);
 });
@@ -61,7 +95,7 @@ test("browser restart recovers an active session as partial preview evidence", (
   const recovered = applySessionEvent(session("RECORDING"), {
     type: "recover",
     atEpochMs: 5_000,
-    issue: issue("BROWSER_RESTARTED")
+    issue: issue("BROWSER_RESTARTED"),
   });
 
   assert.equal(recovered.status, "PREVIEW_READY");
@@ -72,8 +106,16 @@ test("browser restart recovers an active session as partial preview evidence", (
 });
 
 test("stop command is persisted once and duplicate stops keep the first timestamp", () => {
-  const stopping = applySessionEvent(session("RECORDING"), { type: "stop-requested", atEpochMs: 2_000, commandId: "stop-1" });
-  const duplicate = applySessionEvent(stopping, { type: "stop-requested", atEpochMs: 3_000, commandId: "stop-1" });
+  const stopping = applySessionEvent(session("RECORDING"), {
+    type: "stop-requested",
+    atEpochMs: 2_000,
+    commandId: "stop-1",
+  });
+  const duplicate = applySessionEvent(stopping, {
+    type: "stop-requested",
+    atEpochMs: 3_000,
+    commandId: "stop-1",
+  });
 
   assert.equal(duplicate.status, "STOPPING");
   assert.equal(duplicate.timeline.stoppedAtEpochMs, 2_000);

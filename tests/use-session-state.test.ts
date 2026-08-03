@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { h, render } from "preact";
-import { useSessionState, type UseSessionStateOptions } from "../src/hooks/useSessionState.ts";
+import {
+  useSessionState,
+  type UseSessionStateOptions,
+} from "../src/hooks/useSessionState.ts";
 import type { RecordingSession } from "../src/shared/protocol.ts";
 
 function setupMockDocument() {
@@ -12,9 +15,18 @@ function setupMockDocument() {
     style: {},
     setAttribute: () => {},
     removeAttribute: () => {},
-    appendChild(child: any) { child.parentNode = this; return child; },
-    removeChild(child: any) { child.parentNode = null; return child; },
-    insertBefore(child: any) { child.parentNode = this; return child; },
+    appendChild(child: any) {
+      child.parentNode = this;
+      return child;
+    },
+    removeChild(child: any) {
+      child.parentNode = null;
+      return child;
+    },
+    insertBefore(child: any) {
+      child.parentNode = this;
+      return child;
+    },
     addEventListener: () => {},
     removeEventListener: () => {},
   });
@@ -95,7 +107,11 @@ test("useSessionState - 计时器生命周期与卸载清理", async () => {
     timeline: { ...activeSession.timeline, startedAtEpochMs: 1000000 },
   };
   hookRef.updateSessionState(updatedActiveSession);
-  assert.equal(activeIntervals.has(firstIntervalId), false, "调用 updateSessionState 时旧 interval 必须立即被清除");
+  assert.equal(
+    activeIntervals.has(firstIntervalId),
+    false,
+    "调用 updateSessionState 时旧 interval 必须立即被清除"
+  );
 
   await flushEvents();
   assert.equal(activeIntervals.size, 1, "新 interval 被创建");
@@ -110,7 +126,11 @@ test("useSessionState - 计时器生命周期与卸载清理", async () => {
 
   assert.equal(hookRef.active, false);
   assert.equal(hookRef.timerText, "");
-  assert.equal(activeIntervals.size, 0, "非活动状态下，所有 interval 必须被清除");
+  assert.equal(
+    activeIntervals.size,
+    0,
+    "非活动状态下，所有 interval 必须被清除"
+  );
 
   // 5. 重新激活并测试组件卸载 (unmount) 清理
   hookRef.updateSessionState(activeSession);
@@ -130,5 +150,9 @@ test("useSessionState - 计时器生命周期与卸载清理", async () => {
   mockNowTime = 1020000;
   activeTick?.();
   await flushEvents();
-  assert.equal(hookRef.timerText, timerTextBeforeTick, "卸载后 tick 不应改变或造成异常");
+  assert.equal(
+    hookRef.timerText,
+    timerTextBeforeTick,
+    "卸载后 tick 不应改变或造成异常"
+  );
 });

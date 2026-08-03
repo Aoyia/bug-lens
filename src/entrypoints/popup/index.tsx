@@ -5,4 +5,3 @@ const container = document.getElementById("app");
 if (container) {
   render(<PopupApp />, container);
 }
-

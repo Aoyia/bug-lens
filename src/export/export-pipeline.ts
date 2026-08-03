@@ -5,7 +5,8 @@ import { Sha256, sha256 } from "./sha256.ts";
 
 export type BinaryChunk = Uint8Array<ArrayBuffer>;
 
-const isTextFile = (filename: string) => /\.(?:json|js|css|html|md)$/i.test(filename);
+const isTextFile = (filename: string) =>
+  /\.(?:json|js|css|html|md)$/i.test(filename);
 
 export type ArchiveSink = {
   write(chunk: BinaryChunk): Promise<void>;
@@ -31,7 +32,10 @@ export type ExportProgress = {
   bytesWritten: number;
 };
 
-export type ArchiveEntryIntegrity = Record<string, { byteLength: number; sha256: string }>;
+export type ArchiveEntryIntegrity = Record<
+  string,
+  { byteLength: number; sha256: string }
+>;
 
 export async function writeEvidenceArchive(input: {
   files: ArchiveFile[];
@@ -49,7 +53,11 @@ export async function writeEvidenceArchive(input: {
     finalResolve = resolve;
     finalReject = reject;
   });
-  const progress: ExportProgress = { entriesWritten: 0, mediaChunksWritten: 0, bytesWritten: 0 };
+  const progress: ExportProgress = {
+    entriesWritten: 0,
+    mediaChunksWritten: 0,
+    bytesWritten: 0,
+  };
   const integrity: ArchiveEntryIntegrity = {};
 
   const zip = new Zip((error, data, final) => {
@@ -75,7 +83,9 @@ export async function writeEvidenceArchive(input: {
   try {
     for (const file of input.files) {
       const hash = await sha256(file.data);
-      const entry = isTextFile(file.name) ? new ZipDeflate(file.name, { level: 9 }) : new ZipPassThrough(file.name);
+      const entry = isTextFile(file.name)
+        ? new ZipDeflate(file.name, { level: 9 })
+        : new ZipPassThrough(file.name);
       zip.add(entry);
       entry.push(file.data, true);
       integrity[file.name] = { byteLength: file.data.byteLength, sha256: hash };
@@ -86,26 +96,39 @@ export async function writeEvidenceArchive(input: {
     let mediaEntry: ZipPassThrough | undefined;
     let mediaHash: Sha256 | undefined;
     let mediaBytes = 0;
-    await input.mediaSource.iterateMediaChunks(input.sessionId, async (record) => {
-      if (!(record.chunk instanceof ArrayBuffer) || record.chunk.byteLength === 0) return;
-      if (!mediaEntry) {
-        mediaEntry = new ZipPassThrough("media/recording.webm");
-        zip.add(mediaEntry);
-        progress.entriesWritten += 1;
-        mediaHash = new Sha256();
+    await input.mediaSource.iterateMediaChunks(
+      input.sessionId,
+      async (record) => {
+        if (
+          !(record.chunk instanceof ArrayBuffer) ||
+          record.chunk.byteLength === 0
+        )
+          return;
+        if (!mediaEntry) {
+          mediaEntry = new ZipPassThrough("media/recording.webm");
+          zip.add(mediaEntry);
+          progress.entriesWritten += 1;
+          mediaHash = new Sha256();
+        }
+        const bytes = new Uint8Array(record.chunk);
+        mediaEntry.push(bytes, false);
+        mediaHash!.update(bytes);
+        mediaBytes += bytes.byteLength;
+        progress.mediaChunksWritten += 1;
+        await flushOutput();
       }
-      const bytes = new Uint8Array(record.chunk);
-      mediaEntry.push(bytes, false);
-      mediaHash!.update(bytes);
-      mediaBytes += bytes.byteLength;
-      progress.mediaChunksWritten += 1;
-      await flushOutput();
-    });
+    );
     mediaEntry?.push(new Uint8Array(), true);
-    if (mediaEntry && mediaHash) integrity["media/recording.webm"] = { byteLength: mediaBytes, sha256: mediaHash.digestHex() };
+    if (mediaEntry && mediaHash)
+      integrity["media/recording.webm"] = {
+        byteLength: mediaBytes,
+        sha256: mediaHash.digestHex(),
+      };
     if (input.createManifest) {
       const manifest = input.createManifest(integrity);
-      const entry = isTextFile(manifest.name) ? new ZipDeflate(manifest.name, { level: 9 }) : new ZipPassThrough(manifest.name);
+      const entry = isTextFile(manifest.name)
+        ? new ZipDeflate(manifest.name, { level: 9 })
+        : new ZipPassThrough(manifest.name);
       zip.add(entry);
       entry.push(manifest.data, true);
       progress.entriesWritten += 1;
@@ -113,7 +136,8 @@ export async function writeEvidenceArchive(input: {
     }
     zip.end();
     await finalOutput;
-    if (!finalSeen) throw new Error("ZIP_STREAM_INCOMPLETE: 流式 ZIP 未产生结束标志");
+    if (!finalSeen)
+      throw new Error("ZIP_STREAM_INCOMPLETE: 流式 ZIP 未产生结束标志");
     await input.sink.close();
     input.onProgress?.({ ...progress });
     return progress;

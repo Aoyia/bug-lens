@@ -1,91 +1,159 @@
 <!doctype html>
 <html lang="zh-CN">
-<head>
-  <meta charset="utf-8">
-  <title>Bug Lens PREV-001 Preview Core Test Page</title>
-  <style>
-    body { font-family: system-ui, sans-serif; margin: 20px; }
-    .btn-group { display: flex; flex-direction: column; gap: 10px; max-width: 400px; }
-    button { padding: 8px 16px; cursor: pointer; }
-    #issue-target-element { padding: 20px; background: #e8f3ff; border: 2px dashed #165dff; border-radius: 4px; margin-top: 10px; }
-    .status-box { margin-top: 10px; padding: 8px; background: #f2f3f5; font-size: 12px; }
-  </style>
-</head>
-<body>
-  <h1>PREV-001 自动化测试目标页</h1>
+  <head>
+    <meta charset="utf-8" />
+    <title>Bug Lens PREV-001 Preview Core Test Page</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        margin: 20px;
+      }
+      .btn-group {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        max-width: 400px;
+      }
+      button {
+        padding: 8px 16px;
+        cursor: pointer;
+      }
+      #issue-target-element {
+        padding: 20px;
+        background: #e8f3ff;
+        border: 2px dashed #165dff;
+        border-radius: 4px;
+        margin-top: 10px;
+      }
+      .status-box {
+        margin-top: 10px;
+        padding: 8px;
+        background: #f2f3f5;
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>PREV-001 自动化测试目标页</h1>
 
-  <div class="btn-group">
-    <button id="normal-btn" data-testid="normal-btn">普通点击动作 1</button>
+    <div class="btn-group">
+      <button id="normal-btn" data-testid="normal-btn">普通点击动作 1</button>
 
-    <div id="issue-target-element" data-testid="issue-target">
-      <strong>问题现场选择目标元素</strong>
-      <p>点击浮层标记问题后在此元素上截图</p>
-      <div>点击计数: <span id="issue-target-click-count" data-testid="issue-target-click-count">0</span></div>
+      <div id="issue-target-element" data-testid="issue-target">
+        <strong>问题现场选择目标元素</strong>
+        <p>点击浮层标记问题后在此元素上截图</p>
+        <div>
+          点击计数:
+          <span
+            id="issue-target-click-count"
+            data-testid="issue-target-click-count"
+            >0</span
+          >
+        </div>
+      </div>
+
+      <button id="after-issue-action" data-testid="after-issue-action">
+        保存继续后的普通动作 2
+      </button>
+      <div id="after-issue-result" data-testid="after-issue-result">未执行</div>
+
+      <button id="btn-console-log" data-testid="btn-console-log">
+        引发 Console Log
+      </button>
+      <button id="btn-console-warn" data-testid="btn-console-warn">
+        引发 Console Warn
+      </button>
+      <button id="btn-console-error" data-testid="btn-console-error">
+        引发 Console Error
+      </button>
+
+      <button id="btn-net-success" data-testid="btn-net-success">
+        请求 200 成功接口
+      </button>
+      <button id="btn-net-failure" data-testid="btn-net-failure">
+        请求 500 失败接口
+      </button>
+
+      <div id="action-status" data-testid="action-status" class="status-box">
+        准备就绪
+      </div>
     </div>
 
-    <button id="after-issue-action" data-testid="after-issue-action">保存继续后的普通动作 2</button>
-    <div id="after-issue-result" data-testid="after-issue-result">未执行</div>
+    <script>
+      let targetClickCount = 0;
+      document
+        .getElementById("issue-target-element")
+        .addEventListener("click", () => {
+          targetClickCount += 1;
+          document.getElementById("issue-target-click-count").textContent =
+            String(targetClickCount);
+        });
 
-    <button id="btn-console-log" data-testid="btn-console-log">引发 Console Log</button>
-    <button id="btn-console-warn" data-testid="btn-console-warn">引发 Console Warn</button>
-    <button id="btn-console-error" data-testid="btn-console-error">引发 Console Error</button>
+      document.getElementById("normal-btn").addEventListener("click", () => {
+        document.getElementById("action-status").textContent =
+          "普通点击 1 完成";
+      });
 
-    <button id="btn-net-success" data-testid="btn-net-success">请求 200 成功接口</button>
-    <button id="btn-net-failure" data-testid="btn-net-failure">请求 500 失败接口</button>
+      document
+        .getElementById("after-issue-action")
+        .addEventListener("click", () => {
+          document.getElementById("after-issue-result").textContent =
+            "普通操作已执行";
+          document.getElementById("action-status").textContent =
+            "普通点击 2 完成";
+        });
 
-    <div id="action-status" data-testid="action-status" class="status-box">准备就绪</div>
-  </div>
+      document
+        .getElementById("btn-console-log")
+        .addEventListener("click", () => {
+          console.log("[PREV-001 LOG] 这是一个标准的调试 Console 日志");
+          document.getElementById("action-status").textContent =
+            "Console Log 已发送";
+        });
 
-  <script>
-    let targetClickCount = 0;
-    document.getElementById("issue-target-element").addEventListener("click", () => {
-      targetClickCount += 1;
-      document.getElementById("issue-target-click-count").textContent = String(targetClickCount);
-    });
+      document
+        .getElementById("btn-console-warn")
+        .addEventListener("click", () => {
+          console.warn("[PREV-001 WARN] 这是一个标准的警告 Console 日志");
+          document.getElementById("action-status").textContent =
+            "Console Warn 已发送";
+        });
 
-    document.getElementById("normal-btn").addEventListener("click", () => {
-      document.getElementById("action-status").textContent = "普通点击 1 完成";
-    });
+      document
+        .getElementById("btn-console-error")
+        .addEventListener("click", () => {
+          console.error("[PREV-001 ERROR] 这是一个标准的错误 Console 日志");
+          document.getElementById("action-status").textContent =
+            "Console Error 已发送";
+        });
 
-    document.getElementById("after-issue-action").addEventListener("click", () => {
-      document.getElementById("after-issue-result").textContent = "普通操作已执行";
-      document.getElementById("action-status").textContent = "普通点击 2 完成";
-    });
+      document
+        .getElementById("btn-net-success")
+        .addEventListener("click", async () => {
+          try {
+            const res = await fetch("/api/preview/success");
+            const json = await res.json();
+            document.getElementById("action-status").textContent =
+              "Success Net 完成: " + json.status;
+          } catch (err) {
+            document.getElementById("action-status").textContent =
+              "Success Net 异常: " + err;
+          }
+        });
 
-    document.getElementById("btn-console-log").addEventListener("click", () => {
-      console.log("[PREV-001 LOG] 这是一个标准的调试 Console 日志");
-      document.getElementById("action-status").textContent = "Console Log 已发送";
-    });
-
-    document.getElementById("btn-console-warn").addEventListener("click", () => {
-      console.warn("[PREV-001 WARN] 这是一个标准的警告 Console 日志");
-      document.getElementById("action-status").textContent = "Console Warn 已发送";
-    });
-
-    document.getElementById("btn-console-error").addEventListener("click", () => {
-      console.error("[PREV-001 ERROR] 这是一个标准的错误 Console 日志");
-      document.getElementById("action-status").textContent = "Console Error 已发送";
-    });
-
-    document.getElementById("btn-net-success").addEventListener("click", async () => {
-      try {
-        const res = await fetch("/api/preview/success");
-        const json = await res.json();
-        document.getElementById("action-status").textContent = "Success Net 完成: " + json.status;
-      } catch (err) {
-        document.getElementById("action-status").textContent = "Success Net 异常: " + err;
-      }
-    });
-
-    document.getElementById("btn-net-failure").addEventListener("click", async () => {
-      try {
-        const res = await fetch("/api/preview/failure");
-        const json = await res.json();
-        document.getElementById("action-status").textContent = "Failure Net 500: " + json.error;
-      } catch (err) {
-        document.getElementById("action-status").textContent = "Failure Net 响应结束";
-      }
-    });
-  </script>
-</body>
+      document
+        .getElementById("btn-net-failure")
+        .addEventListener("click", async () => {
+          try {
+            const res = await fetch("/api/preview/failure");
+            const json = await res.json();
+            document.getElementById("action-status").textContent =
+              "Failure Net 500: " + json.error;
+          } catch (err) {
+            document.getElementById("action-status").textContent =
+              "Failure Net 响应结束";
+          }
+        });
+    </script>
+  </body>
 </html>

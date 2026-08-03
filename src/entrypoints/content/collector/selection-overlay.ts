@@ -1,18 +1,40 @@
-import { message, type AnnotationModel, type TargetDomSnapshot } from "../../../shared/protocol";
+import {
+  message,
+  type AnnotationModel,
+  type TargetDomSnapshot,
+} from "../../../shared/protocol";
 import { defaultAnnotation } from "../../../domain/issue-scene";
-import { buildDomSnapshot, pageElementAtPoint, isWidgetElement } from "./dom-snapshot";
+import {
+  buildDomSnapshot,
+  pageElementAtPoint,
+  isWidgetElement,
+} from "./dom-snapshot";
 import { t } from "../../../shared/i18n";
 
 export type SelectedTargetItem = {
   element: Element;
   target: TargetDomSnapshot;
-  box: { xRatio: number; yRatio: number; widthRatio: number; heightRatio: number };
+  box: {
+    xRatio: number;
+    yRatio: number;
+    widthRatio: number;
+    heightRatio: number;
+  };
   overlayBox: HTMLElement;
 };
 
 export type SelectionOverlayDeps = {
-  getSession(): { sessionId: string; nonce: string; privacyMode: "safe" | "raw" } | undefined;
-  onCaptureComplete(scene: { id: string; page: { viewport: { width: number; height: number } }; annotation: AnnotationModel }, dataUrl: string | undefined): void;
+  getSession():
+    | { sessionId: string; nonce: string; privacyMode: "safe" | "raw" }
+    | undefined;
+  onCaptureComplete(
+    scene: {
+      id: string;
+      page: { viewport: { width: number; height: number } };
+      annotation: AnnotationModel;
+    },
+    dataUrl: string | undefined
+  ): void;
   onCancel(): void;
   getEditorElement(): HTMLElement | undefined;
   shortcutKeyText: string;
@@ -26,33 +48,59 @@ export class SelectionOverlay {
 
   // Scroll lock state
   private scrollPreventListener: ((event: Event) => void) | undefined;
-  private scrollKeyPreventListener: ((event: KeyboardEvent) => void) | undefined;
+  private scrollKeyPreventListener:
+    ((event: KeyboardEvent) => void) | undefined;
   private originalDocOverflow: string | undefined;
   private originalBodyOverflow: string | undefined;
 
   constructor(private readonly deps: SelectionOverlayDeps) {}
 
-  get isActive(): boolean { return this._isActive; }
-  get element(): HTMLDivElement | undefined { return this.layer; }
+  get isActive(): boolean {
+    return this._isActive;
+  }
+  get element(): HTMLDivElement | undefined {
+    return this.layer;
+  }
 
   open(): void {
     const session = this.deps.getSession();
     if (!session || this._isActive) return;
     this._isActive = true;
     this.startedAtEpochMs = Date.now();
-    void chrome.runtime.sendMessage(message("issue-scene/start-selection", {}, session.sessionId));
+    void chrome.runtime.sendMessage(
+      message("issue-scene/start-selection", {}, session.sessionId)
+    );
     this.lockScroll();
 
     const layer = document.createElement("div");
     layer.id = "__wbr_issue_selection__";
-    Object.assign(layer.style, { position: "fixed", inset: "0", zIndex: "2147483646", cursor: "crosshair", background: "transparent" });
+    Object.assign(layer.style, {
+      position: "fixed",
+      inset: "0",
+      zIndex: "2147483646",
+      cursor: "crosshair",
+      background: "transparent",
+    });
     const shadow = layer.attachShadow({ mode: "open" });
 
     const outline = document.createElement("div");
-    Object.assign(outline.style, { position: "fixed", pointerEvents: "none", border: "2.5px dashed #ef233c", borderRadius: "2px", background: "transparent", display: "none", zIndex: "1" });
+    Object.assign(outline.style, {
+      position: "fixed",
+      pointerEvents: "none",
+      border: "2.5px dashed #ef233c",
+      borderRadius: "2px",
+      background: "transparent",
+      display: "none",
+      zIndex: "1",
+    });
 
     const boxesContainer = document.createElement("div");
-    Object.assign(boxesContainer.style, { position: "fixed", inset: "0", pointerEvents: "none", zIndex: "2" });
+    Object.assign(boxesContainer.style, {
+      position: "fixed",
+      inset: "0",
+      pointerEvents: "none",
+      zIndex: "2",
+    });
 
     const hint = document.createElement("div");
     Object.assign(hint.style, {
@@ -73,26 +121,57 @@ export class SelectionOverlay {
       display: "flex",
       alignItems: "center",
       gap: "12px",
-      zIndex: "10"
+      zIndex: "10",
     });
 
     const statusText = document.createElement("span");
     statusText.textContent = `标记模式 (${this.deps.shortcutKeyText}) · 点击选择网页元素`;
 
     const btnGroup = document.createElement("div");
-    Object.assign(btnGroup.style, { display: "flex", alignItems: "center", gap: "8px" });
+    Object.assign(btnGroup.style, {
+      display: "flex",
+      alignItems: "center",
+      gap: "8px",
+    });
 
     const finishBtn = document.createElement("button");
     finishBtn.textContent = "完成截图 (0)";
-    Object.assign(finishBtn.style, { background: "#ef233c", color: "#fff", border: "none", borderRadius: "999px", padding: "4px 12px", fontSize: "12px", fontWeight: "600", cursor: "pointer" });
+    Object.assign(finishBtn.style, {
+      background: "#ef233c",
+      color: "#fff",
+      border: "none",
+      borderRadius: "999px",
+      padding: "4px 12px",
+      fontSize: "12px",
+      fontWeight: "600",
+      cursor: "pointer",
+    });
 
     const clearBtn = document.createElement("button");
     clearBtn.textContent = "清空";
-    Object.assign(clearBtn.style, { background: "rgba(255,255,255,0.15)", color: "#fff", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "999px", padding: "4px 10px", fontSize: "12px", fontWeight: "500", cursor: "pointer" });
+    Object.assign(clearBtn.style, {
+      background: "rgba(255,255,255,0.15)",
+      color: "#fff",
+      border: "1px solid rgba(255,255,255,0.2)",
+      borderRadius: "999px",
+      padding: "4px 10px",
+      fontSize: "12px",
+      fontWeight: "500",
+      cursor: "pointer",
+    });
 
     const cancelBtn = document.createElement("button");
     cancelBtn.textContent = "取消";
-    Object.assign(cancelBtn.style, { background: "transparent", color: "rgba(255,255,255,0.7)", border: "none", borderRadius: "999px", padding: "4px 8px", fontSize: "12px", fontWeight: "500", cursor: "pointer" });
+    Object.assign(cancelBtn.style, {
+      background: "transparent",
+      color: "rgba(255,255,255,0.7)",
+      border: "none",
+      borderRadius: "999px",
+      padding: "4px 8px",
+      fontSize: "12px",
+      fontWeight: "500",
+      cursor: "pointer",
+    });
 
     btnGroup.append(finishBtn, clearBtn, cancelBtn);
     hint.append(statusText, btnGroup);
@@ -101,7 +180,8 @@ export class SelectionOverlay {
     this.layer = layer;
 
     const selectedItems: SelectedTargetItem[] = [];
-    let currentHovered: { element: Element; clientX: number; clientY: number } | undefined;
+    let currentHovered:
+      { element: Element; clientX: number; clientY: number } | undefined;
 
     const updateUI = () => {
       finishBtn.textContent = `完成截图 (${selectedItems.length})`;
@@ -131,7 +211,7 @@ export class SelectionOverlay {
         xRatio: Math.min(1, Math.max(0, left / viewportWidth)),
         yRatio: Math.min(1, Math.max(0, top / viewportHeight)),
         widthRatio: Math.min(1, Math.max(0, width / viewportWidth)),
-        heightRatio: Math.min(1, Math.max(0, height / viewportHeight))
+        heightRatio: Math.min(1, Math.max(0, height / viewportHeight)),
       };
 
       const overlayBox = document.createElement("div");
@@ -145,7 +225,7 @@ export class SelectionOverlay {
         borderRadius: "2px",
         background: "transparent",
         pointerEvents: "auto",
-        boxSizing: "border-box"
+        boxSizing: "border-box",
       });
 
       const removeBtn = document.createElement("div");
@@ -167,7 +247,7 @@ export class SelectionOverlay {
         cursor: "pointer",
         boxShadow: "0 2px 6px rgba(0, 0, 0, 0.25)",
         userSelect: "none",
-        zIndex: "10"
+        zIndex: "10",
       });
 
       const item: SelectedTargetItem = { element: el, target, box, overlayBox };
@@ -223,31 +303,54 @@ export class SelectionOverlay {
     });
 
     layer.addEventListener("pointermove", (event) => {
-      const candidate = pageElementAtPoint(event.clientX, event.clientY, this.layer, this.deps.getEditorElement());
-      if (!candidate || selectedItems.some((item) => item.element === candidate)) {
+      const candidate = pageElementAtPoint(
+        event.clientX,
+        event.clientY,
+        this.layer,
+        this.deps.getEditorElement()
+      );
+      if (
+        !candidate ||
+        selectedItems.some((item) => item.element === candidate)
+      ) {
         outline.style.display = "none";
         currentHovered = undefined;
         return;
       }
-      currentHovered = { element: candidate, clientX: event.clientX, clientY: event.clientY };
+      currentHovered = {
+        element: candidate,
+        clientX: event.clientX,
+        clientY: event.clientY,
+      };
       const rect = candidate.getBoundingClientRect();
       Object.assign(outline.style, {
         display: "block",
         left: `${Math.max(0, rect.left - padX)}px`,
         top: `${Math.max(0, rect.top - padY)}px`,
         width: `${rect.width + padX * 2}px`,
-        height: `${rect.height + padY * 2}px`
+        height: `${rect.height + padY * 2}px`,
       });
     });
 
-    layer.addEventListener("pointerdown", (event) => { event.stopPropagation(); });
-    layer.addEventListener("click", (event) => {
-      event.preventDefault();
+    layer.addEventListener("pointerdown", (event) => {
       event.stopPropagation();
-      if (event.button !== 0) return;
-      const candidate = pageElementAtPoint(event.clientX, event.clientY, this.layer, this.deps.getEditorElement());
-      if (candidate) addTarget(candidate);
-    }, { passive: false });
+    });
+    layer.addEventListener(
+      "click",
+      (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (event.button !== 0) return;
+        const candidate = pageElementAtPoint(
+          event.clientX,
+          event.clientY,
+          this.layer,
+          this.deps.getEditorElement()
+        );
+        if (candidate) addTarget(candidate);
+      },
+      { passive: false }
+    );
 
     this.escapeListener = (event: KeyboardEvent) => {
       if (event.key === "Escape" && this._isActive) {
@@ -263,14 +366,17 @@ export class SelectionOverlay {
     this.unlockScroll();
     const wasActive = this._isActive;
     this._isActive = false;
-    if (this.escapeListener) window.removeEventListener("keydown", this.escapeListener, true);
+    if (this.escapeListener)
+      window.removeEventListener("keydown", this.escapeListener, true);
     this.escapeListener = undefined;
     this.layer?.remove();
     this.layer = undefined;
     if (wasActive) {
       const session = this.deps.getSession();
       if (session) {
-        void chrome.runtime.sendMessage(message("issue-scene/cancel-selection", {}, session.sessionId));
+        void chrome.runtime.sendMessage(
+          message("issue-scene/cancel-selection", {}, session.sessionId)
+        );
       }
     }
   }
@@ -288,16 +394,32 @@ export class SelectionOverlay {
       event.preventDefault();
       event.stopPropagation();
     };
-    const scrollKeys = new Set(["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "]);
+    const scrollKeys = new Set([
+      "ArrowUp",
+      "ArrowDown",
+      "PageUp",
+      "PageDown",
+      "Home",
+      "End",
+      " ",
+    ]);
     this.scrollKeyPreventListener = (event: KeyboardEvent) => {
       if (scrollKeys.has(event.key)) {
         event.preventDefault();
         event.stopPropagation();
       }
     };
-    window.addEventListener("wheel", this.scrollPreventListener, { passive: false, capture: true });
-    window.addEventListener("touchmove", this.scrollPreventListener, { passive: false, capture: true });
-    window.addEventListener("keydown", this.scrollKeyPreventListener, { capture: true });
+    window.addEventListener("wheel", this.scrollPreventListener, {
+      passive: false,
+      capture: true,
+    });
+    window.addEventListener("touchmove", this.scrollPreventListener, {
+      passive: false,
+      capture: true,
+    });
+    window.addEventListener("keydown", this.scrollKeyPreventListener, {
+      capture: true,
+    });
   }
 
   private unlockScroll(): void {
@@ -315,31 +437,61 @@ export class SelectionOverlay {
       this.scrollPreventListener = undefined;
     }
     if (this.scrollKeyPreventListener) {
-      window.removeEventListener("keydown", this.scrollKeyPreventListener, true);
+      window.removeEventListener(
+        "keydown",
+        this.scrollKeyPreventListener,
+        true
+      );
       this.scrollKeyPreventListener = undefined;
     }
   }
 
-  private captureMulti(items: SelectedTargetItem[], fallbackCandidate?: { element: Element; clientX: number; clientY: number }): void {
+  private captureMulti(
+    items: SelectedTargetItem[],
+    fallbackCandidate?: { element: Element; clientX: number; clientY: number }
+  ): void {
     const session = this.deps.getSession();
     if (!session || !this._isActive) return;
     this._isActive = false;
-    if (this.escapeListener) window.removeEventListener("keydown", this.escapeListener, true);
+    if (this.escapeListener)
+      window.removeEventListener("keydown", this.escapeListener, true);
     this.escapeListener = undefined;
 
     let finalItems = [...items];
     if (finalItems.length === 0 && fallbackCandidate) {
       const viewport = { width: window.innerWidth, height: window.innerHeight };
-      const target = buildDomSnapshot(fallbackCandidate.element, session.privacyMode);
+      const target = buildDomSnapshot(
+        fallbackCandidate.element,
+        session.privacyMode
+      );
       const rect = fallbackCandidate.element.getBoundingClientRect();
       const box = {
-        xRatio: Math.min(1, Math.max(0, rect.left / Math.max(1, viewport.width))),
-        yRatio: Math.min(1, Math.max(0, rect.top / Math.max(1, viewport.height))),
-        widthRatio: Math.min(1, Math.max(0, rect.width / Math.max(1, viewport.width))),
-        heightRatio: Math.min(1, Math.max(0, rect.height / Math.max(1, viewport.height)))
+        xRatio: Math.min(
+          1,
+          Math.max(0, rect.left / Math.max(1, viewport.width))
+        ),
+        yRatio: Math.min(
+          1,
+          Math.max(0, rect.top / Math.max(1, viewport.height))
+        ),
+        widthRatio: Math.min(
+          1,
+          Math.max(0, rect.width / Math.max(1, viewport.width))
+        ),
+        heightRatio: Math.min(
+          1,
+          Math.max(0, rect.height / Math.max(1, viewport.height))
+        ),
       };
       const dummyOverlay = document.createElement("div");
-      finalItems = [{ element: fallbackCandidate.element, target, box, overlayBox: dummyOverlay }];
+      finalItems = [
+        {
+          element: fallbackCandidate.element,
+          target,
+          box,
+          overlayBox: dummyOverlay,
+        },
+      ];
     }
 
     if (finalItems.length === 0) {
@@ -361,29 +513,62 @@ export class SelectionOverlay {
     const primaryBox = targetBoxes[0];
     const centerPoint = {
       clientX: (primaryBox.xRatio + primaryBox.widthRatio / 2) * viewport.width,
-      clientY: (primaryBox.yRatio + primaryBox.heightRatio / 2) * viewport.height
+      clientY:
+        (primaryBox.yRatio + primaryBox.heightRatio / 2) * viewport.height,
     };
 
     const annotation = {
-      ...defaultAnnotation(centerPoint, viewport, primaryTarget.element.boundingBox),
+      ...defaultAnnotation(
+        centerPoint,
+        viewport,
+        primaryTarget.element.boundingBox
+      ),
       targetBox: primaryBox,
-      targetBoxes
+      targetBoxes,
     };
 
     const selectionStartedAtEpochMs = this.startedAtEpochMs;
     this.startedAtEpochMs = undefined;
-    void new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))).then(() => chrome.runtime.sendMessage(message("issue-scene/capture", {
-      captureId: crypto.randomUUID(),
-      nonce: session.nonce,
-      observedAtEpochMs: Date.now(),
-      selectionStartedAtEpochMs,
-      page: { url: location.href, title: document.title, frameId: 0, viewport, scrollX: window.scrollX, scrollY: window.scrollY, devicePixelRatio: window.devicePixelRatio },
-      target: primaryTarget,
-      targets,
-      annotation
-    }, session.sessionId))).then((response) => {
-      if (!response?.ok || !response.scene) { alert(`问题现场采集失败：${response?.error ?? "未知错误"}`); this.deps.onCancel(); return; }
-      this.deps.onCaptureComplete(response.scene, response.dataUrl);
-    }).catch((error) => { alert(`问题现场采集失败：${String(error)}`); this.deps.onCancel(); });
+    void new Promise<void>((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+    )
+      .then(() =>
+        chrome.runtime.sendMessage(
+          message(
+            "issue-scene/capture",
+            {
+              captureId: crypto.randomUUID(),
+              nonce: session.nonce,
+              observedAtEpochMs: Date.now(),
+              selectionStartedAtEpochMs,
+              page: {
+                url: location.href,
+                title: document.title,
+                frameId: 0,
+                viewport,
+                scrollX: window.scrollX,
+                scrollY: window.scrollY,
+                devicePixelRatio: window.devicePixelRatio,
+              },
+              target: primaryTarget,
+              targets,
+              annotation,
+            },
+            session.sessionId
+          )
+        )
+      )
+      .then((response) => {
+        if (!response?.ok || !response.scene) {
+          alert(`问题现场采集失败：${response?.error ?? "未知错误"}`);
+          this.deps.onCancel();
+          return;
+        }
+        this.deps.onCaptureComplete(response.scene, response.dataUrl);
+      })
+      .catch((error) => {
+        alert(`问题现场采集失败：${String(error)}`);
+        this.deps.onCancel();
+      });
   }
 }

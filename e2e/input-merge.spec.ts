@@ -3,7 +3,9 @@ import type { InteractionRecord } from "../src/shared/protocol.ts";
 
 function logE2e(message: string, details?: unknown): void {
   const suffix = details === undefined ? "" : ` ${JSON.stringify(details)}`;
-  console.log(`[Bug Lens E2E][${new Date().toISOString()}] ${message}${suffix}`);
+  console.log(
+    `[Bug Lens E2E][${new Date().toISOString()}] ${message}${suffix}`
+  );
 }
 
 test.describe("Input merge — 连续输入合并为单条交互", () => {
@@ -12,7 +14,7 @@ test.describe("Input merge — 连续输入合并为单条交互", () => {
     extensionId,
     openActionPopup,
     mediaProbe,
-    serverUrl
+    serverUrl,
   }) => {
     let targetPage = context.pages()[0];
     if (!targetPage) targetPage = await context.newPage();
@@ -35,7 +37,9 @@ test.describe("Input merge — 连续输入合并为单条交互", () => {
     logE2e("Recording active", { sessionId: session.id });
 
     await targetPage.bringToFront();
-    await targetPage.waitForFunction(() => document.hasFocus(), undefined, { timeout: 2_000 });
+    await targetPage.waitForFunction(() => document.hasFocus(), undefined, {
+      timeout: 2_000,
+    });
 
     // 快速输入一段文字（Playwright type 会逐字符触发 keydown/input 事件）
     const textInput = targetPage.locator('[data-testid="test-text-input"]');
@@ -51,8 +55,9 @@ test.describe("Input merge — 连续输入合并为单条交互", () => {
     const stopButton = targetPage.locator("#__wbr_stop_btn__");
     await expect(stopButton).toBeVisible();
     const previewPagePromise = context.waitForEvent("page", {
-      predicate: (page) => page.url().startsWith(`chrome-extension://${extensionId}/preview.html`),
-      timeout: 10_000
+      predicate: (page) =>
+        page.url().startsWith(`chrome-extension://${extensionId}/preview.html`),
+      timeout: 10_000,
     });
     await stopButton.click();
     const previewPage = await previewPagePromise;
@@ -62,15 +67,17 @@ test.describe("Input merge — 连续输入合并为单条交互", () => {
     // 读取完整证据
     const evidence = await mediaProbe.persistedFullEvidence(session.id);
     const inputInteractions = evidence.interactions.filter(
-      (i: InteractionRecord) => i.kind === "input" && (i.element as { id?: string }).id === "test-text-input"
+      (i: InteractionRecord) =>
+        i.kind === "input" &&
+        (i.element as { id?: string }).id === "test-text-input"
     );
     logE2e("Input interactions for text input", {
       count: inputInteractions.length,
       details: inputInteractions.map((i: InteractionRecord) => ({
         id: i.id,
         valueLength: i.metadata?.valueLength,
-        inputEventCount: i.metadata?.inputEventCount
-      }))
+        inputEventCount: i.metadata?.inputEventCount,
+      })),
     });
 
     // 核心断言：连续输入应合并为 1 条 input 交互
@@ -90,7 +97,7 @@ test.describe("Input merge — 连续输入合并为单条交互", () => {
     extensionId,
     openActionPopup,
     mediaProbe,
-    serverUrl
+    serverUrl,
   }) => {
     let targetPage = context.pages()[0];
     if (!targetPage) targetPage = await context.newPage();
@@ -109,7 +116,9 @@ test.describe("Input merge — 连续输入合并为单条交互", () => {
     await mediaProbe.waitForActive(session.id, targetTabId!);
 
     await targetPage.bringToFront();
-    await targetPage.waitForFunction(() => document.hasFocus(), undefined, { timeout: 2_000 });
+    await targetPage.waitForFunction(() => document.hasFocus(), undefined, {
+      timeout: 2_000,
+    });
 
     // 输入文字 + 按 Enter
     const textInput = targetPage.locator('[data-testid="test-text-input"]');
@@ -126,8 +135,9 @@ test.describe("Input merge — 连续输入合并为单条交互", () => {
     const stopButton = targetPage.locator("#__wbr_stop_btn__");
     await expect(stopButton).toBeVisible();
     const previewPagePromise = context.waitForEvent("page", {
-      predicate: (page) => page.url().startsWith(`chrome-extension://${extensionId}/preview.html`),
-      timeout: 10_000
+      predicate: (page) =>
+        page.url().startsWith(`chrome-extension://${extensionId}/preview.html`),
+      timeout: 10_000,
     });
     await stopButton.click();
     const previewPage = await previewPagePromise;
@@ -136,14 +146,19 @@ test.describe("Input merge — 连续输入合并为单条交互", () => {
     const evidence = await mediaProbe.persistedFullEvidence(session.id);
 
     // 找到目标元素上的所有交互，按时间排序
-    const targetInteractions = evidence.interactions.filter(
-      (i: InteractionRecord) =>
-        (i.kind === "input" || i.kind === "keydown") &&
-        (i.element as { id?: string }).id === "test-text-input"
-    ).sort((a: InteractionRecord, b: InteractionRecord) => a.createdAt - b.createdAt);
+    const targetInteractions = evidence.interactions
+      .filter(
+        (i: InteractionRecord) =>
+          (i.kind === "input" || i.kind === "keydown") &&
+          (i.element as { id?: string }).id === "test-text-input"
+      )
+      .sort(
+        (a: InteractionRecord, b: InteractionRecord) =>
+          a.createdAt - b.createdAt
+      );
     logE2e("Target interactions", {
       count: targetInteractions.length,
-      kinds: targetInteractions.map((i: InteractionRecord) => i.kind)
+      kinds: targetInteractions.map((i: InteractionRecord) => i.kind),
     });
 
     // 核心断言：应该恰好有 2 条交互——先 input 后 keydown
@@ -161,7 +176,9 @@ test.describe("Input merge — 连续输入合并为单条交互", () => {
     expect(inputCount).toBe(1);
 
     // Enter keydown 的 metadata.key 应为 "Enter"
-    const enterInteraction = targetInteractions.find((i: InteractionRecord) => i.kind === "keydown");
+    const enterInteraction = targetInteractions.find(
+      (i: InteractionRecord) => i.kind === "keydown"
+    );
     expect(enterInteraction?.metadata?.key).toBe("Enter");
 
     logE2e("INPUT-MERGE-002 passed");
@@ -172,7 +189,7 @@ test.describe("Input merge — 连续输入合并为单条交互", () => {
     extensionId,
     openActionPopup,
     mediaProbe,
-    serverUrl
+    serverUrl,
   }) => {
     let targetPage = context.pages()[0];
     if (!targetPage) targetPage = await context.newPage();
@@ -191,7 +208,9 @@ test.describe("Input merge — 连续输入合并为单条交互", () => {
     await mediaProbe.waitForActive(session.id, targetTabId!);
 
     await targetPage.bringToFront();
-    await targetPage.waitForFunction(() => document.hasFocus(), undefined, { timeout: 2_000 });
+    await targetPage.waitForFunction(() => document.hasFocus(), undefined, {
+      timeout: 2_000,
+    });
 
     // 聚焦输入框并模拟长按 (repeat=true) 的键盘事件序列
     const textInput = targetPage.locator('[data-testid="test-text-input"]');
@@ -201,14 +220,28 @@ test.describe("Input merge — 连续输入合并为单条交互", () => {
     // 使用 CDP 发送真实的按键事件 (isTrusted: true) 模拟长按
     const client = await targetPage.context().newCDPSession(targetPage);
     // non-repeat
-    await client.send("Input.dispatchKeyEvent", { type: "keyDown", key: "ArrowDown", code: "ArrowDown", autoRepeat: false });
+    await client.send("Input.dispatchKeyEvent", {
+      type: "keyDown",
+      key: "ArrowDown",
+      code: "ArrowDown",
+      autoRepeat: false,
+    });
     // 5 次 repeat
     for (let i = 0; i < 5; i++) {
       await targetPage.waitForTimeout(50);
-      await client.send("Input.dispatchKeyEvent", { type: "keyDown", key: "ArrowDown", code: "ArrowDown", autoRepeat: true });
+      await client.send("Input.dispatchKeyEvent", {
+        type: "keyDown",
+        key: "ArrowDown",
+        code: "ArrowDown",
+        autoRepeat: true,
+      });
     }
     // keyup
-    await client.send("Input.dispatchKeyEvent", { type: "keyUp", key: "ArrowDown", code: "ArrowDown" });
+    await client.send("Input.dispatchKeyEvent", {
+      type: "keyUp",
+      key: "ArrowDown",
+      code: "ArrowDown",
+    });
     await client.detach();
     logE2e("Dispatched repeat keydown sequence for ArrowDown via CDP");
 
@@ -219,8 +252,9 @@ test.describe("Input merge — 连续输入合并为单条交互", () => {
     const stopButton = targetPage.locator("#__wbr_stop_btn__");
     await expect(stopButton).toBeVisible();
     const previewPagePromise = context.waitForEvent("page", {
-      predicate: (page) => page.url().startsWith(`chrome-extension://${extensionId}/preview.html`),
-      timeout: 10_000
+      predicate: (page) =>
+        page.url().startsWith(`chrome-extension://${extensionId}/preview.html`),
+      timeout: 10_000,
     });
     await stopButton.click();
     const previewPage = await previewPagePromise;
@@ -229,19 +263,24 @@ test.describe("Input merge — 连续输入合并为单条交互", () => {
     const evidence = await mediaProbe.persistedFullEvidence(session.id);
 
     // 找到此元素的 ArrowDown keydown 交互
-    const keydownInteractions = evidence.interactions.filter(
-      (i: InteractionRecord) =>
-        i.kind === "keydown" &&
-        i.metadata?.key === "ArrowDown" &&
-        (i.element as { id?: string }).id === "test-text-input"
-    ).sort((a: InteractionRecord, b: InteractionRecord) => a.createdAt - b.createdAt);
-    
+    const keydownInteractions = evidence.interactions
+      .filter(
+        (i: InteractionRecord) =>
+          i.kind === "keydown" &&
+          i.metadata?.key === "ArrowDown" &&
+          (i.element as { id?: string }).id === "test-text-input"
+      )
+      .sort(
+        (a: InteractionRecord, b: InteractionRecord) =>
+          a.createdAt - b.createdAt
+      );
+
     logE2e("ArrowDown interactions", {
       count: keydownInteractions.length,
       details: keydownInteractions.map((i: InteractionRecord) => ({
         id: i.id,
-        repeatCount: i.metadata?.repeatCount
-      }))
+        repeatCount: i.metadata?.repeatCount,
+      })),
     });
 
     // 核心断言：1 次 non-repeat 立即发送，5 次 repeat 合并为 1 条，总共 2 条

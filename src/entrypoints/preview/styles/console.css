@@ -1,164 +1,170 @@
-    /* Console View 适配无缝容器 */
-    .console-view {
-      border: none;
-      background: #ffffff;
-      font-family: Consolas, Menlo, Monaco, "Courier New", monospace;
-      font-size: var(--font-xs);
-      overflow-y: auto;
-      flex: 1;
-      min-height: 0;
-    }
-    .console-view::-webkit-scrollbar,
-    .network-view::-webkit-scrollbar,
-    .console-message::-webkit-scrollbar {
-      width: 5px;
-      height: 5px;
-    }
-    .console-view::-webkit-scrollbar-thumb,
-    .network-view::-webkit-scrollbar-thumb,
-    .console-message::-webkit-scrollbar-thumb {
-      background: rgba(0, 0, 0, 0.15);
-      border-radius: 3px;
-    }
-    /* 智能文本截断通用组件 */
-    .truncate-text {
-      display: -webkit-box;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      word-break: break-all;
-    }
-    /* 现代化即时浮动 Tooltip 气泡 */
-    .zen-popover-tooltip {
-      position: fixed;
-      z-index: 10000;
-      background: #1e293b;
-      color: #f8fafc;
-      padding: 6px 10px;
-      font-size: 11.5px;
-      line-height: 1.45;
-      border-radius: 4px;
-      max-width: 380px;
-      word-break: break-all;
-      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
-      pointer-events: none;
-      opacity: 0;
-      transition: opacity 0.12s ease, transform 0.12s ease;
-      transform: translateY(4px);
-    }
-    .zen-popover-tooltip.visible {
-      opacity: 1;
-      transform: translateY(0);
-    }
-    .console-view::-webkit-scrollbar-thumb:hover,
-    .network-view::-webkit-scrollbar-thumb:hover,
-    .console-message::-webkit-scrollbar-thumb:hover {
-      background: rgba(0, 0, 0, 0.3);
-    }
-    .console-row {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 8px;
-      padding: 4px 0;
-      border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-      background: #ffffff;
-      transition: background 0.1s ease;
-    }
-    .console-row:last-child {
-      border-bottom: none;
-    }
-    .console-row:hover {
-      background: rgba(0, 0, 0, 0.02);
-    }
-    .console-row-left {
-      display: flex;
-      align-items: flex-start;
-      gap: 6px;
-      flex: 1;
-      min-width: 0;
-    }
-    .console-icon {
-      flex-shrink: 0;
-      margin-top: 3px;
-    }
-    .console-icon.log-prompt {
-      color: var(--zen-primary);
-      font-size: 10px;
-      line-height: 1;
-      margin-top: 2px;
-    }
-    .console-level-tag {
-      font-size: 10px;
-      font-weight: 700;
-      text-transform: uppercase;
-      padding: 1px 4px;
-      border-radius: 2px;
-      background: rgba(0, 0, 0, 0.04);
-      color: var(--zen-text-sub);
-      flex-shrink: 0;
-      margin-top: 1px;
-    }
-    .console-message {
-      margin: 0;
-      font-family: inherit;
-      font-size: inherit;
-      line-height: 1.5;
-      color: #1d2129;
-      white-space: pre-wrap;
-      word-break: break-all;
-      flex: 1;
-    }
-    .console-row-right {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-shrink: 0;
-    }
-    .console-time {
-      font-size: 10.5px;
-      color: var(--zen-text-muted);
-    }
+/* Console View 适配无缝容器 */
+.console-view {
+  border: none;
+  background: #ffffff;
+  font-family: Consolas, Menlo, Monaco, "Courier New", monospace;
+  font-size: var(--font-xs);
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+.console-view::-webkit-scrollbar,
+.network-view::-webkit-scrollbar,
+.console-message::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+.console-view::-webkit-scrollbar-thumb,
+.network-view::-webkit-scrollbar-thumb,
+.console-message::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
+}
+/* 智能文本截断通用组件 */
+.truncate-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: break-all;
+}
+/* 现代化即时浮动 Tooltip 气泡 */
+.zen-popover-tooltip {
+  position: fixed;
+  z-index: 10000;
+  background: #1e293b;
+  color: #f8fafc;
+  padding: 6px 10px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  border-radius: 4px;
+  max-width: 380px;
+  word-break: break-all;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+  pointer-events: none;
+  opacity: 0;
+  transition:
+    opacity 0.12s ease,
+    transform 0.12s ease;
+  transform: translateY(4px);
+}
+.zen-popover-tooltip.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.console-view::-webkit-scrollbar-thumb:hover,
+.network-view::-webkit-scrollbar-thumb:hover,
+.console-message::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
+}
+.console-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  background: #ffffff;
+  transition: background 0.1s ease;
+}
+.console-row:last-child {
+  border-bottom: none;
+}
+.console-row:hover {
+  background: rgba(0, 0, 0, 0.02);
+}
+.console-row-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+.console-icon {
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+.console-icon.log-prompt {
+  color: var(--zen-primary);
+  font-size: 10px;
+  line-height: 1;
+  margin-top: 2px;
+}
+.console-level-tag {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 1px 4px;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--zen-text-sub);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.console-message {
+  margin: 0;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: 1.5;
+  color: #1d2129;
+  white-space: pre-wrap;
+  word-break: break-all;
+  flex: 1;
+}
+.console-row-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.console-time {
+  font-size: 10.5px;
+  color: var(--zen-text-muted);
+}
 
-    /* Error Level 还原 Chrome 经典浅红底红边 */
-    .console-row-error {
-      background: #fff0f0;
-      border-left: 3px solid #d93025;
-      border-bottom-color: rgba(217, 48, 37, 0.15);
-    }
-    .console-row-error:hover {
-      background: #ffe5e5;
-    }
-    .console-row-error .console-message {
-      color: #c00000;
-    }
-    .console-row-error .console-level-tag {
-      background: rgba(217, 48, 37, 0.12);
-      color: #d93025;
-    }
+/* Error Level 还原 Chrome 经典浅红底红边 */
+.console-row-error {
+  background: #fff0f0;
+  border-left: 3px solid #d93025;
+  border-bottom-color: rgba(217, 48, 37, 0.15);
+}
+.console-row-error:hover {
+  background: #ffe5e5;
+}
+.console-row-error .console-message {
+  color: #c00000;
+}
+.console-row-error .console-level-tag {
+  background: rgba(217, 48, 37, 0.12);
+  color: #d93025;
+}
 
-    /* Warn Level 还原 Chrome 经典浅黄底黄边 */
-    .console-row-warn, .console-row-warning {
-      background: #fffbe6;
-      border-left: 3px solid #f39c12;
-      border-bottom-color: rgba(243, 156, 18, 0.15);
-    }
-    .console-row-warn:hover, .console-row-warning:hover {
-      background: #fff5c6;
-    }
-    .console-row-warn .console-message, .console-row-warning .console-message {
-      color: #8c6b00;
-    }
-    .console-row-warn .console-level-tag, .console-row-warning .console-level-tag {
-      background: rgba(243, 156, 18, 0.12);
-      color: #d35400;
-    }
+/* Warn Level 还原 Chrome 经典浅黄底黄边 */
+.console-row-warn,
+.console-row-warning {
+  background: #fffbe6;
+  border-left: 3px solid #f39c12;
+  border-bottom-color: rgba(243, 156, 18, 0.15);
+}
+.console-row-warn:hover,
+.console-row-warning:hover {
+  background: #fff5c6;
+}
+.console-row-warn .console-message,
+.console-row-warning .console-message {
+  color: #8c6b00;
+}
+.console-row-warn .console-level-tag,
+.console-row-warning .console-level-tag {
+  background: rgba(243, 156, 18, 0.12);
+  color: #d35400;
+}
 
-    /* Info Level 还原蓝色边 */
-    .console-row-info {
-      border-left: 3px solid #165dff;
-    }
-    .console-row-info .console-level-tag {
-      background: rgba(22, 93, 255, 0.1);
-      color: #165dff;
-    }
+/* Info Level 还原蓝色边 */
+.console-row-info {
+  border-left: 3px solid #165dff;
+}
+.console-row-info .console-level-tag {
+  background: rgba(22, 93, 255, 0.1);
+  color: #165dff;
+}

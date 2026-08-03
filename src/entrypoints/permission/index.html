@@ -1,124 +1,136 @@
 <!doctype html>
 <html lang="zh-CN">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title data-i18n="permissionPageTitle">Bug Lens - 权限授权中转</title>
-  <style>
-    :root {
-      --primary: #165dff;
-      --primary-hover: #3676ff;
-      --ink-main: #1d2129;
-      --ink-sub: #4e5969;
-      --bg-base: #f7f8fa;
-      --card-bg: #ffffff;
-      --radius: 12px;
-      --danger: #f53f3f;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: var(--bg-base);
-      color: var(--ink-main);
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif;
-      padding: 20px;
-    }
-    .card {
-      width: 100%;
-      max-width: 380px;
-      background: var(--card-bg);
-      border-radius: var(--radius);
-      padding: 32px 24px;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-      text-align: center;
-    }
-    .logo {
-      width: 48px;
-      height: 48px;
-      margin-bottom: 16px;
-    }
-    h2 {
-      margin: 0 0 8px 0;
-      font-size: 18px;
-      font-weight: 600;
-    }
-    p {
-      margin: 0 0 20px 0;
-      font-size: 13px;
-      color: var(--ink-sub);
-      line-height: 1.6;
-    }
-    .grant-btn {
-      width: 100%;
-      height: 40px;
-      background: linear-gradient(135deg, #165dff 0%, #0e42d2 100%);
-      color: #ffffff;
-      border: none;
-      border-radius: 8px;
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-      box-shadow: 0 2px 8px rgba(22, 93, 255, 0.25);
-      transition: all 0.15s ease;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-    }
-    .grant-btn:hover {
-      background: linear-gradient(135deg, #3676ff 0%, #165dff 100%);
-      box-shadow: 0 4px 12px rgba(22, 93, 255, 0.35);
-      transform: translateY(-1px);
-    }
-    .status {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--primary);
-      margin-top: 12px;
-    }
-    .spinner {
-      width: 16px;
-      height: 16px;
-      border: 2px solid rgba(22, 93, 255, 0.2);
-      border-top-color: var(--primary);
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-    }
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-    .error {
-      color: var(--danger);
-      font-size: 13px;
-      background: #fff1f0;
-      border: 1px solid #ffccc7;
-      padding: 10px 14px;
-      border-radius: 8px;
-      margin-top: 16px;
-      text-align: left;
-    }
-    [hidden] { display: none !important; }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <img src="icons/icon_idle.png" alt="Bug Lens" class="logo">
-    <h2 id="title" data-i18n="permissionTitle">Bug Lens 权限确认</h2>
-    <p id="desc" data-i18n="permissionDesc">点击下方按钮授予全站访问权限，系统将自动发起授权并连贯启动录制。</p>
-    <button id="grant-btn" class="grant-btn" data-i18n="grantAndStart">允许权限并开始录制</button>
-    <div id="status-container" class="status" hidden>
-      <div class="spinner" id="spinner"></div>
-      <span id="status-text" data-i18n="waitingForAuth">等待授权中…</span>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title data-i18n="permissionPageTitle">Bug Lens - 权限授权中转</title>
+    <style>
+      :root {
+        --primary: #165dff;
+        --primary-hover: #3676ff;
+        --ink-main: #1d2129;
+        --ink-sub: #4e5969;
+        --bg-base: #f7f8fa;
+        --card-bg: #ffffff;
+        --radius: 12px;
+        --danger: #f53f3f;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--bg-base);
+        color: var(--ink-main);
+        font-family:
+          -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
+          sans-serif;
+        padding: 20px;
+      }
+      .card {
+        width: 100%;
+        max-width: 380px;
+        background: var(--card-bg);
+        border-radius: var(--radius);
+        padding: 32px 24px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        text-align: center;
+      }
+      .logo {
+        width: 48px;
+        height: 48px;
+        margin-bottom: 16px;
+      }
+      h2 {
+        margin: 0 0 8px 0;
+        font-size: 18px;
+        font-weight: 600;
+      }
+      p {
+        margin: 0 0 20px 0;
+        font-size: 13px;
+        color: var(--ink-sub);
+        line-height: 1.6;
+      }
+      .grant-btn {
+        width: 100%;
+        height: 40px;
+        background: linear-gradient(135deg, #165dff 0%, #0e42d2 100%);
+        color: #ffffff;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        box-shadow: 0 2px 8px rgba(22, 93, 255, 0.25);
+        transition: all 0.15s ease;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+      }
+      .grant-btn:hover {
+        background: linear-gradient(135deg, #3676ff 0%, #165dff 100%);
+        box-shadow: 0 4px 12px rgba(22, 93, 255, 0.35);
+        transform: translateY(-1px);
+      }
+      .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--primary);
+        margin-top: 12px;
+      }
+      .spinner {
+        width: 16px;
+        height: 16px;
+        border: 2px solid rgba(22, 93, 255, 0.2);
+        border-top-color: var(--primary);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .error {
+        color: var(--danger);
+        font-size: 13px;
+        background: #fff1f0;
+        border: 1px solid #ffccc7;
+        padding: 10px 14px;
+        border-radius: 8px;
+        margin-top: 16px;
+        text-align: left;
+      }
+      [hidden] {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <img src="icons/icon_idle.png" alt="Bug Lens" class="logo" />
+      <h2 id="title" data-i18n="permissionTitle">Bug Lens 权限确认</h2>
+      <p id="desc" data-i18n="permissionDesc">
+        点击下方按钮授予全站访问权限，系统将自动发起授权并连贯启动录制。
+      </p>
+      <button id="grant-btn" class="grant-btn" data-i18n="grantAndStart">
+        允许权限并开始录制
+      </button>
+      <div id="status-container" class="status" hidden>
+        <div class="spinner" id="spinner"></div>
+        <span id="status-text" data-i18n="waitingForAuth">等待授权中…</span>
+      </div>
+      <div id="error-box" class="error" hidden></div>
     </div>
-    <div id="error-box" class="error" hidden></div>
-  </div>
-  <script src="permission.js"></script>
-</body>
+    <script src="permission.js"></script>
+  </body>
 </html>

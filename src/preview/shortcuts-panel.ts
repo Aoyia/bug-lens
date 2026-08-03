@@ -1,7 +1,10 @@
 // =====================================================
 // 快捷键速查面板 Keyboard Shortcuts Panel
 // =====================================================
-export function bindShortcutsPanel(doc: Document = document, win: Window = window): void {
+export function bindShortcutsPanel(
+  doc: Document = document,
+  win: Window = window
+): void {
   const backdrop = doc.querySelector<HTMLElement>("#shortcuts-backdrop");
   const closeBtn = doc.querySelector<HTMLButtonElement>("#shortcuts-close-btn");
   if (!backdrop) return;
@@ -19,7 +22,13 @@ export function bindShortcutsPanel(doc: Document = document, win: Window = windo
   win.addEventListener("keydown", (e: Event) => {
     const keyEvent = e as KeyboardEvent;
     const active = doc.activeElement as HTMLElement | null;
-    if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable)) return;
+    if (
+      active &&
+      (active.tagName === "INPUT" ||
+        active.tagName === "TEXTAREA" ||
+        active.isContentEditable)
+    )
+      return;
     if (keyEvent.key === "?") {
       keyEvent.preventDefault();
       backdrop.hidden ? open() : close();

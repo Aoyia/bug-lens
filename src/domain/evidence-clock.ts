@@ -13,8 +13,14 @@ export function networkRequestTime(
   now: () => number = Date.now
 ): NormalizedNetworkTime {
   return {
-    createdAtEpochMs: typeof timing.wallTime === "number" ? Math.round(timing.wallTime * 1000) : now(),
-    startedAtMonotonicMs: typeof timing.timestamp === "number" ? Math.round(timing.timestamp * 1000) : undefined
+    createdAtEpochMs:
+      typeof timing.wallTime === "number"
+        ? Math.round(timing.wallTime * 1000)
+        : now(),
+    startedAtMonotonicMs:
+      typeof timing.timestamp === "number"
+        ? Math.round(timing.timestamp * 1000)
+        : undefined,
   };
 }
 
@@ -22,13 +28,17 @@ export function networkDurationMs(
   startedAtMonotonicMs: number | undefined,
   finishedTimestampSeconds: number | undefined
 ): number | undefined {
-  if (startedAtMonotonicMs == null || finishedTimestampSeconds == null) return undefined;
+  if (startedAtMonotonicMs == null || finishedTimestampSeconds == null)
+    return undefined;
   const finishedAtMonotonicMs = finishedTimestampSeconds * 1000;
   const duration = finishedAtMonotonicMs - startedAtMonotonicMs;
   return duration >= 0 ? Math.round(duration) : undefined;
 }
 
-export function formatElapsedEpochTime(epochMs: number, originEpochMs: number): string | undefined {
+export function formatElapsedEpochTime(
+  epochMs: number,
+  originEpochMs: number
+): string | undefined {
   const elapsedMs = epochMs - originEpochMs;
   if (elapsedMs < 0) return undefined;
   const wholeSeconds = Math.floor(elapsedMs / 1000);

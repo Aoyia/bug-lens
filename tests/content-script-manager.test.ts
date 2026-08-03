@@ -15,13 +15,18 @@ function installChromeScripting(options: { registered?: boolean } = {}) {
         calls.push(`register:${scripts[0].id}`);
         if (options.registered) throw new Error("already exists");
       },
-      async executeScript(details: { target: { tabId: number; allFrames?: boolean }; files: string[] }) {
-        calls.push(`execute:${details.target.tabId}:${details.target.allFrames}:${details.files.join(",")}`);
+      async executeScript(details: {
+        target: { tabId: number; allFrames?: boolean };
+        files: string[];
+      }) {
+        calls.push(
+          `execute:${details.target.tabId}:${details.target.allFrames}:${details.files.join(",")}`
+        );
       },
       async unregisterContentScripts() {
         calls.push("unregister");
-      }
-    }
+      },
+    },
   };
   return calls;
 }
@@ -35,7 +40,7 @@ test("ContentScriptManager.restore re-executes content.js for the new document",
   assert.deepEqual(calls, [
     "register:web-bug-recorder-content",
     "getRegisteredContentScripts",
-    "execute:42:true:content.js"
+    "execute:42:true:content.js",
   ]);
 });
 
@@ -48,6 +53,6 @@ test("ContentScriptManager.restore registers the script before executing it when
   assert.deepEqual(calls, [
     "register:web-bug-recorder-content",
     "getRegisteredContentScripts",
-    "execute:7:true:content.js"
+    "execute:7:true:content.js",
   ]);
 });

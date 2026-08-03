@@ -3,7 +3,9 @@ import type { CdpPopup } from "./fixtures/cdp-popup.ts";
 
 function logE2e(message: string, details?: unknown): void {
   const suffix = details === undefined ? "" : ` ${JSON.stringify(details)}`;
-  console.log(`[Bug Lens E2E][${new Date().toISOString()}] ${message}${suffix}`);
+  console.log(
+    `[Bug Lens E2E][${new Date().toISOString()}] ${message}${suffix}`
+  );
 }
 
 async function waitForPopupChecked(
@@ -14,12 +16,18 @@ async function waitForPopupChecked(
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const checked = await popup.evaluate<boolean>(`Boolean(document.querySelector(${JSON.stringify(selector)})?.checked)`);
+    const checked = await popup.evaluate<boolean>(
+      `Boolean(document.querySelector(${JSON.stringify(selector)})?.checked)`
+    );
     if (checked === expected) return;
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
-  const actual = await popup.evaluate<boolean>(`Boolean(document.querySelector(${JSON.stringify(selector)})?.checked)`);
-  throw new Error(`ACTION_POPUP_CHECKBOX_TIMEOUT: ${selector} expected=${expected} actual=${actual}`);
+  const actual = await popup.evaluate<boolean>(
+    `Boolean(document.querySelector(${JSON.stringify(selector)})?.checked)`
+  );
+  throw new Error(
+    `ACTION_POPUP_CHECKBOX_TIMEOUT: ${selector} expected=${expected} actual=${actual}`
+  );
 }
 
 test.describe("Bug Lens Chrome Extension recording options", () => {
@@ -29,12 +37,12 @@ test.describe("Bug Lens Chrome Extension recording options", () => {
     openActionPopup,
     activeTabId,
     mediaProbe,
-    serverUrl
+    serverUrl,
   }) => {
     context.on("console", (message) => {
       logE2e(`Browser console.${message.type()}`, {
         url: message.page()?.url() ?? "extension-worker-or-popup",
-        text: message.text()
+        text: message.text(),
       });
     });
 
@@ -42,7 +50,9 @@ test.describe("Bug Lens Chrome Extension recording options", () => {
     if (!targetPage) targetPage = await context.newPage();
     await targetPage.goto(serverUrl);
     await targetPage.bringToFront();
-    await targetPage.waitForFunction(() => document.hasFocus(), undefined, { timeout: 2_000 });
+    await targetPage.waitForFunction(() => document.hasFocus(), undefined, {
+      timeout: 2_000,
+    });
     logE2e("Target page loaded", { url: targetPage.url() });
 
     const targetTabId = await activeTabId();
@@ -54,27 +64,59 @@ test.describe("Bug Lens Chrome Extension recording options", () => {
     await popup.click("#toggle-options");
     await popup.waitForSelector("#advanced-options");
 
-    expect(await popup.evaluate<boolean>("Boolean(document.querySelector('#video')?.checked)")).toBe(true);
-    expect(await popup.evaluate<boolean>("Boolean(document.querySelector('#screenshots')?.checked)")).toBe(true);
-    expect(await popup.evaluate<boolean>("Boolean(document.querySelector('#console')?.checked)")).toBe(true);
-    expect(await popup.evaluate<boolean>("Boolean(document.querySelector('#network')?.checked)")).toBe(true);
+    expect(
+      await popup.evaluate<boolean>(
+        "Boolean(document.querySelector('#video')?.checked)"
+      )
+    ).toBe(true);
+    expect(
+      await popup.evaluate<boolean>(
+        "Boolean(document.querySelector('#screenshots')?.checked)"
+      )
+    ).toBe(true);
+    expect(
+      await popup.evaluate<boolean>(
+        "Boolean(document.querySelector('#console')?.checked)"
+      )
+    ).toBe(true);
+    expect(
+      await popup.evaluate<boolean>(
+        "Boolean(document.querySelector('#network')?.checked)"
+      )
+    ).toBe(true);
 
     await popup.click("#video");
     await waitForPopupChecked(popup, "#video", false);
     await waitForPopupChecked(popup, "#audio", false);
-    expect(await popup.evaluate<boolean>("Boolean(document.querySelector('#audio')?.disabled)")).toBe(true);
+    expect(
+      await popup.evaluate<boolean>(
+        "Boolean(document.querySelector('#audio')?.disabled)"
+      )
+    ).toBe(true);
 
     await popup.click("#screenshots");
     await waitForPopupChecked(popup, "#screenshots", false);
-    expect(await popup.evaluate<boolean>("Boolean(document.querySelector('#console')?.checked)")).toBe(true);
-    expect(await popup.evaluate<boolean>("Boolean(document.querySelector('#network')?.checked)")).toBe(true);
-    expect(await popup.evaluate<boolean>("Boolean(document.querySelector('#bodies')?.checked)")).toBe(true);
+    expect(
+      await popup.evaluate<boolean>(
+        "Boolean(document.querySelector('#console')?.checked)"
+      )
+    ).toBe(true);
+    expect(
+      await popup.evaluate<boolean>(
+        "Boolean(document.querySelector('#network')?.checked)"
+      )
+    ).toBe(true);
+    expect(
+      await popup.evaluate<boolean>(
+        "Boolean(document.querySelector('#bodies')?.checked)"
+      )
+    ).toBe(true);
     logE2e("Diagnostic-only options selected", {
       video: false,
       screenshots: false,
       console: true,
       network: true,
-      networkBodies: true
+      networkBodies: true,
     });
 
     await popup.click('[data-testid="start-recording-btn"]');
@@ -94,12 +136,14 @@ test.describe("Bug Lens Chrome Extension recording options", () => {
     logE2e("Diagnostic-only recording became active", {
       sessionId: session.id,
       capture: activeSnapshot.capture,
-      offscreenRecording: false
+      offscreenRecording: false,
     });
 
     await targetPage.bringToFront();
     await targetPage.locator('[data-testid="test-click-btn"]').click();
-    await expect(targetPage.locator("#output")).toContainText("点击已被成功记录");
+    await expect(targetPage.locator("#output")).toContainText(
+      "点击已被成功记录"
+    );
     await targetPage.locator('[data-testid="test-fetch-btn"]').click();
     await expect(targetPage.locator("#output")).toContainText("Fetch 请求成功");
     await targetPage.locator('[data-testid="test-error-btn"]').click();
@@ -110,16 +154,23 @@ test.describe("Bug Lens Chrome Extension recording options", () => {
     const stopButton = targetPage.locator("#__wbr_stop_btn__");
     await expect(stopButton).toBeVisible();
     const previewPagePromise = context.waitForEvent("page", {
-      predicate: (page) => page.url().startsWith(`chrome-extension://${extensionId}/preview.html`),
-      timeout: 10_000
+      predicate: (page) =>
+        page.url().startsWith(`chrome-extension://${extensionId}/preview.html`),
+      timeout: 10_000,
     });
     await stopButton.click();
     const previewPage = await previewPagePromise;
     await previewPage.waitForLoadState("domcontentloaded");
     await previewPage.bringToFront();
 
-    const evidence = await mediaProbe.persistedEvidence(previewPage, session.id);
-    const totalMediaBytes = evidence.mediaChunks.reduce((total, chunk) => total + chunk.byteLength, 0);
+    const evidence = await mediaProbe.persistedEvidence(
+      previewPage,
+      session.id
+    );
+    const totalMediaBytes = evidence.mediaChunks.reduce(
+      (total, chunk) => total + chunk.byteLength,
+      0
+    );
     logE2e("Diagnostic-only evidence loaded", {
       sessionStatus: evidence.session?.status,
       timeline: evidence.session?.timeline,
@@ -137,8 +188,8 @@ test.describe("Bug Lens Chrome Extension recording options", () => {
         id: interaction.element.id,
         tagName: interaction.element.tagName,
         text: interaction.element.text,
-        metadata: interaction.metadata
-      }))
+        metadata: interaction.metadata,
+      })),
     });
 
     expect(evidence.session?.status).toBe("PREVIEW_READY");
@@ -157,7 +208,11 @@ test.describe("Bug Lens Chrome Extension recording options", () => {
     expect(evidence.session?.quality.primaryScreenshotCount).toBe(0);
     expect(evidence.session?.quality.fallbackScreenshotCount).toBe(0);
     expect(evidence.session?.quality.unavailableScreenshotCount).toBe(0);
-    expect(evidence.evidenceAssets.filter((asset) => asset.kind === "interaction-screenshot")).toEqual([]);
+    expect(
+      evidence.evidenceAssets.filter(
+        (asset) => asset.kind === "interaction-screenshot"
+      )
+    ).toEqual([]);
 
     expect(evidence.interactionCount).toBe(3);
     for (const interaction of evidence.interactions) {
@@ -168,12 +223,20 @@ test.describe("Bug Lens Chrome Extension recording options", () => {
     expect(evidence.networkCount).toBe(1);
 
     await expect(previewPage.locator("#video")).toBeHidden();
-    await expect(previewPage.locator("#video-empty")).toContainText("没有可播放的媒体分片");
+    await expect(previewPage.locator("#video-empty")).toContainText(
+      "没有可播放的媒体分片"
+    );
     logE2e("Preview exposes explicit no-media state");
 
-    const stoppedCapture = await previewPage.evaluate(async () => chrome.tabCapture.getCapturedTabs());
-    expect(stoppedCapture.find((entry) => entry.tabId === targetTabId)?.status).not.toBe("active");
-    expect(stoppedCapture.find((entry) => entry.tabId === targetTabId)?.status).not.toBe("pending");
+    const stoppedCapture = await previewPage.evaluate(async () =>
+      chrome.tabCapture.getCapturedTabs()
+    );
+    expect(
+      stoppedCapture.find((entry) => entry.tabId === targetTabId)?.status
+    ).not.toBe("active");
+    expect(
+      stoppedCapture.find((entry) => entry.tabId === targetTabId)?.status
+    ).not.toBe("pending");
     expect(await mediaProbe.isOffscreenRecording(session.id)).toBe(false);
     expect(await mediaProbe.activeSession()).toBeUndefined();
     expect(await mediaProbe.getBadgeText(targetTabId!)).toBe("");
@@ -186,12 +249,12 @@ test.describe("Bug Lens Chrome Extension recording options", () => {
     openActionPopup,
     activeTabId,
     mediaProbe,
-    serverUrl
+    serverUrl,
   }) => {
     context.on("console", (message) => {
       logE2e(`Browser console.${message.type()}`, {
         url: message.page()?.url() ?? "extension-worker-or-popup",
-        text: message.text()
+        text: message.text(),
       });
     });
 
@@ -199,7 +262,9 @@ test.describe("Bug Lens Chrome Extension recording options", () => {
     if (!targetPage) targetPage = await context.newPage();
     await targetPage.goto(serverUrl);
     await targetPage.bringToFront();
-    await targetPage.waitForFunction(() => document.hasFocus(), undefined, { timeout: 2_000 });
+    await targetPage.waitForFunction(() => document.hasFocus(), undefined, {
+      timeout: 2_000,
+    });
     logE2e("Target page loaded", { url: targetPage.url() });
 
     const targetTabId = await activeTabId();
@@ -215,11 +280,19 @@ test.describe("Bug Lens Chrome Extension recording options", () => {
     await popup.click("#video");
     await waitForPopupChecked(popup, "#video", false);
     await waitForPopupChecked(popup, "#audio", false);
-    expect(await popup.evaluate<boolean>("Boolean(document.querySelector('#audio')?.disabled)")).toBe(true);
+    expect(
+      await popup.evaluate<boolean>(
+        "Boolean(document.querySelector('#audio')?.disabled)"
+      )
+    ).toBe(true);
 
     await popup.click("#video");
     await waitForPopupChecked(popup, "#video", true);
-    expect(await popup.evaluate<boolean>("Boolean(document.querySelector('#audio')?.disabled)")).toBe(false);
+    expect(
+      await popup.evaluate<boolean>(
+        "Boolean(document.querySelector('#audio')?.disabled)"
+      )
+    ).toBe(false);
     await waitForPopupChecked(popup, "#audio", false);
 
     await popup.click("#console");
@@ -227,22 +300,33 @@ test.describe("Bug Lens Chrome Extension recording options", () => {
     await popup.click("#network");
     await waitForPopupChecked(popup, "#network", false);
     await waitForPopupChecked(popup, "#bodies", false);
-    expect(await popup.evaluate<boolean>("Boolean(document.querySelector('#bodies')?.disabled)")).toBe(true);
-    expect(await popup.evaluate<boolean>("Boolean(document.querySelector('#screenshots')?.checked)")).toBe(true);
+    expect(
+      await popup.evaluate<boolean>(
+        "Boolean(document.querySelector('#bodies')?.disabled)"
+      )
+    ).toBe(true);
+    expect(
+      await popup.evaluate<boolean>(
+        "Boolean(document.querySelector('#screenshots')?.checked)"
+      )
+    ).toBe(true);
     logE2e("Visual-only options selected", {
       video: true,
       audio: false,
       screenshots: true,
       console: false,
       network: false,
-      networkBodies: false
+      networkBodies: false,
     });
 
     await popup.click('[data-testid="start-recording-btn"]');
     await popup.dispose();
 
     const session = await mediaProbe.waitForSession(targetTabId!);
-    const activeMedia = await mediaProbe.waitForActive(session.id, targetTabId!);
+    const activeMedia = await mediaProbe.waitForActive(
+      session.id,
+      targetTabId!
+    );
     expect(activeMedia.session?.status).toBe("RECORDING");
     expect(session.options.captureVideo).toBe(true);
     expect(session.options.captureAudio).toBe(false);
@@ -254,13 +338,17 @@ test.describe("Bug Lens Chrome Extension recording options", () => {
     logE2e("Visual-only recording became active", {
       sessionId: session.id,
       captureStatus: activeMedia.capture?.status,
-      offscreenRecording: true
+      offscreenRecording: true,
     });
 
     await targetPage.bringToFront();
-    await targetPage.waitForFunction(() => document.hasFocus(), undefined, { timeout: 2_000 });
+    await targetPage.waitForFunction(() => document.hasFocus(), undefined, {
+      timeout: 2_000,
+    });
     await targetPage.locator('[data-testid="test-click-btn"]').click();
-    await expect(targetPage.locator("#output")).toContainText("点击已被成功记录");
+    await expect(targetPage.locator("#output")).toContainText(
+      "点击已被成功记录"
+    );
     await targetPage.locator('[data-testid="test-fetch-btn"]').click();
     await expect(targetPage.locator("#output")).toContainText("Fetch 请求成功");
     await targetPage.locator('[data-testid="test-error-btn"]').click();
@@ -271,16 +359,23 @@ test.describe("Bug Lens Chrome Extension recording options", () => {
     const stopButton = targetPage.locator("#__wbr_stop_btn__");
     await expect(stopButton).toBeVisible();
     const previewPagePromise = context.waitForEvent("page", {
-      predicate: (page) => page.url().startsWith(`chrome-extension://${extensionId}/preview.html`),
-      timeout: 10_000
+      predicate: (page) =>
+        page.url().startsWith(`chrome-extension://${extensionId}/preview.html`),
+      timeout: 10_000,
     });
     await stopButton.click();
     const previewPage = await previewPagePromise;
     await previewPage.waitForLoadState("domcontentloaded");
     await previewPage.bringToFront();
 
-    const evidence = await mediaProbe.persistedEvidence(previewPage, session.id);
-    const totalMediaBytes = evidence.mediaChunks.reduce((total, chunk) => total + chunk.byteLength, 0);
+    const evidence = await mediaProbe.persistedEvidence(
+      previewPage,
+      session.id
+    );
+    const totalMediaBytes = evidence.mediaChunks.reduce(
+      (total, chunk) => total + chunk.byteLength,
+      0
+    );
     logE2e("Visual-only evidence loaded", {
       sessionStatus: evidence.session?.status,
       timeline: evidence.session?.timeline,
@@ -298,8 +393,8 @@ test.describe("Bug Lens Chrome Extension recording options", () => {
         id: interaction.element.id,
         tagName: interaction.element.tagName,
         text: interaction.element.text,
-        metadata: interaction.metadata
-      }))
+        metadata: interaction.metadata,
+      })),
     });
 
     expect(evidence.session?.status).toBe("PREVIEW_READY");
@@ -314,7 +409,9 @@ test.describe("Bug Lens Chrome Extension recording options", () => {
 
     expect(evidence.mediaChunks.length).toBeGreaterThan(0);
     expect(totalMediaBytes).toBeGreaterThan(0);
-    expect(evidence.mediaChunks.every((chunk, index) => chunk.sequence === index)).toBe(true);
+    expect(
+      evidence.mediaChunks.every((chunk, index) => chunk.sequence === index)
+    ).toBe(true);
     expect(evidence.interactionCount).toBe(3);
     expect(evidence.session?.quality.primaryScreenshotCount).toBe(3);
     expect(evidence.session?.quality.fallbackScreenshotCount).toBe(0);
@@ -323,27 +420,50 @@ test.describe("Bug Lens Chrome Extension recording options", () => {
       expect(interaction.screenshot.status).toBe("captured");
       expect(interaction.screenshot.assetId).toBeTruthy();
     }
-    const screenshotAssets = evidence.evidenceAssets.filter((asset) => asset.kind === "interaction-screenshot");
+    const screenshotAssets = evidence.evidenceAssets.filter(
+      (asset) => asset.kind === "interaction-screenshot"
+    );
     expect(screenshotAssets.length).toBe(3);
-    expect(screenshotAssets.every((asset) => asset.byteLength > 0 && asset.mimeType === "image/png")).toBe(true);
+    expect(
+      screenshotAssets.every(
+        (asset) => asset.byteLength > 0 && asset.mimeType === "image/png"
+      )
+    ).toBe(true);
     expect(evidence.consoleCount).toBe(0);
     expect(evidence.networkCount).toBe(0);
 
     const video = previewPage.locator("#video");
     await expect(video).toBeVisible({ timeout: 10_000 });
-    await previewPage.waitForFunction(() => {
-      const element = document.querySelector<HTMLVideoElement>("#video");
-      return Boolean(element && element.readyState >= 1 && Number.isFinite(element.duration) && element.duration > 0);
-    }, undefined, { timeout: 10_000 });
+    await previewPage.waitForFunction(
+      () => {
+        const element = document.querySelector<HTMLVideoElement>("#video");
+        return Boolean(
+          element &&
+          element.readyState >= 1 &&
+          Number.isFinite(element.duration) &&
+          element.duration > 0
+        );
+      },
+      undefined,
+      { timeout: 10_000 }
+    );
 
     await previewPage.locator('[data-tab="console"]').click();
-    await expect(previewPage.locator("#tab-pane-console")).toContainText("没有 Console 记录");
+    await expect(previewPage.locator("#tab-pane-console")).toContainText(
+      "没有 Console 记录"
+    );
     await previewPage.locator('[data-tab="network"]').click();
-    await expect(previewPage.locator("#tab-pane-network")).toContainText("没有 Network 记录");
+    await expect(previewPage.locator("#tab-pane-network")).toContainText(
+      "没有 Network 记录"
+    );
     logE2e("Preview exposes empty diagnostic states");
 
-    const stoppedCapture = await previewPage.evaluate(async () => chrome.tabCapture.getCapturedTabs());
-    const targetCapture = stoppedCapture.find((entry) => entry.tabId === targetTabId);
+    const stoppedCapture = await previewPage.evaluate(async () =>
+      chrome.tabCapture.getCapturedTabs()
+    );
+    const targetCapture = stoppedCapture.find(
+      (entry) => entry.tabId === targetTabId
+    );
     expect(targetCapture?.status).not.toBe("active");
     expect(targetCapture?.status).not.toBe("pending");
     expect(await mediaProbe.isOffscreenRecording(session.id)).toBe(false);

@@ -1,24 +1,34 @@
-import { message, type RecordingHealthInfo, type RecordingHealthCode, type StreamHealthState, type StreamHealthVector } from "../shared/protocol.ts";
+import {
+  message,
+  type RecordingHealthInfo,
+  type RecordingHealthCode,
+  type StreamHealthState,
+  type StreamHealthVector,
+} from "../shared/protocol.ts";
 
 export class StreamHealthMonitor {
   private currentStreams: StreamHealthVector = {
     media: "ok",
     cdp: "ok",
     content: "ok",
-    storage: "ok"
+    storage: "ok",
   };
 
   private currentTabId: number | undefined;
   private currentSessionId: string | undefined;
 
-  public initialize(tabId: number, sessionId: string, options: { captureVideo: boolean; captureConsoleOrNetwork: boolean }): void {
+  public initialize(
+    tabId: number,
+    sessionId: string,
+    options: { captureVideo: boolean; captureConsoleOrNetwork: boolean }
+  ): void {
     this.currentTabId = tabId;
     this.currentSessionId = sessionId;
     this.currentStreams = {
       media: options.captureVideo ? "ok" : "disabled",
       cdp: options.captureConsoleOrNetwork ? "ok" : "disabled",
       content: "ok",
-      storage: "ok"
+      storage: "ok",
     };
     void this.sync();
   }
@@ -27,9 +37,10 @@ export class StreamHealthMonitor {
     return this.currentSessionId;
   }
 
-
-
-  public updateStream(stream: keyof StreamHealthVector, state: StreamHealthState): RecordingHealthInfo {
+  public updateStream(
+    stream: keyof StreamHealthVector,
+    state: StreamHealthState
+  ): RecordingHealthInfo {
     if (this.currentStreams[stream] !== state) {
       this.currentStreams[stream] = state;
       void this.sync();
@@ -81,7 +92,7 @@ export class StreamHealthMonitor {
       badgeText,
       badgeColor,
       message: messageText,
-      streams: { ...this.currentStreams }
+      streams: { ...this.currentStreams },
     };
   }
 
@@ -89,28 +100,46 @@ export class StreamHealthMonitor {
     if (!this.currentTabId) return;
     const health = this.evaluate();
     try {
-      await chrome.action.setBadgeText({ tabId: this.currentTabId, text: health.badgeText });
-      await chrome.action.setBadgeBackgroundColor({ tabId: this.currentTabId, color: health.badgeColor });
-      await chrome.action.setIcon({ tabId: this.currentTabId, path: "icons/icon_recording.png" });
+      await chrome.action.setBadgeText({
+        tabId: this.currentTabId,
+        text: health.badgeText,
+      });
+      await chrome.action.setBadgeBackgroundColor({
+        tabId: this.currentTabId,
+        color: health.badgeColor,
+      });
+      await chrome.action.setIcon({
+        tabId: this.currentTabId,
+        path: "icons/icon_recording.png",
+      });
     } catch {
       // tab 可能已关闭
     }
 
     if (this.currentTabId && this.currentSessionId) {
-      await chrome.tabs.sendMessage(
-        this.currentTabId,
-        message("content/health-update", { health }, this.currentSessionId)
-      ).catch(() => undefined);
+      await chrome.tabs
+        .sendMessage(
+          this.currentTabId,
+          message("content/health-update", { health }, this.currentSessionId)
+        )
+        .catch(() => undefined);
     }
   }
 
   public reset(tabId?: number): void {
     if (tabId) {
       chrome.action.setBadgeText({ tabId, text: "" }).catch(() => undefined);
-      chrome.action.setIcon({ tabId, path: "icons/icon_idle.png" }).catch(() => undefined);
+      chrome.action
+        .setIcon({ tabId, path: "icons/icon_idle.png" })
+        .catch(() => undefined);
     }
     this.currentTabId = undefined;
     this.currentSessionId = undefined;
-    this.currentStreams = { media: "ok", cdp: "ok", content: "ok", storage: "ok" };
+    this.currentStreams = {
+      media: "ok",
+      cdp: "ok",
+      content: "ok",
+      storage: "ok",
+    };
   }
 }

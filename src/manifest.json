@@ -32,14 +32,33 @@
     "128": "icons/icon_idle_128.png"
   },
   "background": { "service_worker": "background.js" },
-  "permissions": ["activeTab", "tabs", "alarms", "debugger", "downloads", "offscreen", "scripting", "storage", "tabCapture", "unlimitedStorage", "webNavigation"],
+  "permissions": [
+    "activeTab",
+    "tabs",
+    "alarms",
+    "debugger",
+    "downloads",
+    "offscreen",
+    "scripting",
+    "storage",
+    "tabCapture",
+    "unlimitedStorage",
+    "webNavigation"
+  ],
   "optional_host_permissions": ["http://*/*", "https://*/*"],
   "content_scripts": [],
   "host_permissions": [],
-  "content_security_policy": { "extension_pages": "script-src 'self'; object-src 'none'" },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'"
+  },
   "web_accessible_resources": [
     {
-      "resources": ["popup.html", "preview.html", "offscreen.html", "permission.html"],
+      "resources": [
+        "popup.html",
+        "preview.html",
+        "offscreen.html",
+        "permission.html"
+      ],
       "matches": ["<all_urls>"]
     }
   ]

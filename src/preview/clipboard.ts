@@ -1,4 +1,7 @@
-export async function copyTextToClipboard(value: string, root: Document = document): Promise<void> {
+export async function copyTextToClipboard(
+  value: string,
+  root: Document = document
+): Promise<void> {
   try {
     if (navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(value);

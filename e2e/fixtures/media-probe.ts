@@ -1,7 +1,10 @@
 import type { BrowserContext, Page, Worker } from "@playwright/test";
 import type { RecordingSession } from "../../src/shared/protocol.ts";
 
-type CapturedTab = { tabId: number; status: "pending" | "active" | "stopped" | "error" };
+type CapturedTab = {
+  tabId: number;
+  status: "pending" | "active" | "stopped" | "error";
+};
 
 export type MediaSnapshot = {
   session?: RecordingSession;
@@ -9,7 +12,12 @@ export type MediaSnapshot = {
   offscreenActive: boolean;
 };
 
-export type EvidenceItemWithTimestamp = { createdAt?: number; createdAtEpochMs?: number; timestamp?: number; occurredAt?: number };
+export type EvidenceItemWithTimestamp = {
+  createdAt?: number;
+  createdAtEpochMs?: number;
+  timestamp?: number;
+  occurredAt?: number;
+};
 
 export type EvidenceAssetSummary = {
   id: string;
@@ -28,13 +36,24 @@ export type InteractionRecordSummary = EvidenceItemWithTimestamp & {
   kind: string;
   status: string;
   element: { id?: string; tagName?: string; text?: string };
-  metadata?: { key?: string; code?: string; altKey?: boolean; ctrlKey?: boolean; metaKey?: boolean; shiftKey?: boolean };
+  metadata?: {
+    key?: string;
+    code?: string;
+    altKey?: boolean;
+    ctrlKey?: boolean;
+    metaKey?: boolean;
+    shiftKey?: boolean;
+  };
   screenshot: { status: string; source?: string; assetId?: string };
 };
 
 export type PersistedEvidence = {
   session?: RecordingSession;
-  mediaChunks: Array<{ sequence: number; mimeType: string; byteLength: number }>;
+  mediaChunks: Array<{
+    sequence: number;
+    mimeType: string;
+    byteLength: number;
+  }>;
   interactionCount: number;
   consoleCount: number;
   networkCount: number;
@@ -44,7 +63,12 @@ export type PersistedEvidence = {
   evidenceAssets: EvidenceAssetSummary[];
 };
 
-async function poll<T>(read: () => Promise<T>, accept: (value: T) => boolean, timeoutMs: number, label: string): Promise<T> {
+async function poll<T>(
+  read: () => Promise<T>,
+  accept: (value: T) => boolean,
+  timeoutMs: number,
+  label: string
+): Promise<T> {
   const deadline = Date.now() + timeoutMs;
   let last!: T;
   while (Date.now() < deadline) {
@@ -64,16 +88,35 @@ export class MediaProbe {
     this.serviceWorker = serviceWorker;
   }
 
-  async evaluateWorker<T, A>(pageFunction: (arg: A) => T | Promise<T>, arg: A): Promise<T> {
-    const evaluate = (worker: Worker) => (worker.evaluate as unknown as (fn: (value: A) => T | Promise<T>, value: A) => Promise<T>)(pageFunction, arg);
+  async evaluateWorker<T, A>(
+    pageFunction: (arg: A) => T | Promise<T>,
+    arg: A
+  ): Promise<T> {
+    const evaluate = (worker: Worker) =>
+      (
+        worker.evaluate as unknown as (
+          fn: (value: A) => T | Promise<T>,
+          value: A
+        ) => Promise<T>
+      )(pageFunction, arg);
     try {
       return await evaluate(this.serviceWorker);
     } catch (firstError) {
-      const replacement = this.context.serviceWorkers().find((worker) => worker.url().startsWith("chrome-extension://") && worker !== this.serviceWorker)
-        ?? await this.context.waitForEvent("serviceworker", {
-          predicate: (worker) => worker.url().startsWith("chrome-extension://"),
-          timeout: 2_000
-        }).catch(() => undefined);
+      const replacement =
+        this.context
+          .serviceWorkers()
+          .find(
+            (worker) =>
+              worker.url().startsWith("chrome-extension://") &&
+              worker !== this.serviceWorker
+          ) ??
+        (await this.context
+          .waitForEvent("serviceworker", {
+            predicate: (worker) =>
+              worker.url().startsWith("chrome-extension://"),
+            timeout: 2_000,
+          })
+          .catch(() => undefined));
       if (!replacement || replacement === this.serviceWorker) throw firstError;
       this.serviceWorker = replacement;
       return evaluate(this.serviceWorker);
@@ -88,17 +131,29 @@ export class MediaProbe {
         request.onerror = () => reject(request.error);
       });
       try {
-        const active = await new Promise<{ sessionId?: string } | undefined>((resolve, reject) => {
-          const request = database.transaction("control").objectStore("control").get("active-session");
-          request.onsuccess = () => resolve(request.result as { sessionId?: string } | undefined);
-          request.onerror = () => reject(request.error);
-        });
+        const active = await new Promise<{ sessionId?: string } | undefined>(
+          (resolve, reject) => {
+            const request = database
+              .transaction("control")
+              .objectStore("control")
+              .get("active-session");
+            request.onsuccess = () =>
+              resolve(request.result as { sessionId?: string } | undefined);
+            request.onerror = () => reject(request.error);
+          }
+        );
         if (!active?.sessionId) return undefined;
-        return await new Promise<RecordingSession | undefined>((resolve, reject) => {
-          const request = database.transaction("sessions").objectStore("sessions").get(active.sessionId!);
-          request.onsuccess = () => resolve(request.result as RecordingSession | undefined);
-          request.onerror = () => reject(request.error);
-        });
+        return await new Promise<RecordingSession | undefined>(
+          (resolve, reject) => {
+            const request = database
+              .transaction("sessions")
+              .objectStore("sessions")
+              .get(active.sessionId!);
+            request.onsuccess = () =>
+              resolve(request.result as RecordingSession | undefined);
+            request.onerror = () => reject(request.error);
+          }
+        );
       } finally {
         database.close();
       }
@@ -113,11 +168,17 @@ export class MediaProbe {
         request.onerror = () => reject(request.error);
       });
       try {
-        return await new Promise<RecordingSession | undefined>((resolve, reject) => {
-          const request = database.transaction("sessions").objectStore("sessions").get(id);
-          request.onsuccess = () => resolve(request.result as RecordingSession | undefined);
-          request.onerror = () => reject(request.error);
-        });
+        return await new Promise<RecordingSession | undefined>(
+          (resolve, reject) => {
+            const request = database
+              .transaction("sessions")
+              .objectStore("sessions")
+              .get(id);
+            request.onsuccess = () =>
+              resolve(request.result as RecordingSession | undefined);
+            request.onerror = () => reject(request.error);
+          }
+        );
       } finally {
         database.close();
       }
@@ -133,7 +194,10 @@ export class MediaProbe {
       });
       try {
         return await new Promise<number>((resolve, reject) => {
-          const request = database.transaction("sessions").objectStore("sessions").count();
+          const request = database
+            .transaction("sessions")
+            .objectStore("sessions")
+            .count();
           request.onsuccess = () => resolve(request.result);
           request.onerror = () => reject(request.error);
         });
@@ -152,7 +216,11 @@ export class MediaProbe {
       });
       try {
         return await new Promise<number>((resolve, reject) => {
-          const request = database.transaction("mediaChunks").objectStore("mediaChunks").index("sessionId").count(id);
+          const request = database
+            .transaction("mediaChunks")
+            .objectStore("mediaChunks")
+            .index("sessionId")
+            .count(id);
           request.onsuccess = () => resolve(request.result);
           request.onerror = () => reject(request.error);
         });
@@ -162,7 +230,11 @@ export class MediaProbe {
     }, sessionId);
   }
 
-  async exportArtifact(sessionId: string): Promise<import("../../src/shared/protocol.ts").ExportArtifact | undefined> {
+  async exportArtifact(
+    sessionId: string
+  ): Promise<
+    import("../../src/shared/protocol.ts").ExportArtifact | undefined
+  > {
     return this.evaluateWorker(async (id) => {
       const database = await new Promise<IDBDatabase>((resolve, reject) => {
         const request = indexedDB.open("web-bug-recorder");
@@ -170,8 +242,13 @@ export class MediaProbe {
         request.onerror = () => reject(request.error);
       });
       try {
-        return await new Promise<import("../../src/shared/protocol.ts").ExportArtifact | undefined>((resolve, reject) => {
-          const request = database.transaction("exportArtifacts").objectStore("exportArtifacts").get(id);
+        return await new Promise<
+          import("../../src/shared/protocol.ts").ExportArtifact | undefined
+        >((resolve, reject) => {
+          const request = database
+            .transaction("exportArtifacts")
+            .objectStore("exportArtifacts")
+            .get(id);
           request.onsuccess = () => resolve(request.result as any);
           request.onerror = () => reject(request.error);
         });
@@ -181,7 +258,11 @@ export class MediaProbe {
     }, sessionId);
   }
 
-  async waitForMediaChunkCountGreaterThan(sessionId: string, baseline: number, timeoutMs = 5_000): Promise<number> {
+  async waitForMediaChunkCountGreaterThan(
+    sessionId: string,
+    baseline: number,
+    timeoutMs = 5_000
+  ): Promise<number> {
     return poll(
       () => this.mediaChunkCount(sessionId),
       (count) => count > baseline,
@@ -189,7 +270,6 @@ export class MediaProbe {
       `MEDIA_CHUNK_COUNT_TIMEOUT: sessionId=${sessionId} baseline=${baseline}`
     );
   }
-
 
   async getBadgeText(tabId: number): Promise<string> {
     return this.evaluateWorker(async (targetId) => {
@@ -199,7 +279,11 @@ export class MediaProbe {
 
   async isOffscreenRecording(sessionId: string): Promise<boolean> {
     return this.evaluateWorker(async (id) => {
-      const contexts = await (chrome.runtime.getContexts as unknown as (filter: unknown) => Promise<chrome.runtime.ExtensionContext[]>)({ contextTypes: ["OFFSCREEN_DOCUMENT"] }).catch(() => []);
+      const contexts = await (
+        chrome.runtime.getContexts as unknown as (
+          filter: unknown
+        ) => Promise<chrome.runtime.ExtensionContext[]>
+      )({ contextTypes: ["OFFSCREEN_DOCUMENT"] }).catch(() => []);
       if (!contexts.length) return false;
       const response = await chrome.runtime.sendMessage({
         protocolVersion: 3,
@@ -207,9 +291,12 @@ export class MediaProbe {
         type: "offscreen/status",
         sessionId: id,
         payload: { sessionId: id },
-        sentAt: Date.now()
+        sentAt: Date.now(),
       });
-      if (!response?.ok) throw new Error(`OFFSCREEN_STATUS_FAILED: ${response?.error ?? "Recorder 状态查询失败"}`);
+      if (!response?.ok)
+        throw new Error(
+          `OFFSCREEN_STATUS_FAILED: ${response?.error ?? "Recorder 状态查询失败"}`
+        );
       return Boolean(response.active);
     }, sessionId);
   }
@@ -217,27 +304,47 @@ export class MediaProbe {
   async isOverlayRemoved(targetPage: Page): Promise<boolean> {
     if (targetPage.isClosed()) return true;
     return targetPage.evaluate(() => {
-      return !document.querySelector("#__wbr_stop_btn__") && !document.querySelector("#__wbr_overlay_container__");
+      return (
+        !document.querySelector("#__wbr_stop_btn__") &&
+        !document.querySelector("#__wbr_overlay_container__")
+      );
     });
   }
 
-  async snapshot(sessionId: string, targetTabId: number): Promise<MediaSnapshot> {
+  async snapshot(
+    sessionId: string,
+    targetTabId: number
+  ): Promise<MediaSnapshot> {
     const [session, captures, offscreen] = await Promise.all([
       this.activeSession(),
-      this.evaluateWorker(async () => chrome.tabCapture.getCapturedTabs(), undefined) as Promise<CapturedTab[]>,
-      this.evaluateWorker(async () => chrome.offscreen.hasDocument(), undefined)
+      this.evaluateWorker(
+        async () => chrome.tabCapture.getCapturedTabs(),
+        undefined
+      ) as Promise<CapturedTab[]>,
+      this.evaluateWorker(
+        async () => chrome.offscreen.hasDocument(),
+        undefined
+      ),
     ]);
     return {
       session,
       capture: captures.find((entry) => entry.tabId === targetTabId),
-      offscreenActive: offscreen
+      offscreenActive: offscreen,
     };
   }
 
-  async waitForSession(targetTabId: number, timeoutMs = 5_000): Promise<RecordingSession> {
+  async waitForSession(
+    targetTabId: number,
+    timeoutMs = 5_000
+  ): Promise<RecordingSession> {
     const session = await poll(
       () => this.activeSession(),
-      (value) => Boolean(value && value.target.tabId === targetTabId && value.status !== "PREPARING"),
+      (value) =>
+        Boolean(
+          value &&
+          value.target.tabId === targetTabId &&
+          value.status !== "PREPARING"
+        ),
       timeoutMs,
       "SESSION_START_TIMEOUT"
     );
@@ -245,60 +352,117 @@ export class MediaProbe {
     return session;
   }
 
-  async waitForActive(sessionId: string, targetTabId: number, timeoutMs = 5_000): Promise<MediaSnapshot> {
+  async waitForActive(
+    sessionId: string,
+    targetTabId: number,
+    timeoutMs = 5_000
+  ): Promise<MediaSnapshot> {
     return poll(
       async () => {
         const current = await this.snapshot(sessionId, targetTabId);
-        const mediaIssue = current.session?.quality.issues.find((entry) => ["MEDIA_STREAM_ID_FAILED", "MEDIA_RECORDER_FAILED"].includes(entry.code));
-        if (mediaIssue) throw new Error(`${mediaIssue.code}: ${mediaIssue.message}`);
+        const mediaIssue = current.session?.quality.issues.find((entry) =>
+          ["MEDIA_STREAM_ID_FAILED", "MEDIA_RECORDER_FAILED"].includes(
+            entry.code
+          )
+        );
+        if (mediaIssue)
+          throw new Error(`${mediaIssue.code}: ${mediaIssue.message}`);
         return current;
       },
-      (value) => value.session?.id === sessionId && value.capture?.status === "active" && value.offscreenActive,
+      (value) =>
+        value.session?.id === sessionId &&
+        value.capture?.status === "active" &&
+        value.offscreenActive,
       timeoutMs,
       "TAB_CAPTURE_NOT_ACTIVE"
     );
   }
 
-  async waitForStopped(sessionId: string, targetTabId: number, timeoutMs = 10_000): Promise<MediaSnapshot> {
+  async waitForStopped(
+    sessionId: string,
+    targetTabId: number,
+    timeoutMs = 10_000
+  ): Promise<MediaSnapshot> {
     return poll(
       () => this.snapshot(sessionId, targetTabId),
-      (value) => value.capture?.status !== "active" && value.capture?.status !== "pending" && !value.offscreenActive,
+      (value) =>
+        value.capture?.status !== "active" &&
+        value.capture?.status !== "pending" &&
+        !value.offscreenActive,
       timeoutMs,
       "MEDIA_STOP_TIMEOUT"
     );
   }
 
-  async persistedEvidence(sessionIdOrPage: Page | string, maybeSessionId?: string): Promise<PersistedEvidence> {
-    const idParam = typeof sessionIdOrPage === "string" ? sessionIdOrPage : maybeSessionId!;
+  async persistedEvidence(
+    sessionIdOrPage: Page | string,
+    maybeSessionId?: string
+  ): Promise<PersistedEvidence> {
+    const idParam =
+      typeof sessionIdOrPage === "string" ? sessionIdOrPage : maybeSessionId!;
     return this.evaluateWorker(async (id) => {
       const database = await new Promise<IDBDatabase>((resolve, reject) => {
         const request = indexedDB.open("web-bug-recorder");
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);
       });
-      const getSession = new Promise<RecordingSession | undefined>((resolve, reject) => {
-        const request = database.transaction("sessions").objectStore("sessions").get(id);
-        request.onsuccess = () => resolve(request.result as RecordingSession | undefined);
-        request.onerror = () => reject(request.error);
-      });
-      const getAll = <T>(storeName: string): Promise<T[]> => new Promise((resolve, reject) => {
-        const request = database.transaction(storeName).objectStore(storeName).index("sessionId").getAll(id);
-        request.onsuccess = () => resolve((request.result ?? []) as T[]);
-        request.onerror = () => reject(request.error);
-      });
-      const [session, chunks, interactions, consoleEntries, networkEntries, assets] = await Promise.all([
+      const getSession = new Promise<RecordingSession | undefined>(
+        (resolve, reject) => {
+          const request = database
+            .transaction("sessions")
+            .objectStore("sessions")
+            .get(id);
+          request.onsuccess = () =>
+            resolve(request.result as RecordingSession | undefined);
+          request.onerror = () => reject(request.error);
+        }
+      );
+      const getAll = <T>(storeName: string): Promise<T[]> =>
+        new Promise((resolve, reject) => {
+          const request = database
+            .transaction(storeName)
+            .objectStore(storeName)
+            .index("sessionId")
+            .getAll(id);
+          request.onsuccess = () => resolve((request.result ?? []) as T[]);
+          request.onerror = () => reject(request.error);
+        });
+      const [
+        session,
+        chunks,
+        interactions,
+        consoleEntries,
+        networkEntries,
+        assets,
+      ] = await Promise.all([
         getSession,
-        getAll<{ sequence: number; mimeType: string; chunk: ArrayBuffer }>("mediaChunks"),
+        getAll<{ sequence: number; mimeType: string; chunk: ArrayBuffer }>(
+          "mediaChunks"
+        ),
         getAll<InteractionRecordSummary>("interactions"),
         getAll<EvidenceItemWithTimestamp>("consoleEntries"),
         getAll<EvidenceItemWithTimestamp>("networkEntries"),
-        getAll<{ id: string; kind: string; mimeType: string; bytes: ArrayBuffer; width?: number; height?: number; sessionId?: string; issueSceneId?: string; interactionId?: string }>("evidenceAssets")
+        getAll<{
+          id: string;
+          kind: string;
+          mimeType: string;
+          bytes: ArrayBuffer;
+          width?: number;
+          height?: number;
+          sessionId?: string;
+          issueSceneId?: string;
+          interactionId?: string;
+        }>("evidenceAssets"),
       ]);
       database.close();
       return {
         session,
         mediaChunks: chunks
-          .map((entry) => ({ sequence: entry.sequence, mimeType: entry.mimeType, byteLength: entry.chunk?.byteLength ?? 0 }))
+          .map((entry) => ({
+            sequence: entry.sequence,
+            mimeType: entry.mimeType,
+            byteLength: entry.chunk?.byteLength ?? 0,
+          }))
           .sort((left, right) => left.sequence - right.sequence),
         interactionCount: interactions.length,
         consoleCount: consoleEntries.length,
@@ -315,15 +479,19 @@ export class MediaProbe {
           height: asset.height,
           sessionId: asset.sessionId,
           issueSceneId: asset.issueSceneId,
-          interactionId: asset.interactionId
-        }))
+          interactionId: asset.interactionId,
+        })),
       };
     }, idParam);
   }
 
   async persistedFullEvidence(sessionId: string): Promise<{
     session?: RecordingSession;
-    mediaChunks: Array<{ sequence: number; mimeType: string; byteLength: number }>;
+    mediaChunks: Array<{
+      sequence: number;
+      mimeType: string;
+      byteLength: number;
+    }>;
     interactions: import("../../src/shared/protocol.ts").InteractionRecord[];
     consoleEntries: import("../../src/shared/protocol.ts").ConsoleEntry[];
     networkEntries: import("../../src/shared/protocol.ts").NetworkEntry[];
@@ -337,29 +505,72 @@ export class MediaProbe {
         request.onerror = () => reject(request.error);
       });
       try {
-        const getSession = new Promise<RecordingSession | undefined>((resolve, reject) => {
-          const request = database.transaction("sessions").objectStore("sessions").get(id);
-          request.onsuccess = () => resolve(request.result as RecordingSession | undefined);
-          request.onerror = () => reject(request.error);
-        });
-        const getAll = <T>(storeName: string): Promise<T[]> => new Promise((resolve, reject) => {
-          const request = database.transaction(storeName).objectStore(storeName).index("sessionId").getAll(id);
-          request.onsuccess = () => resolve((request.result ?? []) as T[]);
-          request.onerror = () => reject(request.error);
-        });
-        const [session, chunks, interactions, consoleEntries, networkEntries, assets, issueScenes] = await Promise.all([
+        const getSession = new Promise<RecordingSession | undefined>(
+          (resolve, reject) => {
+            const request = database
+              .transaction("sessions")
+              .objectStore("sessions")
+              .get(id);
+            request.onsuccess = () =>
+              resolve(request.result as RecordingSession | undefined);
+            request.onerror = () => reject(request.error);
+          }
+        );
+        const getAll = <T>(storeName: string): Promise<T[]> =>
+          new Promise((resolve, reject) => {
+            const request = database
+              .transaction(storeName)
+              .objectStore(storeName)
+              .index("sessionId")
+              .getAll(id);
+            request.onsuccess = () => resolve((request.result ?? []) as T[]);
+            request.onerror = () => reject(request.error);
+          });
+        const [
+          session,
+          chunks,
+          interactions,
+          consoleEntries,
+          networkEntries,
+          assets,
+          issueScenes,
+        ] = await Promise.all([
           getSession,
-          getAll<{ sequence: number; mimeType: string; chunk: ArrayBuffer }>("mediaChunks"),
-          getAll<import("../../src/shared/protocol.ts").InteractionRecord>("interactions"),
-          getAll<import("../../src/shared/protocol.ts").ConsoleEntry>("consoleEntries"),
-          getAll<import("../../src/shared/protocol.ts").NetworkEntry>("networkEntries"),
-          getAll<{ id: string; kind: string; mimeType: string; bytes: ArrayBuffer; width?: number; height?: number; sessionId?: string; issueSceneId?: string; interactionId?: string }>("evidenceAssets"),
-          getAll<import("../../src/shared/protocol.ts").IssueScene>("issueScenes")
+          getAll<{ sequence: number; mimeType: string; chunk: ArrayBuffer }>(
+            "mediaChunks"
+          ),
+          getAll<import("../../src/shared/protocol.ts").InteractionRecord>(
+            "interactions"
+          ),
+          getAll<import("../../src/shared/protocol.ts").ConsoleEntry>(
+            "consoleEntries"
+          ),
+          getAll<import("../../src/shared/protocol.ts").NetworkEntry>(
+            "networkEntries"
+          ),
+          getAll<{
+            id: string;
+            kind: string;
+            mimeType: string;
+            bytes: ArrayBuffer;
+            width?: number;
+            height?: number;
+            sessionId?: string;
+            issueSceneId?: string;
+            interactionId?: string;
+          }>("evidenceAssets"),
+          getAll<import("../../src/shared/protocol.ts").IssueScene>(
+            "issueScenes"
+          ),
         ]);
         return {
           session,
           mediaChunks: chunks
-            .map((entry) => ({ sequence: entry.sequence, mimeType: entry.mimeType, byteLength: entry.chunk?.byteLength ?? 0 }))
+            .map((entry) => ({
+              sequence: entry.sequence,
+              mimeType: entry.mimeType,
+              byteLength: entry.chunk?.byteLength ?? 0,
+            }))
             .sort((left, right) => left.sequence - right.sequence),
           interactions,
           consoleEntries,
@@ -374,8 +585,8 @@ export class MediaProbe {
             height: asset.height,
             sessionId: asset.sessionId,
             issueSceneId: asset.issueSceneId,
-            interactionId: asset.interactionId
-          }))
+            interactionId: asset.interactionId,
+          })),
         };
       } finally {
         database.close();
@@ -385,16 +596,29 @@ export class MediaProbe {
 
   async waitForEvidenceCounts(
     sessionId: string,
-    minCounts: { networkCount?: number; interactionCount?: number; consoleCount?: number; issueSceneCount?: number },
+    minCounts: {
+      networkCount?: number;
+      interactionCount?: number;
+      consoleCount?: number;
+      issueSceneCount?: number;
+    },
     timeoutMs = 5_000
   ): Promise<void> {
     await poll(
       async () => {
         const full = await this.persistedFullEvidence(sessionId);
-        const netOk = minCounts.networkCount == null || full.networkEntries.length >= minCounts.networkCount;
-        const intOk = minCounts.interactionCount == null || full.interactions.length >= minCounts.interactionCount;
-        const conOk = minCounts.consoleCount == null || full.consoleEntries.length >= minCounts.consoleCount;
-        const sceneOk = minCounts.issueSceneCount == null || (full.issueScenes?.length ?? 0) >= minCounts.issueSceneCount;
+        const netOk =
+          minCounts.networkCount == null ||
+          full.networkEntries.length >= minCounts.networkCount;
+        const intOk =
+          minCounts.interactionCount == null ||
+          full.interactions.length >= minCounts.interactionCount;
+        const conOk =
+          minCounts.consoleCount == null ||
+          full.consoleEntries.length >= minCounts.consoleCount;
+        const sceneOk =
+          minCounts.issueSceneCount == null ||
+          (full.issueScenes?.length ?? 0) >= minCounts.issueSceneCount;
         return netOk && intOk && conOk && sceneOk;
       },
       Boolean,
@@ -403,7 +627,11 @@ export class MediaProbe {
     );
   }
 
-  async getEvidenceAssetBytes(assetId: string): Promise<{ mimeType: string; bytes: ArrayBuffer; byteLength: number } | undefined> {
+  async getEvidenceAssetBytes(
+    assetId: string
+  ): Promise<
+    { mimeType: string; bytes: ArrayBuffer; byteLength: number } | undefined
+  > {
     const raw = await this.evaluateWorker(async (id) => {
       const database = await new Promise<IDBDatabase>((resolve, reject) => {
         const request = indexedDB.open("web-bug-recorder");
@@ -411,16 +639,25 @@ export class MediaProbe {
         request.onerror = () => reject(request.error);
       });
       try {
-        const asset = await new Promise<{ mimeType: string; bytes: ArrayBuffer } | undefined>((resolve, reject) => {
-          const request = database.transaction("evidenceAssets").objectStore("evidenceAssets").get(id);
-          request.onsuccess = () => resolve(request.result as { mimeType: string; bytes: ArrayBuffer } | undefined);
+        const asset = await new Promise<
+          { mimeType: string; bytes: ArrayBuffer } | undefined
+        >((resolve, reject) => {
+          const request = database
+            .transaction("evidenceAssets")
+            .objectStore("evidenceAssets")
+            .get(id);
+          request.onsuccess = () =>
+            resolve(
+              request.result as
+                { mimeType: string; bytes: ArrayBuffer } | undefined
+            );
           request.onerror = () => reject(request.error);
         });
         if (!asset || !asset.bytes) return undefined;
         return {
           mimeType: asset.mimeType,
           byteLength: asset.bytes.byteLength ?? 0,
-          byteArray: Array.from(new Uint8Array(asset.bytes))
+          byteArray: Array.from(new Uint8Array(asset.bytes)),
         };
       } finally {
         database.close();
@@ -428,6 +665,10 @@ export class MediaProbe {
     }, assetId);
     if (!raw) return undefined;
     const uint8 = Uint8Array.from(raw.byteArray);
-    return { mimeType: raw.mimeType, bytes: uint8.buffer, byteLength: raw.byteLength };
+    return {
+      mimeType: raw.mimeType,
+      bytes: uint8.buffer,
+      byteLength: raw.byteLength,
+    };
   }
 }

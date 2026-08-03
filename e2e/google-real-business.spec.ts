@@ -3,7 +3,9 @@ import type { InteractionRecord } from "../src/shared/protocol.ts";
 
 function logE2e(message: string, details?: unknown): void {
   const suffix = details === undefined ? "" : ` ${JSON.stringify(details)}`;
-  console.log(`[Bug Lens E2E Real Business][${new Date().toISOString()}] ${message}${suffix}`);
+  console.log(
+    `[Bug Lens E2E Real Business][${new Date().toISOString()}] ${message}${suffix}`
+  );
 }
 
 test.describe("Bug Lens 真实用户 Google 业务流 E2E 测试 (包 4c41242b 还原)", () => {
@@ -11,27 +13,30 @@ test.describe("Bug Lens 真实用户 Google 业务流 E2E 测试 (包 4c41242b �
     context,
     extensionId,
     openActionPopup,
-    mediaProbe
+    mediaProbe,
   }) => {
     const googleUrl = "https://www.google.com/webhp";
 
     let targetPage = context.pages()[0];
     if (!targetPage) targetPage = await context.newPage();
-    
+
     logE2e("Navigating to real Google homepage", { url: googleUrl });
     try {
-      await targetPage.goto(googleUrl, { waitUntil: "domcontentloaded", timeout: 20_000 });
+      await targetPage.goto(googleUrl, {
+        waitUntil: "domcontentloaded",
+        timeout: 20_000,
+      });
     } catch (err) {
       logE2e("Navigation warning, continuing test", { error: String(err) });
     }
-    
+
     await targetPage.bringToFront();
     await targetPage.waitForTimeout(1000);
 
     // 打开 Action Popup 启动录制
     const startPopup = await openActionPopup(targetPage);
     await startPopup.waitForSelector('[data-testid="record-panel"]');
-    
+
     const targetTabId = await startPopup.evaluate<number | undefined>(
       "(async () => (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id)()"
     );
@@ -50,7 +55,7 @@ test.describe("Bug Lens 真实用户 Google 业务流 E2E 测试 (包 4c41242b �
     await targetPage.waitForTimeout(500);
 
     // ─── 还原 Zip 包 4c41242b 中的 8 步真实用户交互链条 ───
-    
+
     // Step 1: 点击 Google Logo / SVG 元素
     const logo = targetPage.locator("svg, img[alt='Google']").first();
     if (await logo.isVisible()) {
@@ -60,7 +65,9 @@ test.describe("Bug Lens 真实用户 Google 业务流 E2E 测试 (包 4c41242b �
     }
 
     // Step 2: 点击搜索框 textarea[name='q'] (#APjFqb)
-    const searchInput = targetPage.locator('textarea[name="q"], #APjFqb').first();
+    const searchInput = targetPage
+      .locator('textarea[name="q"], #APjFqb')
+      .first();
     await searchInput.click({ force: true });
     logE2e("Step 2: Clicked search textarea");
     await targetPage.waitForTimeout(400);
@@ -94,8 +101,9 @@ test.describe("Bug Lens 真实用户 Google 业务流 E2E 测试 (包 4c41242b �
     await expect(stopButton).toBeVisible();
 
     const previewPagePromise = context.waitForEvent("page", {
-      predicate: (page) => page.url().startsWith(`chrome-extension://${extensionId}/preview.html`),
-      timeout: 15_000
+      predicate: (page) =>
+        page.url().startsWith(`chrome-extension://${extensionId}/preview.html`),
+      timeout: 15_000,
     });
 
     await stopButton.click();
@@ -107,20 +115,26 @@ test.describe("Bug Lens 真实用户 Google 业务流 E2E 测试 (包 4c41242b �
     const evidence = await mediaProbe.persistedFullEvidence(session.id);
     logE2e("Evidences collected", {
       interactionCount: evidence.interactions.length,
-      kinds: evidence.interactions.map((i: InteractionRecord) => i.kind)
+      kinds: evidence.interactions.map((i: InteractionRecord) => i.kind),
     });
 
     expect(evidence.interactions.length).toBeGreaterThan(0);
 
     // 验证包含目标搜索词的输入记录或包含 Enter 的 keydown 记录
     const hasSearchInput = evidence.interactions.some(
-      (i: InteractionRecord) => i.metadata?.value?.includes("你好呀") || i.metadata?.valueLength === 9 || (i.kind === "keydown" && i.metadata?.key === "Enter")
+      (i: InteractionRecord) =>
+        i.metadata?.value?.includes("你好呀") ||
+        i.metadata?.valueLength === 9 ||
+        (i.kind === "keydown" && i.metadata?.key === "Enter")
     );
     expect(hasSearchInput).toBe(true);
 
     // 在 Preview DOM UI 页面上验证聚合卡片与标题展现
     await previewPage.waitForSelector(".grouped-card", { timeout: 10_000 });
-    const cardTitle = await previewPage.locator(".grouped-card .top strong").first().textContent();
+    const cardTitle = await previewPage
+      .locator(".grouped-card .top strong")
+      .first()
+      .textContent();
     logE2e("Preview grouped card title rendered", { cardTitle });
 
     expect(cardTitle).toBeTruthy();

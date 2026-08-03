@@ -1,73 +1,133 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
-<head>
-  <meta charset="UTF-8">
-  <title>Bug Lens Privacy Safe Mode Test Bench</title>
-  <style>
-    body { font-family: sans-serif; padding: 2rem; background: #f8fafc; }
-    .card { background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); max-width: 600px; }
-    .form-group { margin-bottom: 1rem; }
-    label { display: block; margin-bottom: 0.5rem; font-weight: 500; }
-    input { width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px; box-sizing: border-box; }
-    button { padding: 8px 16px; background: #2563eb; color: white; border: none; border-radius: 4px; cursor: pointer; margin-top: 1rem; }
-    button:hover { background: #1d4ed8; }
-    #status-output { margin-top: 1rem; font-size: 14px; color: #475569; }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <h1>隐私脱敏 E2E 测试页面</h1>
-    <p>用于 Safe 模式下端到端敏感信息脱敏验证。</p>
-    <div class="form-group">
-      <label for="email-input">邮箱地址</label>
-      <input type="email" id="email-input" data-testid="email-input" placeholder="输入邮箱" />
-    </div>
-    <div class="form-group">
-      <label for="password-input">登录密码</label>
-      <input type="password" id="password-input" data-testid="password-input" placeholder="输入密码" />
-    </div>
-    <div class="form-group">
-      <label for="token-input">访问令牌</label>
-      <input type="text" id="token-input" data-testid="token-input" placeholder="输入 Token" />
-    </div>
-    <button id="send-sensitive-request-btn" data-testid="send-sensitive-request-btn" onclick="sendSensitiveData()">发送敏感请求</button>
-    <div id="status-output" data-testid="status-output">就绪</div>
-  </div>
-
-  <script>
-    async function sendSensitiveData() {
-      const email = document.getElementById('email-input').value;
-      const password = document.getElementById('password-input').value;
-      const token = document.getElementById('token-input').value;
-      const apiKey = window.__CANARY_API_KEY__ || 'apiKeyCanary_default';
-      const nestedSecret = window.__CANARY_NESTED_SECRET__ || 'nestedSecretCanary_default';
-
-      console.log(`[PRIV-001 Log Marker] Auth canary email: ${email} token: ${token} apiKey: ${apiKey}`);
-
-      const url = `/api/privacy-test?token=${encodeURIComponent(token)}&email=${encodeURIComponent(email)}`;
-      try {
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-            'X-Api-Key': apiKey
-          },
-          body: JSON.stringify({
-            email,
-            password,
-            token,
-            apiKey,
-            nested: { secret: nestedSecret }
-          })
-        });
-        await response.json();
-        document.getElementById('status-output').textContent = '请求完成';
-      } catch (err) {
-        console.error('Privacy test request failed', err);
-        document.getElementById('status-output').textContent = '请求失败';
+  <head>
+    <meta charset="UTF-8" />
+    <title>Bug Lens Privacy Safe Mode Test Bench</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        padding: 2rem;
+        background: #f8fafc;
       }
-    }
-  </script>
-</body>
+      .card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        max-width: 600px;
+      }
+      .form-group {
+        margin-bottom: 1rem;
+      }
+      label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+      }
+      input {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #cbd5e1;
+        border-radius: 4px;
+        box-sizing: border-box;
+      }
+      button {
+        padding: 8px 16px;
+        background: #2563eb;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        margin-top: 1rem;
+      }
+      button:hover {
+        background: #1d4ed8;
+      }
+      #status-output {
+        margin-top: 1rem;
+        font-size: 14px;
+        color: #475569;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>隐私脱敏 E2E 测试页面</h1>
+      <p>用于 Safe 模式下端到端敏感信息脱敏验证。</p>
+      <div class="form-group">
+        <label for="email-input">邮箱地址</label>
+        <input
+          type="email"
+          id="email-input"
+          data-testid="email-input"
+          placeholder="输入邮箱"
+        />
+      </div>
+      <div class="form-group">
+        <label for="password-input">登录密码</label>
+        <input
+          type="password"
+          id="password-input"
+          data-testid="password-input"
+          placeholder="输入密码"
+        />
+      </div>
+      <div class="form-group">
+        <label for="token-input">访问令牌</label>
+        <input
+          type="text"
+          id="token-input"
+          data-testid="token-input"
+          placeholder="输入 Token"
+        />
+      </div>
+      <button
+        id="send-sensitive-request-btn"
+        data-testid="send-sensitive-request-btn"
+        onclick="sendSensitiveData()"
+      >
+        发送敏感请求
+      </button>
+      <div id="status-output" data-testid="status-output">就绪</div>
+    </div>
+
+    <script>
+      async function sendSensitiveData() {
+        const email = document.getElementById("email-input").value;
+        const password = document.getElementById("password-input").value;
+        const token = document.getElementById("token-input").value;
+        const apiKey = window.__CANARY_API_KEY__ || "apiKeyCanary_default";
+        const nestedSecret =
+          window.__CANARY_NESTED_SECRET__ || "nestedSecretCanary_default";
+
+        console.log(
+          `[PRIV-001 Log Marker] Auth canary email: ${email} token: ${token} apiKey: ${apiKey}`
+        );
+
+        const url = `/api/privacy-test?token=${encodeURIComponent(token)}&email=${encodeURIComponent(email)}`;
+        try {
+          const response = await fetch(url, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+              "X-Api-Key": apiKey,
+            },
+            body: JSON.stringify({
+              email,
+              password,
+              token,
+              apiKey,
+              nested: { secret: nestedSecret },
+            }),
+          });
+          await response.json();
+          document.getElementById("status-output").textContent = "请求完成";
+        } catch (err) {
+          console.error("Privacy test request failed", err);
+          document.getElementById("status-output").textContent = "请求失败";
+        }
+      }
+    </script>
+  </body>
 </html>

@@ -12,15 +12,15 @@ test("NavigationCapture correctly listens to main frame navigation and sends int
         id: "sess-1",
         nonce: "nonce-123",
         status: "RECORDING",
-        target: { tabId: 42 }
+        target: { tabId: 42 },
       } as any;
-    }
+    },
   };
 
   const mockInteractionCapture = {
     async handle(record: InteractionRecord) {
       capturedRecord = record;
-    }
+    },
   } as any;
 
   let listenerCallback: any;
@@ -32,12 +32,15 @@ test("NavigationCapture correctly listens to main frame navigation and sends int
         },
         removeListener(fn: any) {
           if (listenerCallback === fn) listenerCallback = undefined;
-        }
-      }
-    }
+        },
+      },
+    },
   };
 
-  const navCapture = new NavigationCapture(mockRepository, mockInteractionCapture);
+  const navCapture = new NavigationCapture(
+    mockRepository,
+    mockInteractionCapture
+  );
   navCapture.attach();
 
   assert.notEqual(listenerCallback, undefined);
@@ -48,7 +51,7 @@ test("NavigationCapture correctly listens to main frame navigation and sends int
     frameId: 0,
     url: "https://juejin.cn/post/123",
     transitionType: "reload",
-    transitionQualifiers: ["from_address_bar"]
+    transitionQualifiers: ["from_address_bar"],
   });
 
   assert.notEqual(capturedRecord, undefined);

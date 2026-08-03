@@ -1,5 +1,10 @@
 import { sanitizeUrl } from "./privacy-policy.ts";
-import type { CacheEvidence, CacheSource, ConciseCallFrame, InitiatorEvidence } from "../shared/protocol.ts";
+import type {
+  CacheEvidence,
+  CacheSource,
+  ConciseCallFrame,
+  InitiatorEvidence,
+} from "../shared/protocol.ts";
 
 export interface CdpCallFrame {
   functionName?: string;
@@ -26,7 +31,7 @@ const IGNORED_URL_PATTERNS = [
   /^chrome-extension:\/\//i,
   /^moz-extension:\/\//i,
   /node_modules\/(axios|core-js|zone\.js|tslib|webpack|vite)/i,
-  /\/dist\/[^\/]+\.(bundle|chunk)\.js$/i
+  /\/dist\/[^\/]+\.(bundle|chunk)\.js$/i,
 ];
 
 export function isThirdPartyOrFrameworkFrame(url?: string): boolean {
@@ -34,17 +39,23 @@ export function isThirdPartyOrFrameworkFrame(url?: string): boolean {
   return IGNORED_URL_PATTERNS.some((pattern) => pattern.test(url));
 }
 
-function toConciseFrame(frame: CdpCallFrame, privacyMode: "safe" | "raw"): ConciseCallFrame | undefined {
+function toConciseFrame(
+  frame: CdpCallFrame,
+  privacyMode: "safe" | "raw"
+): ConciseCallFrame | undefined {
   if (!frame.url) return undefined;
   return {
     functionName: frame.functionName || undefined,
     url: sanitizeUrl(frame.url, privacyMode),
     lineNumber: (frame.lineNumber ?? 0) + 1,
-    columnNumber: (frame.columnNumber ?? 0) + 1
+    columnNumber: (frame.columnNumber ?? 0) + 1,
   };
 }
 
-function findFirstAppFrame(stack?: CdpStackTrace, privacyMode: "safe" | "raw" = "safe"): ConciseCallFrame | undefined {
+function findFirstAppFrame(
+  stack?: CdpStackTrace,
+  privacyMode: "safe" | "raw" = "safe"
+): ConciseCallFrame | undefined {
   if (!stack?.callFrames) return undefined;
   for (const frame of stack.callFrames) {
     if (frame.url && !isThirdPartyOrFrameworkFrame(frame.url)) {
@@ -56,7 +67,10 @@ function findFirstAppFrame(stack?: CdpStackTrace, privacyMode: "safe" | "raw" = 
   return fallback ? toConciseFrame(fallback, privacyMode) : undefined;
 }
 
-function findAsyncAnchorFrame(stack?: CdpStackTrace, privacyMode: "safe" | "raw" = "safe"): ConciseCallFrame | undefined {
+function findAsyncAnchorFrame(
+  stack?: CdpStackTrace,
+  privacyMode: "safe" | "raw" = "safe"
+): ConciseCallFrame | undefined {
   let current: CdpStackTrace | undefined = stack?.parent;
   let lastAppFrame: ConciseCallFrame | undefined = undefined;
   while (current) {
@@ -104,12 +118,17 @@ export function extractCallStackChain(
   return result.length > 0 ? result : undefined;
 }
 
-export function sliceInitiator(cdpInitiator?: CdpInitiator, privacyMode: "safe" | "raw" = "safe"): InitiatorEvidence | undefined {
+export function sliceInitiator(
+  cdpInitiator?: CdpInitiator,
+  privacyMode: "safe" | "raw" = "safe"
+): InitiatorEvidence | undefined {
   if (!cdpInitiator) return undefined;
 
   const rawType = cdpInitiator.type || "other";
   const mappedType: InitiatorEvidence["type"] =
-    rawType === "script" || rawType === "parser" || rawType === "preflight" ? rawType : "other";
+    rawType === "script" || rawType === "parser" || rawType === "preflight"
+      ? rawType
+      : "other";
 
   let topFrame: ConciseCallFrame | undefined;
   let asyncAnchorFrame: ConciseCallFrame | undefined;
@@ -123,7 +142,7 @@ export function sliceInitiator(cdpInitiator?: CdpInitiator, privacyMode: "safe" 
     topFrame = {
       url: sanitizeUrl(cdpInitiator.url, privacyMode),
       lineNumber: (cdpInitiator.lineNumber ?? 0) + 1,
-      columnNumber: (cdpInitiator.columnNumber ?? 0) + 1
+      columnNumber: (cdpInitiator.columnNumber ?? 0) + 1,
     };
     stackChain = [topFrame];
   }
@@ -136,7 +155,7 @@ export function sliceInitiator(cdpInitiator?: CdpInitiator, privacyMode: "safe" 
     type: mappedType,
     topFrame,
     asyncAnchorFrame,
-    stack: stackChain
+    stack: stackChain,
   };
 }
 
@@ -167,6 +186,6 @@ export function deriveCacheEvidence(
   return {
     source,
     revalidated,
-    protocol: responseParams?.protocol || undefined
+    protocol: responseParams?.protocol || undefined,
   };
 }

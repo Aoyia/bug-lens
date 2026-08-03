@@ -1,12 +1,16 @@
 import { t } from "../shared/i18n.ts";
 
-export async function tryShowOnboardingGuide(widgetContainer: HTMLElement): Promise<void> {
+export async function tryShowOnboardingGuide(
+  widgetContainer: HTMLElement
+): Promise<void> {
   try {
     // 自动化测试检测：当在 WebDriver (Playwright / Puppeteer / Selenium) 驱动的环境下运行，自动跳过新手引导
     if (typeof navigator !== "undefined" && navigator.webdriver) return;
 
     if (typeof chrome === "undefined" || !chrome.storage?.local) return;
-    const storage = (await chrome.storage.local.get(["hasCompletedGuide", "skipOnboardingGuide"]).catch(() => ({}))) as {
+    const storage = (await chrome.storage.local
+      .get(["hasCompletedGuide", "skipOnboardingGuide"])
+      .catch(() => ({}))) as {
       hasCompletedGuide?: boolean;
       skipOnboardingGuide?: boolean;
     };
@@ -27,7 +31,8 @@ export async function tryShowOnboardingGuide(widgetContainer: HTMLElement): Prom
       zIndex: "2147483647",
       pointerEvents: "auto",
       userSelect: "none",
-      fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+      fontFamily:
+        "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
     });
 
     const shadow = guideOverlay.attachShadow({ mode: "open" });
@@ -150,23 +155,28 @@ export async function tryShowOnboardingGuide(widgetContainer: HTMLElement): Prom
     shadow.append(style, spotlight, popover);
     document.documentElement.appendChild(guideOverlay);
 
-    const steps: Array<{ targetSelector: string; title: string; desc: string; position?: "center" | "extension-icon" }> = [
+    const steps: Array<{
+      targetSelector: string;
+      title: string;
+      desc: string;
+      position?: "center" | "extension-icon";
+    }> = [
       {
         targetSelector: "#__wbr_issue_btn__",
         title: t("guideStep1Title"),
-        desc: t("guideStep1Desc")
+        desc: t("guideStep1Desc"),
       },
       {
         targetSelector: "#__wbr_timer_display__",
         title: t("guideStep2Title"),
-        desc: t("guideStep2Desc")
+        desc: t("guideStep2Desc"),
       },
       {
         targetSelector: "",
         title: t("guideStep3Title"),
         desc: t("guideStep3Desc"),
-        position: "extension-icon"
-      }
+        position: "extension-icon",
+      },
     ];
 
     let activeResizeListener: (() => void) | undefined;
@@ -183,7 +193,9 @@ export async function tryShowOnboardingGuide(widgetContainer: HTMLElement): Prom
         activeResizeObserver = undefined;
       }
       guideOverlay.remove();
-      await chrome.storage.local.set({ hasCompletedGuide: true }).catch(() => undefined);
+      await chrome.storage.local
+        .set({ hasCompletedGuide: true })
+        .catch(() => undefined);
     };
 
     let currentStepIndex = 0;
@@ -211,8 +223,9 @@ export async function tryShowOnboardingGuide(widgetContainer: HTMLElement): Prom
           width: `${iconSize}px`,
           height: `${iconSize}px`,
           borderRadius: "50%",
-          boxShadow: "0 0 0 9999px rgba(0, 0, 0, 0.65), 0 0 20px rgba(22, 93, 255, 0.9)",
-          border: "2px solid #165dff"
+          boxShadow:
+            "0 0 0 9999px rgba(0, 0, 0, 0.65), 0 0 20px rgba(22, 93, 255, 0.9)",
+          border: "2px solid #165dff",
         });
 
         popover.className = "popover arrow-top";
@@ -220,13 +233,19 @@ export async function tryShowOnboardingGuide(widgetContainer: HTMLElement): Prom
         const popoverTop = iconTop + iconSize + 14;
 
         const targetCenterX = iconLeft + iconSize / 2;
-        const arrowRight = Math.max(16, Math.min(popoverWidth - 24, popoverLeft + popoverWidth - targetCenterX));
+        const arrowRight = Math.max(
+          16,
+          Math.min(
+            popoverWidth - 24,
+            popoverLeft + popoverWidth - targetCenterX
+          )
+        );
         popover.style.setProperty("--arrow-right", `${arrowRight}px`);
 
         Object.assign(popover.style, {
           left: `${popoverLeft}px`,
           top: `${popoverTop}px`,
-          transform: "none"
+          transform: "none",
         });
         return;
       }
@@ -236,7 +255,7 @@ export async function tryShowOnboardingGuide(widgetContainer: HTMLElement): Prom
         Object.assign(popover.style, {
           left: "50%",
           top: "50%",
-          transform: "translate(-50%, -50%)"
+          transform: "translate(-50%, -50%)",
         });
 
         const popoverWidth = 305;
@@ -250,8 +269,9 @@ export async function tryShowOnboardingGuide(widgetContainer: HTMLElement): Prom
           width: `${popoverWidth}px`,
           height: `${popoverHeight}px`,
           borderRadius: "10px",
-          boxShadow: "0 0 0 9999px rgba(0, 0, 0, 0.65), 0 0 24px rgba(22, 93, 255, 0.9)",
-          border: "2px solid #165dff"
+          boxShadow:
+            "0 0 0 9999px rgba(0, 0, 0, 0.65), 0 0 24px rgba(22, 93, 255, 0.9)",
+          border: "2px solid #165dff",
         });
         return;
       }
@@ -269,8 +289,9 @@ export async function tryShowOnboardingGuide(widgetContainer: HTMLElement): Prom
         width: `${rect.width + pad * 2}px`,
         height: `${rect.height + pad * 2}px`,
         borderRadius: "6px",
-        boxShadow: "0 0 0 9999px rgba(0, 0, 0, 0.65), 0 0 20px rgba(22, 93, 255, 0.85)",
-        border: "2px solid #165dff"
+        boxShadow:
+          "0 0 0 9999px rgba(0, 0, 0, 0.65), 0 0 20px rgba(22, 93, 255, 0.85)",
+        border: "2px solid #165dff",
       });
 
       const popoverWidth = 305;
@@ -290,16 +311,37 @@ export async function tryShowOnboardingGuide(widgetContainer: HTMLElement): Prom
         if (popoverTop < 16) popoverTop = 16;
 
         const targetCenterY = rect.top + rect.height / 2;
-        const arrowTop = Math.max(18, Math.min(popoverHeight - 18, targetCenterY - popoverTop));
+        const arrowTop = Math.max(
+          18,
+          Math.min(popoverHeight - 18, targetCenterY - popoverTop)
+        );
         popover.style.setProperty("--arrow-top", `${arrowTop}px`);
       } else {
         // Fallback to top of element
-        popoverLeft = Math.max(16, Math.min(window.innerWidth - popoverWidth - 16, rect.left + rect.width / 2 - popoverWidth / 2));
-        popoverTop = Math.max(16, Math.min(window.innerHeight - popoverHeight - 24, rect.top - popoverHeight - 14));
+        popoverLeft = Math.max(
+          16,
+          Math.min(
+            window.innerWidth - popoverWidth - 16,
+            rect.left + rect.width / 2 - popoverWidth / 2
+          )
+        );
+        popoverTop = Math.max(
+          16,
+          Math.min(
+            window.innerHeight - popoverHeight - 24,
+            rect.top - popoverHeight - 14
+          )
+        );
         arrowClass = "arrow-bottom";
 
         const targetCenterX = rect.left + rect.width / 2;
-        const arrowRight = Math.max(16, Math.min(popoverWidth - 24, popoverLeft + popoverWidth - targetCenterX));
+        const arrowRight = Math.max(
+          16,
+          Math.min(
+            popoverWidth - 24,
+            popoverLeft + popoverWidth - targetCenterX
+          )
+        );
         popover.style.setProperty("--arrow-right", `${arrowRight}px`);
       }
 
@@ -307,7 +349,7 @@ export async function tryShowOnboardingGuide(widgetContainer: HTMLElement): Prom
       Object.assign(popover.style, {
         left: `${popoverLeft}px`,
         top: `${popoverTop}px`,
-        transform: "none"
+        transform: "none",
       });
     };
 
@@ -336,7 +378,9 @@ export async function tryShowOnboardingGuide(widgetContainer: HTMLElement): Prom
 
       updatePosition();
 
-      popover.querySelector(".btn-skip")?.addEventListener("click", () => void finishGuide());
+      popover
+        .querySelector(".btn-skip")
+        ?.addEventListener("click", () => void finishGuide());
       popover.querySelector(".btn-next")?.addEventListener("click", () => {
         if (isLast) void finishGuide();
         else renderStep(index + 1);

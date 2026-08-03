@@ -67,6 +67,9 @@ export class TruncatedText extends HTMLElement {
   }
 }
 
-if (typeof customElements !== "undefined" && !customElements.get("truncated-text")) {
+if (
+  typeof customElements !== "undefined" &&
+  !customElements.get("truncated-text")
+) {
   customElements.define("truncated-text", TruncatedText);
 }

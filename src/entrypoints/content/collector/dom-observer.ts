@@ -2,7 +2,9 @@ import { message, type InteractionRecord } from "../../../shared/protocol";
 import { describe, isWidgetElement } from "./dom-snapshot";
 
 export type DomObserverDeps = {
-  getSession(): { nonce: string; sessionId: string; privacyMode: "safe" | "raw" } | undefined;
+  getSession():
+    | { nonce: string; sessionId: string; privacyMode: "safe" | "raw" }
+    | undefined;
   isIssueActive(): boolean;
   beginIssueSelection(): void;
   removeIssueUi(): void;
@@ -55,14 +57,37 @@ export class DomObserver {
   attach(): void {
     if (this.attached) return;
     this.attached = true;
-    document.addEventListener("pointerdown", this.handlePointerdown, { capture: true, passive: false });
-    document.addEventListener("click", this.handleClick, { capture: true, passive: true });
-    document.addEventListener("input", this.handleInput, { capture: true, passive: true });
-    document.addEventListener("change", this.handleChange, { capture: true, passive: true });
-    document.addEventListener("submit", this.handleSubmit as EventListener, { capture: true, passive: true });
-    document.addEventListener("keydown", this.handleKeydownAltS, { capture: true });
-    document.addEventListener("keydown", this.handleKeydownAction, { capture: true, passive: true });
-    document.addEventListener("keyup", this.handleKeyup, { capture: true, passive: true });
+    document.addEventListener("pointerdown", this.handlePointerdown, {
+      capture: true,
+      passive: false,
+    });
+    document.addEventListener("click", this.handleClick, {
+      capture: true,
+      passive: true,
+    });
+    document.addEventListener("input", this.handleInput, {
+      capture: true,
+      passive: true,
+    });
+    document.addEventListener("change", this.handleChange, {
+      capture: true,
+      passive: true,
+    });
+    document.addEventListener("submit", this.handleSubmit as EventListener, {
+      capture: true,
+      passive: true,
+    });
+    document.addEventListener("keydown", this.handleKeydownAltS, {
+      capture: true,
+    });
+    document.addEventListener("keydown", this.handleKeydownAction, {
+      capture: true,
+      passive: true,
+    });
+    document.addEventListener("keyup", this.handleKeyup, {
+      capture: true,
+      passive: true,
+    });
   }
 
   detach(): void {
@@ -72,7 +97,11 @@ export class DomObserver {
     document.removeEventListener("click", this.handleClick, true);
     document.removeEventListener("input", this.handleInput, true);
     document.removeEventListener("change", this.handleChange, true);
-    document.removeEventListener("submit", this.handleSubmit as EventListener, true);
+    document.removeEventListener(
+      "submit",
+      this.handleSubmit as EventListener,
+      true
+    );
     document.removeEventListener("keydown", this.handleKeydownAltS, true);
     document.removeEventListener("keydown", this.handleKeydownAction, true);
     document.removeEventListener("keyup", this.handleKeyup, true);
@@ -97,8 +126,13 @@ export class DomObserver {
     return path.find((item): item is Element => item instanceof Element);
   }
 
-  private send(record: InteractionRecord, type: "interaction/candidate" | "interaction/confirmed"): void {
-    void chrome.runtime.sendMessage(message(type, { interaction: record }, record.sessionId));
+  private send(
+    record: InteractionRecord,
+    type: "interaction/candidate" | "interaction/confirmed"
+  ): void {
+    void chrome.runtime.sendMessage(
+      message(type, { interaction: record }, record.sessionId)
+    );
   }
 
   private sendConfirmed(record: InteractionRecord): void {
@@ -116,22 +150,35 @@ export class DomObserver {
 
   private onKeydownAction(event: KeyboardEvent): void {
     const session = this.deps.getSession();
-    if (!session || this.deps.isIssueActive() || !event.isTrusted || !this.actionableKey(event)) return;
+    if (
+      !session ||
+      this.deps.isIssueActive() ||
+      !event.isTrusted ||
+      !this.actionableKey(event)
+    )
+      return;
 
     const isShortcut = event.metaKey || event.ctrlKey || event.altKey;
     const shortcutStr = isShortcut ? this.formatShortcut(event) : undefined;
 
-    const element = this.firstElement(event.composedPath()) ?? (event.target instanceof Element ? event.target : document.documentElement);
+    const element =
+      this.firstElement(event.composedPath()) ??
+      (event.target instanceof Element
+        ? event.target
+        : document.documentElement);
     if (isWidgetElement(element)) return;
     if (this.inputSessions.has(element)) this.flushInputSession(element);
 
     const record = this.createRecord(event, element, "confirmed", "keydown", {
-      key: event.key, code: event.code,
-      altKey: event.altKey, ctrlKey: event.ctrlKey,
-      metaKey: event.metaKey, shiftKey: event.shiftKey,
+      key: event.key,
+      code: event.code,
+      altKey: event.altKey,
+      ctrlKey: event.ctrlKey,
+      metaKey: event.metaKey,
+      shiftKey: event.shiftKey,
       repeat: event.repeat,
       isShortcut: isShortcut || undefined,
-      shortcut: shortcutStr
+      shortcut: shortcutStr,
     });
 
     if (event.repeat) {
@@ -140,14 +187,20 @@ export class DomObserver {
         window.clearTimeout(s.idleTimer);
         s.latestRecord = record;
         s.repeatCount += 1;
-        s.idleTimer = window.setTimeout(() => this.flushKeyRepeatSession(), 500);
+        s.idleTimer = window.setTimeout(
+          () => this.flushKeyRepeatSession(),
+          500
+        );
         return;
       }
       this.flushKeyRepeatSession();
       this.keyRepeatSession = {
-        firstRecord: record, latestRecord: record,
-        key: event.key, element, repeatCount: 1,
-        idleTimer: window.setTimeout(() => this.flushKeyRepeatSession(), 500)
+        firstRecord: record,
+        latestRecord: record,
+        key: event.key,
+        element,
+        repeatCount: 1,
+        idleTimer: window.setTimeout(() => this.flushKeyRepeatSession(), 500),
       };
       return;
     }
@@ -171,44 +224,91 @@ export class DomObserver {
     const rect = element.getBoundingClientRect();
     const clientX = pointer?.clientX ?? Math.max(0, rect.left + rect.width / 2);
     const clientY = pointer?.clientY ?? Math.max(0, rect.top + rect.height / 2);
-    const pointerType = event instanceof PointerEvent ? event.pointerType || "unknown" : keyboard ? "keyboard" : kind === "navigation" ? "navigation" : "form";
+    const pointerType =
+      event instanceof PointerEvent
+        ? event.pointerType || "unknown"
+        : keyboard
+          ? "keyboard"
+          : kind === "navigation"
+            ? "navigation"
+            : "form";
     return {
       id,
       sessionId: session.nonce,
       kind,
       status,
       createdAt: now,
-      page: { url: location.href, title: document.title, frameId: window.top === window ? 0 : -1 },
-      input: { pointerType, button: pointer?.button ?? 0, isTrusted: event.isTrusted },
-      coordinates: { clientX, clientY, pageX: pointer?.pageX ?? clientX + window.scrollX, pageY: pointer?.pageY ?? clientY + window.scrollY, scrollX: window.scrollX, scrollY: window.scrollY, devicePixelRatio: window.devicePixelRatio, viewport: { width: window.innerWidth, height: window.innerHeight } },
+      page: {
+        url: location.href,
+        title: document.title,
+        frameId: window.top === window ? 0 : -1,
+      },
+      input: {
+        pointerType,
+        button: pointer?.button ?? 0,
+        isTrusted: event.isTrusted,
+      },
+      coordinates: {
+        clientX,
+        clientY,
+        pageX: pointer?.pageX ?? clientX + window.scrollX,
+        pageY: pointer?.pageY ?? clientY + window.scrollY,
+        scrollX: window.scrollX,
+        scrollY: window.scrollY,
+        devicePixelRatio: window.devicePixelRatio,
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+      },
       element: describe(element, session.privacyMode),
       metadata,
-      screenshot: { status: "pending" }
+      screenshot: { status: "pending" },
     };
   }
 
-  private inputMetadata(element: Element, session: { privacyMode: "safe" | "raw" }, event?: InputEvent): InteractionRecord["metadata"] {
+  private inputMetadata(
+    element: Element,
+    session: { privacyMode: "safe" | "raw" },
+    event?: InputEvent
+  ): InteractionRecord["metadata"] {
     const safeMode = session.privacyMode !== "raw";
     if (element instanceof HTMLInputElement) {
       const password = element.type.toLowerCase() === "password";
       return {
         inputType: event?.inputType || element.type || "text",
-        value: !safeMode && !password ? element.value.slice(0, 2_048) : undefined,
+        value:
+          !safeMode && !password ? element.value.slice(0, 2_048) : undefined,
         valueLength: element.value.length,
         valueRedacted: safeMode || password || undefined,
-        checked: ["checkbox", "radio"].includes(element.type.toLowerCase()) ? element.checked : undefined
+        checked: ["checkbox", "radio"].includes(element.type.toLowerCase())
+          ? element.checked
+          : undefined,
       };
     }
     if (element instanceof HTMLTextAreaElement) {
-      return { inputType: event?.inputType || "textarea", value: safeMode ? undefined : element.value.slice(0, 2_048), valueLength: element.value.length, valueRedacted: safeMode || undefined };
+      return {
+        inputType: event?.inputType || "textarea",
+        value: safeMode ? undefined : element.value.slice(0, 2_048),
+        valueLength: element.value.length,
+        valueRedacted: safeMode || undefined,
+      };
     }
     if (element instanceof HTMLSelectElement) {
       const selected = Array.from(element.selectedOptions);
       const rawValue = selected.map((option) => option.value).join(",");
-      return { inputType: element.multiple ? "select-multiple" : "select-one", value: safeMode ? undefined : rawValue.slice(0, 2_048), valueLength: rawValue.length, valueRedacted: safeMode || undefined, selectedCount: selected.length };
+      return {
+        inputType: element.multiple ? "select-multiple" : "select-one",
+        value: safeMode ? undefined : rawValue.slice(0, 2_048),
+        valueLength: rawValue.length,
+        valueRedacted: safeMode || undefined,
+        selectedCount: selected.length,
+      };
     }
     const text = element.textContent ?? "";
-    return { inputType: event?.inputType || "contenteditable", value: safeMode ? undefined : text.slice(0, 2_048), valueLength: text.length, valueRedacted: safeMode || undefined };
+    return {
+      inputType: event?.inputType || "contenteditable",
+      value: safeMode ? undefined : text.slice(0, 2_048),
+      valueLength: text.length,
+      valueRedacted: safeMode || undefined,
+    };
   }
 
   // ─── Event Handlers ───
@@ -222,17 +322,41 @@ export class DomObserver {
     const record = this.createRecord(event, element, "candidate");
     this.pending.set(record.id, record);
     this.send(record, "interaction/candidate");
-    window.setTimeout(() => { if (this.pending.get(record.id)?.status === "candidate") { this.pending.delete(record.id); void chrome.runtime.sendMessage(message("interaction/cancelled", { interactionId: record.id, interaction: record }, record.sessionId)); } }, 750);
+    window.setTimeout(() => {
+      if (this.pending.get(record.id)?.status === "candidate") {
+        this.pending.delete(record.id);
+        void chrome.runtime.sendMessage(
+          message(
+            "interaction/cancelled",
+            { interactionId: record.id, interaction: record },
+            record.sessionId
+          )
+        );
+      }
+    }, 750);
   }
 
   private onClick(event: MouseEvent): void {
     if (this.deps.isIssueActive()) return;
     const session = this.deps.getSession();
     if (!session || !event.isTrusted) return;
-    const element = this.firstElement(event.composedPath()) ?? (event.target instanceof Element ? event.target : undefined);
+    const element =
+      this.firstElement(event.composedPath()) ??
+      (event.target instanceof Element ? event.target : undefined);
     if (!element || isWidgetElement(element)) return;
-    const nearest = Array.from(this.pending.values()).find((candidate) => Math.abs(candidate.coordinates.clientX - event.clientX) < 3 && Math.abs(candidate.coordinates.clientY - event.clientY) < 3);
-    const record = nearest ? { ...nearest, status: "confirmed" as const, confirmedAt: Date.now(), element: describe(element, session.privacyMode) } : this.createRecord(event, element, "confirmed");
+    const nearest = Array.from(this.pending.values()).find(
+      (candidate) =>
+        Math.abs(candidate.coordinates.clientX - event.clientX) < 3 &&
+        Math.abs(candidate.coordinates.clientY - event.clientY) < 3
+    );
+    const record = nearest
+      ? {
+          ...nearest,
+          status: "confirmed" as const,
+          confirmedAt: Date.now(),
+          element: describe(element, session.privacyMode),
+        }
+      : this.createRecord(event, element, "confirmed");
     if (nearest) this.pending.delete(nearest.id);
     this.send(record, "interaction/confirmed");
   }
@@ -248,8 +372,8 @@ export class DomObserver {
       createdAt: s.firstRecord.createdAt,
       metadata: {
         ...s.latestRecord.metadata,
-        inputEventCount: s.eventCount > 1 ? s.eventCount : undefined
-      }
+        inputEventCount: s.eventCount > 1 ? s.eventCount : undefined,
+      },
     };
     this.sendConfirmed(merged);
   }
@@ -257,59 +381,115 @@ export class DomObserver {
   private onInput(event: Event): void {
     const session = this.deps.getSession();
     if (!session || this.deps.isIssueActive() || !event.isTrusted) return;
-    const element = this.firstElement(event.composedPath()) ?? (event.target instanceof Element ? event.target : undefined);
+    const element =
+      this.firstElement(event.composedPath()) ??
+      (event.target instanceof Element ? event.target : undefined);
     if (!element || isWidgetElement(element)) return;
-    const record = this.createRecord(event, element, "confirmed", "input", this.inputMetadata(element, session, event instanceof InputEvent ? event : undefined));
+    const record = this.createRecord(
+      event,
+      element,
+      "confirmed",
+      "input",
+      this.inputMetadata(
+        element,
+        session,
+        event instanceof InputEvent ? event : undefined
+      )
+    );
     const existing = this.inputSessions.get(element);
     if (existing) {
       window.clearTimeout(existing.idleTimer);
       existing.latestRecord = record;
       existing.eventCount += 1;
-      existing.idleTimer = window.setTimeout(() => this.flushInputSession(element), 1500);
+      existing.idleTimer = window.setTimeout(
+        () => this.flushInputSession(element),
+        1500
+      );
     } else {
-      const idleTimer = window.setTimeout(() => this.flushInputSession(element), 1500);
-      const maxTimer = window.setTimeout(() => this.flushInputSession(element), 10_000);
-      this.inputSessions.set(element, { firstRecord: record, latestRecord: record, eventCount: 1, idleTimer, maxTimer });
-      element.addEventListener("blur", () => {
-        const active = this.inputSessions.get(element);
-        if (active) {
-          window.clearTimeout(active.idleTimer);
-          active.idleTimer = window.setTimeout(() => this.flushInputSession(element), 300);
-        }
-      }, { once: true });
+      const idleTimer = window.setTimeout(
+        () => this.flushInputSession(element),
+        1500
+      );
+      const maxTimer = window.setTimeout(
+        () => this.flushInputSession(element),
+        10_000
+      );
+      this.inputSessions.set(element, {
+        firstRecord: record,
+        latestRecord: record,
+        eventCount: 1,
+        idleTimer,
+        maxTimer,
+      });
+      element.addEventListener(
+        "blur",
+        () => {
+          const active = this.inputSessions.get(element);
+          if (active) {
+            window.clearTimeout(active.idleTimer);
+            active.idleTimer = window.setTimeout(
+              () => this.flushInputSession(element),
+              300
+            );
+          }
+        },
+        { once: true }
+      );
     }
   }
 
   private onChange(event: Event): void {
     const session = this.deps.getSession();
     if (!session || this.deps.isIssueActive() || !event.isTrusted) return;
-    const element = this.firstElement(event.composedPath()) ?? (event.target instanceof Element ? event.target : undefined);
+    const element =
+      this.firstElement(event.composedPath()) ??
+      (event.target instanceof Element ? event.target : undefined);
     if (!element || isWidgetElement(element)) return;
     const existing = this.inputSessions.get(element);
     if (existing) {
       const meta = this.inputMetadata(element, session);
       existing.latestRecord = {
         ...existing.latestRecord,
-        metadata: { ...meta, inputEventCount: existing.eventCount > 1 ? existing.eventCount : undefined }
+        metadata: {
+          ...meta,
+          inputEventCount:
+            existing.eventCount > 1 ? existing.eventCount : undefined,
+        },
       };
       this.flushInputSession(element);
     } else {
-      this.sendConfirmed(this.createRecord(event, element, "confirmed", "change", this.inputMetadata(element, session)));
+      this.sendConfirmed(
+        this.createRecord(
+          event,
+          element,
+          "confirmed",
+          "change",
+          this.inputMetadata(element, session)
+        )
+      );
     }
   }
 
   private onSubmit(event: SubmitEvent): void {
     const session = this.deps.getSession();
     if (!session || this.deps.isIssueActive() || !event.isTrusted) return;
-    const form = event.target instanceof HTMLFormElement ? event.target : undefined;
+    const form =
+      event.target instanceof HTMLFormElement ? event.target : undefined;
     if (!form || isWidgetElement(form)) return;
-    this.sendConfirmed(this.createRecord(event, form, "confirmed", "submit", { formMethod: form.method.toUpperCase(), formAction: form.action }));
+    this.sendConfirmed(
+      this.createRecord(event, form, "confirmed", "submit", {
+        formMethod: form.method.toUpperCase(),
+        formAction: form.action,
+      })
+    );
   }
 
   private onKeydownAltS(event: KeyboardEvent): void {
     const session = this.deps.getSession();
     if (!session || !event.isTrusted) return;
-    const isAltS = event.altKey && (event.key.toLowerCase() === "s" || event.code === "KeyS");
+    const isAltS =
+      event.altKey &&
+      (event.key.toLowerCase() === "s" || event.code === "KeyS");
     if (isAltS) {
       event.preventDefault();
       event.stopPropagation();
@@ -331,8 +511,8 @@ export class DomObserver {
       createdAt: s.firstRecord.createdAt,
       metadata: {
         ...s.latestRecord.metadata,
-        repeatCount: s.repeatCount
-      }
+        repeatCount: s.repeatCount,
+      },
     };
     this.sendConfirmed(merged);
   }

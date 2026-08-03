@@ -2,7 +2,9 @@ import { test, expect, safeUrlForLog } from "./fixtures/extension.ts";
 
 function logE2e(message: string, details?: unknown): void {
   const suffix = details === undefined ? "" : ` ${JSON.stringify(details)}`;
-  console.log(`[Bug Lens E2E][${new Date().toISOString()}] ${message}${suffix}`);
+  console.log(
+    `[Bug Lens E2E][${new Date().toISOString()}] ${message}${suffix}`
+  );
 }
 
 test.describe("Bug Lens Chrome Extension E2E ISSUE-001: Issue Scene Recording Journey", () => {
@@ -11,11 +13,12 @@ test.describe("Bug Lens Chrome Extension E2E ISSUE-001: Issue Scene Recording Jo
     extensionId,
     openActionPopup,
     mediaProbe,
-    serverUrl
+    serverUrl,
   }) => {
     context.on("console", (message) => {
       logE2e(`Browser console.${message.type()}`, {
-        url: safeUrlForLog(message.page()?.url()) ?? "extension-worker-or-popup"
+        url:
+          safeUrlForLog(message.page()?.url()) ?? "extension-worker-or-popup",
       });
     });
 
@@ -30,7 +33,9 @@ test.describe("Bug Lens Chrome Extension E2E ISSUE-001: Issue Scene Recording Jo
     logE2e("Target issue page loaded", { url: targetPage.url() });
 
     await targetPage.bringToFront();
-    await targetPage.waitForFunction(() => document.hasFocus(), undefined, { timeout: 2_000 });
+    await targetPage.waitForFunction(() => document.hasFocus(), undefined, {
+      timeout: 2_000,
+    });
 
     // 2. 通过真实 Action Popup 启动录制
     const popup = await openActionPopup(targetPage);
@@ -46,12 +51,15 @@ test.describe("Bug Lens Chrome Extension E2E ISSUE-001: Issue Scene Recording Jo
 
     // 5. 等待录制激活状态与 UI 浮层
     const session = await mediaProbe.waitForSession(targetTabId!);
-    const activeMedia = await mediaProbe.waitForActive(session.id, targetTabId!);
+    const activeMedia = await mediaProbe.waitForActive(
+      session.id,
+      targetTabId!
+    );
     logE2e("Recording active state verified", {
       sessionId: session.id,
       sessionStatus: activeMedia.session?.status,
       captureStatus: activeMedia.capture?.status,
-      offscreenActive: activeMedia.offscreenActive
+      offscreenActive: activeMedia.offscreenActive,
     });
 
     expect(activeMedia.capture?.status).toBe("active");
@@ -87,7 +95,9 @@ test.describe("Bug Lens Chrome Extension E2E ISSUE-001: Issue Scene Recording Jo
     const initialInteractionCount = initialEvidence.interactions.length;
     const initialIssueSceneCount = initialEvidence.issueScenes.length;
 
-    const initialClickCountText = await targetPage.locator('[data-testid="issue-target-click-count"]').textContent();
+    const initialClickCountText = await targetPage
+      .locator('[data-testid="issue-target-click-count"]')
+      .textContent();
     const initialClickCount = Number(initialClickCountText);
 
     // 4. 使用目标元素的真实屏幕坐标点击
@@ -97,26 +107,45 @@ test.describe("Bug Lens Chrome Extension E2E ISSUE-001: Issue Scene Recording Jo
     expect(box).toBeTruthy();
 
     // 在 Playwright 层模拟真实鼠标位置点击
-    await targetPage.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2);
+    await targetPage.mouse.click(
+      box!.x + box!.width / 2,
+      box!.y + box!.height / 2
+    );
 
     // 5. 点击后断言选择结果及操作阻断
-    await targetPage.waitForFunction(() => {
-      const selection = document.querySelector("#__wbr_issue_selection__");
-      if (!selection || !selection.shadowRoot) return false;
-      const finishBtn = selection.shadowRoot.querySelector("button");
-      return Boolean(finishBtn && finishBtn.textContent?.includes("完成截图 (1)"));
-    }, undefined, { timeout: 3_000 });
+    await targetPage.waitForFunction(
+      () => {
+        const selection = document.querySelector("#__wbr_issue_selection__");
+        if (!selection || !selection.shadowRoot) return false;
+        const finishBtn = selection.shadowRoot.querySelector("button");
+        return Boolean(
+          finishBtn && finishBtn.textContent?.includes("完成截图 (1)")
+        );
+      },
+      undefined,
+      { timeout: 3_000 }
+    );
 
-    const currentClickCountText = await targetPage.locator('[data-testid="issue-target-click-count"]').textContent();
+    const currentClickCountText = await targetPage
+      .locator('[data-testid="issue-target-click-count"]')
+      .textContent();
     expect(Number(currentClickCountText)).toBe(initialClickCount);
 
-    const evidenceDuringSelect = await mediaProbe.persistedFullEvidence(session.id);
-    expect(evidenceDuringSelect.interactions.length).toBe(initialInteractionCount);
+    const evidenceDuringSelect = await mediaProbe.persistedFullEvidence(
+      session.id
+    );
+    expect(evidenceDuringSelect.interactions.length).toBe(
+      initialInteractionCount
+    );
 
-    logE2e("Selection overlay successfully blocked regular interaction and page click events");
+    logE2e(
+      "Selection overlay successfully blocked regular interaction and page click events"
+    );
 
     // 6. 真实点击选择浮层中的“完成截图”按钮 (通过 Playwright locator 穿透 Shadow DOM)
-    const finishBtn = targetPage.locator("#__wbr_issue_selection__").locator("button", { hasText: "完成截图" });
+    const finishBtn = targetPage
+      .locator("#__wbr_issue_selection__")
+      .locator("button", { hasText: "完成截图" });
     await expect(finishBtn).toBeVisible();
     await finishBtn.click();
 
@@ -186,35 +215,54 @@ test.describe("Bug Lens Chrome Extension E2E ISSUE-001: Issue Scene Recording Jo
     expect(activeSessionAfterSave?.id).toBe(session.id);
     expect(activeSessionAfterSave?.status).toBe("RECORDING");
 
-    const snapshotAfterSave = await mediaProbe.snapshot(session.id, targetTabId!);
+    const snapshotAfterSave = await mediaProbe.snapshot(
+      session.id,
+      targetTabId!
+    );
     expect(snapshotAfterSave.capture?.status).toBe("active");
     expect(snapshotAfterSave.offscreenActive).toBe(true);
 
     // 校验 IndexedDB 中的 Issue Scene 状态
     await mediaProbe.waitForEvidenceCounts(session.id, { issueSceneCount: 1 });
-    const evidenceAfterSave = await mediaProbe.persistedFullEvidence(session.id);
+    const evidenceAfterSave = await mediaProbe.persistedFullEvidence(
+      session.id
+    );
     expect(evidenceAfterSave.issueScenes.length).toBe(1);
 
     const recordedScene = evidenceAfterSave.issueScenes[0];
     expect(recordedScene.status).toBe("complete");
     expect(recordedScene.issues).toEqual([]);
 
-    logE2e("Issue scene created with complete status, recording session remained active");
+    logE2e(
+      "Issue scene created with complete status, recording session remained active"
+    );
 
     // 执行后续普通交互操作
-    const afterActionButton = targetPage.locator('[data-testid="after-issue-action"]');
+    const afterActionButton = targetPage.locator(
+      '[data-testid="after-issue-action"]'
+    );
     await afterActionButton.click();
-    await expect(targetPage.locator('[data-testid="after-issue-result"]')).toContainText("普通操作已执行");
+    await expect(
+      targetPage.locator('[data-testid="after-issue-result"]')
+    ).toContainText("普通操作已执行");
 
     // 确认产生了新的 confirmed interaction 且时间晚于 Issue Scene（按稳定 target locator 定位）
-    await mediaProbe.waitForEvidenceCounts(session.id, { interactionCount: initialInteractionCount + 1 });
+    await mediaProbe.waitForEvidenceCounts(session.id, {
+      interactionCount: initialInteractionCount + 1,
+    });
     const updatedEvidence = await mediaProbe.persistedFullEvidence(session.id);
     const afterInteraction = updatedEvidence.interactions.find(
-      (i) => i.element.id === "after-issue-action" || i.element.locators?.some((l) => l.expression.includes("after-issue-action"))
+      (i) =>
+        i.element.id === "after-issue-action" ||
+        i.element.locators?.some((l) =>
+          l.expression.includes("after-issue-action")
+        )
     );
     expect(afterInteraction).toBeDefined();
     expect(afterInteraction!.status).toBe("confirmed");
-    expect(afterInteraction!.createdAt).toBeGreaterThan(recordedScene.observedAtEpochMs);
+    expect(afterInteraction!.createdAt).toBeGreaterThan(
+      recordedScene.observedAtEpochMs
+    );
 
     // ==========================================
     // 七、Issue Scene 持久化契约
@@ -243,7 +291,9 @@ test.describe("Bug Lens Chrome Extension E2E ISSUE-001: Issue Scene Recording Jo
     expect(recordedScene.target?.element.locators?.length).toBeGreaterThan(0);
 
     const hasTargetLocator = recordedScene.target?.element.locators?.some(
-      (l: { expression: string }) => l.expression.includes("issue-target") || l.expression.includes("issue-target-element")
+      (l: { expression: string }) =>
+        l.expression.includes("issue-target") ||
+        l.expression.includes("issue-target-element")
     );
     expect(hasTargetLocator).toBe(true);
     expect(Boolean(recordedScene.target?.sanitizedHtml)).toBe(true);
@@ -254,8 +304,12 @@ test.describe("Bug Lens Chrome Extension E2E ISSUE-001: Issue Scene Recording Jo
     expect(annotatedAssetId).toBeTruthy();
     expect(originalAssetId).not.toBe(annotatedAssetId);
 
-    const originalAsset = evidenceAfterSave.evidenceAssets.find((a) => a.id === originalAssetId);
-    const annotatedAsset = evidenceAfterSave.evidenceAssets.find((a) => a.id === annotatedAssetId);
+    const originalAsset = evidenceAfterSave.evidenceAssets.find(
+      (a) => a.id === originalAssetId
+    );
+    const annotatedAsset = evidenceAfterSave.evidenceAssets.find(
+      (a) => a.id === annotatedAssetId
+    );
 
     expect(originalAsset).toBeDefined();
     expect(annotatedAsset).toBeDefined();
@@ -281,8 +335,12 @@ test.describe("Bug Lens Chrome Extension E2E ISSUE-001: Issue Scene Recording Jo
     expect(originalAsset?.height).toBe(annotatedAsset?.height);
 
     // 真正调用 getEvidenceAssetBytes 进行实际 PNG 解码验证
-    const originalAssetBytes = await mediaProbe.getEvidenceAssetBytes(originalAssetId!);
-    const annotatedAssetBytes = await mediaProbe.getEvidenceAssetBytes(annotatedAssetId!);
+    const originalAssetBytes = await mediaProbe.getEvidenceAssetBytes(
+      originalAssetId!
+    );
+    const annotatedAssetBytes = await mediaProbe.getEvidenceAssetBytes(
+      annotatedAssetId!
+    );
 
     expect(originalAssetBytes).toBeDefined();
     expect(annotatedAssetBytes).toBeDefined();
@@ -309,15 +367,19 @@ test.describe("Bug Lens Chrome Extension E2E ISSUE-001: Issue Scene Recording Jo
     await expect(stopBtn).toBeVisible();
 
     const previewPagePromise = context.waitForEvent("page", {
-      predicate: (page) => page.url().startsWith(`chrome-extension://${extensionId}/preview.html`),
-      timeout: 10_000
+      predicate: (page) =>
+        page.url().startsWith(`chrome-extension://${extensionId}/preview.html`),
+      timeout: 10_000,
     });
     await stopBtn.click();
     const previewPage = await previewPagePromise;
     await previewPage.waitForLoadState("domcontentloaded");
     await previewPage.bringToFront();
 
-    const finalEvidence = await mediaProbe.persistedEvidence(previewPage, session.id);
+    const finalEvidence = await mediaProbe.persistedEvidence(
+      previewPage,
+      session.id
+    );
     expect(finalEvidence.session?.status).toBe("PREVIEW_READY");
     expect(finalEvidence.session?.quality.overall).toBe("complete");
     expect(finalEvidence.session?.quality.issues).toEqual([]);
@@ -328,7 +390,9 @@ test.describe("Bug Lens Chrome Extension E2E ISSUE-001: Issue Scene Recording Jo
     expect(await mediaProbe.getBadgeText(targetTabId!)).toBe("");
 
     // 断言全局唯一 Preview 标签页
-    const previewPagesCount = context.pages().filter((p) => p.url().includes("/preview.html")).length;
+    const previewPagesCount = context
+      .pages()
+      .filter((p) => p.url().includes("/preview.html")).length;
     expect(previewPagesCount).toBe(1);
     expect(await mediaProbe.isOffscreenRecording(session.id)).toBe(false);
     expect(await mediaProbe.isOverlayRemoved(targetPage)).toBe(true);
@@ -357,14 +421,18 @@ test.describe("Bug Lens Chrome Extension E2E ISSUE-001: Issue Scene Recording Jo
     expect(cardImageDimensions.height).toBeGreaterThan(0);
 
     // 测试原图/批注图切换
-    const toggleImageBtn = issueCards.first().locator("button", { hasText: "查看原图" });
+    const toggleImageBtn = issueCards
+      .first()
+      .locator("button", { hasText: "查看原图" });
     await expect(toggleImageBtn).toBeVisible();
     await toggleImageBtn.click();
 
     const originalImageSrc = await cardImage.getAttribute("src");
     expect(originalImageSrc).not.toBe(cardImageDimensions.src);
 
-    const toggleBackBtn = issueCards.first().locator("button", { hasText: "查看批注图" });
+    const toggleBackBtn = issueCards
+      .first()
+      .locator("button", { hasText: "查看批注图" });
     await expect(toggleBackBtn).toBeVisible();
     await toggleBackBtn.click();
 
@@ -375,16 +443,24 @@ test.describe("Bug Lens Chrome Extension E2E ISSUE-001: Issue Scene Recording Jo
     const video = previewPage.locator("#video");
     await expect(video).toBeVisible();
 
-    const seekBtn = issueCards.first().locator("button", { hasText: "跳转录像" });
+    const seekBtn = issueCards
+      .first()
+      .locator("button", { hasText: "跳转录像" });
     await expect(seekBtn).toBeVisible();
     await seekBtn.click();
 
-    const videoCurrentTime = await video.evaluate((el) => (el as HTMLVideoElement).currentTime);
-    const sessionStartedAt = finalEvidence.session?.timeline.startedAtEpochMs ?? 0;
-    const targetTimeSeconds = (recordedScene.observedAtEpochMs - sessionStartedAt) / 1000;
+    const videoCurrentTime = await video.evaluate(
+      (el) => (el as HTMLVideoElement).currentTime
+    );
+    const sessionStartedAt =
+      finalEvidence.session?.timeline.startedAtEpochMs ?? 0;
+    const targetTimeSeconds =
+      (recordedScene.observedAtEpochMs - sessionStartedAt) / 1000;
 
     // 允许 3.0 秒的 mediaTimeslice + UI 转向差
-    expect(Math.abs(videoCurrentTime - targetTimeSeconds)).toBeLessThanOrEqual(3.5);
+    expect(Math.abs(videoCurrentTime - targetTimeSeconds)).toBeLessThanOrEqual(
+      3.5
+    );
 
     logE2e("ISSUE-001 E2E test completed and all assertions passed perfectly!");
   });

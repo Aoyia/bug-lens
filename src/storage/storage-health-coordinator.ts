@@ -24,12 +24,16 @@ export function evaluateOffscreenStorageWrite(
   if (newlyLimitReached || isRejected) {
     return {
       shouldNotify: true,
-      message: message("offscreen/storage-state", {
-        sessionId,
-        usedBytes: result.usedBytes,
-        limitReached: result.limitReached,
-        stored: result.stored
-      }, sessionId)
+      message: message(
+        "offscreen/storage-state",
+        {
+          sessionId,
+          usedBytes: result.usedBytes,
+          limitReached: result.limitReached,
+          stored: result.stored,
+        },
+        sessionId
+      ),
     };
   }
 
@@ -43,8 +47,11 @@ export type StorageHealthValidationParams = {
   currentActiveSessionId?: string;
 };
 
-export function validateStorageHealthUpdate(params: StorageHealthValidationParams): boolean {
-  if (!params.senderUrl || params.senderUrl !== params.expectedOffscreenUrl) return false;
+export function validateStorageHealthUpdate(
+  params: StorageHealthValidationParams
+): boolean {
+  if (!params.senderUrl || params.senderUrl !== params.expectedOffscreenUrl)
+    return false;
   if (!params.currentActiveSessionId) return false;
   if (params.incomingSessionId !== params.currentActiveSessionId) return false;
   return true;

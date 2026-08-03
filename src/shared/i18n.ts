@@ -4,7 +4,11 @@
 
 export type SupportedLocale = "zh-CN" | "en-US";
 export type I18nDict = Record<string, { message: string }>;
-export type I18nBundle = { locale: SupportedLocale; lang?: string; dict: I18nDict };
+export type I18nBundle = {
+  locale: SupportedLocale;
+  lang?: string;
+  dict: I18nDict;
+};
 
 declare global {
   interface Window {
@@ -25,7 +29,11 @@ export function normalizeLocale(rawLocale?: string): SupportedLocale {
 
 export function getLocale(): SupportedLocale {
   try {
-    if (typeof chrome !== "undefined" && chrome.i18n && typeof chrome.i18n.getUILanguage === "function") {
+    if (
+      typeof chrome !== "undefined" &&
+      chrome.i18n &&
+      typeof chrome.i18n.getUILanguage === "function"
+    ) {
       const uiLang = chrome.i18n.getUILanguage();
       if (uiLang) return normalizeLocale(uiLang);
     }
@@ -43,9 +51,17 @@ export function isEn(): boolean {
   return getLocale() === "en-US";
 }
 
-export function t(key: string, substitutions?: string | string[], customDict?: I18nDict): string {
+export function t(
+  key: string,
+  substitutions?: string | string[],
+  customDict?: I18nDict
+): string {
   try {
-    if (typeof chrome !== "undefined" && chrome.i18n && typeof chrome.i18n.getMessage === "function") {
+    if (
+      typeof chrome !== "undefined" &&
+      chrome.i18n &&
+      typeof chrome.i18n.getMessage === "function"
+    ) {
       const message = chrome.i18n.getMessage(key, substitutions);
       if (message) return message;
     }
@@ -53,11 +69,17 @@ export function t(key: string, substitutions?: string | string[], customDict?: I
     // Fallback if chrome.i18n is unavailable in non-extension contexts
   }
 
-  const dict = customDict || (typeof window !== "undefined" ? window.__WEB_BUG_REPORT_I18N__?.dict : undefined);
+  const dict =
+    customDict ||
+    (typeof window !== "undefined"
+      ? window.__WEB_BUG_REPORT_I18N__?.dict
+      : undefined);
   if (dict && dict[key]?.message) {
     let msg = dict[key].message;
     if (substitutions) {
-      const subs = Array.isArray(substitutions) ? substitutions : [substitutions];
+      const subs = Array.isArray(substitutions)
+        ? substitutions
+        : [substitutions];
       subs.forEach((sub, i) => {
         msg = msg.replace(new RegExp(`\\$${i + 1}`, "g"), sub);
         msg = msg.replace(/\$COUNT\$/g, sub);
@@ -76,7 +98,10 @@ export function t(key: string, substitutions?: string | string[], customDict?: I
   return key;
 }
 
-export function applyI18n(container: HTMLElement | Document = document, customDict?: I18nDict): void {
+export function applyI18n(
+  container: HTMLElement | Document = document,
+  customDict?: I18nDict
+): void {
   // Translate text content
   const elements = container.querySelectorAll<HTMLElement>("[data-i18n]");
   elements.forEach((el) => {
@@ -90,7 +115,9 @@ export function applyI18n(container: HTMLElement | Document = document, customDi
   });
 
   // Translate placeholders
-  const placeholderElements = container.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("[data-i18n-ph]");
+  const placeholderElements = container.querySelectorAll<
+    HTMLInputElement | HTMLTextAreaElement
+  >("[data-i18n-ph]");
   placeholderElements.forEach((el) => {
     const key = el.getAttribute("data-i18n-ph");
     if (key) {
@@ -102,7 +129,8 @@ export function applyI18n(container: HTMLElement | Document = document, customDi
   });
 
   // Translate title attributes
-  const titleElements = container.querySelectorAll<HTMLElement>("[data-i18n-title]");
+  const titleElements =
+    container.querySelectorAll<HTMLElement>("[data-i18n-title]");
   titleElements.forEach((el) => {
     const key = el.getAttribute("data-i18n-title");
     if (key) {

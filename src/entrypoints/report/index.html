@@ -1,136 +1,265 @@
 <!doctype html>
 <html lang="zh-CN">
-<head>
-  <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title data-i18n="offlineReportTitle">Bug Lens 离线报告</title>
-  <link rel="stylesheet" href="assets/report.css">
-</head>
-<body class="report-read-only">
-  <div class="zen-app-frame">
-    <header class="zen-titlebar">
-      <div class="zen-titlebar-left">
-        <div class="brand-info">
-          <img src="assets/icon_idle.png" class="brand-logo" alt="Bug Lens Icon">
-          <div class="brand-titles">
-            <h1 id="title" data-i18n="offlineReportTitle">Bug Lens 离线报告</h1>
-            <truncated-text id="meta" class="muted" data-i18n="readingReportData">正在读取报告数据…</truncated-text>
-          </div>
-        </div>
-      </div>
-      <div class="zen-titlebar-right report-statuses">
-        <span id="quality-status" class="report-status" data-i18n="checkingEvidence">正在检查证据</span>
-      </div>
-    </header>
-
-    <main class="zen-workspace">
-      <div class="zen-left-panel">
-        <div class="zen-video-container">
-          <div class="zen-panel-title">
-            <span data-i18n="tabRecording">标签页录像</span>
-            <div id="metrics" class="metrics"></div>
-          </div>
-          <div class="video-viewport">
-            <div id="video-empty" class="empty" data-i18n="readingVideo">正在读取录像…</div>
-            <video id="video" class="video" controls hidden></video>
-          </div>
-        </div>
-      </div>
-
-      <div class="zen-right-panel">
-        <div class="zen-tab-box">
-          <div class="zen-tab-bar">
-            <div class="zen-tabs">
-              <button class="zen-tab-btn active" data-tab="issues">
-                <span data-i18n="issueScenes">问题现场</span>
-              </button>
-              <button class="zen-tab-btn" data-tab="steps">
-                <span data-i18n="timeline">交互步骤</span>
-              </button>
-              <button class="zen-tab-btn" data-tab="console">
-                <span data-i18n="consoleLogs">Console 日志</span>
-              </button>
-              <button class="zen-tab-btn" data-tab="network">
-                <span data-i18n="networkRequests">Network 请求</span>
-              </button>
-            </div>
-          </div>
-
-          <div id="tab-pane-issues" class="zen-tab-pane">
-            <div class="integrated-card-panel">
-              <div id="issue-scenes" class="issue-scenes-list"></div>
-            </div>
-          </div>
-
-          <div id="tab-pane-steps" class="zen-tab-pane" hidden>
-            <div id="interactions" class="list large-list"></div>
-          </div>
-
-          <div id="tab-pane-console" class="zen-tab-pane" hidden>
-            <div class="integrated-card-panel">
-              <div class="integrated-panel-header">
-                <select id="console-level-filter" class="panel-filter-select">
-                  <option value="all" data-i18n="allLevels">全部级别</option>
-                  <option value="error">error</option>
-                  <option value="warning">warning</option>
-                  <option value="info">info</option>
-                  <option value="debug">debug</option>
-                </select>
-                <input type="text" id="console-search-input" class="panel-search-input" placeholder="搜索日志文本" data-i18n-ph="searchLogText">
-                <span id="console-filter-count" class="panel-filter-count"></span>
-              </div>
-              <div id="console" class="integrated-panel-body"></div>
-            </div>
-          </div>
-
-          <div id="tab-pane-network" class="zen-tab-pane" hidden>
-            <div class="integrated-card-panel">
-              <div class="integrated-panel-header">
-                <input id="network-search-input" type="text" placeholder="按 URL 过滤" class="panel-search-input" data-i18n-ph="filterByUrl">
-                <span id="network-filter-count" class="panel-filter-count"></span>
-              </div>
-              <div class="network-main-split">
-                <div id="network" class="network-table-view"></div>
-                <div id="network-resizer" class="network-resizer" data-i18n-title="resizerTitle" title="拖拽调整列表与详情区域高度"></div>
-                <div id="network-detail" class="network-detail-panel"></div>
-              </div>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title data-i18n="offlineReportTitle">Bug Lens 离线报告</title>
+    <link rel="stylesheet" href="assets/report.css" />
+  </head>
+  <body class="report-read-only">
+    <div class="zen-app-frame">
+      <header class="zen-titlebar">
+        <div class="zen-titlebar-left">
+          <div class="brand-info">
+            <img
+              src="assets/icon_idle.png"
+              class="brand-logo"
+              alt="Bug Lens Icon"
+            />
+            <div class="brand-titles">
+              <h1 id="title" data-i18n="offlineReportTitle">
+                Bug Lens 离线报告
+              </h1>
+              <truncated-text
+                id="meta"
+                class="muted"
+                data-i18n="readingReportData"
+                >正在读取报告数据…</truncated-text
+              >
             </div>
           </div>
         </div>
-      </div>
-    </main>
-  </div>
+        <div class="zen-titlebar-right report-statuses">
+          <span
+            id="quality-status"
+            class="report-status"
+            data-i18n="checkingEvidence"
+            >正在检查证据</span
+          >
+        </div>
+      </header>
 
-  <div id="image-modal" class="arco-preview-backdrop" hidden>
-    <button id="modal-close-btn" class="arco-preview-close-fixed" data-i18n-title="closeEsc" title="关闭 (ESC)">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-    </button>
-    <div id="modal-stage" class="arco-preview-stage">
-      <div id="modal-img-container" class="arco-preview-img-container">
-        <img id="modal-image" class="arco-preview-img" src="" alt="截图大图" draggable="false">
+      <main class="zen-workspace">
+        <div class="zen-left-panel">
+          <div class="zen-video-container">
+            <div class="zen-panel-title">
+              <span data-i18n="tabRecording">标签页录像</span>
+              <div id="metrics" class="metrics"></div>
+            </div>
+            <div class="video-viewport">
+              <div id="video-empty" class="empty" data-i18n="readingVideo">
+                正在读取录像…
+              </div>
+              <video id="video" class="video" controls hidden></video>
+            </div>
+          </div>
+        </div>
+
+        <div class="zen-right-panel">
+          <div class="zen-tab-box">
+            <div class="zen-tab-bar">
+              <div class="zen-tabs">
+                <button class="zen-tab-btn active" data-tab="issues">
+                  <span data-i18n="issueScenes">问题现场</span>
+                </button>
+                <button class="zen-tab-btn" data-tab="steps">
+                  <span data-i18n="timeline">交互步骤</span>
+                </button>
+                <button class="zen-tab-btn" data-tab="console">
+                  <span data-i18n="consoleLogs">Console 日志</span>
+                </button>
+                <button class="zen-tab-btn" data-tab="network">
+                  <span data-i18n="networkRequests">Network 请求</span>
+                </button>
+              </div>
+            </div>
+
+            <div id="tab-pane-issues" class="zen-tab-pane">
+              <div class="integrated-card-panel">
+                <div id="issue-scenes" class="issue-scenes-list"></div>
+              </div>
+            </div>
+
+            <div id="tab-pane-steps" class="zen-tab-pane" hidden>
+              <div id="interactions" class="list large-list"></div>
+            </div>
+
+            <div id="tab-pane-console" class="zen-tab-pane" hidden>
+              <div class="integrated-card-panel">
+                <div class="integrated-panel-header">
+                  <select id="console-level-filter" class="panel-filter-select">
+                    <option value="all" data-i18n="allLevels">全部级别</option>
+                    <option value="error">error</option>
+                    <option value="warning">warning</option>
+                    <option value="info">info</option>
+                    <option value="debug">debug</option>
+                  </select>
+                  <input
+                    type="text"
+                    id="console-search-input"
+                    class="panel-search-input"
+                    placeholder="搜索日志文本"
+                    data-i18n-ph="searchLogText"
+                  />
+                  <span
+                    id="console-filter-count"
+                    class="panel-filter-count"
+                  ></span>
+                </div>
+                <div id="console" class="integrated-panel-body"></div>
+              </div>
+            </div>
+
+            <div id="tab-pane-network" class="zen-tab-pane" hidden>
+              <div class="integrated-card-panel">
+                <div class="integrated-panel-header">
+                  <input
+                    id="network-search-input"
+                    type="text"
+                    placeholder="按 URL 过滤"
+                    class="panel-search-input"
+                    data-i18n-ph="filterByUrl"
+                  />
+                  <span
+                    id="network-filter-count"
+                    class="panel-filter-count"
+                  ></span>
+                </div>
+                <div class="network-main-split">
+                  <div id="network" class="network-table-view"></div>
+                  <div
+                    id="network-resizer"
+                    class="network-resizer"
+                    data-i18n-title="resizerTitle"
+                    title="拖拽调整列表与详情区域高度"
+                  ></div>
+                  <div id="network-detail" class="network-detail-panel"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <div id="image-modal" class="arco-preview-backdrop" hidden>
+      <button
+        id="modal-close-btn"
+        class="arco-preview-close-fixed"
+        data-i18n-title="closeEsc"
+        title="关闭 (ESC)"
+      >
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.5"
+          stroke-linecap="round"
+        >
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+      <div id="modal-stage" class="arco-preview-stage">
+        <div id="modal-img-container" class="arco-preview-img-container">
+          <img
+            id="modal-image"
+            class="arco-preview-img"
+            src=""
+            alt="截图大图"
+            draggable="false"
+          />
+        </div>
+      </div>
+      <div class="arco-preview-toolbar">
+        <div class="arco-toolbar-group">
+          <button
+            id="modal-prev-btn"
+            class="arco-toolbar-btn"
+            data-i18n-title="prevBtn"
+            title="上一张 (←)"
+          >
+            ←
+          </button>
+          <span id="modal-step-counter" class="arco-toolbar-tag">0 / 0</span>
+          <button
+            id="modal-next-btn"
+            class="arco-toolbar-btn"
+            data-i18n-title="nextBtn"
+            title="下一张 (→)"
+          >
+            →
+          </button>
+        </div>
+        <span
+          id="modal-step-title"
+          class="arco-toolbar-title"
+          data-i18n="stepScreenshots"
+          >步骤截图</span
+        >
+        <span id="modal-zoom-ratio" class="arco-toolbar-tag">100%</span>
+        <button
+          id="modal-zoom-out-btn"
+          class="arco-toolbar-btn"
+          data-i18n-title="zoomOut"
+          title="缩小 (-)"
+        >
+          −
+        </button>
+        <button
+          id="modal-zoom-in-btn"
+          class="arco-toolbar-btn"
+          data-i18n-title="zoomIn"
+          title="放大 (+)"
+        >
+          ＋
+        </button>
+        <button
+          id="modal-reset-btn"
+          class="arco-toolbar-btn"
+          data-i18n-title="fitWindow"
+          title="自适应 (0)"
+        >
+          适应
+        </button>
+        <button
+          id="modal-rotate-btn"
+          class="arco-toolbar-btn"
+          data-i18n-title="rotate"
+          title="旋转 (R)"
+        >
+          旋转
+        </button>
+        <button
+          id="modal-copy-btn"
+          class="arco-toolbar-btn"
+          data-i18n-title="copyImage"
+          title="复制图片"
+        >
+          复制
+        </button>
+        <button
+          id="modal-download-btn"
+          class="arco-toolbar-btn"
+          data-i18n-title="downloadImage"
+          title="下载截图"
+        >
+          下载
+        </button>
       </div>
     </div>
-    <div class="arco-preview-toolbar">
-      <div class="arco-toolbar-group">
-        <button id="modal-prev-btn" class="arco-toolbar-btn" data-i18n-title="prevBtn" title="上一张 (←)">←</button>
-        <span id="modal-step-counter" class="arco-toolbar-tag">0 / 0</span>
-        <button id="modal-next-btn" class="arco-toolbar-btn" data-i18n-title="nextBtn" title="下一张 (→)">→</button>
-      </div>
-      <span id="modal-step-title" class="arco-toolbar-title" data-i18n="stepScreenshots">步骤截图</span>
-      <span id="modal-zoom-ratio" class="arco-toolbar-tag">100%</span>
-      <button id="modal-zoom-out-btn" class="arco-toolbar-btn" data-i18n-title="zoomOut" title="缩小 (-)">−</button>
-      <button id="modal-zoom-in-btn" class="arco-toolbar-btn" data-i18n-title="zoomIn" title="放大 (+)">＋</button>
-      <button id="modal-reset-btn" class="arco-toolbar-btn" data-i18n-title="fitWindow" title="自适应 (0)">适应</button>
-      <button id="modal-rotate-btn" class="arco-toolbar-btn" data-i18n-title="rotate" title="旋转 (R)">旋转</button>
-      <button id="modal-copy-btn" class="arco-toolbar-btn" data-i18n-title="copyImage" title="复制图片">复制</button>
-      <button id="modal-download-btn" class="arco-toolbar-btn" data-i18n-title="downloadImage" title="下载截图">下载</button>
-    </div>
-  </div>
 
-  <div id="toast-message" class="toast" hidden data-i18n="copiedImageToast">已复制图片到剪贴板</div>
-  <div id="zen-popover-tooltip" class="zen-popover-tooltip" hidden></div>
-  <script id="__BUG_LENS_DATA__" type="application/json"></script>
-  <script src="assets/report.js"></script>
-</body>
+    <div id="toast-message" class="toast" hidden data-i18n="copiedImageToast">
+      已复制图片到剪贴板
+    </div>
+    <div id="zen-popover-tooltip" class="zen-popover-tooltip" hidden></div>
+    <script id="__BUG_LENS_DATA__" type="application/json"></script>
+    <script src="assets/report.js"></script>
+  </body>
 </html>

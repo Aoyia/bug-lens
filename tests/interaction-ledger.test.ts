@@ -3,7 +3,7 @@ import test from "node:test";
 
 import {
   applyInteractionEvent,
-  type InteractionEvent
+  type InteractionEvent,
 } from "../src/domain/interaction-ledger.ts";
 import type { InteractionRecord } from "../src/shared/protocol.ts";
 
@@ -24,20 +24,22 @@ function interaction(status: InteractionRecord["status"]): InteractionRecord {
       scrollX: 0,
       scrollY: 0,
       devicePixelRatio: 1,
-      viewport: { width: 1280, height: 720 }
+      viewport: { width: 1280, height: 720 },
     },
     element: {
       tagName: "button",
       classNames: [],
       attributes: {},
       boundingBox: { x: 0, y: 0, width: 100, height: 40 },
-      locators: []
+      locators: [],
     },
-    screenshot: { status: "pending" }
+    screenshot: { status: "pending" },
   };
 }
 
-function applySequence(events: InteractionEvent[]): InteractionRecord | undefined {
+function applySequence(
+  events: InteractionEvent[]
+): InteractionRecord | undefined {
   return events.reduce<InteractionRecord | undefined>(
     (current, event) => applyInteractionEvent(current, event),
     undefined
@@ -46,12 +48,20 @@ function applySequence(events: InteractionEvent[]): InteractionRecord | undefine
 
 test("a late screenshot cannot downgrade a confirmed interaction", () => {
   const candidate = interaction("candidate");
-  const confirmed = { ...candidate, status: "confirmed" as const, confirmedAt: 1_050 };
+  const confirmed = {
+    ...candidate,
+    status: "confirmed" as const,
+    confirmedAt: 1_050,
+  };
 
   const result = applySequence([
     { type: "candidate", interaction: candidate },
     { type: "confirmed", interaction: confirmed },
-    { type: "screenshot-captured", dataUrl: "data:image/png;base64,AA==", source: "primary" }
+    {
+      type: "screenshot-captured",
+      dataUrl: "data:image/png;base64,AA==",
+      source: "primary",
+    },
   ]);
 
   assert.equal(result?.status, "confirmed");
@@ -59,7 +69,7 @@ test("a late screenshot cannot downgrade a confirmed interaction", () => {
   assert.deepEqual(result?.screenshot, {
     status: "captured",
     source: "primary",
-    dataUrl: "data:image/png;base64,AA=="
+    dataUrl: "data:image/png;base64,AA==",
   });
 });
 
@@ -67,7 +77,11 @@ test("a cancelled candidate stays cancelled when its screenshot finishes", () =>
   const result = applySequence([
     { type: "candidate", interaction: interaction("candidate") },
     { type: "cancelled" },
-    { type: "screenshot-captured", dataUrl: "data:image/png;base64,AA==", source: "primary" }
+    {
+      type: "screenshot-captured",
+      dataUrl: "data:image/png;base64,AA==",
+      source: "primary",
+    },
   ]);
 
   assert.equal(result?.status, "cancelled");
@@ -76,11 +90,19 @@ test("a cancelled candidate stays cancelled when its screenshot finishes", () =>
 
 test("confirmation preserves a screenshot that completed first", () => {
   const candidate = interaction("candidate");
-  const confirmed = { ...candidate, status: "confirmed" as const, confirmedAt: 1_050 };
+  const confirmed = {
+    ...candidate,
+    status: "confirmed" as const,
+    confirmedAt: 1_050,
+  };
   const result = applySequence([
     { type: "candidate", interaction: candidate },
-    { type: "screenshot-captured", dataUrl: "data:image/png;base64,AA==", source: "primary" },
-    { type: "confirmed", interaction: confirmed }
+    {
+      type: "screenshot-captured",
+      dataUrl: "data:image/png;base64,AA==",
+      source: "primary",
+    },
+    { type: "confirmed", interaction: confirmed },
   ]);
 
   assert.equal(result?.status, "confirmed");
@@ -91,7 +113,7 @@ test("a cancellation tombstone prevents a late candidate from reappearing", () =
   const candidate = interaction("candidate");
   const result = applySequence([
     { type: "cancelled", interaction: candidate },
-    { type: "candidate", interaction: candidate }
+    { type: "candidate", interaction: candidate },
   ]);
 
   assert.equal(result?.status, "cancelled");
@@ -99,10 +121,14 @@ test("a cancellation tombstone prevents a late candidate from reappearing", () =
 
 test("a late candidate cannot downgrade a confirmed-only interaction", () => {
   const candidate = interaction("candidate");
-  const confirmed = { ...candidate, status: "confirmed" as const, confirmedAt: 1_050 };
+  const confirmed = {
+    ...candidate,
+    status: "confirmed" as const,
+    confirmedAt: 1_050,
+  };
   const result = applySequence([
     { type: "confirmed", interaction: confirmed },
-    { type: "candidate", interaction: candidate }
+    { type: "candidate", interaction: candidate },
   ]);
 
   assert.equal(result?.status, "confirmed");
@@ -111,10 +137,14 @@ test("a late candidate cannot downgrade a confirmed-only interaction", () => {
 
 test("a cancellation cannot be resurrected by a late confirmation", () => {
   const candidate = interaction("candidate");
-  const confirmed = { ...candidate, status: "confirmed" as const, confirmedAt: 1_050 };
+  const confirmed = {
+    ...candidate,
+    status: "confirmed" as const,
+    confirmedAt: 1_050,
+  };
   const result = applySequence([
     { type: "cancelled", interaction: candidate },
-    { type: "confirmed", interaction: confirmed }
+    { type: "confirmed", interaction: confirmed },
   ]);
 
   assert.equal(result?.status, "cancelled");

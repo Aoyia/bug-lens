@@ -10,11 +10,20 @@ export class InactivityMonitor {
   private _isIdlePaused = false;
   private checkInterval: number | undefined;
   private listenersAttached = false;
-  private readonly events = ["pointermove", "pointerdown", "keydown", "scroll", "wheel", "touchstart"];
+  private readonly events = [
+    "pointermove",
+    "pointerdown",
+    "keydown",
+    "scroll",
+    "wheel",
+    "touchstart",
+  ];
 
   constructor(private readonly callbacks: InactivityCallbacks) {}
 
-  get isIdlePaused(): boolean { return this._isIdlePaused; }
+  get isIdlePaused(): boolean {
+    return this._isIdlePaused;
+  }
 
   start(): void {
     this.stop();
@@ -23,14 +32,20 @@ export class InactivityMonitor {
 
     if (!this.listenersAttached) {
       this.events.forEach((type) => {
-        window.addEventListener(type, this.handleActivity, { capture: true, passive: true });
+        window.addEventListener(type, this.handleActivity, {
+          capture: true,
+          passive: true,
+        });
       });
       this.listenersAttached = true;
     }
 
     this.checkInterval = window.setInterval(() => {
       if (this.callbacks.isBlocked()) return;
-      if (!this._isIdlePaused && Date.now() - this.lastActivityTime >= this.TIMEOUT_MS) {
+      if (
+        !this._isIdlePaused &&
+        Date.now() - this.lastActivityTime >= this.TIMEOUT_MS
+      ) {
         this._isIdlePaused = true;
         this.callbacks.onPause();
       }

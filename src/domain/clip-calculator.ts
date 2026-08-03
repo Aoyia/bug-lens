@@ -19,12 +19,15 @@ export function calculateClipRange(
   let startTime = Math.max(0, nodeOffsetSec - windowRadiusSec);
   let endTime = Math.min(durationSec, startTime + targetWindowLength);
 
-  if (endTime - startTime < targetWindowLength && durationSec >= targetWindowLength) {
+  if (
+    endTime - startTime < targetWindowLength &&
+    durationSec >= targetWindowLength
+  ) {
     startTime = Math.max(0, endTime - targetWindowLength);
   }
 
   return {
     startTime: Number(startTime.toFixed(3)),
-    endTime: Number(endTime.toFixed(3))
+    endTime: Number(endTime.toFixed(3)),
   };
 }

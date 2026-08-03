@@ -10,6 +10,7 @@
 ## Why Bug Lens?
 
 Whether you are a developer or a Vibe Coding creator (building software with AI assistance), asking AI to diagnose and fix frontend bugs often hits a wall due to **missing runtime context**:
+
 - **Lack of Visual & Event Context**: AI cannot see which element you clicked, or what DOM mutations & errors occurred in real time.
 - **High Debugging Threshold**: Non-technical vibe coders struggle to extract network payloads or console logs from browser DevTools, while traditional developers waste time manually taking screenshots and copying log traces.
 

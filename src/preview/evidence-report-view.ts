@@ -1,5 +1,10 @@
 import { h, render } from "preact";
-import type { ConsoleEntry, InteractionRecord, NetworkEntry, RecordingSession } from "../shared/protocol";
+import type {
+  ConsoleEntry,
+  InteractionRecord,
+  NetworkEntry,
+  RecordingSession,
+} from "../shared/protocol";
 import { ImageViewer } from "./image-viewer";
 import { PreviewPageShell } from "./page-shell";
 import type { IssueScenePreview } from "./issue-scene-view";
@@ -31,10 +36,13 @@ type EditableReportAdapter = {
   excludeInteraction(interactionId: string): Promise<void>;
   excludeDiagnostic(kind: "console" | "network", id: string): Promise<void>;
   excludeIssueScene?(issueSceneId: string): Promise<void>;
-  restore(kind: "interaction" | "console" | "network" | "issueScene"): Promise<void>;
+  restore(
+    kind: "interaction" | "console" | "network" | "issueScene"
+  ): Promise<void>;
 };
 
-export type EvidenceReportAdapter = ReadOnlyReportAdapter | EditableReportAdapter;
+export type EvidenceReportAdapter =
+  ReadOnlyReportAdapter | EditableReportAdapter;
 
 export class EvidenceReportView {
   private readonly shell: PreviewPageShell;
@@ -48,23 +56,40 @@ export class EvidenceReportView {
   private readonly issueScenesContainer: HTMLElement;
   private readonly streamContainer: HTMLElement | null;
 
-  constructor(private readonly root: Document, private readonly adapter: EvidenceReportAdapter) {
+  constructor(
+    private readonly root: Document,
+    private readonly adapter: EvidenceReportAdapter
+  ) {
     this.shell = new PreviewPageShell(root, () => this.updateRestoreButtons());
-    this.imageViewer = new ImageViewer(root, (message) => this.shell.notify(message));
+    this.imageViewer = new ImageViewer(root, (message) =>
+      this.shell.notify(message)
+    );
 
     // Locate mount targets
-    this.consoleContainer = root.querySelector<HTMLElement>("#tab-pane-console")!;
-    this.networkContainer = root.querySelector<HTMLElement>("#tab-pane-network")!;
-    this.interactionsContainer = root.querySelector<HTMLElement>("#interactions")!;
-    this.issueScenesContainer = root.querySelector<HTMLElement>("#issue-scenes")!;
+    this.consoleContainer =
+      root.querySelector<HTMLElement>("#tab-pane-console")!;
+    this.networkContainer =
+      root.querySelector<HTMLElement>("#tab-pane-network")!;
+    this.interactionsContainer =
+      root.querySelector<HTMLElement>("#interactions")!;
+    this.issueScenesContainer =
+      root.querySelector<HTMLElement>("#issue-scenes")!;
     this.streamContainer = root.querySelector<HTMLElement>("#tab-pane-stream");
 
     // Restore button wiring (editable mode only)
     if (adapter.mode === "editable") {
-      root.querySelector<HTMLButtonElement>("#restore")?.addEventListener("click", () => void this.restoreKind("interaction"));
-      root.querySelector<HTMLButtonElement>("#restore-issues")?.addEventListener("click", () => void this.restoreKind("issueScene"));
-      root.querySelector<HTMLButtonElement>("#restore-console")?.addEventListener("click", () => void this.restoreKind("console"));
-      root.querySelector<HTMLButtonElement>("#restore-network")?.addEventListener("click", () => void this.restoreKind("network"));
+      root
+        .querySelector<HTMLButtonElement>("#restore")
+        ?.addEventListener("click", () => void this.restoreKind("interaction"));
+      root
+        .querySelector<HTMLButtonElement>("#restore-issues")
+        ?.addEventListener("click", () => void this.restoreKind("issueScene"));
+      root
+        .querySelector<HTMLButtonElement>("#restore-console")
+        ?.addEventListener("click", () => void this.restoreKind("console"));
+      root
+        .querySelector<HTMLButtonElement>("#restore-network")
+        ?.addEventListener("click", () => void this.restoreKind("network"));
     }
   }
 
@@ -117,10 +142,13 @@ export class EvidenceReportView {
 
     const editable = this.adapter.mode === "editable";
     const seekVideo = (timestampMs: number) => {
-      const originEpochMs = snapshot.session.timeline.startedAtEpochMs ?? snapshot.session.timeline.createdAtEpochMs;
+      const originEpochMs =
+        snapshot.session.timeline.startedAtEpochMs ??
+        snapshot.session.timeline.createdAtEpochMs;
       if (originEpochMs != null) {
         const video = this.root.querySelector<HTMLVideoElement>("#video");
-        if (video) video.currentTime = Math.max(0, (timestampMs - originEpochMs) / 1000);
+        if (video)
+          video.currentTime = Math.max(0, (timestampMs - originEpochMs) / 1000);
       }
     };
 
@@ -182,7 +210,9 @@ export class EvidenceReportView {
         onExclude: editable
           ? (id: string) => {
               if (this.adapter.mode !== "editable") return;
-              void this.adapter.excludeInteraction(id).then(() => this.render());
+              void this.adapter
+                .excludeInteraction(id)
+                .then(() => this.render());
             }
           : undefined,
         onOpenImage: (interactionId: string) => {
@@ -190,6 +220,7 @@ export class EvidenceReportView {
           this.imageViewer.open(interactions, interactionId);
         },
         onSeekVideo: seekVideo,
+        onNotify: (message: string) => this.shell.notify(message),
       }),
       this.interactionsContainer
     );
@@ -242,37 +273,94 @@ export class EvidenceReportView {
     const included = snapshot.interactions.included;
     const metrics = [
       { key: "steps", value: included.length, label: "有效步骤" },
-      ...(this.adapter.mode === "editable" ? [{ key: "deleted", value: this.excludedCount(), label: "已删除" }] : []),
-      { key: "screenshots", value: included.filter((item) => item.screenshot.status === "captured").length, label: "步骤截图" },
-      { key: "console", value: snapshot.consoleEntries.included.length, label: "Console" },
-      { key: "network", value: snapshot.networkEntries.included.length, label: "Network" },
-      { key: "issues", value: snapshot.issueScenes?.included.length ?? 0, label: "问题现场" },
+      ...(this.adapter.mode === "editable"
+        ? [{ key: "deleted", value: this.excludedCount(), label: "已删除" }]
+        : []),
+      {
+        key: "screenshots",
+        value: included.filter((item) => item.screenshot.status === "captured")
+          .length,
+        label: "步骤截图",
+      },
+      {
+        key: "console",
+        value: snapshot.consoleEntries.included.length,
+        label: "Console",
+      },
+      {
+        key: "network",
+        value: snapshot.networkEntries.included.length,
+        label: "Network",
+      },
+      {
+        key: "issues",
+        value: snapshot.issueScenes?.included.length ?? 0,
+        label: "问题现场",
+      },
     ];
     this.root.querySelector<HTMLElement>("#metrics")!.innerHTML = metrics
-      .map((item) => `<div class="metric metric-${item.key}"><strong>${item.value}</strong><span>${item.label}</span></div>`)
+      .map(
+        (item) =>
+          `<div class="metric metric-${item.key}"><strong>${item.value}</strong><span>${item.label}</span></div>`
+      )
       .join("");
     this.updateRestoreButtons();
   }
 
-  private excludedCount(kind?: "interaction" | "console" | "network" | "issueScene"): number {
+  private excludedCount(
+    kind?: "interaction" | "console" | "network" | "issueScene"
+  ): number {
     const snapshot = this.adapter.getSnapshot();
     if (!snapshot) return 0;
     const counts = {
-      interaction: snapshot.interactions.all.length - snapshot.interactions.included.length,
-      console: snapshot.consoleEntries.all.length - snapshot.consoleEntries.included.length,
-      network: snapshot.networkEntries.all.length - snapshot.networkEntries.included.length,
-      issueScene: (snapshot.issueScenes?.all.length ?? 0) - (snapshot.issueScenes?.included.length ?? 0),
+      interaction:
+        snapshot.interactions.all.length -
+        snapshot.interactions.included.length,
+      console:
+        snapshot.consoleEntries.all.length -
+        snapshot.consoleEntries.included.length,
+      network:
+        snapshot.networkEntries.all.length -
+        snapshot.networkEntries.included.length,
+      issueScene:
+        (snapshot.issueScenes?.all.length ?? 0) -
+        (snapshot.issueScenes?.included.length ?? 0),
     };
-    return kind ? counts[kind] : counts.interaction + counts.console + counts.network + counts.issueScene;
+    return kind
+      ? counts[kind]
+      : counts.interaction +
+          counts.console +
+          counts.network +
+          counts.issueScene;
   }
 
   private updateRestoreButtons(): void {
     if (this.adapter.mode !== "editable") return;
     const buttons = [
-      { selector: "#restore", kind: "interaction" as const, tab: "steps", label: "步骤" },
-      { selector: "#restore-console", kind: "console" as const, tab: "console", label: "日志" },
-      { selector: "#restore-network", kind: "network" as const, tab: "network", label: "请求" },
-      { selector: "#restore-issues", kind: "issueScene" as const, tab: "issues", label: "问题现场" },
+      {
+        selector: "#restore",
+        kind: "interaction" as const,
+        tab: "steps",
+        label: "步骤",
+      },
+      {
+        selector: "#restore-console",
+        kind: "console" as const,
+        tab: "console",
+        label: "日志",
+      },
+      {
+        selector: "#restore-network",
+        kind: "network" as const,
+        tab: "network",
+        label: "请求",
+      },
+      {
+        selector: "#restore-issues",
+        kind: "issueScene" as const,
+        tab: "issues",
+        label: "问题现场",
+      },
     ];
     for (const item of buttons) {
       const button = this.root.querySelector<HTMLButtonElement>(item.selector);
@@ -283,7 +371,9 @@ export class EvidenceReportView {
     }
   }
 
-  private async restoreKind(kind: "interaction" | "console" | "network" | "issueScene"): Promise<void> {
+  private async restoreKind(
+    kind: "interaction" | "console" | "network" | "issueScene"
+  ): Promise<void> {
     if (this.adapter.mode !== "editable") return;
     await this.adapter.restore(kind);
     this.render();

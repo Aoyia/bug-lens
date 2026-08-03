@@ -12,13 +12,18 @@ const distDir = join(root, "dist");
 const manifestPath = join(distDir, "manifest.json");
 
 if (!existsSync(manifestPath)) {
-  console.error("dist/manifest.json not found. Please build the project first.");
+  console.error(
+    "dist/manifest.json not found. Please build the project first."
+  );
   process.exit(1);
 }
 
 const manifest = JSON.parse(readFileSync(manifestPath, "utf-8"));
 const version = manifest.version || "0.1.0";
-const rawName = manifest.name && !manifest.name.startsWith("__MSG_") ? manifest.name : "bug-lens";
+const rawName =
+  manifest.name && !manifest.name.startsWith("__MSG_")
+    ? manifest.name
+    : "bug-lens";
 const nameSlug = rawName.toLowerCase().replace(/\s+/g, "-");
 const zipFilename = `${nameSlug}-v${version}.zip`;
 const outputPath = join(root, zipFilename);

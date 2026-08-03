@@ -1,435 +1,446 @@
-    :root {
-      /* 禅意纸感色盘 Zen Porcelain Color System -> 挂载至全局 Design Tokens */
-      --zen-bg-base: var(--bl-bg-surface, #f5f6f9);
-      --zen-bg-surface: rgba(255, 255, 255, 0.75);
-      --zen-bg-glass: var(--bl-bg-glass, rgba(255, 255, 255, 0.55));
-      --zen-bg-hover: rgba(255, 255, 255, 0.95);
-      --zen-bg-dark: #12151c;
-      
-      --zen-border: var(--bl-border, rgba(0, 0, 0, 0.06));
-      --zen-border-subtle: var(--bl-border-subtle, rgba(0, 0, 0, 0.03));
-      --zen-border-accent: var(--bl-primary-border, rgba(22, 93, 255, 0.35));
+:root {
+  /* 禅意纸感色盘 Zen Porcelain Color System -> 挂载至全局 Design Tokens */
+  --zen-bg-base: var(--bl-bg-surface, #f5f6f9);
+  --zen-bg-surface: rgba(255, 255, 255, 0.75);
+  --zen-bg-glass: var(--bl-bg-glass, rgba(255, 255, 255, 0.55));
+  --zen-bg-hover: rgba(255, 255, 255, 0.95);
+  --zen-bg-dark: #12151c;
 
-      --zen-primary: var(--bl-primary, #165dff);
-      --zen-primary-hover: var(--bl-primary-hover, #3676ff);
-      --zen-primary-light: var(--bl-primary-light, rgba(22, 93, 255, 0.08));
-      
-      --zen-text-main: var(--bl-text-main, #1d2129);
-      --zen-text-sub: var(--bl-text-sub, #5f6b7c);
-      --zen-text-muted: var(--bl-text-muted, #8c97a8);
+  --zen-border: var(--bl-border, rgba(0, 0, 0, 0.06));
+  --zen-border-subtle: var(--bl-border-subtle, rgba(0, 0, 0, 0.03));
+  --zen-border-accent: var(--bl-primary-border, rgba(22, 93, 255, 0.35));
 
-      --zen-shadow-glass: none;
-      --zen-shadow-float: none;
+  --zen-primary: var(--bl-primary, #165dff);
+  --zen-primary-hover: var(--bl-primary-hover, #3676ff);
+  --zen-primary-light: var(--bl-primary-light, rgba(22, 93, 255, 0.08));
 
-      --zen-radius-window: var(--bl-radius-sm, 2px);
-      --zen-radius-panel: var(--bl-radius-sm, 2px);
-      --zen-radius-btn: var(--bl-radius-sm, 2px);
+  --zen-text-main: var(--bl-text-main, #1d2129);
+  --zen-text-sub: var(--bl-text-sub, #5f6b7c);
+  --zen-text-muted: var(--bl-text-muted, #8c97a8);
 
-      /* 屏幕尺寸响应式变量 (Fluid Typography & Dynamic Scale) */
-      --font-xs: var(--bl-font-xs, clamp(10px, 0.3vw + 3px, 11.5px));
-      --font-sm: var(--bl-font-sm, clamp(11px, 0.35vw + 3px, 12.5px));
-      --font-base: var(--bl-font-base, clamp(12px, 0.4vw + 4px, 14px));
-      --font-md: var(--bl-font-md, clamp(13.5px, 0.45vw + 4px, 16px));
+  --zen-shadow-glass: none;
+  --zen-shadow-float: none;
 
-      --btn-height: clamp(24px, 0.7vw + 8px, 30px);
-      --btn-padding: 3px clamp(8px, 0.4vw + 2px, 12px);
-      --titlebar-height: clamp(34px, 0.9vw + 10px, 40px);
-    }
+  --zen-radius-window: var(--bl-radius-sm, 2px);
+  --zen-radius-panel: var(--bl-radius-sm, 2px);
+  --zen-radius-btn: var(--bl-radius-sm, 2px);
 
-    * { box-sizing: border-box; }
-    
-    html, body {
-      margin: 0;
-      padding: 0;
-      width: 100vw;
-      height: 100vh;
-      overflow: hidden;
-      background: radial-gradient(120% 120% at 50% 0%, #ffffff 0%, #f0f2f6 100%);
-      color: var(--zen-text-main);
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Hiragino Sans GB", sans-serif;
-      font-size: var(--font-base);
-      line-height: 1.5;
-      -webkit-font-smoothing: antialiased;
-    }
+  /* 屏幕尺寸响应式变量 (Fluid Typography & Dynamic Scale) */
+  --font-xs: var(--bl-font-xs, clamp(10px, 0.3vw + 3px, 11.5px));
+  --font-sm: var(--bl-font-sm, clamp(11px, 0.35vw + 3px, 12.5px));
+  --font-base: var(--bl-font-base, clamp(12px, 0.4vw + 4px, 14px));
+  --font-md: var(--bl-font-md, clamp(13.5px, 0.45vw + 4px, 16px));
 
-    /* 桌面级 APP 主窗口 Desktop Window Shell */
-    .zen-app-frame {
-      display: flex;
-      flex-direction: column;
-      width: 100vw;
-      height: 100vh;
-      overflow: hidden;
-      position: relative;
-      background: rgba(247, 248, 250, 0.65);
-      backdrop-filter: blur(24px);
-      -webkit-backdrop-filter: blur(24px);
-    }
+  --btn-height: clamp(24px, 0.7vw + 8px, 30px);
+  --btn-padding: 3px clamp(8px, 0.4vw + 2px, 12px);
+  --titlebar-height: clamp(34px, 0.9vw + 10px, 40px);
+}
 
-    /* macOS 视窗一体控制顶栏 Zen Window Titlebar (极致淡出) */
-    .zen-titlebar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      height: var(--titlebar-height);
-      padding: 0 14px;
-      background: rgba(255, 255, 255, 0.4);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      border-bottom: 1px solid var(--zen-border);
-      user-select: none;
-      flex-shrink: 0;
-      z-index: 100;
-    }
+* {
+  box-sizing: border-box;
+}
 
-    .zen-titlebar-left {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      min-width: 0;
-      flex: 1 1 auto;
-      overflow: hidden;
-    }
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: radial-gradient(120% 120% at 50% 0%, #ffffff 0%, #f0f2f6 100%);
+  color: var(--zen-text-main);
+  font-family:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+    "PingFang SC", "Hiragino Sans GB", sans-serif;
+  font-size: var(--font-base);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
 
-    .brand-info {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      min-width: 0;
-      flex: 1 1 auto;
-      overflow: hidden;
-    }
-    .brand-logo {
-      width: clamp(16px, 0.8vw + 8px, 22px);
-      height: clamp(16px, 0.8vw + 8px, 22px);
-      object-fit: contain;
-      opacity: 0.85;
-      flex-shrink: 0;
-    }
-    .brand-titles {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      min-width: 0;
-      flex: 1 1 auto;
-      overflow: hidden;
-    }
-    .brand-titles h1,
-    .brand-titles #title {
-      margin: 0;
-      font-size: var(--font-sm);
-      font-weight: 500;
-      color: var(--zen-text-sub);
-      letter-spacing: -0.2px;
-      max-width: 240px;
-      flex-shrink: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .brand-titles .muted,
-    .brand-titles truncated-text.muted {
-      font-size: var(--font-xs);
-      color: var(--zen-text-muted);
-      font-weight: 400;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      min-width: 0;
-      flex: 1 1 auto;
-      max-width: 100%;
-    }
+/* 桌面级 APP 主窗口 Desktop Window Shell */
+.zen-app-frame {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  position: relative;
+  background: rgba(247, 248, 250, 0.65);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
 
-    .zen-titlebar-right {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-shrink: 0;
-      margin-left: 12px;
-      margin-right: clamp(160px, 22vw, 320px);
-    }
+/* macOS 视窗一体控制顶栏 Zen Window Titlebar (极致淡出) */
+.zen-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--titlebar-height);
+  padding: 0 14px;
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--zen-border);
+  user-select: none;
+  flex-shrink: 0;
+  z-index: 100;
+}
 
-    /* 顶级控制按钮 Control Buttons */
-    button {
-      border: none;
-      outline: none;
-      font-family: inherit;
-      font-size: var(--font-sm);
-      font-weight: 500;
-      padding: var(--btn-padding);
-      height: var(--btn-height);
-      border-radius: var(--zen-radius-btn);
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-    button#export {
-      background: linear-gradient(135deg, #165dff 0%, #0e42d2 100%);
-      color: #ffffff;
-    }
-    button#export:hover {
-      background: linear-gradient(135deg, #3676ff 0%, #165dff 100%);
-      transform: translateY(-1px);
-    }
+.zen-titlebar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
 
-    button.secondary {
-      background: rgba(22, 93, 255, 0.08);
-      color: var(--zen-primary);
-    }
-    button.secondary:hover {
-      background: rgba(22, 93, 255, 0.15);
-      transform: translateY(-1px);
-    }
+.brand-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+.brand-logo {
+  width: clamp(16px, 0.8vw + 8px, 22px);
+  height: clamp(16px, 0.8vw + 8px, 22px);
+  object-fit: contain;
+  opacity: 0.85;
+  flex-shrink: 0;
+}
+.brand-titles {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+.brand-titles h1,
+.brand-titles #title {
+  margin: 0;
+  font-size: var(--font-sm);
+  font-weight: 500;
+  color: var(--zen-text-sub);
+  letter-spacing: -0.2px;
+  max-width: 240px;
+  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.brand-titles .muted,
+.brand-titles truncated-text.muted {
+  font-size: var(--font-xs);
+  color: var(--zen-text-muted);
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1 1 auto;
+  max-width: 100%;
+}
 
-    button.ghost {
-      background: rgba(0, 0, 0, 0.03);
-      color: var(--zen-text-sub);
-      border: 1px solid var(--zen-border);
-    }
-    button.ghost:hover {
-      background: rgba(0, 0, 0, 0.06);
-      color: var(--zen-text-main);
-    }
+.zen-titlebar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-left: 12px;
+  margin-right: clamp(160px, 22vw, 320px);
+}
 
-    button.delete {
-      padding: 2px 6px;
-      height: 20px;
-      font-size: 10.5px;
-      background: rgba(245, 63, 63, 0.08);
-      color: #f53f3f;
-      border-radius: 0;
-    }
-    button.delete:hover {
-      background: rgba(245, 63, 63, 0.16);
-    }
+/* 顶级控制按钮 Control Buttons */
+button {
+  border: none;
+  outline: none;
+  font-family: inherit;
+  font-size: var(--font-sm);
+  font-weight: 500;
+  padding: var(--btn-padding);
+  height: var(--btn-height);
+  border-radius: var(--zen-radius-btn);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+button#export {
+  background: linear-gradient(135deg, #165dff 0%, #0e42d2 100%);
+  color: #ffffff;
+}
+button#export:hover {
+  background: linear-gradient(135deg, #3676ff 0%, #165dff 100%);
+  transform: translateY(-1px);
+}
 
-    button:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-      transform: none !important;
-      box-shadow: none !important;
-    }
+button.secondary {
+  background: rgba(22, 93, 255, 0.08);
+  color: var(--zen-primary);
+}
+button.secondary:hover {
+  background: rgba(22, 93, 255, 0.15);
+  transform: translateY(-1px);
+}
 
-    .zen-ai-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      cursor: pointer;
-    }
-    .zen-ai-header h2 {
-      margin: 0;
-      font-size: 13px;
-      font-weight: 600;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .ai-status {
-      font-size: inherit;
-      color: inherit;
-      font-weight: 500;
-    }
-    .ai-path {
-      margin: 8px 0;
-      padding: 8px 12px;
-      border-radius: 2px;
-      background: rgba(0, 0, 0, 0.03);
-      color: var(--zen-text-sub);
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      font-size: 11px;
-      word-break: break-all;
-      border: 1px solid var(--zen-border-subtle);
-    }
-    .ai-actions {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-top: 6px;
-    }
-    .ai-prompt {
-      max-height: clamp(320px, 45vh, 480px);
-      margin: 8px 0 0;
-      padding: 12px 14px;
-      white-space: pre-wrap;
-      overflow: auto;
-      border-radius: 0;
-      background: #f8f9fa;
-      border: 1px solid var(--zen-border);
-      color: #1d2129;
-      font: var(--font-sm)/1.6 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    }
-    details {
-      margin-top: 6px;
-    }
-    details summary {
-      font-size: 11px;
-      color: var(--zen-text-muted);
-      cursor: pointer;
-      user-select: none;
-    }
-    details summary:hover {
-      color: var(--zen-primary);
-    }
+button.ghost {
+  background: rgba(0, 0, 0, 0.03);
+  color: var(--zen-text-sub);
+  border: 1px solid var(--zen-border);
+}
+button.ghost:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--zen-text-main);
+}
 
-    /* =====================================================
+button.delete {
+  padding: 2px 6px;
+  height: 20px;
+  font-size: 10.5px;
+  background: rgba(245, 63, 63, 0.08);
+  color: #f53f3f;
+  border-radius: 0;
+}
+button.delete:hover {
+  background: rgba(245, 63, 63, 0.16);
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.zen-ai-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+}
+.zen-ai-header h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ai-status {
+  font-size: inherit;
+  color: inherit;
+  font-weight: 500;
+}
+.ai-path {
+  margin: 8px 0;
+  padding: 8px 12px;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.03);
+  color: var(--zen-text-sub);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  word-break: break-all;
+  border: 1px solid var(--zen-border-subtle);
+}
+.ai-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+.ai-prompt {
+  max-height: clamp(320px, 45vh, 480px);
+  margin: 8px 0 0;
+  padding: 12px 14px;
+  white-space: pre-wrap;
+  overflow: auto;
+  border-radius: 0;
+  background: #f8f9fa;
+  border: 1px solid var(--zen-border);
+  color: #1d2129;
+  font:
+    var(--font-sm)/1.6 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+}
+details {
+  margin-top: 6px;
+}
+details summary {
+  font-size: 11px;
+  color: var(--zen-text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+details summary:hover {
+  color: var(--zen-primary);
+}
+
+/* =====================================================
        导出进度条 Export Progress Bar
        ===================================================== */
-    .export-btn-wrapper {
-      position: relative;
-      display: inline-flex;
-      flex-direction: column;
-      align-items: stretch;
-    }
+.export-btn-wrapper {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: stretch;
+}
 
-    .export-progress-bar {
-      position: absolute;
-      bottom: -3px;
-      left: 0;
-      right: 0;
-      height: 3px;
-      background: rgba(22, 93, 255, 0.15);
-      border-radius: 0 0 2px 2px;
-      overflow: hidden;
-    }
+.export-progress-bar {
+  position: absolute;
+  bottom: -3px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: rgba(22, 93, 255, 0.15);
+  border-radius: 0 0 2px 2px;
+  overflow: hidden;
+}
 
-    .export-progress-fill {
-      height: 100%;
-      background: linear-gradient(90deg, #165dff, #3676ff);
-      border-radius: 0 0 2px 2px;
-      transition: width 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-    }
+.export-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #165dff, #3676ff);
+  border-radius: 0 0 2px 2px;
+  transition: width 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
 
-    .export-progress-fill.done {
-      background: linear-gradient(90deg, #00b42a, #27c240);
-      transition: width 0.2s ease;
-    }
+.export-progress-fill.done {
+  background: linear-gradient(90deg, #00b42a, #27c240);
+  transition: width 0.2s ease;
+}
 
-    /* =====================================================
+/* =====================================================
        快捷键速查面板 Keyboard Shortcuts Panel
        ===================================================== */
-    .shortcuts-backdrop {
-      position: fixed;
-      inset: 0;
-      z-index: 2000;
-      background: rgba(18, 21, 28, 0.45);
-      backdrop-filter: blur(4px);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
+.shortcuts-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(18, 21, 28, 0.45);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
-    /* Author 样式 display:flex 会覆盖 UA [hidden]{display:none}，必须显式声明 */
-    .shortcuts-backdrop[hidden] {
-      display: none;
-    }
+/* Author 样式 display:flex 会覆盖 UA [hidden]{display:none}，必须显式声明 */
+.shortcuts-backdrop[hidden] {
+  display: none;
+}
 
-    .shortcuts-panel {
-      background: rgba(255, 255, 255, 0.96);
-      border: 1px solid var(--zen-border);
-      border-radius: 8px;
-      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.14);
-      padding: 20px 24px;
-      width: clamp(320px, 40vw, 480px);
-      max-height: 80vh;
-      overflow-y: auto;
-    }
+.shortcuts-panel {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid var(--zen-border);
+  border-radius: 8px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.14);
+  padding: 20px 24px;
+  width: clamp(320px, 40vw, 480px);
+  max-height: 80vh;
+  overflow-y: auto;
+}
 
-    .shortcuts-panel h2 {
-      margin: 0 0 16px;
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--zen-text-main);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
+.shortcuts-panel h2 {
+  margin: 0 0 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--zen-text-main);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
 
-    .shortcuts-panel h2 button {
-      background: none;
-      border: none;
-      padding: 2px 6px;
-      height: auto;
-      font-size: 18px;
-      color: var(--zen-text-muted);
-      cursor: pointer;
-      border-radius: 4px;
-    }
+.shortcuts-panel h2 button {
+  background: none;
+  border: none;
+  padding: 2px 6px;
+  height: auto;
+  font-size: 18px;
+  color: var(--zen-text-muted);
+  cursor: pointer;
+  border-radius: 4px;
+}
 
-    .shortcuts-panel h2 button:hover {
-      background: rgba(0,0,0,0.06);
-      color: var(--zen-text-main);
-    }
+.shortcuts-panel h2 button:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--zen-text-main);
+}
 
-    .shortcuts-section {
-      margin-bottom: 14px;
-    }
+.shortcuts-section {
+  margin-bottom: 14px;
+}
 
-    .shortcuts-section-title {
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--zen-text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.6px;
-      margin-bottom: 8px;
-    }
+.shortcuts-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--zen-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-bottom: 8px;
+}
 
-    .shortcut-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 5px 0;
-      border-bottom: 1px solid var(--zen-border-subtle);
-    }
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--zen-border-subtle);
+}
 
-    .shortcut-row:last-child {
-      border-bottom: none;
-    }
+.shortcut-row:last-child {
+  border-bottom: none;
+}
 
-    .shortcut-desc {
-      font-size: 12px;
-      color: var(--zen-text-sub);
-    }
+.shortcut-desc {
+  font-size: 12px;
+  color: var(--zen-text-sub);
+}
 
-    .shortcut-keys {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
+.shortcut-keys {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
 
-    .shortcut-key {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-width: 22px;
-      height: 20px;
-      padding: 0 5px;
-      font-size: 11px;
-      font-weight: 600;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      color: var(--zen-text-sub);
-      background: rgba(0, 0, 0, 0.05);
-      border: 1px solid rgba(0, 0, 0, 0.10);
-      border-radius: 4px;
-      border-bottom-width: 2px;
-    }
+.shortcut-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 5px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  color: var(--zen-text-sub);
+  background: rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+  border-bottom-width: 2px;
+}
 
-    /* =====================================================
+/* =====================================================
        焦点可见性增强 Focus Visibility
        ===================================================== */
-    :focus-visible {
-      outline: 2px solid var(--zen-primary);
-      outline-offset: 2px;
-    }
+:focus-visible {
+  outline: 2px solid var(--zen-primary);
+  outline-offset: 2px;
+}
 
-    button:focus-visible {
-      outline: 2px solid var(--zen-primary);
-      outline-offset: 2px;
-    }
+button:focus-visible {
+  outline: 2px solid var(--zen-primary);
+  outline-offset: 2px;
+}
 
-    /* Tab 按钮焦点 */
-    .zen-tab-btn:focus-visible {
-      outline: 2px solid var(--zen-primary);
-      outline-offset: -2px;
-    }
+/* Tab 按钮焦点 */
+.zen-tab-btn:focus-visible {
+  outline: 2px solid var(--zen-primary);
+  outline-offset: -2px;
+}

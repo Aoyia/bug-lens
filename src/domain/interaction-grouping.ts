@@ -1,6 +1,10 @@
-import type { InteractionRecord, ElementDescriptor } from "../shared/protocol.ts";
+import type {
+  InteractionRecord,
+  ElementDescriptor,
+} from "../shared/protocol.ts";
 
-export type GroupedCardKind = "form_input_submit" | "continuous_click" | "atomic";
+export type GroupedCardKind =
+  "form_input_submit" | "continuous_click" | "atomic";
 
 export interface GroupedMeta {
   title: string;
@@ -26,9 +30,12 @@ export interface GroupedInteractionCard {
 /**
  * 判断两个元素描述符是否指向同一个 DOM 元素
  */
-export function isSameElement(a: ElementDescriptor, b: ElementDescriptor): boolean {
+export function isSameElement(
+  a: ElementDescriptor,
+  b: ElementDescriptor
+): boolean {
   if (a.id && b.id && a.id === b.id) return true;
-  
+
   const locA = a.locators?.[0]?.expression;
   const locB = b.locators?.[0]?.expression;
   if (locA && locB && locA === locB) return true;
@@ -78,10 +85,17 @@ export function groupInteractions(
     const previous = currentGroup[currentGroup.length - 1];
     const first = currentGroup[0];
     const dt = record.createdAt - previous.createdAt;
-    const samePage = record.page.url === previous.page.url && record.page.frameId === previous.page.frameId;
+    const samePage =
+      record.page.url === previous.page.url &&
+      record.page.frameId === previous.page.frameId;
     const sameElem = isSameElement(first.element, record.element);
 
-    const canGroup = samePage && dt <= windowMs && sameElem && isFormOrInputKind(record.kind) && isFormOrInputKind(first.kind);
+    const canGroup =
+      samePage &&
+      dt <= windowMs &&
+      sameElem &&
+      isFormOrInputKind(record.kind) &&
+      isFormOrInputKind(first.kind);
 
     if (canGroup) {
       currentGroup.push(record);
@@ -104,17 +118,24 @@ function buildCard(children: InteractionRecord[]): GroupedInteractionCard {
 
   if (children.length === 1) {
     const record = children[0];
-    const elemName = record.element.accessibleName || record.element.text || record.element.id || record.element.tagName.toLowerCase();
-    const actionLabel = record.kind === "click"
-      ? "点击"
-      : record.kind === "input"
-      ? "输入"
-      : record.kind === "keydown"
-      ? (record.metadata?.shortcut ? `快捷键 ${record.metadata.shortcut}` : `按键 ${record.metadata?.key ?? ""}`)
-      : record.kind === "navigation"
-      ? `页面导航 (${record.metadata?.navigationType ?? "navigation"})`
-      : record.kind;
-    
+    const elemName =
+      record.element.accessibleName ||
+      record.element.text ||
+      record.element.id ||
+      record.element.tagName.toLowerCase();
+    const actionLabel =
+      record.kind === "click"
+        ? "点击"
+        : record.kind === "input"
+          ? "输入"
+          : record.kind === "keydown"
+            ? record.metadata?.shortcut
+              ? `快捷键 ${record.metadata.shortcut}`
+              : `按键 ${record.metadata?.key ?? ""}`
+            : record.kind === "navigation"
+              ? `页面导航 (${record.metadata?.navigationType ?? "navigation"})`
+              : record.kind;
+
     return {
       id: record.id,
       kind: "atomic",
@@ -122,26 +143,42 @@ function buildCard(children: InteractionRecord[]): GroupedInteractionCard {
       children,
       aggregatedMeta: {
         title: `${actionLabel} (${elemName})`,
-        description: record.kind === "navigation" ? (record.metadata?.toUrl ?? record.page.url) : record.metadata?.value ? `输入: "${record.metadata.value}"` : record.metadata?.valueLength ? `输入: ${record.metadata.valueLength} 字符 (脱敏)` : record.page.url,
+        description:
+          record.kind === "navigation"
+            ? (record.metadata?.toUrl ?? record.page.url)
+            : record.metadata?.value
+              ? `输入: "${record.metadata.value}"`
+              : record.metadata?.valueLength
+                ? `输入: ${record.metadata.valueLength} 字符 (脱敏)`
+                : record.page.url,
         startTime: record.createdAt,
         endTime: record.createdAt,
-        hasEnterSubmit: record.kind === "keydown" && record.metadata?.key === "Enter",
+        hasEnterSubmit:
+          record.kind === "keydown" && record.metadata?.key === "Enter",
         finalValue: record.metadata?.value,
         finalValueLength: record.metadata?.valueLength,
-        totalInputEvents: record.metadata?.inputEventCount ?? (record.kind === "input" ? 1 : 0),
+        totalInputEvents:
+          record.metadata?.inputEventCount ?? (record.kind === "input" ? 1 : 0),
         isCompositionInput: record.metadata?.inputType?.includes("Composition"),
-        primaryScreenshotRecord: record.screenshot.status === "captured" ? record : undefined
-      }
+        primaryScreenshotRecord:
+          record.screenshot.status === "captured" ? record : undefined,
+      },
     };
   }
 
   // 多条记录合并
   const hasInput = children.some((c) => c.kind === "input");
   const hasKeydown = children.some((c) => c.kind === "keydown");
-  const hasEnterSubmit = children.some((c) => c.kind === "keydown" && c.metadata?.key === "Enter");
+  const hasEnterSubmit = children.some(
+    (c) => c.kind === "keydown" && c.metadata?.key === "Enter"
+  );
   const allClick = children.every((c) => c.kind === "click");
 
-  const kind: GroupedCardKind = allClick ? "continuous_click" : (hasInput || hasKeydown || hasEnterSubmit) ? "form_input_submit" : "atomic";
+  const kind: GroupedCardKind = allClick
+    ? "continuous_click"
+    : hasInput || hasKeydown || hasEnterSubmit
+      ? "form_input_submit"
+      : "atomic";
 
   let totalInputEvents = 0;
   let isCompositionInput = false;
@@ -165,28 +202,41 @@ function buildCard(children: InteractionRecord[]): GroupedInteractionCard {
     if (finalValue === undefined && c.metadata?.value !== undefined) {
       finalValue = c.metadata.value;
     }
-    if (finalValueLength === undefined && c.metadata?.valueLength !== undefined) {
+    if (
+      finalValueLength === undefined &&
+      c.metadata?.valueLength !== undefined
+    ) {
       finalValueLength = c.metadata.valueLength;
     }
     if (finalValue !== undefined && finalValueLength !== undefined) break;
   }
 
   // 最佳主记录与最佳截图记录
-  const screenshotRecord = children.find((c) => c.screenshot.status === "captured" && c.screenshot.dataUrl) ||
+  const screenshotRecord =
+    children.find(
+      (c) => c.screenshot.status === "captured" && c.screenshot.dataUrl
+    ) ||
     children.find((c) => c.screenshot.status === "captured") ||
     children.find((c) => c.kind === "keydown" && c.metadata?.key === "Enter") ||
     children[0];
 
-  const primaryRecord = children.find((c) => c.kind === "keydown" && c.metadata?.key === "Enter") ||
-    children.find((c) => c.kind === "input" && c.metadata?.valueLength !== undefined) ||
+  const primaryRecord =
+    children.find((c) => c.kind === "keydown" && c.metadata?.key === "Enter") ||
+    children.find(
+      (c) => c.kind === "input" && c.metadata?.valueLength !== undefined
+    ) ||
     screenshotRecord;
 
   const elemTag = first.element.tagName.toLowerCase();
-  const elemIdentifier = first.element.id ? `#${first.element.id}` : first.element.accessibleName || first.element.text || elemTag;
+  const elemIdentifier = first.element.id
+    ? `#${first.element.id}`
+    : first.element.accessibleName || first.element.text || elemTag;
 
   let title = "";
   if (kind === "form_input_submit") {
-    title = hasEnterSubmit ? `表单输入与回车提交 (${elemIdentifier})` : `表单连续输入与修改 (${elemIdentifier})`;
+    title = hasEnterSubmit
+      ? `表单输入与回车提交 (${elemIdentifier})`
+      : `表单连续输入与修改 (${elemIdentifier})`;
   } else if (kind === "continuous_click") {
     title = `连续点击 ${children.length} 次 (${elemIdentifier})`;
   } else {
@@ -195,7 +245,9 @@ function buildCard(children: InteractionRecord[]): GroupedInteractionCard {
 
   const descParts: string[] = [];
   if (finalValue !== undefined) {
-    descParts.push(`输入文本: "${finalValue.length > 20 ? finalValue.slice(0, 20) + "..." : finalValue}"`);
+    descParts.push(
+      `输入文本: "${finalValue.length > 20 ? finalValue.slice(0, 20) + "..." : finalValue}"`
+    );
   } else if (finalValueLength !== undefined) {
     descParts.push(`输入文本: ${finalValueLength} 字符 (脱敏)`);
   }
@@ -223,7 +275,10 @@ function buildCard(children: InteractionRecord[]): GroupedInteractionCard {
       finalValueLength,
       totalInputEvents,
       isCompositionInput,
-      primaryScreenshotRecord: screenshotRecord.screenshot.status === "captured" ? screenshotRecord : undefined
-    }
+      primaryScreenshotRecord:
+        screenshotRecord.screenshot.status === "captured"
+          ? screenshotRecord
+          : undefined,
+    },
   };
 }

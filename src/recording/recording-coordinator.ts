@@ -33,8 +33,14 @@ export class RecordingCoordinator {
     const flight = work();
     this.stopFlights.set(sessionId, flight);
     void flight.then(
-      () => { if (this.stopFlights.get(sessionId) === flight) this.stopFlights.delete(sessionId); },
-      () => { if (this.stopFlights.get(sessionId) === flight) this.stopFlights.delete(sessionId); }
+      () => {
+        if (this.stopFlights.get(sessionId) === flight)
+          this.stopFlights.delete(sessionId);
+      },
+      () => {
+        if (this.stopFlights.get(sessionId) === flight)
+          this.stopFlights.delete(sessionId);
+      }
     );
     return flight;
   }

@@ -9,18 +9,22 @@ test("validateArchiveIntegrity - 校验完整性、哈希与缺失/多余文件�
   const hash1 = await sha256(data1);
 
   const files = [{ name: "manifest.json", data: data1 }];
-  const expected = { "manifest.json": { byteLength: data1.byteLength, sha256: hash1 } };
+  const expected = {
+    "manifest.json": { byteLength: data1.byteLength, sha256: hash1 },
+  };
 
   assert.equal(await validateArchiveIntegrity(files, expected), true);
 
   // 1. 哈希不匹配
-  const wrongExpected = { "manifest.json": { byteLength: data1.byteLength, sha256: "badhash" } };
+  const wrongExpected = {
+    "manifest.json": { byteLength: data1.byteLength, sha256: "badhash" },
+  };
   assert.equal(await validateArchiveIntegrity(files, wrongExpected), false);
 
   // 2. 多余文件/缺失文件
   const extraExpected = {
     "manifest.json": { byteLength: data1.byteLength, sha256: hash1 },
-    "session.json": { byteLength: 10, sha256: "abc" }
+    "session.json": { byteLength: 10, sha256: "abc" },
   };
   assert.equal(await validateArchiveIntegrity(files, extraExpected), false);
 });
@@ -39,9 +43,15 @@ function createMockDocument() {
       style: { width: "" },
       classList: {
         _classes: new Set<string>(),
-        add(...cls: string[]) { cls.forEach((c) => this._classes.add(c)); },
-        remove(...cls: string[]) { cls.forEach((c) => this._classes.delete(c)); },
-        contains(c: string) { return this._classes.has(c); },
+        add(...cls: string[]) {
+          cls.forEach((c) => this._classes.add(c));
+        },
+        remove(...cls: string[]) {
+          cls.forEach((c) => this._classes.delete(c));
+        },
+        contains(c: string) {
+          return this._classes.has(c);
+        },
       },
       listeners: {} as Record<string, Function[]>,
       addEventListener(type: string, fn: Function) {
@@ -52,7 +62,7 @@ function createMockDocument() {
         if (this.listeners["click"]) {
           this.listeners["click"].forEach((fn) => fn());
         }
-      }
+      },
     };
     elements[id] = el;
     return el;
@@ -68,7 +78,7 @@ function createMockDocument() {
       if (selector === "#export-progress-bar") return progressBar;
       if (selector === "#export-progress-fill") return progressFill;
       return null;
-    }
+    },
   };
 
   return { doc, button, progressBar, progressFill };
@@ -83,23 +93,27 @@ test("PreviewExportController - 导出进度条成功路径与状态验证", asy
 
   (globalThis as any).URL = {
     createObjectURL: () => "blob:mock-archive-url",
-    revokeObjectURL: (url: string) => { revokedUrl = url; },
+    revokeObjectURL: (url: string) => {
+      revokedUrl = url;
+    },
   };
 
   (globalThis as any).chrome = {
     i18n: {
       getMessage: (key: string, subs?: any) => {
-        const subStr = Array.isArray(subs) ? subs.join(" ") : String(subs || "");
+        const subStr = Array.isArray(subs)
+          ? subs.join(" ")
+          : String(subs || "");
         return `${key}:${subStr}`;
-      }
+      },
     },
     downloads: {
       download: async () => 888,
       search: (_query: any, callback: Function) => {
         callback([{ id: 888, state: "complete", filename: "report.zip" }]);
-      }
+      },
     },
-    runtime: { lastError: null }
+    runtime: { lastError: null },
   };
 
   const { doc, button, progressBar, progressFill } = createMockDocument();
@@ -110,7 +124,7 @@ test("PreviewExportController - 导出进度条成功路径与状态验证", asy
       quality: { overall: "good", issues: [] },
       target: { initialTitle: "Test", initialUrl: "http://localhost" },
       timeline: { startedAtEpochMs: 1000, durationMs: 5000 },
-      options: { privacyMode: "safe" }
+      options: { privacyMode: "safe" },
     },
     issues: [],
     console: [],
@@ -118,9 +132,8 @@ test("PreviewExportController - 导出进度条成功路径与状态验证", asy
     interactions: [],
     consoleEntries: [],
     networkEntries: [],
-    excluded: { interaction: 0, console: 0, network: 0, issueScene: 0 }
+    excluded: { interaction: 0, console: 0, network: 0, issueScene: 0 },
   } as any;
-
 
   let hundredPercentAsserted = false;
 
@@ -130,31 +143,40 @@ test("PreviewExportController - 导出进度条成功路径与状态验证", asy
     storage: {
       getExportArtifact: async () => undefined,
       saveExportArtifact: async () => {},
-      iterateMediaChunks: async () => {}
+      iterateMediaChunks: async () => {},
     } as any,
     getSnapshot: () => mockSnapshot,
     getMediaChunkCount: () => 10,
-    notify: (msg) => { notifiedMessage = msg; },
+    notify: (msg) => {
+      notifiedMessage = msg;
+    },
 
-
-    onArtifactChanged: () => { artifactChangedCount++; },
+    onArtifactChanged: () => {
+      artifactChangedCount++;
+    },
     onExportComplete: async () => {
       exportCompletedCalled = true;
-      if (progressFill.style.width === "100%" && progressFill.classList.contains("done")) {
+      if (
+        progressFill.style.width === "100%" &&
+        progressFill.classList.contains("done")
+      ) {
         hundredPercentAsserted = true;
       }
       return true;
     },
-    loadAssets: async () => ({
-      html: '<html lang="zh-CN"><head></head><body></body></html>',
-      script: "console.log('report')",
-      styles: "body { color: red }",
-      icon: new Uint8Array([1, 2, 3])
-    } as any),
+    loadAssets: async () =>
+      ({
+        html: '<html lang="zh-CN"><head></head><body></body></html>',
+        script: "console.log('report')",
+        styles: "body { color: red }",
+        icon: new Uint8Array([1, 2, 3]),
+      }) as any,
     createArchive: async () => ({
       sink: {} as any,
-      getFile: async () => ({} as any),
-      cleanup: async () => { cleanupCalled = true; }
+      getFile: async () => ({}) as any,
+      cleanup: async () => {
+        cleanupCalled = true;
+      },
     }),
     writeArchive: async (opts: any) => {
       // 3. 普通文件写入
@@ -165,8 +187,7 @@ test("PreviewExportController - 导出进度条成功路径与状态验证", asy
       opts.onProgress({ mediaChunksWritten: 5, bytesWritten: 10000 });
       assert.equal(progressFill.style.width, "50%");
       assert.ok(button.textContent.includes("5"));
-
-    }
+    },
   });
 
   // 1. 点击导出前按钮可用
@@ -182,7 +203,11 @@ test("PreviewExportController - 导出进度条成功路径与状态验证", asy
   await exportPromise;
 
   assert.equal(exportCompletedCalled, true);
-  assert.equal(hundredPercentAsserted, true, "导出完成时应进入 100% 进度与 done 状态");
+  assert.equal(
+    hundredPercentAsserted,
+    true,
+    "导出完成时应进入 100% 进度与 done 状态"
+  );
 
   assert.ok(notifiedMessage?.length);
 
@@ -201,21 +226,34 @@ test("PreviewExportController - 导出进度条成功路径与状态验证", asy
 });
 
 test("PreviewExportController - 导出进度条失败路径与异常恢复验证", async () => {
-  const setupChromeMock = (downloadState: "complete" | "interrupted" = "complete") => {
+  const setupChromeMock = (
+    downloadState: "complete" | "interrupted" = "complete"
+  ) => {
     (globalThis as any).chrome = {
       i18n: {
         getMessage: (key: string, subs?: any) => {
-          const subStr = Array.isArray(subs) ? subs.join(" ") : String(subs || "");
+          const subStr = Array.isArray(subs)
+            ? subs.join(" ")
+            : String(subs || "");
           return `${key}:${subStr}`;
-        }
+        },
       },
       downloads: {
         download: async () => 999,
         search: (_query: any, callback: Function) => {
-          callback([{ id: 999, state: downloadState, error: downloadState === "interrupted" ? "SERVER_BAD_CONTENT" : undefined }]);
-        }
+          callback([
+            {
+              id: 999,
+              state: downloadState,
+              error:
+                downloadState === "interrupted"
+                  ? "SERVER_BAD_CONTENT"
+                  : undefined,
+            },
+          ]);
+        },
       },
-      runtime: { lastError: null }
+      runtime: { lastError: null },
     };
   };
 
@@ -226,7 +264,7 @@ test("PreviewExportController - 导出进度条失败路径与异常恢复验证
       quality: { overall: "good", issues: [] },
       target: { initialTitle: "Test", initialUrl: "http://localhost" },
       timeline: { startedAtEpochMs: 1000, durationMs: 5000 },
-      options: { privacyMode: "safe" }
+      options: { privacyMode: "safe" },
     },
     issues: [],
     console: [],
@@ -234,16 +272,16 @@ test("PreviewExportController - 导出进度条失败路径与异常恢复验证
     interactions: [],
     consoleEntries: [],
     networkEntries: [],
-    excluded: { interaction: 0, console: 0, network: 0, issueScene: 0 }
+    excluded: { interaction: 0, console: 0, network: 0, issueScene: 0 },
   } as any;
 
-
-  const defaultAssetsMock = async () => ({
-    html: '<html lang="zh-CN"><head></head><body></body></html>',
-    script: "console.log('report')",
-    styles: "body { color: red }",
-    icon: new Uint8Array([1, 2, 3])
-  } as any);
+  const defaultAssetsMock = async () =>
+    ({
+      html: '<html lang="zh-CN"><head></head><body></body></html>',
+      script: "console.log('report')",
+      styles: "body { color: red }",
+      icon: new Uint8Array([1, 2, 3]),
+    }) as any;
 
   // 1. 创建归档失败
   {
@@ -254,13 +292,20 @@ test("PreviewExportController - 导出进度条失败路径与异常恢复验证
     const controller = new PreviewExportController({
       root: doc as any,
       sessionId: "session-err",
-      storage: { getExportArtifact: async () => undefined, saveExportArtifact: async () => {} } as any,
+      storage: {
+        getExportArtifact: async () => undefined,
+        saveExportArtifact: async () => {},
+      } as any,
       getSnapshot: () => defaultMockSnapshot,
       getMediaChunkCount: () => 0,
-      notify: (msg) => { notified = msg; },
+      notify: (msg) => {
+        notified = msg;
+      },
       onArtifactChanged: () => {},
       loadAssets: defaultAssetsMock,
-      createArchive: async () => { throw new Error("Disk full"); }
+      createArchive: async () => {
+        throw new Error("Disk full");
+      },
     });
 
     await controller.export();
@@ -280,18 +325,27 @@ test("PreviewExportController - 导出进度条失败路径与异常恢复验证
     const controller = new PreviewExportController({
       root: doc as any,
       sessionId: "session-err-2",
-      storage: { getExportArtifact: async () => undefined, saveExportArtifact: async () => {} } as any,
+      storage: {
+        getExportArtifact: async () => undefined,
+        saveExportArtifact: async () => {},
+      } as any,
       getSnapshot: () => defaultMockSnapshot,
       getMediaChunkCount: () => 0,
-      notify: (msg) => { notified = msg; },
+      notify: (msg) => {
+        notified = msg;
+      },
       onArtifactChanged: () => {},
       loadAssets: defaultAssetsMock,
       createArchive: async () => ({
         sink: {} as any,
-        getFile: async () => ({} as any),
-        cleanup: async () => { cleanupCalled = true; }
+        getFile: async () => ({}) as any,
+        cleanup: async () => {
+          cleanupCalled = true;
+        },
       }),
-      writeArchive: async () => { throw new Error("Write failed"); }
+      writeArchive: async () => {
+        throw new Error("Write failed");
+      },
     });
 
     await controller.export();
@@ -315,18 +369,23 @@ test("PreviewExportController - 导出进度条失败路径与异常恢复验证
     const controller = new PreviewExportController({
       root: doc as any,
       sessionId: "session-interrupted",
-      storage: { getExportArtifact: async () => undefined, saveExportArtifact: async () => {} } as any,
+      storage: {
+        getExportArtifact: async () => undefined,
+        saveExportArtifact: async () => {},
+      } as any,
       getSnapshot: () => defaultMockSnapshot,
       getMediaChunkCount: () => 0,
-      notify: (msg) => { notified = msg; },
+      notify: (msg) => {
+        notified = msg;
+      },
       onArtifactChanged: () => {},
       loadAssets: defaultAssetsMock,
       createArchive: async () => ({
         sink: {} as any,
-        getFile: async () => ({} as any),
-        cleanup: async () => {}
+        getFile: async () => ({}) as any,
+        cleanup: async () => {},
       }),
-      writeArchive: async () => {}
+      writeArchive: async () => {},
     });
 
     await controller.export();
@@ -341,17 +400,21 @@ test("PreviewExportController - 导出进度条失败路径与异常恢复验证
     (globalThis as any).chrome = {
       i18n: {
         getMessage: (key: string, subs?: any) => {
-          const subStr = subs ? (Array.isArray(subs) ? subs.join(" ") : String(subs)) : "";
+          const subStr = subs
+            ? Array.isArray(subs)
+              ? subs.join(" ")
+              : String(subs)
+            : "";
           return `${key}:${subStr}`;
-        }
+        },
       },
       downloads: {
         download: async () => 777,
         search: (_query: any, callback: Function) => {
           callback([{ id: 777, state: "interrupted", error: "USER_CANCELED" }]);
-        }
+        },
       },
-      runtime: { lastError: null }
+      runtime: { lastError: null },
     };
 
     const { doc, button, progressFill } = createMockDocument();
@@ -360,18 +423,23 @@ test("PreviewExportController - 导出进度条失败路径与异常恢复验证
     const controller = new PreviewExportController({
       root: doc as any,
       sessionId: "session-canceled",
-      storage: { getExportArtifact: async () => undefined, saveExportArtifact: async () => {} } as any,
+      storage: {
+        getExportArtifact: async () => undefined,
+        saveExportArtifact: async () => {},
+      } as any,
       getSnapshot: () => defaultMockSnapshot,
       getMediaChunkCount: () => 0,
-      notify: (msg) => { notified = msg; },
+      notify: (msg) => {
+        notified = msg;
+      },
       onArtifactChanged: () => {},
       loadAssets: defaultAssetsMock,
       createArchive: async () => ({
         sink: {} as any,
-        getFile: async () => ({} as any),
-        cleanup: async () => {}
+        getFile: async () => ({}) as any,
+        cleanup: async () => {},
       }),
-      writeArchive: async () => {}
+      writeArchive: async () => {},
     });
 
     await controller.export();

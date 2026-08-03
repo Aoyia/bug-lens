@@ -3,7 +3,9 @@ import type { CdpPopup } from "./fixtures/cdp-popup.ts";
 
 function logE2e(message: string, details?: unknown): void {
   const suffix = details === undefined ? "" : ` ${JSON.stringify(details)}`;
-  console.log(`[Bug Lens E2E][${new Date().toISOString()}] ${message}${suffix}`);
+  console.log(
+    `[Bug Lens E2E][${new Date().toISOString()}] ${message}${suffix}`
+  );
 }
 
 async function waitForPopupChecked(
@@ -14,12 +16,18 @@ async function waitForPopupChecked(
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const checked = await popup.evaluate<boolean>(`Boolean(document.querySelector(${JSON.stringify(selector)})?.checked)`);
+    const checked = await popup.evaluate<boolean>(
+      `Boolean(document.querySelector(${JSON.stringify(selector)})?.checked)`
+    );
     if (checked === expected) return;
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
-  const actual = await popup.evaluate<boolean>(`Boolean(document.querySelector(${JSON.stringify(selector)})?.checked)`);
-  throw new Error(`ACTION_POPUP_CHECKBOX_TIMEOUT: ${selector} expected=${expected} actual=${actual}`);
+  const actual = await popup.evaluate<boolean>(
+    `Boolean(document.querySelector(${JSON.stringify(selector)})?.checked)`
+  );
+  throw new Error(
+    `ACTION_POPUP_CHECKBOX_TIMEOUT: ${selector} expected=${expected} actual=${actual}`
+  );
 }
 
 function countCanaryOccurrences(obj: unknown, canary: string): number {
@@ -56,7 +64,7 @@ test.describe("Bug Lens Chrome Extension E2E PRIV-001: Safe Mode Sensitive Data 
     openActionPopup,
     activeTabId,
     mediaProbe,
-    serverUrl
+    serverUrl,
   }) => {
     const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const emailCanary = `canary-user-${runId}@test-privacy-safe.org`;
@@ -67,22 +75,38 @@ test.describe("Bug Lens Chrome Extension E2E PRIV-001: Safe Mode Sensitive Data 
 
     const canaries = [
       { name: "emailCanary", value: emailCanary, length: emailCanary.length },
-      { name: "passwordCanary", value: passwordCanary, length: passwordCanary.length },
+      {
+        name: "passwordCanary",
+        value: passwordCanary,
+        length: passwordCanary.length,
+      },
       { name: "tokenCanary", value: tokenCanary, length: tokenCanary.length },
-      { name: "apiKeyCanary", value: apiKeyCanary, length: apiKeyCanary.length },
-      { name: "nestedSecretCanary", value: nestedSecretCanary, length: nestedSecretCanary.length }
+      {
+        name: "apiKeyCanary",
+        value: apiKeyCanary,
+        length: apiKeyCanary.length,
+      },
+      {
+        name: "nestedSecretCanary",
+        value: nestedSecretCanary,
+        length: nestedSecretCanary.length,
+      },
     ];
 
     logE2e("Generated test synthetic canaries", {
       runId,
-      canaryCounts: canaries.length
+      canaryCounts: canaries.length,
     });
 
-    const privacyUrl = serverUrl.replace("mock-page.html", `privacy-page.html?token=${encodeURIComponent(tokenCanary)}&email=${encodeURIComponent(emailCanary)}`);
+    const privacyUrl = serverUrl.replace(
+      "mock-page.html",
+      `privacy-page.html?token=${encodeURIComponent(tokenCanary)}&email=${encodeURIComponent(emailCanary)}`
+    );
 
     context.on("console", (message) => {
       logE2e(`Browser console.${message.type()}`, {
-        url: safeUrlForLog(message.page()?.url()) ?? "extension-worker-or-popup"
+        url:
+          safeUrlForLog(message.page()?.url()) ?? "extension-worker-or-popup",
       });
     });
 
@@ -90,12 +114,19 @@ test.describe("Bug Lens Chrome Extension E2E PRIV-001: Safe Mode Sensitive Data 
     if (!targetPage) targetPage = await context.newPage();
     await targetPage.goto(privacyUrl);
     await targetPage.bringToFront();
-    await targetPage.waitForFunction(() => document.hasFocus(), undefined, { timeout: 2_000 });
+    await targetPage.waitForFunction(() => document.hasFocus(), undefined, {
+      timeout: 2_000,
+    });
 
-    await targetPage.evaluate(({ apiKey, secret }) => {
-      (window as unknown as Record<string, string>).__CANARY_API_KEY__ = apiKey;
-      (window as unknown as Record<string, string>).__CANARY_NESTED_SECRET__ = secret;
-    }, { apiKey: apiKeyCanary, secret: nestedSecretCanary });
+    await targetPage.evaluate(
+      ({ apiKey, secret }) => {
+        (window as unknown as Record<string, string>).__CANARY_API_KEY__ =
+          apiKey;
+        (window as unknown as Record<string, string>).__CANARY_NESTED_SECRET__ =
+          secret;
+      },
+      { apiKey: apiKeyCanary, secret: nestedSecretCanary }
+    );
 
     const targetTabId = await activeTabId();
     expect(targetTabId).toBeTruthy();
@@ -104,7 +135,9 @@ test.describe("Bug Lens Chrome Extension E2E PRIV-001: Safe Mode Sensitive Data 
     await popup.waitForSelector('[data-testid="record-panel"]');
     await popup.click("#toggle-options");
     await popup.waitForSelector(".privacy-select");
-    const privacyModeVal = await popup.evaluate<string>("document.querySelector('.privacy-select')?.value || ''");
+    const privacyModeVal = await popup.evaluate<string>(
+      "document.querySelector('.privacy-select')?.value || ''"
+    );
     expect(privacyModeVal).toBe("safe");
 
     await popup.click("#video");
@@ -113,9 +146,21 @@ test.describe("Bug Lens Chrome Extension E2E PRIV-001: Safe Mode Sensitive Data 
     await popup.click("#screenshots");
     await waitForPopupChecked(popup, "#screenshots", false);
 
-    expect(await popup.evaluate<boolean>("Boolean(document.querySelector('#console')?.checked)")).toBe(true);
-    expect(await popup.evaluate<boolean>("Boolean(document.querySelector('#network')?.checked)")).toBe(true);
-    expect(await popup.evaluate<boolean>("Boolean(document.querySelector('#bodies')?.checked)")).toBe(true);
+    expect(
+      await popup.evaluate<boolean>(
+        "Boolean(document.querySelector('#console')?.checked)"
+      )
+    ).toBe(true);
+    expect(
+      await popup.evaluate<boolean>(
+        "Boolean(document.querySelector('#network')?.checked)"
+      )
+    ).toBe(true);
+    expect(
+      await popup.evaluate<boolean>(
+        "Boolean(document.querySelector('#bodies')?.checked)"
+      )
+    ).toBe(true);
 
     logE2e("Safe mode options configured", {
       privacyMode: "safe",
@@ -123,7 +168,7 @@ test.describe("Bug Lens Chrome Extension E2E PRIV-001: Safe Mode Sensitive Data 
       screenshots: false,
       console: true,
       network: true,
-      networkBodies: true
+      networkBodies: true,
     });
 
     await popup.click('[data-testid="start-recording-btn"]');
@@ -145,7 +190,9 @@ test.describe("Bug Lens Chrome Extension E2E PRIV-001: Safe Mode Sensitive Data 
     await targetPage.fill('[data-testid="token-input"]', tokenCanary);
 
     await targetPage.click('[data-testid="send-sensitive-request-btn"]');
-    await expect(targetPage.locator('[data-testid="status-output"]')).toHaveText("请求完成", { timeout: 5_000 });
+    await expect(
+      targetPage.locator('[data-testid="status-output"]')
+    ).toHaveText("请求完成", { timeout: 5_000 });
 
     logE2e("Synthetic sensitive interactions and fetch completed");
 
@@ -154,8 +201,9 @@ test.describe("Bug Lens Chrome Extension E2E PRIV-001: Safe Mode Sensitive Data 
     await expect(stopButton).toBeVisible();
 
     const previewPagePromise = context.waitForEvent("page", {
-      predicate: (page) => page.url().startsWith(`chrome-extension://${extensionId}/preview.html`),
-      timeout: 10_000
+      predicate: (page) =>
+        page.url().startsWith(`chrome-extension://${extensionId}/preview.html`),
+      timeout: 10_000,
     });
     await stopButton.click();
     const previewPage = await previewPagePromise;
@@ -163,7 +211,10 @@ test.describe("Bug Lens Chrome Extension E2E PRIV-001: Safe Mode Sensitive Data 
     await previewPage.bringToFront();
 
     const fullEvidence = await mediaProbe.persistedFullEvidence(session.id);
-    const summaryEvidence = await mediaProbe.persistedEvidence(previewPage, session.id);
+    const summaryEvidence = await mediaProbe.persistedEvidence(
+      previewPage,
+      session.id
+    );
 
     logE2e("Persisted IndexedDB evidence loaded", {
       sessionId: session.id,
@@ -174,14 +225,18 @@ test.describe("Bug Lens Chrome Extension E2E PRIV-001: Safe Mode Sensitive Data 
       interactionCount: fullEvidence.interactions.length,
       consoleCount: fullEvidence.consoleEntries.length,
       networkCount: fullEvidence.networkEntries.length,
-      assetCount: fullEvidence.evidenceAssets.length
+      assetCount: fullEvidence.evidenceAssets.length,
     });
 
     expect(fullEvidence.session?.status).toBe("PREVIEW_READY");
     expect(fullEvidence.session?.quality.overall).toBe("complete");
     expect(fullEvidence.session?.quality.issues).toEqual([]);
     expect(fullEvidence.mediaChunks).toEqual([]);
-    expect(fullEvidence.evidenceAssets.filter((asset) => asset.kind === "interaction-screenshot")).toEqual([]);
+    expect(
+      fullEvidence.evidenceAssets.filter(
+        (asset) => asset.kind === "interaction-screenshot"
+      )
+    ).toEqual([]);
 
     expect(fullEvidence.session?.options.captureVideo).toBe(false);
     expect(fullEvidence.session?.options.captureAudio).toBe(false);
@@ -192,32 +247,62 @@ test.describe("Bug Lens Chrome Extension E2E PRIV-001: Safe Mode Sensitive Data 
     expect(fullEvidence.session?.options.privacyMode).toBe("safe");
 
     for (const c of canaries) {
-      expect(fullEvidence.session?.target.initialUrl.includes(c.value)).toBe(false);
-      expect(fullEvidence.session?.target.initialTitle.includes(c.value)).toBe(false);
-      expect(JSON.stringify(fullEvidence.session).includes(c.value)).toBe(false);
+      expect(fullEvidence.session?.target.initialUrl.includes(c.value)).toBe(
+        false
+      );
+      expect(fullEvidence.session?.target.initialTitle.includes(c.value)).toBe(
+        false
+      );
+      expect(JSON.stringify(fullEvidence.session).includes(c.value)).toBe(
+        false
+      );
     }
 
     expect(fullEvidence.interactions.length).toBeGreaterThan(0);
-    const inputInteractions = fullEvidence.interactions.filter((i) => i.kind === "input" || i.kind === "change");
+    const inputInteractions = fullEvidence.interactions.filter(
+      (i) => i.kind === "input" || i.kind === "change"
+    );
     expect(inputInteractions.length).toBeGreaterThan(0);
 
-    const emailInteraction = inputInteractions.find((i) => i.element.id === "email-input" || i.element.locators.some((l) => l.expression.includes("email-input")));
+    const emailInteraction = inputInteractions.find(
+      (i) =>
+        i.element.id === "email-input" ||
+        i.element.locators.some((l) => l.expression.includes("email-input"))
+    );
     expect(emailInteraction).toBeDefined();
     expect(emailInteraction?.metadata?.value).toBeUndefined();
     expect(emailInteraction?.metadata?.valueRedacted).toBe(true);
     expect(emailInteraction?.metadata?.valueLength).toBe(emailCanary.length);
 
-    const passwordInteraction = inputInteractions.find((i) => i.element.id === "password-input" || i.element.locators.some((l) => l.expression.includes("password-input")));
+    const passwordInteraction = inputInteractions.find(
+      (i) =>
+        i.element.id === "password-input" ||
+        i.element.locators.some((l) => l.expression.includes("password-input"))
+    );
     expect(passwordInteraction).toBeDefined();
     expect(passwordInteraction?.metadata?.value).toBeUndefined();
     expect(passwordInteraction?.metadata?.valueRedacted).toBe(true);
-    expect(passwordInteraction?.metadata?.valueLength).toBe(passwordCanary.length);
-    expect(passwordInteraction?.element.text ?? "").not.toContain(passwordCanary);
-    expect(passwordInteraction?.element.accessibleName ?? "").not.toContain(passwordCanary);
-    expect(JSON.stringify(passwordInteraction?.element.locators)).not.toContain(passwordCanary);
-    expect(JSON.stringify(passwordInteraction?.element.attributes)).not.toContain(passwordCanary);
+    expect(passwordInteraction?.metadata?.valueLength).toBe(
+      passwordCanary.length
+    );
+    expect(passwordInteraction?.element.text ?? "").not.toContain(
+      passwordCanary
+    );
+    expect(passwordInteraction?.element.accessibleName ?? "").not.toContain(
+      passwordCanary
+    );
+    expect(JSON.stringify(passwordInteraction?.element.locators)).not.toContain(
+      passwordCanary
+    );
+    expect(
+      JSON.stringify(passwordInteraction?.element.attributes)
+    ).not.toContain(passwordCanary);
 
-    const tokenInteraction = inputInteractions.find((i) => i.element.id === "token-input" || i.element.locators.some((l) => l.expression.includes("token-input")));
+    const tokenInteraction = inputInteractions.find(
+      (i) =>
+        i.element.id === "token-input" ||
+        i.element.locators.some((l) => l.expression.includes("token-input"))
+    );
     expect(tokenInteraction).toBeDefined();
     expect(tokenInteraction?.metadata?.value).toBeUndefined();
     expect(tokenInteraction?.metadata?.valueRedacted).toBe(true);
@@ -232,7 +317,9 @@ test.describe("Bug Lens Chrome Extension E2E PRIV-001: Safe Mode Sensitive Data 
     }
 
     expect(fullEvidence.consoleEntries.length).toBeGreaterThan(0);
-    const targetConsoleLog = fullEvidence.consoleEntries.find((entry) => entry.text.includes("[PRIV-001 Log Marker]"));
+    const targetConsoleLog = fullEvidence.consoleEntries.find((entry) =>
+      entry.text.includes("[PRIV-001 Log Marker]")
+    );
     expect(targetConsoleLog).toBeDefined();
     for (const c of canaries) {
       expect(targetConsoleLog?.text.includes(c.value)).toBe(false);
@@ -240,7 +327,9 @@ test.describe("Bug Lens Chrome Extension E2E PRIV-001: Safe Mode Sensitive Data 
     expect(targetConsoleLog?.text).toContain("[REDACTED");
 
     expect(fullEvidence.networkEntries.length).toBeGreaterThan(0);
-    const targetNetwork = fullEvidence.networkEntries.find((entry) => entry.url.includes("/api/privacy-test"));
+    const targetNetwork = fullEvidence.networkEntries.find((entry) =>
+      entry.url.includes("/api/privacy-test")
+    );
     expect(targetNetwork).toBeDefined();
     expect(targetNetwork?.method).toBe("POST");
     expect(targetNetwork?.status).toBe(200);
@@ -250,8 +339,12 @@ test.describe("Bug Lens Chrome Extension E2E PRIV-001: Safe Mode Sensitive Data 
     expect(targetNetwork?.url).not.toContain(emailCanary);
 
     expect(targetNetwork?.requestHeaders).toBeDefined();
-    const authHeader = targetNetwork?.requestHeaders?.["authorization"] || targetNetwork?.requestHeaders?.["Authorization"];
-    const apiKeyHeader = targetNetwork?.requestHeaders?.["x-api-key"] || targetNetwork?.requestHeaders?.["X-Api-Key"];
+    const authHeader =
+      targetNetwork?.requestHeaders?.["authorization"] ||
+      targetNetwork?.requestHeaders?.["Authorization"];
+    const apiKeyHeader =
+      targetNetwork?.requestHeaders?.["x-api-key"] ||
+      targetNetwork?.requestHeaders?.["X-Api-Key"];
     expect(authHeader).toBeDefined();
     expect(authHeader).not.toContain(tokenCanary);
     expect(authHeader).toContain("[REDACTED");
@@ -259,7 +352,9 @@ test.describe("Bug Lens Chrome Extension E2E PRIV-001: Safe Mode Sensitive Data 
     expect(apiKeyHeader).not.toContain(apiKeyCanary);
     expect(apiKeyHeader).toContain("[REDACTED");
 
-    const contentTypeHeader = targetNetwork?.requestHeaders?.["content-type"] || targetNetwork?.requestHeaders?.["Content-Type"];
+    const contentTypeHeader =
+      targetNetwork?.requestHeaders?.["content-type"] ||
+      targetNetwork?.requestHeaders?.["Content-Type"];
     expect(contentTypeHeader).toBe("application/json");
 
     expect(targetNetwork?.requestBody).toBeDefined();
@@ -282,39 +377,71 @@ test.describe("Bug Lens Chrome Extension E2E PRIV-001: Safe Mode Sensitive Data 
     const canaryLeakCounts: Record<string, number> = {};
     let totalLeaks = 0;
     for (const c of canaries) {
-      const occurrencesInSession = countCanaryOccurrences(fullEvidence.session, c.value);
-      const occurrencesInInteractions = countCanaryOccurrences(fullEvidence.interactions, c.value);
-      const occurrencesInConsole = countCanaryOccurrences(fullEvidence.consoleEntries, c.value);
-      const occurrencesInNetwork = countCanaryOccurrences(fullEvidence.networkEntries, c.value);
-      const occurrencesInAssets = countCanaryOccurrences(fullEvidence.evidenceAssets, c.value);
-      const sum = occurrencesInSession + occurrencesInInteractions + occurrencesInConsole + occurrencesInNetwork + occurrencesInAssets;
+      const occurrencesInSession = countCanaryOccurrences(
+        fullEvidence.session,
+        c.value
+      );
+      const occurrencesInInteractions = countCanaryOccurrences(
+        fullEvidence.interactions,
+        c.value
+      );
+      const occurrencesInConsole = countCanaryOccurrences(
+        fullEvidence.consoleEntries,
+        c.value
+      );
+      const occurrencesInNetwork = countCanaryOccurrences(
+        fullEvidence.networkEntries,
+        c.value
+      );
+      const occurrencesInAssets = countCanaryOccurrences(
+        fullEvidence.evidenceAssets,
+        c.value
+      );
+      const sum =
+        occurrencesInSession +
+        occurrencesInInteractions +
+        occurrencesInConsole +
+        occurrencesInNetwork +
+        occurrencesInAssets;
       canaryLeakCounts[c.name] = sum;
       totalLeaks += sum;
     }
 
     logE2e("Global Canary leak scan completed", {
       canaryLeakCounts,
-      totalLeaks
+      totalLeaks,
     });
 
     expect(totalLeaks).toBe(0);
 
     await previewPage.waitForSelector(".zen-app-frame", { timeout: 10_000 });
     await expect(previewPage.locator("#video")).toBeHidden();
-    await expect(previewPage.locator("#video-empty")).toContainText("没有可播放的媒体分片");
+    await expect(previewPage.locator("#video-empty")).toContainText(
+      "没有可播放的媒体分片"
+    );
 
     const summaryInteractions = summaryEvidence.interactionCount;
     expect(summaryInteractions).toBe(fullEvidence.interactions.length);
-    expect(summaryEvidence.consoleCount).toBe(fullEvidence.consoleEntries.length);
-    expect(summaryEvidence.networkCount).toBe(fullEvidence.networkEntries.length);
+    expect(summaryEvidence.consoleCount).toBe(
+      fullEvidence.consoleEntries.length
+    );
+    expect(summaryEvidence.networkCount).toBe(
+      fullEvidence.networkEntries.length
+    );
 
     await previewPage.locator('[data-tab="console"]').click();
-    await expect(previewPage.locator("#tab-pane-console")).toContainText("[PRIV-001 Log Marker]");
+    await expect(previewPage.locator("#tab-pane-console")).toContainText(
+      "[PRIV-001 Log Marker]"
+    );
 
     await previewPage.locator('[data-tab="network"]').click();
-    await expect(previewPage.locator("#tab-pane-network")).toContainText("/api/privacy-test");
+    await expect(previewPage.locator("#tab-pane-network")).toContainText(
+      "/api/privacy-test"
+    );
 
-    const networkRow = previewPage.locator('#tab-pane-network .network-row[data-network-id]').first();
+    const networkRow = previewPage
+      .locator("#tab-pane-network .network-row[data-network-id]")
+      .first();
     await expect(networkRow).toBeVisible();
     await networkRow.click();
 
@@ -326,7 +453,9 @@ test.describe("Bug Lens Chrome Extension E2E PRIV-001: Safe Mode Sensitive Data 
       expect(detailText.includes(c.value)).toBe(false);
     }
 
-    const previewBodyText = await previewPage.evaluate(() => document.body.innerText);
+    const previewBodyText = await previewPage.evaluate(
+      () => document.body.innerText
+    );
     for (const c of canaries) {
       expect(previewBodyText.includes(c.value)).toBe(false);
     }

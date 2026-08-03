@@ -4,7 +4,7 @@
 
 > **The Ultimate Context Provider for AI Code Assistants & Vibe Coders**
 > 专为 AI Agent（Cursor, Claude Code, Antigravity 等）及 **Vibe Coding 创作者**打造的前端缺陷现场上下文捕获扩展。
-> 
+>
 > 作为一个拥有 **5 年+ 经验的前端开发者**，深度体会过 AI 时代前端调试与沟通的痛点。Bug Lens 就是为了打通从“现场捕获”到“AI 精准修复”最后一公里而打造的专业工具。
 
 ---
@@ -12,6 +12,7 @@
 ## 为什么需要 Bug Lens？
 
 无论你是**资深开发者**还是 **Vibe Coding 玩家**（靠 AI 辅助完成开发的创作者），在让 AI 诊断和修复前端 Bug 时，常遇到**上下文缺失**的痛点：
+
 - **看不见现场**：AI 无法感知你点击了哪个元素、触发了什么 DOM 变化与报错。
 - **排错门槛高**：Vibe Coder 往往不懂如何使用 DevTools 抓包提取控制台与网络请求，传统开发者手动截图复制也极度繁琐。
 

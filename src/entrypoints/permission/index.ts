@@ -3,7 +3,8 @@ import { applyI18n } from "../../shared/i18n";
 
 applyI18n();
 
-const $ = <T extends HTMLElement>(selector: string) => document.querySelector<T>(selector)!;
+const $ = <T extends HTMLElement>(selector: string) =>
+  document.querySelector<T>(selector)!;
 
 function setError(errorMsg: string): void {
   const errorBox = $("#error-box");
@@ -23,7 +24,9 @@ function setStatus(text: string): void {
 }
 
 async function run(): Promise<void> {
-  const storage = (await chrome.storage.local.get("pendingRecordingRequest")) as {
+  const storage = (await chrome.storage.local.get(
+    "pendingRecordingRequest"
+  )) as {
     pendingRecordingRequest?: { tabId: number; options: RecordingOptions };
   };
   const pendingRecordingRequest = storage.pendingRecordingRequest;
@@ -41,7 +44,9 @@ async function run(): Promise<void> {
     setStatus("请在浏览器提示框中选择“允许”…");
 
     try {
-      const granted = await chrome.permissions.request({ origins: ["http://*/*", "https://*/*"] }).catch(() => false);
+      const granted = await chrome.permissions
+        .request({ origins: ["http://*/*", "https://*/*"] })
+        .catch(() => false);
 
       if (!granted) {
         setError("未授予全站访问权限：无法开启录制。");
@@ -53,7 +58,11 @@ async function run(): Promise<void> {
       await chrome.storage.local.remove("pendingRecordingRequest");
 
       const response = await chrome.runtime.sendMessage(
-        message("session/start", { tabId, options, commandId: crypto.randomUUID() })
+        message("session/start", {
+          tabId,
+          options,
+          commandId: crypto.randomUUID(),
+        })
       );
 
       if (!response?.ok) {

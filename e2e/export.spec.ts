@@ -8,7 +8,9 @@ import type { ExportManifest } from "../src/shared/protocol.ts";
 
 function logE2e(message: string, details?: unknown): void {
   const suffix = details === undefined ? "" : ` ${JSON.stringify(details)}`;
-  console.log(`[Bug Lens E2E][${new Date().toISOString()}] ${message}${suffix}`);
+  console.log(
+    `[Bug Lens E2E][${new Date().toISOString()}] ${message}${suffix}`
+  );
 }
 
 async function delay(ms: number): Promise<void> {
@@ -23,16 +25,23 @@ test.describe("Bug Lens Chrome Extension E2E EXP-001: ZIP Export and AI Handoff"
     mediaProbe,
     serverUrl,
     nativeSaveDialogDriver,
-    isolatedDownloadDir
+    isolatedDownloadDir,
   }) => {
-    test.skip(process.platform !== "darwin", "EXP-001 requires macOS native save dialog driver");
+    test.skip(
+      process.platform !== "darwin",
+      "EXP-001 requires macOS native save dialog driver"
+    );
 
     const scenarioId = "EXP-001";
-    const previewPageUrl = serverUrl.replace("mock-page.html", "preview-page.html");
+    const previewPageUrl = serverUrl.replace(
+      "mock-page.html",
+      "preview-page.html"
+    );
 
     context.on("console", (message) => {
       logE2e(`Browser console.${message.type()}`, {
-        url: safeUrlForLog(message.page()?.url()) ?? "extension-worker-or-popup"
+        url:
+          safeUrlForLog(message.page()?.url()) ?? "extension-worker-or-popup",
       });
     });
 
@@ -40,10 +49,14 @@ test.describe("Bug Lens Chrome Extension E2E EXP-001: ZIP Export and AI Handoff"
     let targetPage = context.pages()[0];
     if (!targetPage) targetPage = await context.newPage();
     await targetPage.goto(previewPageUrl);
-    logE2e(`${scenarioId}: Target preview page loaded`, { url: targetPage.url() });
+    logE2e(`${scenarioId}: Target preview page loaded`, {
+      url: targetPage.url(),
+    });
 
     await targetPage.bringToFront();
-    await targetPage.waitForFunction(() => document.hasFocus(), undefined, { timeout: 2_000 });
+    await targetPage.waitForFunction(() => document.hasFocus(), undefined, {
+      timeout: 2_000,
+    });
 
     // 2. 启动录制
     const popup = await openActionPopup(targetPage);
@@ -67,7 +80,9 @@ test.describe("Bug Lens Chrome Extension E2E EXP-001: ZIP Export and AI Handoff"
     // 3. 执行产生证据的动作
     // 点击产生 confirmed interaction + screenshot
     await targetPage.click('[data-testid="normal-btn"]');
-    await expect(targetPage.locator('[data-testid="action-status"]')).toHaveText("普通点击 1 完成");
+    await expect(
+      targetPage.locator('[data-testid="action-status"]')
+    ).toHaveText("普通点击 1 完成");
     await delay(400);
 
     // 产生 Console 证据，使用两个不同的 marker
@@ -78,13 +93,15 @@ test.describe("Bug Lens Chrome Extension E2E EXP-001: ZIP Export and AI Handoff"
 
     // 产生 Network 证据
     await targetPage.click('[data-testid="btn-net-success"]');
-    await expect(targetPage.locator('[data-testid="action-status"]')).toContainText("Success Net 完成");
+    await expect(
+      targetPage.locator('[data-testid="action-status"]')
+    ).toContainText("Success Net 完成");
 
     // 等待落盘
     await mediaProbe.waitForEvidenceCounts(session.id, {
       interactionCount: 1,
       consoleCount: 2,
-      networkCount: 1
+      networkCount: 1,
     });
     await mediaProbe.waitForMediaChunkCountGreaterThan(session.id, 0);
 
@@ -96,8 +113,9 @@ test.describe("Bug Lens Chrome Extension E2E EXP-001: ZIP Export and AI Handoff"
     await expect(stopBtn).toBeVisible();
 
     const previewPagePromise = context.waitForEvent("page", {
-      predicate: (page) => page.url().startsWith(`chrome-extension://${extensionId}/preview.html`),
-      timeout: 10_000
+      predicate: (page) =>
+        page.url().startsWith(`chrome-extension://${extensionId}/preview.html`),
+      timeout: 10_000,
     });
     await stopBtn.click();
     const previewPage = await previewPagePromise;
@@ -109,13 +127,19 @@ test.describe("Bug Lens Chrome Extension E2E EXP-001: ZIP Export and AI Handoff"
 
     // 5. 在 Preview 排除一条 Console
     await previewPage.locator('.zen-tab-btn[data-tab="console"]').click();
-    await previewPage.waitForSelector("#tab-pane-console .console-row", { timeout: 5_000 });
+    await previewPage.waitForSelector("#tab-pane-console .console-row", {
+      timeout: 5_000,
+    });
 
-    const consoleSearchInput = previewPage.locator("#tab-pane-console .panel-search-input");
+    const consoleSearchInput = previewPage.locator(
+      "#tab-pane-console .panel-search-input"
+    );
 
     // 找到待排除的 marker，点击删除按钮
     await consoleSearchInput.fill("[EXP-001 EXCLUDE MARKER]");
-    const excludeRow = previewPage.locator("#tab-pane-console .console-row").first();
+    const excludeRow = previewPage
+      .locator("#tab-pane-console .console-row")
+      .first();
     await expect(excludeRow).toBeVisible();
     await excludeRow.locator(".item-delete-btn").click();
 
@@ -125,7 +149,9 @@ test.describe("Bug Lens Chrome Extension E2E EXP-001: ZIP Export and AI Handoff"
     // 验证另一个 marker 存在
     await consoleSearchInput.fill("");
     await consoleSearchInput.fill("[EXP-001 KEEP MARKER]");
-    const keepRow = previewPage.locator("#tab-pane-console .console-row").first();
+    const keepRow = previewPage
+      .locator("#tab-pane-console .console-row")
+      .first();
     await expect(keepRow).toBeVisible();
 
     logE2e(`${scenarioId}: Preview exclusion done`);
@@ -134,7 +160,9 @@ test.describe("Bug Lens Chrome Extension E2E EXP-001: ZIP Export and AI Handoff"
     const exportBtn = previewPage.locator("#export");
     await exportBtn.click();
 
-    logE2e(`${scenarioId}: Waiting for native save dialog`, { isolatedDownloadDir });
+    logE2e(`${scenarioId}: Waiting for native save dialog`, {
+      isolatedDownloadDir,
+    });
     await nativeSaveDialogDriver.saveToDirectory(isolatedDownloadDir, 45_000);
 
     // 轮询 ExportArtifact 状态
@@ -184,7 +212,9 @@ test.describe("Bug Lens Chrome Extension E2E EXP-001: ZIP Export and AI Handoff"
     const mediaBuffer = unzipped["media/recording.webm"];
     expect(mediaBuffer!.byteLength).toBeGreaterThan(0);
 
-    const screenshotFiles = Object.keys(unzipped).filter(k => k.startsWith("screenshots/") && k.endsWith(".png"));
+    const screenshotFiles = Object.keys(unzipped).filter(
+      (k) => k.startsWith("screenshots/") && k.endsWith(".png")
+    );
     expect(screenshotFiles.length).toBeGreaterThan(0);
     for (const key of screenshotFiles) {
       expect(unzipped[key]!.byteLength).toBeGreaterThan(0);
@@ -213,15 +243,22 @@ test.describe("Bug Lens Chrome Extension E2E EXP-001: ZIP Export and AI Handoff"
     expect(promptStr).toContain("请替换"); // 占位符
 
     // 8. Manifest 完整性校验
-    const manifestContent = JSON.parse(strFromU8(unzipped["data/manifest.json"]!)) as ExportManifest;
-    const integrityResult = await verifyExportIntegrity(manifestContent, unzipped);
+    const manifestContent = JSON.parse(
+      strFromU8(unzipped["data/manifest.json"]!)
+    ) as ExportManifest;
+    const integrityResult = await verifyExportIntegrity(
+      manifestContent,
+      unzipped
+    );
     logE2e(`${scenarioId}: Manifest integrity verified`, integrityResult);
     expect(integrityResult.invalidFiles).toEqual([]);
     expect(integrityResult.missingFiles).toEqual([]);
     expect(integrityResult.valid).toBe(true);
 
     // 9. 解压到临时目录，避免路径穿越，并用 file:/// 验证离线报告
-    const extractDir = fs.mkdtempSync(path.join(os.tmpdir(), "playwright-chrome-extract-"));
+    const extractDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "playwright-chrome-extract-")
+    );
     for (const [key, data] of Object.entries(unzipped)) {
       if (path.isAbsolute(key) || key.includes("..")) {
         throw new Error(`ZIP path traversal detected: ${key}`);
@@ -244,10 +281,14 @@ test.describe("Bug Lens Chrome Extension E2E EXP-001: ZIP Export and AI Handoff"
     });
 
     await reportPage.goto(offlineReportUrl, { waitUntil: "domcontentloaded" });
-    await expect(reportPage.locator("#title")).toHaveText(session.target.initialTitle ?? "");
+    await expect(reportPage.locator("#title")).toHaveText(
+      session.target.initialTitle ?? ""
+    );
 
     // 验证 report 中的 network 请求只包含 file/data/blob
-    const externalRequests = interceptedUrls.filter(url => url.startsWith("http:") || url.startsWith("https:"));
+    const externalRequests = interceptedUrls.filter(
+      (url) => url.startsWith("http:") || url.startsWith("https:")
+    );
     if (externalRequests.length > 0) {
       logE2e("External requests found", externalRequests);
     }
@@ -271,7 +312,9 @@ test.describe("Bug Lens Chrome Extension E2E EXP-001: ZIP Export and AI Handoff"
     // 打开 AI 抽屉查看详情
     await previewPage.locator("#toggle-ai-drawer").click();
 
-    await expect(previewPage.locator("#ai-status")).toHaveText("下载完成", { timeout: 5_000 });
+    await expect(previewPage.locator("#ai-status")).toHaveText("下载完成", {
+      timeout: 5_000,
+    });
     await expect(previewPage.locator("#ai-path")).toHaveText(artifact.filename);
 
     const displayedPrompt = await previewPage.locator("#ai-prompt").innerText();
@@ -284,11 +327,17 @@ test.describe("Bug Lens Chrome Extension E2E EXP-001: ZIP Export and AI Handoff"
     // Assert success feedback
     // The PreviewAiHandoff notifies. Assuming it shows a toast or changes text.
     // Need to verify it's copied or toast appears.
-    const toast = previewPage.locator(".toast-message, .notification, [role='alert']").first();
-    await expect(toast).toContainText(/复制成功|已复制/, { timeout: 5_000 }).catch(async () => {
-      // maybe no toast element easily identifiable, we can just check if we can read clipboard (playwright needs permission) or just rely on the click not throwing
-      logE2e(`${scenarioId}: Could not strictly assert toast, assuming success`);
-    });
+    const toast = previewPage
+      .locator(".toast-message, .notification, [role='alert']")
+      .first();
+    await expect(toast)
+      .toContainText(/复制成功|已复制/, { timeout: 5_000 })
+      .catch(async () => {
+        // maybe no toast element easily identifiable, we can just check if we can read clipboard (playwright needs permission) or just rely on the click not throwing
+        logE2e(
+          `${scenarioId}: Could not strictly assert toast, assuming success`
+        );
+      });
 
     logE2e(`${scenarioId}: AI handoff UI verified`);
     logE2e(`${scenarioId}: Complete!`);

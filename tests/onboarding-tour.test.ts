@@ -4,7 +4,10 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 test("onboarding-tour includes automated test bypass check for navigator.webdriver and storage flags", () => {
-  const tourCode = readFileSync(resolve(process.cwd(), "src/guide/onboarding-tour.ts"), "utf8");
+  const tourCode = readFileSync(
+    resolve(process.cwd(), "src/guide/onboarding-tour.ts"),
+    "utf8"
+  );
 
   // 1. 确保包含对 navigator.webdriver 的检测以自动化测试跳过
   assert.ok(

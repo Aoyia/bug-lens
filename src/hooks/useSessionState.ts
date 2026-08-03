@@ -1,7 +1,12 @@
 import { useState, useRef, useCallback, useEffect } from "preact/hooks";
 import type { RecordingSession } from "../shared/protocol.ts";
 
-const ACTIVE_STATUSES: readonly string[] = ["PREPARING", "RECORDING", "DEGRADED", "STOPPING"];
+const ACTIVE_STATUSES: readonly string[] = [
+  "PREPARING",
+  "RECORDING",
+  "DEGRADED",
+  "STOPPING",
+];
 const PREVIEW_STATUSES: readonly string[] = ["PREVIEW_READY", "EXPORTED"];
 
 function formatDuration(ms: number): string {
@@ -27,24 +32,29 @@ export function useSessionState(options?: UseSessionStateOptions) {
   const optionsRef = useRef(options);
   optionsRef.current = options;
 
-  const [activeSession, setActiveSession] = useState<RecordingSession | undefined>();
+  const [activeSession, setActiveSession] = useState<
+    RecordingSession | undefined
+  >();
   const [timerText, setTimerText] = useState("");
   const timerRef = useRef<number | undefined>();
   const isMountedRef = useRef(true);
 
   const isActive = useCallback(
-    (session?: RecordingSession) => Boolean(session && ACTIVE_STATUSES.includes(session.status)),
+    (session?: RecordingSession) =>
+      Boolean(session && ACTIVE_STATUSES.includes(session.status)),
     []
   );
 
   const isPreviewReady = useCallback(
-    (session?: RecordingSession) => Boolean(session && PREVIEW_STATUSES.includes(session.status)),
+    (session?: RecordingSession) =>
+      Boolean(session && PREVIEW_STATUSES.includes(session.status)),
     []
   );
 
   const clearTimer = useCallback(() => {
     if (timerRef.current !== undefined) {
-      const clearIntervalFn = optionsRef.current?.clearInterval ?? window.clearInterval.bind(window);
+      const clearIntervalFn =
+        optionsRef.current?.clearInterval ?? window.clearInterval.bind(window);
       clearIntervalFn(timerRef.current);
       timerRef.current = undefined;
     }
@@ -52,7 +62,8 @@ export function useSessionState(options?: UseSessionStateOptions) {
 
   useEffect(() => {
     isMountedRef.current = true;
-    const setIntervalFn = optionsRef.current?.setInterval ?? window.setInterval.bind(window);
+    const setIntervalFn =
+      optionsRef.current?.setInterval ?? window.setInterval.bind(window);
 
     if (isActive(activeSession) && activeSession?.timeline.startedAtEpochMs) {
       clearTimer();
@@ -76,12 +87,13 @@ export function useSessionState(options?: UseSessionStateOptions) {
     };
   }, [activeSession, isActive, clearTimer]);
 
-  const updateSessionState = useCallback((session?: RecordingSession) => {
-    clearTimer();
-    setActiveSession(session);
-  }, [clearTimer]);
-
-
+  const updateSessionState = useCallback(
+    (session?: RecordingSession) => {
+      clearTimer();
+      setActiveSession(session);
+    },
+    [clearTimer]
+  );
 
   const active = isActive(activeSession);
   const previewReady = isPreviewReady(activeSession);
@@ -98,4 +110,3 @@ export function useSessionState(options?: UseSessionStateOptions) {
     isPreviewReady,
   };
 }
-

@@ -1,11 +1,21 @@
-import type { VueComponentNode, VueFrameworkSnapshot, VueStoreSnapshot } from "../../shared/protocol";
+import type {
+  VueComponentNode,
+  VueFrameworkSnapshot,
+  VueStoreSnapshot,
+} from "../../shared/protocol";
 
-const SENSITIVE_KEY_REGEX = /(password|token|secret|auth|creditcard|phone|mobile|idcard|jwt|bearer|private)/i;
+const SENSITIVE_KEY_REGEX =
+  /(password|token|secret|auth|creditcard|phone|mobile|idcard|jwt|bearer|private)/i;
 
 /**
  * 安全且包含敏感脱敏的序列化函数
  */
-function redactAndSanitize(obj: any, currentDepth = 0, maxDepth = 3, visited = new WeakSet()): any {
+function redactAndSanitize(
+  obj: any,
+  currentDepth = 0,
+  maxDepth = 3,
+  visited = new WeakSet()
+): any {
   if (obj === null || obj === undefined) {
     return undefined;
   }
@@ -29,7 +39,11 @@ function redactAndSanitize(obj: any, currentDepth = 0, maxDepth = 3, visited = n
   visited.add(obj);
 
   if (Array.isArray(obj)) {
-    return obj.slice(0, 10).map((item) => redactAndSanitize(item, currentDepth + 1, maxDepth, visited));
+    return obj
+      .slice(0, 10)
+      .map((item) =>
+        redactAndSanitize(item, currentDepth + 1, maxDepth, visited)
+      );
   }
 
   const result: Record<string, any> = {};
@@ -40,7 +54,12 @@ function redactAndSanitize(obj: any, currentDepth = 0, maxDepth = 3, visited = n
       result[key] = "[REDACTED:sensitive-store-key]";
     } else {
       try {
-        const val = redactAndSanitize(obj[key], currentDepth + 1, maxDepth, visited);
+        const val = redactAndSanitize(
+          obj[key],
+          currentDepth + 1,
+          maxDepth,
+          visited
+        );
         if (val !== undefined) {
           result[key] = val;
         }
@@ -56,30 +75,43 @@ function redactAndSanitize(obj: any, currentDepth = 0, maxDepth = 3, visited = n
 /**
  * 从 Vue 3 component 提取 VueComponentNode
  */
-function extractVue3Component(comp: any, isTarget = false): VueComponentNode | undefined {
+function extractVue3Component(
+  comp: any,
+  isTarget = false
+): VueComponentNode | undefined {
   if (!comp) return undefined;
-  const rawName = comp.type?.__name || comp.type?.name || comp.type?.options?.name;
-  const componentName = rawName && rawName !== "" ? rawName : "AnonymousComponent";
-  
+  const rawName =
+    comp.type?.__name || comp.type?.name || comp.type?.options?.name;
+  const componentName =
+    rawName && rawName !== "" ? rawName : "AnonymousComponent";
+
   const props = comp.props ? redactAndSanitize(comp.props) : undefined;
-  const state = comp.setupState ? redactAndSanitize(comp.setupState) : comp.data ? redactAndSanitize(comp.data) : undefined;
+  const state = comp.setupState
+    ? redactAndSanitize(comp.setupState)
+    : comp.data
+      ? redactAndSanitize(comp.data)
+      : undefined;
 
   return {
     version: 3,
     componentName,
     props: Object.keys(props || {}).length > 0 ? props : undefined,
     state: Object.keys(state || {}).length > 0 ? state : undefined,
-    isTarget
+    isTarget,
   };
 }
 
 /**
  * 从 Vue 2 vm 提取 VueComponentNode
  */
-function extractVue2Component(vm: any, isTarget = false): VueComponentNode | undefined {
+function extractVue2Component(
+  vm: any,
+  isTarget = false
+): VueComponentNode | undefined {
   if (!vm) return undefined;
   const rawName = vm.$options?.name || vm.$options?._componentTag;
-  const componentName = rawName && rawName !== "" ? rawName : "AnonymousComponent";
+  const componentName =
+    rawName && rawName !== "" ? rawName : "AnonymousComponent";
 
   const props = vm.$props ? redactAndSanitize(vm.$props) : undefined;
   const state = vm._data ? redactAndSanitize(vm._data) : undefined;
@@ -89,7 +121,7 @@ function extractVue2Component(vm: any, isTarget = false): VueComponentNode | und
     componentName,
     props: Object.keys(props || {}).length > 0 ? props : undefined,
     state: Object.keys(state || {}).length > 0 ? state : undefined,
-    isTarget
+    isTarget,
   };
 }
 
@@ -101,7 +133,9 @@ function extractStores(rootInstance: any): VueStoreSnapshot[] | undefined {
 
   try {
     // 1. 尝试提取 Pinia
-    const pinia = rootInstance?.appContext?.config?.globalProperties?.$pinia || (window as any).__pinia;
+    const pinia =
+      rootInstance?.appContext?.config?.globalProperties?.$pinia ||
+      (window as any).__pinia;
     if (pinia && pinia._s) {
       const storeMap = pinia._s;
       storeMap.forEach((store: any, storeId: string) => {
@@ -110,20 +144,23 @@ function extractStores(rootInstance: any): VueStoreSnapshot[] | undefined {
           stores.push({
             type: "pinia",
             storeId,
-            state: sanitizedState || {}
+            state: sanitizedState || {},
           });
         }
       });
     }
 
     // 2. 尝试提取 Vuex
-    const vuexStore = rootInstance?.appContext?.config?.globalProperties?.$store || rootInstance?.$store || (window as any).__vuex_store__;
+    const vuexStore =
+      rootInstance?.appContext?.config?.globalProperties?.$store ||
+      rootInstance?.$store ||
+      (window as any).__vuex_store__;
     if (vuexStore && vuexStore.state) {
       const sanitizedState = redactAndSanitize(vuexStore.state);
       stores.push({
         type: "vuex",
         storeId: "root",
-        state: sanitizedState || {}
+        state: sanitizedState || {},
       });
     }
   } catch (e) {
@@ -141,13 +178,22 @@ export function isVueProject(): boolean {
 
   const w = window as any;
   // 1. 全局变量/标志位检测
-  if (w.__VUE__ || w.Vue || (w.__VUE_DEVTOOLS_GLOBAL_HOOK__?.apps && w.__VUE_DEVTOOLS_GLOBAL_HOOK__.apps.length > 0)) {
+  if (
+    w.__VUE__ ||
+    w.Vue ||
+    (w.__VUE_DEVTOOLS_GLOBAL_HOOK__?.apps &&
+      w.__VUE_DEVTOOLS_GLOBAL_HOOK__.apps.length > 0)
+  ) {
     return true;
   }
 
   // 2. DOM 节点特征属性检测 (Vue 作用域属性如 data-v-* 或 Vue 3 app 挂载点)
   try {
-    if (document.querySelector("[data-v-app]") || document.querySelector("[data-v-]") || document.querySelector("#app[data-v-]")) {
+    if (
+      document.querySelector("[data-v-app]") ||
+      document.querySelector("[data-v-]") ||
+      document.querySelector("#app[data-v-]")
+    ) {
       return true;
     }
   } catch {
@@ -155,9 +201,18 @@ export function isVueProject(): boolean {
   }
 
   // 3. 核心挂载点实例检测 (#app, #__nuxt, body)
-  const candidates = [document.getElementById("app"), document.getElementById("__nuxt"), document.body];
+  const candidates = [
+    document.getElementById("app"),
+    document.getElementById("__nuxt"),
+    document.body,
+  ];
   for (const el of candidates) {
-    if (el && ((el as any).__vue__ || (el as any).__vueParentComponent || (el as any).__vnode)) {
+    if (
+      el &&
+      ((el as any).__vue__ ||
+        (el as any).__vueParentComponent ||
+        (el as any).__vnode)
+    ) {
       return true;
     }
   }
@@ -168,7 +223,9 @@ export function isVueProject(): boolean {
 /**
  * 尝试探索目标 DOM 元素的 Vue 组件树及状态
  */
-export function detectVue(targetElement: HTMLElement): VueFrameworkSnapshot | undefined {
+export function detectVue(
+  targetElement: HTMLElement
+): VueFrameworkSnapshot | undefined {
   if (!targetElement) return undefined;
 
   // 先判定当前页面是否是 Vue 项目，如果不是则不进行探针抓取
@@ -182,7 +239,8 @@ export function detectVue(targetElement: HTMLElement): VueFrameworkSnapshot | un
 
   // 1. 探索性向上冒泡寻找最近的 Vue 实例节点
   while (curr && curr !== document.body) {
-    const comp3 = (curr as any).__vueParentComponent || (curr as any).__vnode?.component;
+    const comp3 =
+      (curr as any).__vueParentComponent || (curr as any).__vnode?.component;
     if (comp3) {
       vue3Comp = comp3;
       break;
@@ -223,10 +281,17 @@ export function detectVue(targetElement: HTMLElement): VueFrameworkSnapshot | un
       let count = 0;
       for (let i = 0; i < childrenNodes.length && count < 5; i++) {
         const childEl = childrenNodes[i];
-        const childComp = (childEl as any).__vueParentComponent || (childEl as any).__vnode?.component;
+        const childComp =
+          (childEl as any).__vueParentComponent ||
+          (childEl as any).__vnode?.component;
         if (childComp && childComp !== vue3Comp) {
           const childNode = extractVue3Component(childComp);
-          if (childNode && !childrenComponents.some(c => c.componentName === childNode.componentName)) {
+          if (
+            childNode &&
+            !childrenComponents.some(
+              (c) => c.componentName === childNode.componentName
+            )
+          ) {
             childrenComponents.push(childNode);
             count++;
           }
@@ -244,7 +309,7 @@ export function detectVue(targetElement: HTMLElement): VueFrameworkSnapshot | un
       targetComponent,
       parentChain,
       childrenComponents,
-      stores
+      stores,
     };
   }
 
@@ -270,7 +335,12 @@ export function detectVue(targetElement: HTMLElement): VueFrameworkSnapshot | un
         const childVm = (childEl as any).__vue__;
         if (childVm && childVm !== vue2Vm) {
           const childNode = extractVue2Component(childVm);
-          if (childNode && !childrenComponents.some(c => c.componentName === childNode.componentName)) {
+          if (
+            childNode &&
+            !childrenComponents.some(
+              (c) => c.componentName === childNode.componentName
+            )
+          ) {
             childrenComponents.push(childNode);
             count++;
           }
@@ -288,7 +358,7 @@ export function detectVue(targetElement: HTMLElement): VueFrameworkSnapshot | un
       targetComponent,
       parentChain,
       childrenComponents,
-      stores
+      stores,
     };
   }
 

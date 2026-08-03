@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { escapeBashSingleQuote, generateCurlCommand } from "../src/domain/curl-generator.ts";
+import {
+  escapeBashSingleQuote,
+  generateCurlCommand,
+} from "../src/domain/curl-generator.ts";
 import type { NetworkEntry } from "../src/shared/protocol";
 
 test("escapeBashSingleQuote correctly escapes single quotes for bash", () => {
@@ -15,11 +18,14 @@ test("generateCurlCommand formats basic GET request without headers or body", ()
     sessionId: "test",
     createdAt: 1000,
     url: "https://api.example.com/v1/users?id=123&type=admin",
-    method: "GET"
+    method: "GET",
   };
 
   const curl = generateCurlCommand(entry);
-  assert.equal(curl, "curl 'https://api.example.com/v1/users?id=123&type=admin'");
+  assert.equal(
+    curl,
+    "curl 'https://api.example.com/v1/users?id=123&type=admin'"
+  );
 });
 
 test("generateCurlCommand formats POST request with headers, body, and pseudo-header filtering", () => {
@@ -33,10 +39,10 @@ test("generateCurlCommand formats POST request with headers, body, and pseudo-he
       ":authority": "api.example.com",
       ":method": "POST",
       "Content-Type": "application/json",
-      "Authorization": "Bearer token123",
-      "User-Agent": "Mozilla/5.0 ('Special' OS)"
+      Authorization: "Bearer token123",
+      "User-Agent": "Mozilla/5.0 ('Special' OS)",
     },
-    requestBody: '{"username":"admin\'s_user","password":"secret"}'
+    requestBody: '{"username":"admin\'s_user","password":"secret"}',
   };
 
   const curl = generateCurlCommand(entry);
@@ -45,7 +51,7 @@ test("generateCurlCommand formats POST request with headers, body, and pseudo-he
     "  -H 'Content-Type: application/json'",
     "  -H 'Authorization: Bearer token123'",
     "  -H 'User-Agent: Mozilla/5.0 ('\\''Special'\\'' OS)'",
-    "  --data-raw '{\"username\":\"admin'\\''s_user\",\"password\":\"secret\"}'"
+    '  --data-raw \'{"username":"admin\'\\\'\'s_user","password":"secret"}\'',
   ].join(" \\\n");
 
   assert.equal(curl, expected);
@@ -57,7 +63,7 @@ test("generateCurlCommand handles URL with single quotes and special characters"
     sessionId: "test",
     createdAt: 1000,
     url: "https://api.example.com/search?q=o'reilly",
-    method: "GET"
+    method: "GET",
   };
 
   const curl = generateCurlCommand(entry);

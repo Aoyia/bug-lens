@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { groupInteractions, isSameElement } from "../src/domain/interaction-grouping.ts";
+import {
+  groupInteractions,
+  isSameElement,
+} from "../src/domain/interaction-grouping.ts";
 import type { InteractionRecord } from "../src/shared/protocol.ts";
 
 function mockRecord(overrides: Partial<InteractionRecord>): InteractionRecord {
@@ -12,24 +15,92 @@ function mockRecord(overrides: Partial<InteractionRecord>): InteractionRecord {
     createdAt: Date.now(),
     page: { url: "https://www.google.com/webhp", title: "Google", frameId: 0 },
     input: { pointerType: "mouse", button: 0, isTrusted: true },
-    coordinates: { clientX: 100, clientY: 100, pageX: 100, pageY: 100, scrollX: 0, scrollY: 0, devicePixelRatio: 2, viewport: { width: 800, height: 600 } },
+    coordinates: {
+      clientX: 100,
+      clientY: 100,
+      pageX: 100,
+      pageY: 100,
+      scrollX: 0,
+      scrollY: 0,
+      devicePixelRatio: 2,
+      viewport: { width: 800, height: 600 },
+    },
     element: {
       tagName: "textarea",
       id: "APjFqb",
       classNames: ["gLFyf"],
       attributes: { name: "q" },
       boundingBox: { x: 10, y: 10, width: 200, height: 40 },
-      locators: [{ kind: "id", expression: "#APjFqb", matchCount: 1, stabilityScore: 0.9, reasons: ["ID"] }]
+      locators: [
+        {
+          kind: "id",
+          expression: "#APjFqb",
+          matchCount: 1,
+          stabilityScore: 0.9,
+          reasons: ["ID"],
+        },
+      ],
     },
     screenshot: { status: "pending" },
-    ...overrides
+    ...overrides,
   };
 }
 
 test("isSameElement 准确判断相同或不同元素", () => {
-  const elemA = mockRecord({ element: { tagName: "textarea", id: "APjFqb", classNames: [], attributes: {}, boundingBox: { x: 0, y: 0, width: 100, height: 20 }, locators: [{ kind: "id", expression: "#APjFqb", matchCount: 1, stabilityScore: 0.9, reasons: [] }] } }).element;
-  const elemB = mockRecord({ element: { tagName: "textarea", id: "APjFqb", classNames: [], attributes: {}, boundingBox: { x: 0, y: 0, width: 100, height: 20 }, locators: [{ kind: "id", expression: "#APjFqb", matchCount: 1, stabilityScore: 0.9, reasons: [] }] } }).element;
-  const elemC = mockRecord({ element: { tagName: "button", id: "btn-submit", classNames: [], attributes: {}, boundingBox: { x: 0, y: 0, width: 100, height: 20 }, locators: [{ kind: "id", expression: "#btn-submit", matchCount: 1, stabilityScore: 0.9, reasons: [] }] } }).element;
+  const elemA = mockRecord({
+    element: {
+      tagName: "textarea",
+      id: "APjFqb",
+      classNames: [],
+      attributes: {},
+      boundingBox: { x: 0, y: 0, width: 100, height: 20 },
+      locators: [
+        {
+          kind: "id",
+          expression: "#APjFqb",
+          matchCount: 1,
+          stabilityScore: 0.9,
+          reasons: [],
+        },
+      ],
+    },
+  }).element;
+  const elemB = mockRecord({
+    element: {
+      tagName: "textarea",
+      id: "APjFqb",
+      classNames: [],
+      attributes: {},
+      boundingBox: { x: 0, y: 0, width: 100, height: 20 },
+      locators: [
+        {
+          kind: "id",
+          expression: "#APjFqb",
+          matchCount: 1,
+          stabilityScore: 0.9,
+          reasons: [],
+        },
+      ],
+    },
+  }).element;
+  const elemC = mockRecord({
+    element: {
+      tagName: "button",
+      id: "btn-submit",
+      classNames: [],
+      attributes: {},
+      boundingBox: { x: 0, y: 0, width: 100, height: 20 },
+      locators: [
+        {
+          kind: "id",
+          expression: "#btn-submit",
+          matchCount: 1,
+          stabilityScore: 0.9,
+          reasons: [],
+        },
+      ],
+    },
+  }).element;
 
   assert.equal(isSameElement(elemA, elemB), true);
   assert.equal(isSameElement(elemA, elemC), false);
@@ -39,10 +110,30 @@ test("5 条搜索相关交互 (click, input, input, keydown Enter, change) 被�
   const baseTime = 1785650190000;
   const records: InteractionRecord[] = [
     mockRecord({ id: "rec-1", kind: "click", createdAt: baseTime + 60.068 }),
-    mockRecord({ id: "rec-2", kind: "input", createdAt: baseTime + 816, metadata: { inputType: "insertText", valueLength: 5 } }),
-    mockRecord({ id: "rec-3", kind: "input", createdAt: baseTime + 3047, metadata: { inputType: "insertText", valueLength: 11 } }),
-    mockRecord({ id: "rec-4", kind: "keydown", createdAt: baseTime + 6613, metadata: { key: "Enter", code: "Enter" } }),
-    mockRecord({ id: "rec-5", kind: "change", createdAt: baseTime + 7233, metadata: { valueLength: 11 } })
+    mockRecord({
+      id: "rec-2",
+      kind: "input",
+      createdAt: baseTime + 816,
+      metadata: { inputType: "insertText", valueLength: 5 },
+    }),
+    mockRecord({
+      id: "rec-3",
+      kind: "input",
+      createdAt: baseTime + 3047,
+      metadata: { inputType: "insertText", valueLength: 11 },
+    }),
+    mockRecord({
+      id: "rec-4",
+      kind: "keydown",
+      createdAt: baseTime + 6613,
+      metadata: { key: "Enter", code: "Enter" },
+    }),
+    mockRecord({
+      id: "rec-5",
+      kind: "change",
+      createdAt: baseTime + 7233,
+      metadata: { valueLength: 11 },
+    }),
   ];
 
   const cards = groupInteractions(records, 4000);
@@ -62,7 +153,12 @@ test("超出的时间窗口（如间隔大于 3 秒）自动打断开辟新卡�
     mockRecord({ id: "rec-1", kind: "click", createdAt: baseTime }),
     mockRecord({ id: "rec-2", kind: "input", createdAt: baseTime + 1000 }),
     // 间隔 5000ms > 3000ms 默认窗口
-    mockRecord({ id: "rec-3", kind: "keydown", createdAt: baseTime + 6000, metadata: { key: "Enter" } })
+    mockRecord({
+      id: "rec-3",
+      kind: "keydown",
+      createdAt: baseTime + 6000,
+      metadata: { key: "Enter" },
+    }),
   ];
 
   const cards = groupInteractions(records, 3000);
@@ -74,7 +170,11 @@ test("超出的时间窗口（如间隔大于 3 秒）自动打断开辟新卡�
 
 test("不同元素的交互不会被错误合并", () => {
   const baseTime = 100000;
-  const recordA = mockRecord({ id: "rec-1", kind: "click", createdAt: baseTime });
+  const recordA = mockRecord({
+    id: "rec-1",
+    kind: "click",
+    createdAt: baseTime,
+  });
   const recordB = mockRecord({
     id: "rec-2",
     kind: "click",
@@ -85,8 +185,16 @@ test("不同元素的交互不会被错误合并", () => {
       classNames: ["btn"],
       attributes: {},
       boundingBox: { x: 500, y: 10, width: 80, height: 30 },
-      locators: [{ kind: "id", expression: "#btn-search", matchCount: 1, stabilityScore: 0.9, reasons: [] }]
-    }
+      locators: [
+        {
+          kind: "id",
+          expression: "#btn-search",
+          matchCount: 1,
+          stabilityScore: 0.9,
+          reasons: [],
+        },
+      ],
+    },
   });
 
   const cards = groupInteractions([recordA, recordB]);

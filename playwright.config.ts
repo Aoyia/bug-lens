@@ -11,11 +11,11 @@ export default defineConfig({
   use: {
     headless: false,
     trace: "on-first-retry",
-    video: "on-first-retry"
+    video: "on-first-retry",
   },
   projects: [
     {
-      name: "chromium"
-    }
-  ]
+      name: "chromium",
+    },
+  ],
 });

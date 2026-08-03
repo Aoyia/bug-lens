@@ -1,15 +1,22 @@
 export function escapeHtml(value: unknown): string {
-  return String(value ?? "").replace(/[&<>"']/g, (char) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;"
-  })[char]!);
+  return String(value ?? "").replace(
+    /[&<>"']/g,
+    (char) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      })[char]!
+  );
 }
 
 function highlightJson(json: string): string {
-  const safeJson = json.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const safeJson = json
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
   return safeJson.replace(
     /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?|[{}\[\]:,])/g,
     (match) => {
@@ -19,7 +26,8 @@ function highlightJson(json: string): string {
         }
         return `<span class="js">${match}</span>`;
       }
-      if (match === "true" || match === "false") return `<span class="jb">${match}</span>`;
+      if (match === "true" || match === "false")
+        return `<span class="jb">${match}</span>`;
       if (match === "null") return `<span class="jnull">${match}</span>`;
       if (/^-?\d/.test(match)) return `<span class="jn">${match}</span>`;
       if (/[{}[\]:,]/.test(match)) return `<span class="jp">${match}</span>`;
@@ -28,7 +36,10 @@ function highlightJson(json: string): string {
   );
 }
 
-export function renderCodeBlockHtml(rawText: string, isJsonCandidate = false): string {
+export function renderCodeBlockHtml(
+  rawText: string,
+  isJsonCandidate = false
+): string {
   let text = rawText;
   let isFormattedJson = false;
 

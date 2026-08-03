@@ -1,6 +1,12 @@
 import { strToU8 } from "fflate";
 
-import type { ConsoleEntry, InteractionRecord, IssueScene, NetworkEntry, RecordingSession } from "../shared/protocol";
+import type {
+  ConsoleEntry,
+  InteractionRecord,
+  IssueScene,
+  NetworkEntry,
+  RecordingSession,
+} from "../shared/protocol";
 import { getLocale, isEn } from "../shared/i18n.ts";
 import zhCnMessages from "../_locales/zh_CN/messages.json" with { type: "json" };
 import enMessages from "../_locales/en/messages.json" with { type: "json" };
@@ -11,9 +17,23 @@ export type EvidencePackageSnapshot = {
   consoleEntries: ConsoleEntry[];
   networkEntries: NetworkEntry[];
   issueScenes?: IssueScene[];
-  issueAssets?: Array<{ sceneId: string; kind: "issue-original" | "issue-annotated"; bytes: Uint8Array; mimeType: "image/png" }>;
-  interactionAssets?: Array<{ interactionId: string; bytes: Uint8Array; mimeType: "image/png" }>;
-  excluded: { interaction: number; console: number; network: number; issueScene?: number };
+  issueAssets?: Array<{
+    sceneId: string;
+    kind: "issue-original" | "issue-annotated";
+    bytes: Uint8Array;
+    mimeType: "image/png";
+  }>;
+  interactionAssets?: Array<{
+    interactionId: string;
+    bytes: Uint8Array;
+    mimeType: "image/png";
+  }>;
+  excluded: {
+    interaction: number;
+    console: number;
+    network: number;
+    issueScene?: number;
+  };
   hasMedia: boolean;
 };
 
@@ -26,12 +46,20 @@ export type StaticReportAssets = {
   icon: Uint8Array;
 };
 
-const oneLine = (value: unknown) => String(value ?? "").replace(/[\r\n]+/g, " ").trim();
+const oneLine = (value: unknown) =>
+  String(value ?? "")
+    .replace(/[\r\n]+/g, " ")
+    .trim();
 
-export function buildAiPrompt(snapshot: EvidencePackageSnapshot, zipPath?: string): string {
+export function buildAiPrompt(
+  snapshot: EvidencePackageSnapshot,
+  zipPath?: string
+): string {
   const issueScenes = snapshot.issueScenes ?? [];
   if (isEn()) {
-    const path = zipPath ? `File Path:\n${zipPath}` : "File Path:\n{Please replace this with the absolute path to the exported ZIP}";
+    const path = zipPath
+      ? `File Path:\n${zipPath}`
+      : "File Path:\n{Please replace this with the absolute path to the exported ZIP}";
     return `Please analyze the following local Bug Lens evidence package:
 
 ${path}
@@ -58,7 +86,9 @@ Analysis Requirements:
 10. If you cannot access the local path, explicitly ask me to upload the ZIP instead of guessing file contents.`;
   }
 
-  const path = zipPath ? `文件路径：\n${zipPath}` : "文件路径：\n{请将这里替换为导出的 ZIP 绝对路径}";
+  const path = zipPath
+    ? `文件路径：\n${zipPath}`
+    : "文件路径：\n{请将这里替换为导出的 ZIP 绝对路径}";
   return `请分析以下本地 Bug Lens 证据包：
 
 ${path}
@@ -88,14 +118,20 @@ ${path}
 function buildPackageReadme(snapshot: EvidencePackageSnapshot): string {
   const issueScenes = snapshot.issueScenes ?? [];
   const issues = snapshot.session.quality.issues;
-  const { session, interactions, consoleEntries, networkEntries, excluded } = snapshot;
+  const { session, interactions, consoleEntries, networkEntries, excluded } =
+    snapshot;
 
   if (isEn()) {
     const mediaDescription = snapshot.hasMedia
       ? "- `media/recording.webm`: Target tab recording. Time zero corresponds to session `startedAtEpochMs`."
       : "- No video recording in this package. Please check quality summary for media absence reasons.";
     const issueLines = issues.length
-      ? issues.map((item) => `- \`${oneLine(item.code)}\`: ${oneLine(item.message)} (Source: ${oneLine(item.source)})`).join("\n")
+      ? issues
+          .map(
+            (item) =>
+              `- \`${oneLine(item.code)}\`: ${oneLine(item.message)} (Source: ${oneLine(item.source)})`
+          )
+          .join("\n")
       : "- No quality issues recorded.";
 
     return `# Bug Lens Evidence Package
@@ -165,7 +201,12 @@ ${issueLines}
     ? "- `media/recording.webm`：目标标签页录像，时间零点对应会话 `startedAtEpochMs`。"
     : "- 本包没有录像文件；请结合质量摘要判断媒体缺失原因。";
   const issueLines = issues.length
-    ? issues.map((item) => `- \`${oneLine(item.code)}\`：${oneLine(item.message)}（来源：${oneLine(item.source)}）`).join("\n")
+    ? issues
+        .map(
+          (item) =>
+            `- \`${oneLine(item.code)}\`：${oneLine(item.message)}（来源：${oneLine(item.source)}）`
+        )
+        .join("\n")
     : "- 未记录质量问题。";
 
   return `# Bug Lens 证据包
@@ -234,56 +275,84 @@ ${issueLines}
 `;
 }
 
-function buildSessionPayloadWithBodySplitting(snapshot: EvidencePackageSnapshot) {
+function buildSessionPayloadWithBodySplitting(
+  snapshot: EvidencePackageSnapshot
+) {
   const networkBodyFiles: EvidencePackageFile[] = [];
-  const networkEntries: NetworkEntry[] = snapshot.networkEntries.map((entry) => {
-    if (entry.response?.body && entry.response.body.length > 4096) {
-      const fileName = `network/body-${entry.id}.txt`;
-      networkBodyFiles.push({
-        name: fileName,
-        data: strToU8(entry.response.body)
-      });
-      return {
-        ...entry,
-        response: {
-          ...entry.response,
-          bodyPath: fileName,
-          body: undefined
-        }
-      };
+  const networkEntries: NetworkEntry[] = snapshot.networkEntries.map(
+    (entry) => {
+      if (entry.response?.body && entry.response.body.length > 4096) {
+        const fileName = `network/body-${entry.id}.txt`;
+        networkBodyFiles.push({
+          name: fileName,
+          data: strToU8(entry.response.body),
+        });
+        return {
+          ...entry,
+          response: {
+            ...entry.response,
+            bodyPath: fileName,
+            body: undefined,
+          },
+        };
+      }
+      return entry;
     }
-    return entry;
-  });
+  );
 
   const issueScenes = (snapshot.issueScenes ?? []).map((scene) => ({
     scene,
-    originalSource: (snapshot.issueAssets ?? []).some((asset) => asset.sceneId === scene.id && asset.kind === "issue-original") ? `issues/${scene.id}/screenshot-original.png` : undefined,
-    annotatedSource: (snapshot.issueAssets ?? []).some((asset) => asset.sceneId === scene.id && asset.kind === "issue-annotated") ? `issues/${scene.id}/screenshot-annotated.png` : undefined
+    originalSource: (snapshot.issueAssets ?? []).some(
+      (asset) => asset.sceneId === scene.id && asset.kind === "issue-original"
+    )
+      ? `issues/${scene.id}/screenshot-original.png`
+      : undefined,
+    annotatedSource: (snapshot.issueAssets ?? []).some(
+      (asset) => asset.sceneId === scene.id && asset.kind === "issue-annotated"
+    )
+      ? `issues/${scene.id}/screenshot-annotated.png`
+      : undefined,
   }));
   const interactions = snapshot.interactions.map((interaction, index) => {
-    const hasBinaryAsset = (snapshot.interactionAssets ?? []).some((asset) => asset.interactionId === interaction.id);
+    const hasBinaryAsset = (snapshot.interactionAssets ?? []).some(
+      (asset) => asset.interactionId === interaction.id
+    );
     const hasDataUrl = Boolean(interaction.screenshot.dataUrl);
-    const dataUrl = (hasBinaryAsset || hasDataUrl) && interaction.screenshot.status === "captured"
-      ? `screenshots/step-${index + 1}.png`
-      : interaction.screenshot.dataUrl;
+    const dataUrl =
+      (hasBinaryAsset || hasDataUrl) &&
+      interaction.screenshot.status === "captured"
+        ? `screenshots/step-${index + 1}.png`
+        : interaction.screenshot.dataUrl;
     return {
       ...interaction,
       screenshot: {
         ...interaction.screenshot,
-        dataUrl
-      }
+        dataUrl,
+      },
     };
   });
 
   return {
-    payload: { protocolVersion: 3 as const, session: snapshot.session, interactions, consoleEntries: snapshot.consoleEntries, networkEntries, issueScenes, hasMedia: snapshot.hasMedia },
-    networkBodyFiles
+    payload: {
+      protocolVersion: 3 as const,
+      session: snapshot.session,
+      interactions,
+      consoleEntries: snapshot.consoleEntries,
+      networkEntries,
+      issueScenes,
+      hasMedia: snapshot.hasMedia,
+    },
+    networkBodyFiles,
   };
 }
 
-export function buildEvidencePackage(snapshot: EvidencePackageSnapshot, assets: StaticReportAssets): EvidencePackageFile[] {
+export function buildEvidencePackage(
+  snapshot: EvidencePackageSnapshot,
+  assets: StaticReportAssets
+): EvidencePackageFile[] {
   const currentLocale = getLocale();
-  const { payload, networkBodyFiles } = buildSessionPayloadWithBodySplitting(snapshot);
+  const { payload, networkBodyFiles } =
+    buildSessionPayloadWithBodySplitting(snapshot);
   const safeInlineJson = JSON.stringify(payload)
     .replace(/</g, "\\u003c")
     .replace(/>/g, "\\u003e")
@@ -292,9 +361,19 @@ export function buildEvidencePackage(snapshot: EvidencePackageSnapshot, assets: 
     .replace(/\u2029/g, "\\u2029");
 
   const inlineScriptTag = `<script id="__BUG_LENS_DATA__" type="application/json">${safeInlineJson}</script>`;
-  let htmlContent = assets.html.replace('<html lang="zh-CN">', `<html lang="${currentLocale}">`);
-  if (htmlContent.includes('<script id="__BUG_LENS_DATA__" type="application/json"></script>')) {
-    htmlContent = htmlContent.replace('<script id="__BUG_LENS_DATA__" type="application/json"></script>', inlineScriptTag);
+  let htmlContent = assets.html.replace(
+    '<html lang="zh-CN">',
+    `<html lang="${currentLocale}">`
+  );
+  if (
+    htmlContent.includes(
+      '<script id="__BUG_LENS_DATA__" type="application/json"></script>'
+    )
+  ) {
+    htmlContent = htmlContent.replace(
+      '<script id="__BUG_LENS_DATA__" type="application/json"></script>',
+      inlineScriptTag
+    );
   } else if (htmlContent.includes("</body>")) {
     htmlContent = htmlContent.replace("</body>", `${inlineScriptTag}\n</body>`);
   } else {
@@ -308,19 +387,35 @@ export function buildEvidencePackage(snapshot: EvidencePackageSnapshot, assets: 
     { name: "assets/report.js", data: strToU8(assets.script) },
     { name: "assets/report.css", data: strToU8(assets.styles) },
     { name: "assets/icon_idle.png", data: assets.icon },
-    { name: "data/session.json", data: strToU8(JSON.stringify(payload, null, 2)) },
-    ...networkBodyFiles
+    {
+      name: "data/session.json",
+      data: strToU8(JSON.stringify(payload, null, 2)),
+    },
+    ...networkBodyFiles,
   ];
-  for (const asset of snapshot.issueAssets ?? []) files.push({ name: `issues/${asset.sceneId}/${asset.kind === "issue-original" ? "screenshot-original" : "screenshot-annotated"}.png`, data: asset.bytes });
+  for (const asset of snapshot.issueAssets ?? [])
+    files.push({
+      name: `issues/${asset.sceneId}/${asset.kind === "issue-original" ? "screenshot-original" : "screenshot-annotated"}.png`,
+      data: asset.bytes,
+    });
   snapshot.interactions.forEach((interaction, index) => {
-    const asset = (snapshot.interactionAssets ?? []).find((a) => a.interactionId === interaction.id);
+    const asset = (snapshot.interactionAssets ?? []).find(
+      (a) => a.interactionId === interaction.id
+    );
     if (asset) {
-      files.push({ name: `screenshots/step-${index + 1}.png`, data: asset.bytes });
-    } else if (interaction.screenshot.dataUrl && interaction.screenshot.dataUrl.startsWith("data:image/")) {
+      files.push({
+        name: `screenshots/step-${index + 1}.png`,
+        data: asset.bytes,
+      });
+    } else if (
+      interaction.screenshot.dataUrl &&
+      interaction.screenshot.dataUrl.startsWith("data:image/")
+    ) {
       const base64 = interaction.screenshot.dataUrl.split(",")[1] ?? "";
       const binary = atob(base64);
       const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+      for (let i = 0; i < binary.length; i += 1)
+        bytes[i] = binary.charCodeAt(i);
       files.push({ name: `screenshots/step-${index + 1}.png`, data: bytes });
     }
   });

@@ -26,7 +26,6 @@ export function useFilteredList<T>(
     return list.filter((item) => filterFn(item, q));
   }, [list, searchQuery, filterFn]);
 
-
   const countText = useMemo(() => {
     return searchQuery.trim()
       ? `匹配 ${filtered.length} / ${list.length} 条`

@@ -2,7 +2,9 @@ import { test, expect } from "./fixtures/extension.ts";
 
 function logE2e(message: string, details?: unknown): void {
   const suffix = details === undefined ? "" : ` ${JSON.stringify(details)}`;
-  console.log(`[Bug Lens E2E Resilience][${new Date().toISOString()}] ${message}${suffix}`);
+  console.log(
+    `[Bug Lens E2E Resilience][${new Date().toISOString()}] ${message}${suffix}`
+  );
 }
 
 test.describe("Bug Lens 0.4.x 录制中断防护与场景恢复 E2E 测试", () => {
@@ -12,13 +14,15 @@ test.describe("Bug Lens 0.4.x 录制中断防护与场景恢复 E2E 测试", () 
     waitForPopupClosed,
     activeTabId,
     mediaProbe,
-    serverUrl
+    serverUrl,
   }) => {
     let targetPage = context.pages()[0];
     if (!targetPage) targetPage = await context.newPage();
     await targetPage.goto(serverUrl);
     await targetPage.bringToFront();
-    await targetPage.waitForFunction(() => document.hasFocus(), undefined, { timeout: 2_000 });
+    await targetPage.waitForFunction(() => document.hasFocus(), undefined, {
+      timeout: 2_000,
+    });
 
     const targetTabId = await activeTabId();
     expect(targetTabId).toBeTruthy();
@@ -37,22 +41,34 @@ test.describe("Bug Lens 0.4.x 录制中断防护与场景恢复 E2E 测试", () 
     logE2e("录制启动成功", { sessionId: initialSessionId });
 
     // 等待产生第一个分片
-    await mediaProbe.waitForMediaChunkCountGreaterThan(initialSessionId, 0, 5_000);
+    await mediaProbe.waitForMediaChunkCountGreaterThan(
+      initialSessionId,
+      0,
+      5_000
+    );
 
     // 连续刷新 5 次（在 E2E 环境中 5-10 次验证完全证明 Session 保持逻辑与性能）
     for (let i = 1; i <= 5; i++) {
       logE2e(`执行第 ${i} 次页面刷新...`);
       const chunkBefore = await mediaProbe.mediaChunkCount(initialSessionId);
       await targetPage.reload({ waitUntil: "domcontentloaded" });
-      await targetPage.waitForSelector("#__wbr_recording_widget__", { timeout: 10_000 });
-      await expect(targetPage.locator("#__wbr_recording_widget__")).toBeVisible();
+      await targetPage.waitForSelector("#__wbr_recording_widget__", {
+        timeout: 10_000,
+      });
+      await expect(
+        targetPage.locator("#__wbr_recording_widget__")
+      ).toBeVisible();
 
       // 验证 Session ID 依然完全相同
       const activeSession = await mediaProbe.activeSession();
       expect(activeSession?.id).toBe(initialSessionId);
 
       // 验证媒体分片依然在持续增加
-      const chunkAfter = await mediaProbe.waitForMediaChunkCountGreaterThan(initialSessionId, chunkBefore, 5_000);
+      const chunkAfter = await mediaProbe.waitForMediaChunkCountGreaterThan(
+        initialSessionId,
+        chunkBefore,
+        5_000
+      );
       expect(chunkAfter).toBeGreaterThan(chunkBefore);
     }
 
@@ -68,7 +84,7 @@ test.describe("Bug Lens 0.4.x 录制中断防护与场景恢复 E2E 测试", () 
     waitForPopupClosed,
     activeTabId,
     mediaProbe,
-    serverUrl
+    serverUrl,
   }) => {
     let targetPage = context.pages()[0];
     if (!targetPage) targetPage = await context.newPage();
@@ -87,8 +103,12 @@ test.describe("Bug Lens 0.4.x 录制中断防护与场景恢复 E2E 测试", () 
     await mediaProbe.waitForSession(targetTabId!);
 
     // 验证 Widget 已挂载，且显示 REC 状态
-    await targetPage.waitForSelector("#__wbr_recording_widget__", { timeout: 10_000 });
-    const recTag = targetPage.locator("#__wbr_recording_widget__ [data-wbr-rec-tag]");
+    await targetPage.waitForSelector("#__wbr_recording_widget__", {
+      timeout: 10_000,
+    });
+    const recTag = targetPage.locator(
+      "#__wbr_recording_widget__ [data-wbr-rec-tag]"
+    );
     await expect(recTag).toHaveText("REC");
 
     logE2e("Widget 健康状态表现正常", { tag: await recTag.textContent() });

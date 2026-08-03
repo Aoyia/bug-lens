@@ -9,7 +9,8 @@ import "../../shared/components/truncated-text";
 
 applyI18n();
 
-const $ = <T extends HTMLElement>(selector: string) => document.querySelector<T>(selector)!;
+const $ = <T extends HTMLElement>(selector: string) =>
+  document.querySelector<T>(selector)!;
 const params = new URLSearchParams(location.search);
 const sessionId = params.get("sessionId") || undefined;
 const autoExport = params.get("autoExport") === "1";
@@ -21,7 +22,7 @@ const reportView = new EvidenceReportView(document, {
   excludeInteraction: (id) => runtime.excludeInteraction(id),
   excludeIssueScene: (id) => runtime.excludeIssueScene(id),
   excludeDiagnostic: (kind, id) => runtime.excludeDiagnostic(kind, id),
-  restore: (kind) => runtime.restore(kind)
+  restore: (kind) => runtime.restore(kind),
 });
 
 let exportController!: PreviewExportController;
@@ -30,9 +31,11 @@ const aiHandoff = new PreviewAiHandoff({
   getArtifact: () => exportController?.currentArtifact,
   getPrompt: (zipPath) => {
     const snapshot = runtime.getPackageSnapshot();
-    return snapshot ? buildAiPrompt(snapshot, zipPath) : "请先等待证据预览加载完成。";
+    return snapshot
+      ? buildAiPrompt(snapshot, zipPath)
+      : "请先等待证据预览加载完成。";
   },
-  notify: (message) => reportView.notify(message)
+  notify: (message) => reportView.notify(message),
 });
 
 exportController = new PreviewExportController({
@@ -43,7 +46,7 @@ exportController = new PreviewExportController({
   getMediaChunkCount: () => runtime.mediaChunks,
   notify: (message) => reportView.notify(message),
   onArtifactChanged: () => aiHandoff.render(),
-  onExportComplete: () => aiHandoff.autoCopyPrompt()
+  onExportComplete: () => aiHandoff.autoCopyPrompt(),
 });
 
 async function loadMediaPreview(): Promise<void> {
@@ -54,11 +57,16 @@ async function loadMediaPreview(): Promise<void> {
     video.src = result.source;
     video.hidden = false;
     empty.hidden = true;
-    video.addEventListener("error", () => {
-      video.hidden = true;
-      empty.hidden = false;
-      empty.textContent = "录像文件无法解码。若它来自修复前的录制，请重新录制一小段。";
-    }, { once: true });
+    video.addEventListener(
+      "error",
+      () => {
+        video.hidden = true;
+        empty.hidden = false;
+        empty.textContent =
+          "录像文件无法解码。若它来自修复前的录制，请重新录制一小段。";
+      },
+      { once: true }
+    );
     bindSingleSeekbarPlayer();
     return;
   }
@@ -82,12 +90,15 @@ async function load(): Promise<void> {
   }
   await exportController.load();
   if (runtime.mediaChunks) {
-    $("#video-empty").textContent = `正在加载录像（${runtime.mediaChunks} 个分片）…`;
+    $("#video-empty").textContent =
+      `正在加载录像（${runtime.mediaChunks} 个分片）…`;
     await loadMediaPreview();
   } else {
     await loadMediaPreview();
   }
-  window.addEventListener("beforeunload", () => runtime.dispose(), { once: true });
+  window.addEventListener("beforeunload", () => runtime.dispose(), {
+    once: true,
+  });
   aiHandoff.render();
   reportView.render();
   if (autoExport) {
@@ -131,7 +142,10 @@ function bindSingleSeekbarPlayer(): void {
     const savedState = localStorage.getItem("bug_lens_skip_annotation");
     if (savedState !== null) checkbox.checked = savedState === "true";
     checkbox.addEventListener("change", () => {
-      localStorage.setItem("bug_lens_skip_annotation", String(checkbox.checked));
+      localStorage.setItem(
+        "bug_lens_skip_annotation",
+        String(checkbox.checked)
+      );
     });
   }
 
@@ -167,7 +181,13 @@ function bindSingleSeekbarPlayer(): void {
   let segmentsRendered = false;
 
   const renderYellowSegments = () => {
-    if (segmentsRendered || !video.duration || !isFinite(video.duration) || !seekbarTrack) return;
+    if (
+      segmentsRendered ||
+      !video.duration ||
+      !isFinite(video.duration) ||
+      !seekbarTrack
+    )
+      return;
     const snapshot = runtime.getReportSnapshot();
     if (!snapshot) return;
     const startedAt = snapshot.session.timeline.startedAtEpochMs;
@@ -176,12 +196,15 @@ function bindSingleSeekbarPlayer(): void {
     const durationSec = video.duration;
     const scenes = snapshot.issueScenes?.included ?? [];
 
-    seekbarTrack.querySelectorAll(".seekbar-yellow-segment").forEach((el) => el.remove());
+    seekbarTrack
+      .querySelectorAll(".seekbar-yellow-segment")
+      .forEach((el) => el.remove());
 
     for (let index = 0; index < scenes.length; index += 1) {
       const item = scenes[index];
       const scene = "scene" in item ? item.scene : item;
-      const startMs = scene.selectionStartedAtEpochMs ?? scene.observedAtEpochMs;
+      const startMs =
+        scene.selectionStartedAtEpochMs ?? scene.observedAtEpochMs;
       const endMs = scene.committedAtEpochMs;
       if (!startMs || !endMs || endMs <= startMs) continue;
 
@@ -189,7 +212,10 @@ function bindSingleSeekbarPlayer(): void {
       const endSec = Math.min(durationSec, (endMs - startedAt) / 1000);
       if (endSec > startSec) {
         const leftPercent = (startSec / durationSec) * 100;
-        const widthPercent = Math.max(0.5, ((endSec - startSec) / durationSec) * 100);
+        const widthPercent = Math.max(
+          0.5,
+          ((endSec - startSec) / durationSec) * 100
+        );
 
         const segment = document.createElement("div");
         segment.className = "seekbar-yellow-segment";
@@ -215,7 +241,8 @@ function bindSingleSeekbarPlayer(): void {
     const scenes = snapshot.issueScenes?.included ?? [];
     for (const item of scenes) {
       const scene = "scene" in item ? item.scene : item;
-      const startMs = scene.selectionStartedAtEpochMs ?? scene.observedAtEpochMs;
+      const startMs =
+        scene.selectionStartedAtEpochMs ?? scene.observedAtEpochMs;
       const endMs = scene.committedAtEpochMs;
       if (!startMs || !endMs || endMs <= startMs) continue;
 
@@ -249,7 +276,13 @@ function bindSingleSeekbarPlayer(): void {
   let wasPausedBeforeDrag = true;
 
   const renderLoop = () => {
-    if (isDragging || video.paused || video.seeking || !video.duration || !isFinite(video.duration)) {
+    if (
+      isDragging ||
+      video.paused ||
+      video.seeking ||
+      !video.duration ||
+      !isFinite(video.duration)
+    ) {
       animFrameId = undefined;
       return;
     }
@@ -258,11 +291,16 @@ function bindSingleSeekbarPlayer(): void {
 
     const duration = video.duration;
     const now = performance.now();
-    const elapsedSec = ((now - lastWallTime) / 1000) * (video.playbackRate || 1);
-    const estimatedTime = Math.min(duration, Math.max(0, lastVideoTime + elapsedSec));
+    const elapsedSec =
+      ((now - lastWallTime) / 1000) * (video.playbackRate || 1);
+    const estimatedTime = Math.min(
+      duration,
+      Math.max(0, lastVideoTime + elapsedSec)
+    );
     const targetPercent = (estimatedTime / duration) * 100;
 
-    renderedPercent = renderedPercent + 0.25 * (targetPercent - renderedPercent);
+    renderedPercent =
+      renderedPercent + 0.25 * (targetPercent - renderedPercent);
 
     applyRenderUI(estimatedTime, duration, renderedPercent);
     checkAutoSkip(estimatedTime);
@@ -291,8 +329,15 @@ function bindSingleSeekbarPlayer(): void {
 
   video.addEventListener("play", updatePlayState);
   video.addEventListener("pause", updatePlayState);
-  video.addEventListener("seeking", () => { syncTimeAnchor(); if (!isDragging) stopRenderLoop(); });
-  video.addEventListener("seeked", () => { syncTimeAnchor(); if (!video.paused && !isDragging) startRenderLoop(); else stopRenderLoop(); });
+  video.addEventListener("seeking", () => {
+    syncTimeAnchor();
+    if (!isDragging) stopRenderLoop();
+  });
+  video.addEventListener("seeked", () => {
+    syncTimeAnchor();
+    if (!video.paused && !isDragging) startRenderLoop();
+    else stopRenderLoop();
+  });
   video.addEventListener("timeupdate", () => {
     syncTimeAnchor();
     if (video.paused && !isDragging) {
@@ -303,7 +348,8 @@ function bindSingleSeekbarPlayer(): void {
   updatePlayState();
 
   const updateDragSeek = (e: MouseEvent) => {
-    if (!video.duration || !isFinite(video.duration) || !seekbarContainer) return;
+    if (!video.duration || !isFinite(video.duration) || !seekbarContainer)
+      return;
     const rect = seekbarContainer.getBoundingClientRect();
     const clickX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
     const ratio = rect.width > 0 ? clickX / rect.width : 0;
@@ -350,7 +396,9 @@ function bindSingleSeekbarPlayer(): void {
   }
 
   // 视频播放器键盘快捷键控制与 HUD 提示系统
-  const videoContainer = video.closest(".zen-video-container") as HTMLElement | null;
+  const videoContainer = video.closest(
+    ".zen-video-container"
+  ) as HTMLElement | null;
   if (videoContainer && !videoContainer.hasAttribute("tabindex")) {
     videoContainer.setAttribute("tabindex", "0");
   }
@@ -401,16 +449,20 @@ function bindSingleSeekbarPlayer(): void {
   window.addEventListener("keydown", (e: KeyboardEvent) => {
     const active = document.activeElement as HTMLElement | null;
     // 屏蔽在输入框、文本域或富文本编辑区打字时的快捷键
-    if (active && (
-      active.tagName === "INPUT" ||
-      active.tagName === "TEXTAREA" ||
-      active.tagName === "SELECT" ||
-      active.isContentEditable
-    )) {
+    if (
+      active &&
+      (active.tagName === "INPUT" ||
+        active.tagName === "TEXTAREA" ||
+        active.tagName === "SELECT" ||
+        active.isContentEditable)
+    ) {
       return;
     }
 
-    const isVideoFocused = !!(videoContainer && (videoContainer === active || videoContainer.contains(active)));
+    const isVideoFocused = !!(
+      videoContainer &&
+      (videoContainer === active || videoContainer.contains(active))
+    );
     if (!isVideoFocused) return;
 
     const code = e.code;
@@ -421,7 +473,10 @@ function bindSingleSeekbarPlayer(): void {
       e.preventDefault();
       const delta = e.shiftKey ? 1 : 5;
       const step = code === "ArrowLeft" ? -delta : delta;
-      const target = Math.max(0, Math.min(video.duration || 0, (video.currentTime || 0) + step));
+      const target = Math.max(
+        0,
+        Math.min(video.duration || 0, (video.currentTime || 0) + step)
+      );
       video.currentTime = target;
       syncTimeAnchor();
       showHud(step > 0 ? `» +${delta}s` : `« -${delta}s`);

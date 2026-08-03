@@ -1,4 +1,8 @@
-import type { CaptureIssue, QualitySummary, RecordingSession } from "../shared/protocol";
+import type {
+  CaptureIssue,
+  QualitySummary,
+  RecordingSession,
+} from "../shared/protocol";
 
 type QualityCounters = Pick<
   QualitySummary,
@@ -27,24 +31,33 @@ const ACTIVE_STATUSES = new Set<RecordingSession["status"]>([
   "PREPARING",
   "RECORDING",
   "DEGRADED",
-  "STOPPING"
+  "STOPPING",
 ]);
 
-function appendIssue(quality: QualitySummary, nextIssue: CaptureIssue): QualitySummary {
-  const duplicate = quality.issues.some((item) => item.code === nextIssue.code && item.message === nextIssue.message);
+function appendIssue(
+  quality: QualitySummary,
+  nextIssue: CaptureIssue
+): QualitySummary {
+  const duplicate = quality.issues.some(
+    (item) => item.code === nextIssue.code && item.message === nextIssue.message
+  );
   return {
     ...quality,
     overall: "partial",
-    issues: duplicate ? quality.issues : [...quality.issues, nextIssue]
+    issues: duplicate ? quality.issues : [...quality.issues, nextIssue],
   };
 }
 
-function stoppedTimeline(session: RecordingSession, stoppedAtEpochMs: number): RecordingSession["timeline"] {
-  const startedAt = session.timeline.startedAtEpochMs ?? session.timeline.createdAtEpochMs;
+function stoppedTimeline(
+  session: RecordingSession,
+  stoppedAtEpochMs: number
+): RecordingSession["timeline"] {
+  const startedAt =
+    session.timeline.startedAtEpochMs ?? session.timeline.createdAtEpochMs;
   return {
     ...session.timeline,
     stoppedAtEpochMs,
-    durationMs: Math.max(0, stoppedAtEpochMs - startedAt)
+    durationMs: Math.max(0, stoppedAtEpochMs - startedAt),
   };
 }
 
@@ -54,17 +67,20 @@ export function applySessionEvent(
 ): RecordingSession {
   switch (event.type) {
     case "started": {
-      if (session.status !== "PREPARING" && session.status !== "DEGRADED") return session;
+      if (session.status !== "PREPARING" && session.status !== "DEGRADED")
+        return session;
       const quality = (event.issues ?? []).reduce(appendIssue, session.quality);
-      const degraded = session.status === "DEGRADED" || quality.issues.length > 0;
+      const degraded =
+        session.status === "DEGRADED" || quality.issues.length > 0;
       return {
         ...session,
         status: degraded ? "DEGRADED" : "RECORDING",
         timeline: {
           ...session.timeline,
-          startedAtEpochMs: session.timeline.startedAtEpochMs ?? event.atEpochMs
+          startedAtEpochMs:
+            session.timeline.startedAtEpochMs ?? event.atEpochMs,
         },
-        quality
+        quality,
       };
     }
 
@@ -72,15 +88,21 @@ export function applySessionEvent(
       if (!ACTIVE_STATUSES.has(session.status)) return session;
       return {
         ...session,
-        status: session.status === "PREPARING" || session.status === "RECORDING" ? "DEGRADED" : session.status,
-        quality: appendIssue(session.quality, event.issue)
+        status:
+          session.status === "PREPARING" || session.status === "RECORDING"
+            ? "DEGRADED"
+            : session.status,
+        quality: appendIssue(session.quality, event.issue),
       };
 
     case "quality-delta": {
       if (!ACTIVE_STATUSES.has(session.status)) return session;
       const quality = { ...session.quality };
-      for (const [key, delta] of Object.entries(event.delta) as Array<[keyof QualityCounters, number | undefined]>) {
-        if (delta != null) quality[key] = Math.max(0, (quality[key] ?? 0) + delta);
+      for (const [key, delta] of Object.entries(event.delta) as Array<
+        [keyof QualityCounters, number | undefined]
+      >) {
+        if (delta != null)
+          quality[key] = Math.max(0, (quality[key] ?? 0) + delta);
       }
       return { ...session, quality };
     }
@@ -91,9 +113,15 @@ export function applySessionEvent(
 
     case "stop-requested":
       if (session.status === "STOPPING") {
-        if (!event.commandId || session.commandIds?.stop === event.commandId) return session;
+        if (!event.commandId || session.commandIds?.stop === event.commandId)
+          return session;
         if (session.commandIds?.stop) return session;
-        return { ...session, commandIds: session.commandIds ? { ...session.commandIds, stop: event.commandId } : undefined };
+        return {
+          ...session,
+          commandIds: session.commandIds
+            ? { ...session.commandIds, stop: event.commandId }
+            : undefined,
+        };
       }
       if (!ACTIVE_STATUSES.has(session.status)) return session;
       return {
@@ -101,21 +129,27 @@ export function applySessionEvent(
         status: "STOPPING",
         timeline: {
           ...session.timeline,
-          stoppedAtEpochMs: event.atEpochMs
+          stoppedAtEpochMs: event.atEpochMs,
         },
         commandIds: session.commandIds
-          ? { ...session.commandIds, stop: event.commandId ?? session.commandIds.stop }
-          : undefined
+          ? {
+              ...session.commandIds,
+              stop: event.commandId ?? session.commandIds.stop,
+            }
+          : undefined,
       };
 
     case "stop-completed": {
       if (!ACTIVE_STATUSES.has(session.status)) return session;
-      const stoppedAt = event.atEpochMs ?? session.timeline.stoppedAtEpochMs ?? Date.now();
+      const stoppedAt =
+        event.atEpochMs ?? session.timeline.stoppedAtEpochMs ?? Date.now();
       return {
         ...session,
         status: "PREVIEW_READY",
         timeline: stoppedTimeline(session, stoppedAt),
-        quality: event.issue ? appendIssue(session.quality, event.issue) : session.quality
+        quality: event.issue
+          ? appendIssue(session.quality, event.issue)
+          : session.quality,
       };
     }
 
@@ -125,7 +159,7 @@ export function applySessionEvent(
         ...session,
         status: "PREVIEW_READY",
         timeline: stoppedTimeline(session, event.atEpochMs),
-        quality: appendIssue(session.quality, event.issue)
+        quality: appendIssue(session.quality, event.issue),
       };
 
     case "failed":
@@ -134,7 +168,10 @@ export function applySessionEvent(
         ...session,
         status: "FAILED",
         error: event.issue,
-        quality: { ...appendIssue(session.quality, event.issue), overall: "failed" }
+        quality: {
+          ...appendIssue(session.quality, event.issue),
+          overall: "failed",
+        },
       };
   }
 }

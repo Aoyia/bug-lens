@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { bindShortcutsPanel } from "../src/preview/shortcuts-panel.ts";
 
-
 function createDOMEnvironment() {
   const listenersMap = new WeakMap<any, Record<string, Function[]>>();
 
@@ -30,7 +29,10 @@ function createDOMEnvironment() {
       },
       addEventListener(type: string, fn: Function) {
         let map = listenersMap.get(this);
-        if (!map) { map = {}; listenersMap.set(this, map); }
+        if (!map) {
+          map = {};
+          listenersMap.set(this, map);
+        }
         if (!map[type]) map[type] = [];
         map[type].push(fn);
       },
@@ -47,7 +49,7 @@ function createDOMEnvironment() {
           map[event.type].forEach((fn) => fn(event));
         }
         return true;
-      }
+      },
     };
     return el;
   };
@@ -70,14 +72,15 @@ function createDOMEnvironment() {
       winListeners[type].push(fn);
     },
     removeEventListener(type: string, fn: Function) {
-      if (winListeners[type]) winListeners[type] = winListeners[type].filter((f) => f !== fn);
+      if (winListeners[type])
+        winListeners[type] = winListeners[type].filter((f) => f !== fn);
     },
     dispatchEvent(event: any) {
       if (winListeners[event.type]) {
         winListeners[event.type].forEach((fn) => fn(event));
       }
       return true;
-    }
+    },
   };
 
   const doc = {
@@ -86,14 +89,32 @@ function createDOMEnvironment() {
       if (selector === "#shortcuts-backdrop") return backdrop;
       if (selector === "#shortcuts-close-btn") return closeBtn;
       return null;
-    }
+    },
   };
 
-  return { doc, win, backdrop, closeBtn, panelContent, inputEl, textareaEl, editableEl };
+  return {
+    doc,
+    win,
+    backdrop,
+    closeBtn,
+    panelContent,
+    inputEl,
+    textareaEl,
+    editableEl,
+  };
 }
 
 test("Preview 快捷键面板 - 8项键盘与鼠标行为验证", () => {
-  const { doc, win, backdrop, closeBtn, panelContent, inputEl, textareaEl, editableEl } = createDOMEnvironment();
+  const {
+    doc,
+    win,
+    backdrop,
+    closeBtn,
+    panelContent,
+    inputEl,
+    textareaEl,
+    editableEl,
+  } = createDOMEnvironment();
   bindShortcutsPanel(doc as any, win as any);
 
   // 初始状态：面板隐藏
@@ -111,7 +132,11 @@ test("Preview 快捷键面板 - 8项键盘与鼠标行为验证", () => {
   // 3. 面板打开时按 `Escape` 关闭
   win.dispatchEvent({ type: "keydown", key: "?", preventDefault: () => {} });
   assert.equal(backdrop.hidden, false);
-  win.dispatchEvent({ type: "keydown", key: "Escape", stopPropagation: () => {} });
+  win.dispatchEvent({
+    type: "keydown",
+    key: "Escape",
+    stopPropagation: () => {},
+  });
   assert.equal(backdrop.hidden, true, "按 Escape 应关闭面板");
 
   // 4. 焦点位于 input、textarea 或 contenteditable 元素时，按 `?` 不应打开面板
@@ -125,7 +150,11 @@ test("Preview 快捷键面板 - 8项键盘与鼠标行为验证", () => {
 
   doc.activeElement = editableEl;
   win.dispatchEvent({ type: "keydown", key: "?", preventDefault: () => {} });
-  assert.equal(backdrop.hidden, true, "焦点在 contenteditable 时按 ? 不打开面板");
+  assert.equal(
+    backdrop.hidden,
+    true,
+    "焦点在 contenteditable 时按 ? 不打开面板"
+  );
 
   // 清理焦点
   doc.activeElement = null;
@@ -146,4 +175,3 @@ test("Preview 快捷键面板 - 8项键盘与鼠标行为验证", () => {
   closeBtn.dispatchEvent({ type: "click", target: closeBtn });
   assert.equal(backdrop.hidden, true, "点击关闭按钮应关闭面板");
 });
-

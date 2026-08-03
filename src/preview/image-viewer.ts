@@ -7,7 +7,9 @@ function dataUrlToBlob(dataUrl: string): Blob {
   const mimeType = metadata.match(/^data:([^;,]+)/)?.[1] || "image/png";
   if (metadata.includes(";base64")) {
     const binary = atob(encoded);
-    const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+    const bytes = Uint8Array.from(binary, (character) =>
+      character.charCodeAt(0)
+    );
     return new Blob([bytes], { type: mimeType });
   }
   return new Blob([decodeURIComponent(encoded)], { type: mimeType });
@@ -36,7 +38,9 @@ export class ImageViewer {
     this.items = interactions
       .map((interaction, stepIndex) => ({ interaction, stepIndex }))
       .filter(({ interaction }) => Boolean(interaction.screenshot.dataUrl));
-    const selectedIndex = this.items.findIndex(({ interaction }) => interaction.id === interactionId);
+    const selectedIndex = this.items.findIndex(
+      ({ interaction }) => interaction.id === interactionId
+    );
     this.currentIndex = selectedIndex < 0 ? 0 : selectedIndex;
     if (!this.items.length) return;
     this.updateView();
@@ -56,12 +60,16 @@ export class ImageViewer {
   }
 
   private applyTransform(): void {
-    this.element("#modal-img-container").style.transform = `translate(${this.translateX}px, ${this.translateY}px) scale(${this.scale}) rotate(${this.rotation}deg)`;
-    this.element("#modal-zoom-ratio").textContent = `${Math.round(this.scale * 100)}%`;
+    this.element("#modal-img-container").style.transform =
+      `translate(${this.translateX}px, ${this.translateY}px) scale(${this.scale}) rotate(${this.rotation}deg)`;
+    this.element("#modal-zoom-ratio").textContent =
+      `${Math.round(this.scale * 100)}%`;
   }
 
   private zoom(factor: number): void {
-    this.scale = Number(Math.min(Math.max(0.25, this.scale * factor), 5).toFixed(2));
+    this.scale = Number(
+      Math.min(Math.max(0.25, this.scale * factor), 5).toFixed(2)
+    );
     this.applyTransform();
   }
 
@@ -73,11 +81,16 @@ export class ImageViewer {
   private updateView(): void {
     const current = this.items[this.currentIndex];
     if (!current) return;
-    this.element<HTMLImageElement>("#modal-image").src = current.interaction.screenshot.dataUrl || "";
-    this.element("#modal-step-title").textContent = `步骤 ${current.stepIndex + 1}. ${current.interaction.element.text || current.interaction.element.tagName}`;
-    this.element("#modal-step-counter").textContent = `${this.currentIndex + 1} / ${this.items.length}`;
-    this.element<HTMLButtonElement>("#modal-prev-btn").disabled = this.currentIndex === 0;
-    this.element<HTMLButtonElement>("#modal-next-btn").disabled = this.currentIndex === this.items.length - 1;
+    this.element<HTMLImageElement>("#modal-image").src =
+      current.interaction.screenshot.dataUrl || "";
+    this.element("#modal-step-title").textContent =
+      `步骤 ${current.stepIndex + 1}. ${current.interaction.element.text || current.interaction.element.tagName}`;
+    this.element("#modal-step-counter").textContent =
+      `${this.currentIndex + 1} / ${this.items.length}`;
+    this.element<HTMLButtonElement>("#modal-prev-btn").disabled =
+      this.currentIndex === 0;
+    this.element<HTMLButtonElement>("#modal-next-btn").disabled =
+      this.currentIndex === this.items.length - 1;
     const copyText = this.root.querySelector<HTMLElement>("#modal-copy-text");
     if (copyText) copyText.textContent = "复制";
     this.element("#modal-copy-btn").classList.remove("copied");
@@ -104,11 +117,14 @@ export class ImageViewer {
   }
 
   private async copyCurrent(): Promise<void> {
-    const dataUrl = this.items[this.currentIndex]?.interaction.screenshot.dataUrl;
+    const dataUrl =
+      this.items[this.currentIndex]?.interaction.screenshot.dataUrl;
     if (!dataUrl) return;
     try {
       const blob = dataUrlToBlob(dataUrl);
-      await navigator.clipboard.write([new ClipboardItem({ [blob.type || "image/png"]: blob })]);
+      await navigator.clipboard.write([
+        new ClipboardItem({ [blob.type || "image/png"]: blob }),
+      ]);
       const copyText = this.root.querySelector<HTMLElement>("#modal-copy-text");
       if (copyText) copyText.textContent = "已复制 ✓";
       this.element("#modal-copy-btn").classList.add("copied");
@@ -136,25 +152,63 @@ export class ImageViewer {
     const stage = this.element("#modal-stage");
     const image = this.element("#modal-image");
 
-    this.element("#modal-close-btn").addEventListener("click", () => this.close());
+    this.element("#modal-close-btn").addEventListener("click", () =>
+      this.close()
+    );
     stage.addEventListener("click", (event) => {
-      if (event.target === stage || event.target === this.element("#modal-img-container")) this.close();
+      if (
+        event.target === stage ||
+        event.target === this.element("#modal-img-container")
+      )
+        this.close();
     });
-    this.element("#modal-prev-btn").addEventListener("click", (event) => { event.stopPropagation(); this.previous(); });
-    this.element("#modal-next-btn").addEventListener("click", (event) => { event.stopPropagation(); this.next(); });
-    this.element("#modal-copy-btn").addEventListener("click", (event) => { event.stopPropagation(); void this.copyCurrent(); });
-    this.element("#modal-download-btn").addEventListener("click", (event) => { event.stopPropagation(); this.downloadCurrent(); });
-    this.element("#modal-zoom-in-btn").addEventListener("click", (event) => { event.stopPropagation(); this.zoom(1.25); });
-    this.element("#modal-zoom-out-btn").addEventListener("click", (event) => { event.stopPropagation(); this.zoom(0.8); });
+    this.element("#modal-prev-btn").addEventListener("click", (event) => {
+      event.stopPropagation();
+      this.previous();
+    });
+    this.element("#modal-next-btn").addEventListener("click", (event) => {
+      event.stopPropagation();
+      this.next();
+    });
+    this.element("#modal-copy-btn").addEventListener("click", (event) => {
+      event.stopPropagation();
+      void this.copyCurrent();
+    });
+    this.element("#modal-download-btn").addEventListener("click", (event) => {
+      event.stopPropagation();
+      this.downloadCurrent();
+    });
+    this.element("#modal-zoom-in-btn").addEventListener("click", (event) => {
+      event.stopPropagation();
+      this.zoom(1.25);
+    });
+    this.element("#modal-zoom-out-btn").addEventListener("click", (event) => {
+      event.stopPropagation();
+      this.zoom(0.8);
+    });
     this.element("#modal-reset-btn").addEventListener("click", (event) => {
       event.stopPropagation();
-      if (this.scale !== 1 || this.translateX || this.translateY || this.rotation) this.resetTransform();
+      if (
+        this.scale !== 1 ||
+        this.translateX ||
+        this.translateY ||
+        this.rotation
+      )
+        this.resetTransform();
       else this.zoom(2);
     });
-    this.element("#modal-rotate-btn").addEventListener("click", (event) => { event.stopPropagation(); this.rotate(); });
+    this.element("#modal-rotate-btn").addEventListener("click", (event) => {
+      event.stopPropagation();
+      this.rotate();
+    });
 
     stage.addEventListener("mousedown", (event) => {
-      if ((event.target as HTMLElement).closest(".arco-preview-nav-btn, .arco-preview-toolbar")) return;
+      if (
+        (event.target as HTMLElement).closest(
+          ".arco-preview-nav-btn, .arco-preview-toolbar"
+        )
+      )
+        return;
       this.isDragging = true;
       this.dragStartX = event.clientX - this.translateX;
       this.dragStartY = event.clientY - this.translateY;
@@ -171,11 +225,15 @@ export class ImageViewer {
       this.isDragging = false;
       stage.classList.remove("is-dragging");
     });
-    stage.addEventListener("wheel", (event) => {
-      if (modal.hidden) return;
-      event.preventDefault();
-      this.zoom(event.deltaY < 0 ? 1.15 : 0.85);
-    }, { passive: false });
+    stage.addEventListener(
+      "wheel",
+      (event) => {
+        if (modal.hidden) return;
+        event.preventDefault();
+        this.zoom(event.deltaY < 0 ? 1.15 : 0.85);
+      },
+      { passive: false }
+    );
     image.addEventListener("dblclick", (event) => {
       event.stopPropagation();
       if (this.scale === 1) this.scale = 2;

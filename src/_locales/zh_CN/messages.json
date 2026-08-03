@@ -70,6 +70,9 @@
   "stopAndExport": {
     "message": "结束并导出"
   },
+  "stopAndDiscard": {
+    "message": "结束并丢弃"
+  },
   "reopenPreview": {
     "message": "重新打开预览"
   },

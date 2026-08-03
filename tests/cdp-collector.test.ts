@@ -12,7 +12,7 @@ function createMockRepository(): EvidenceRepository {
 
   return {
     async getActiveSession() {
-      return activeSessionId ? sessions.get(activeSessionId) ?? null : null;
+      return activeSessionId ? (sessions.get(activeSessionId) ?? null) : null;
     },
     async saveConsole(entry) {
       consoleEntries.push(entry);
@@ -61,14 +61,21 @@ function createMockRepository(): EvidenceRepository {
     setActiveSession(session: RecordingSession) {
       sessions.set(session.id, session);
       activeSessionId = session.id;
-    }
-  } as unknown as EvidenceRepository & { setActiveSession: (s: RecordingSession) => void };
+    },
+  } as unknown as EvidenceRepository & {
+    setActiveSession: (s: RecordingSession) => void;
+  };
 }
 
 test("CdpEvidenceCollector attach and detach handles debugger calls", async () => {
   const repository = createMockRepository();
-  const writeSessionEvent = async (_id: string, _event: any) => ({}) as RecordingSession;
-  const collector = new CdpEvidenceCollector(repository, writeSessionEvent, () => false);
+  const writeSessionEvent = async (_id: string, _event: any) =>
+    ({}) as RecordingSession;
+  const collector = new CdpEvidenceCollector(
+    repository,
+    writeSessionEvent,
+    () => false
+  );
 
   const attachedCommands: string[] = [];
   let detached = false;
@@ -76,9 +83,13 @@ test("CdpEvidenceCollector attach and detach handles debugger calls", async () =
   (globalThis as any).chrome = {
     debugger: {
       attach: async (_target: any, _version: string) => {},
-      detach: async (_target: any) => { detached = true; },
-      sendCommand: async (_target: any, method: string) => { attachedCommands.push(method); }
-    }
+      detach: async (_target: any) => {
+        detached = true;
+      },
+      sendCommand: async (_target: any, method: string) => {
+        attachedCommands.push(method);
+      },
+    },
   };
 
   const session: RecordingSession = {
@@ -86,7 +97,11 @@ test("CdpEvidenceCollector attach and detach handles debugger calls", async () =
     schemaVersion: 2,
     extensionVersion: "0.1.0",
     status: "RECORDING",
-    target: { tabId: 1, initialUrl: "https://example.test", initialTitle: "Test" },
+    target: {
+      tabId: 1,
+      initialUrl: "https://example.test",
+      initialTitle: "Test",
+    },
     options: {
       captureAudio: false,
       captureVideo: true,
@@ -97,16 +112,30 @@ test("CdpEvidenceCollector attach and detach handles debugger calls", async () =
       privacyMode: "safe",
       mediaTimesliceMs: 1000,
       maxResponseBodyBytes: 1024 * 1024,
-      maxSessionBytes: 100 * 1024 * 1024
+      maxSessionBytes: 100 * 1024 * 1024,
     },
     timeline: { createdAtEpochMs: Date.now() },
-    quality: { overall: "complete", interactionCount: 0, confirmedInteractionCount: 0, primaryScreenshotCount: 0, fallbackScreenshotCount: 0, unavailableScreenshotCount: 0, consoleEntryCount: 0, networkEntryCount: 0, issues: [] },
-    nonce: "nonce-1"
+    quality: {
+      overall: "complete",
+      interactionCount: 0,
+      confirmedInteractionCount: 0,
+      primaryScreenshotCount: 0,
+      fallbackScreenshotCount: 0,
+      unavailableScreenshotCount: 0,
+      consoleEntryCount: 0,
+      networkEntryCount: 0,
+      issues: [],
+    },
+    nonce: "nonce-1",
   };
 
   const issue = await collector.attach(1, session);
   assert.equal(issue, undefined);
-  assert.deepEqual(attachedCommands, ["Runtime.enable", "Log.enable", "Network.enable"]);
+  assert.deepEqual(attachedCommands, [
+    "Runtime.enable",
+    "Log.enable",
+    "Network.enable",
+  ]);
 
   await collector.detach(1);
   assert.equal(detached, true);
@@ -119,21 +148,53 @@ test("CdpEvidenceCollector handles Log.entryAdded and Console.messageAdded event
     schemaVersion: 2,
     extensionVersion: "0.1.0",
     status: "RECORDING",
-    target: { tabId: 1, initialUrl: "https://example.test", initialTitle: "Test" },
+    target: {
+      tabId: 1,
+      initialUrl: "https://example.test",
+      initialTitle: "Test",
+    },
     options: {
-      captureAudio: false, captureVideo: true, captureScreenshots: true, captureConsole: true, captureNetwork: true, captureNetworkBodies: true, privacyMode: "safe", mediaTimesliceMs: 1000, maxResponseBodyBytes: 1024, maxSessionBytes: 100
+      captureAudio: false,
+      captureVideo: true,
+      captureScreenshots: true,
+      captureConsole: true,
+      captureNetwork: true,
+      captureNetworkBodies: true,
+      privacyMode: "safe",
+      mediaTimesliceMs: 1000,
+      maxResponseBodyBytes: 1024,
+      maxSessionBytes: 100,
     },
     timeline: { createdAtEpochMs: Date.now() },
-    quality: { overall: "complete", interactionCount: 0, confirmedInteractionCount: 0, primaryScreenshotCount: 0, fallbackScreenshotCount: 0, unavailableScreenshotCount: 0, consoleEntryCount: 0, networkEntryCount: 0, issues: [] },
-    nonce: "nonce-1"
+    quality: {
+      overall: "complete",
+      interactionCount: 0,
+      confirmedInteractionCount: 0,
+      primaryScreenshotCount: 0,
+      fallbackScreenshotCount: 0,
+      unavailableScreenshotCount: 0,
+      consoleEntryCount: 0,
+      networkEntryCount: 0,
+      issues: [],
+    },
+    nonce: "nonce-1",
   };
   (repository as any).setActiveSession(session);
 
-  const collector = new CdpEvidenceCollector(repository, async () => session, () => false);
+  const collector = new CdpEvidenceCollector(
+    repository,
+    async () => session,
+    () => false
+  );
   collector.markAttached(1);
 
   collector.handleEvent({ tabId: 1 }, "Log.entryAdded", {
-    entry: { level: "error", text: "Something went wrong token=secret", timestamp: Date.now(), url: "https://example.test/app.js" }
+    entry: {
+      level: "error",
+      text: "Something went wrong token=secret",
+      timestamp: Date.now(),
+      url: "https://example.test/app.js",
+    },
   });
 
   const drainErrors = await collector.drain();
@@ -152,13 +213,36 @@ test("CdpEvidenceCollector handles Network events flow and finalization", async 
     schemaVersion: 2,
     extensionVersion: "0.1.0",
     status: "RECORDING",
-    target: { tabId: 2, initialUrl: "https://example.test", initialTitle: "Test" },
+    target: {
+      tabId: 2,
+      initialUrl: "https://example.test",
+      initialTitle: "Test",
+    },
     options: {
-      captureAudio: false, captureVideo: true, captureScreenshots: true, captureConsole: true, captureNetwork: true, captureNetworkBodies: true, privacyMode: "safe", mediaTimesliceMs: 1000, maxResponseBodyBytes: 1024, maxSessionBytes: 100
+      captureAudio: false,
+      captureVideo: true,
+      captureScreenshots: true,
+      captureConsole: true,
+      captureNetwork: true,
+      captureNetworkBodies: true,
+      privacyMode: "safe",
+      mediaTimesliceMs: 1000,
+      maxResponseBodyBytes: 1024,
+      maxSessionBytes: 100,
     },
     timeline: { createdAtEpochMs: Date.now() },
-    quality: { overall: "complete", interactionCount: 0, confirmedInteractionCount: 0, primaryScreenshotCount: 0, fallbackScreenshotCount: 0, unavailableScreenshotCount: 0, consoleEntryCount: 0, networkEntryCount: 0, issues: [] },
-    nonce: "nonce-net"
+    quality: {
+      overall: "complete",
+      interactionCount: 0,
+      confirmedInteractionCount: 0,
+      primaryScreenshotCount: 0,
+      fallbackScreenshotCount: 0,
+      unavailableScreenshotCount: 0,
+      consoleEntryCount: 0,
+      networkEntryCount: 0,
+      issues: [],
+    },
+    nonce: "nonce-net",
   };
   (repository as any).setActiveSession(session);
 
@@ -166,36 +250,52 @@ test("CdpEvidenceCollector handles Network events flow and finalization", async 
     debugger: {
       sendCommand: async (_target: any, method: string) => {
         if (method === "Network.getResponseBody") {
-          return { body: JSON.stringify({ token: "my-secret-token" }), base64Encoded: false };
+          return {
+            body: JSON.stringify({ token: "my-secret-token" }),
+            base64Encoded: false,
+          };
         }
         return {};
-      }
-    }
+      },
+    },
   };
 
-  const collector = new CdpEvidenceCollector(repository, async () => session, () => false);
+  const collector = new CdpEvidenceCollector(
+    repository,
+    async () => session,
+    () => false
+  );
   collector.markAttached(2);
 
   // 1. Request will be sent
   collector.handleEvent({ tabId: 2 }, "Network.requestWillBeSent", {
     requestId: "req-1",
-    request: { url: "https://api.test/v1/data?token=secret", method: "GET", headers: { Authorization: "Bearer 123" } },
+    request: {
+      url: "https://api.test/v1/data?token=secret",
+      method: "GET",
+      headers: { Authorization: "Bearer 123" },
+    },
     timestamp: 100,
     wallTime: Date.now() / 1000,
-    type: "XHR"
+    type: "XHR",
   });
 
   // 2. Response received
   collector.handleEvent({ tabId: 2 }, "Network.responseReceived", {
     requestId: "req-1",
-    response: { status: 200, statusText: "OK", headers: { "content-type": "application/json" }, mimeType: "application/json" },
-    timestamp: 102
+    response: {
+      status: 200,
+      statusText: "OK",
+      headers: { "content-type": "application/json" },
+      mimeType: "application/json",
+    },
+    timestamp: 102,
   });
 
   // 3. Loading finished
   collector.handleEvent({ tabId: 2 }, "Network.loadingFinished", {
     requestId: "req-1",
-    timestamp: 105
+    timestamp: 105,
   });
 
   await collector.drain();
@@ -217,13 +317,36 @@ test("CdpEvidenceCollector handles Runtime.consoleAPICalled, Runtime.exceptionTh
     schemaVersion: 2,
     extensionVersion: "0.1.0",
     status: "RECORDING",
-    target: { tabId: 3, initialUrl: "https://example.test", initialTitle: "Test" },
+    target: {
+      tabId: 3,
+      initialUrl: "https://example.test",
+      initialTitle: "Test",
+    },
     options: {
-      captureAudio: false, captureVideo: true, captureScreenshots: true, captureConsole: true, captureNetwork: true, captureNetworkBodies: true, privacyMode: "safe", mediaTimesliceMs: 1000, maxResponseBodyBytes: 1024, maxSessionBytes: 100
+      captureAudio: false,
+      captureVideo: true,
+      captureScreenshots: true,
+      captureConsole: true,
+      captureNetwork: true,
+      captureNetworkBodies: true,
+      privacyMode: "safe",
+      mediaTimesliceMs: 1000,
+      maxResponseBodyBytes: 1024,
+      maxSessionBytes: 100,
     },
     timeline: { createdAtEpochMs: Date.now() },
-    quality: { overall: "complete", interactionCount: 0, confirmedInteractionCount: 0, primaryScreenshotCount: 0, fallbackScreenshotCount: 0, unavailableScreenshotCount: 0, consoleEntryCount: 0, networkEntryCount: 0, issues: [] },
-    nonce: "nonce-console"
+    quality: {
+      overall: "complete",
+      interactionCount: 0,
+      confirmedInteractionCount: 0,
+      primaryScreenshotCount: 0,
+      fallbackScreenshotCount: 0,
+      unavailableScreenshotCount: 0,
+      consoleEntryCount: 0,
+      networkEntryCount: 0,
+      issues: [],
+    },
+    nonce: "nonce-console",
   };
   (repository as any).setActiveSession(session);
 
@@ -232,25 +355,35 @@ test("CdpEvidenceCollector handles Runtime.consoleAPICalled, Runtime.exceptionTh
       attach: async (_target: any, _version: string) => {},
       detach: async (_target: any) => {},
       sendCommand: async () => {},
-      getTargets: async () => []
-    }
+      getTargets: async () => [],
+    },
   };
 
   let writtenEvent: any;
-  const collector = new CdpEvidenceCollector(repository, async (_id, evt) => { writtenEvent = evt; return session; }, () => false);
+  const collector = new CdpEvidenceCollector(
+    repository,
+    async (_id, evt) => {
+      writtenEvent = evt;
+      return session;
+    },
+    () => false
+  );
   collector.markAttached(3);
 
   // consoleAPICalled
   collector.handleEvent({ tabId: 3 }, "Runtime.consoleAPICalled", {
     type: "warn",
     args: [{ value: "Warning token=secret" }],
-    timestamp: Date.now()
+    timestamp: Date.now(),
   });
 
   // exceptionThrown
   collector.handleEvent({ tabId: 3 }, "Runtime.exceptionThrown", {
     timestamp: Date.now(),
-    exceptionDetails: { text: "Uncaught ReferenceError", url: "https://example.test/main.js" }
+    exceptionDetails: {
+      text: "Uncaught ReferenceError",
+      url: "https://example.test/main.js",
+    },
   });
 
   await collector.drain();
@@ -276,13 +409,36 @@ test("CdpEvidenceCollector verifyOwnership and target_closed handleDetach", asyn
     schemaVersion: 2,
     extensionVersion: "0.1.0",
     status: "RECORDING",
-    target: { tabId: 4, initialUrl: "https://example.test", initialTitle: "Test" },
+    target: {
+      tabId: 4,
+      initialUrl: "https://example.test",
+      initialTitle: "Test",
+    },
     options: {
-      captureAudio: false, captureVideo: true, captureScreenshots: true, captureConsole: true, captureNetwork: true, captureNetworkBodies: true, privacyMode: "safe", mediaTimesliceMs: 1000, maxResponseBodyBytes: 1024, maxSessionBytes: 100
+      captureAudio: false,
+      captureVideo: true,
+      captureScreenshots: true,
+      captureConsole: true,
+      captureNetwork: true,
+      captureNetworkBodies: true,
+      privacyMode: "safe",
+      mediaTimesliceMs: 1000,
+      maxResponseBodyBytes: 1024,
+      maxSessionBytes: 100,
     },
     timeline: { createdAtEpochMs: Date.now() },
-    quality: { overall: "complete", interactionCount: 0, confirmedInteractionCount: 0, primaryScreenshotCount: 0, fallbackScreenshotCount: 0, unavailableScreenshotCount: 0, consoleEntryCount: 0, networkEntryCount: 0, issues: [] },
-    nonce: "nonce-verify"
+    quality: {
+      overall: "complete",
+      interactionCount: 0,
+      confirmedInteractionCount: 0,
+      primaryScreenshotCount: 0,
+      fallbackScreenshotCount: 0,
+      unavailableScreenshotCount: 0,
+      consoleEntryCount: 0,
+      networkEntryCount: 0,
+      issues: [],
+    },
+    nonce: "nonce-verify",
   };
   (repository as any).setActiveSession(session);
 
@@ -291,12 +447,19 @@ test("CdpEvidenceCollector verifyOwnership and target_closed handleDetach", asyn
     debugger: {
       sendCommand: async (_target: any, method: string) => {
         if (shouldFailSendCommand) throw new Error("Not owned");
-      }
-    }
+      },
+    },
   };
 
   let writtenEvent: any = undefined;
-  const collector = new CdpEvidenceCollector(repository, async (_id, evt) => { writtenEvent = evt; return session; }, () => false);
+  const collector = new CdpEvidenceCollector(
+    repository,
+    async (_id, evt) => {
+      writtenEvent = evt;
+      return session;
+    },
+    () => false
+  );
 
   const owned = await collector.verifyOwnership(4);
   assert.equal(owned, true);

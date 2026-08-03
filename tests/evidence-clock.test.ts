@@ -4,12 +4,15 @@ import test from "node:test";
 import {
   formatElapsedEpochTime,
   networkDurationMs,
-  networkRequestTime
+  networkRequestTime,
 } from "../src/domain/evidence-clock.ts";
 
 test("Network wallTime is the epoch clock and timestamp stays monotonic", () => {
   assert.deepEqual(
-    networkRequestTime({ wallTime: 1_780_000_000.125, timestamp: 12_345.678 }, () => 99),
+    networkRequestTime(
+      { wallTime: 1_780_000_000.125, timestamp: 12_345.678 },
+      () => 99
+    ),
     { createdAtEpochMs: 1_780_000_000_125, startedAtMonotonicMs: 12_345_678 }
   );
 });
