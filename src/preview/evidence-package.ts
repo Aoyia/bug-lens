@@ -8,8 +8,6 @@ import type {
   RecordingSession,
 } from "../shared/protocol";
 import { getLocale, isEn } from "../shared/i18n.ts";
-import zhCnMessages from "../_locales/zh_CN/messages.json" with { type: "json" };
-import enMessages from "../_locales/en/messages.json" with { type: "json" };
 
 export type EvidencePackageSnapshot = {
   session: RecordingSession;
@@ -347,6 +345,72 @@ function buildSessionPayloadWithBodySplitting(
   };
 }
 
+function stripForAiJson(
+  payload: ReturnType<typeof buildSessionPayloadWithBodySplitting>["payload"]
+) {
+  return {
+    ...payload,
+    networkEntries: payload.networkEntries.map((entry) => {
+      const { initiator, response, ...rest } = entry as any;
+      const strippedInitiator = initiator
+        ? (() => {
+            const { stackTrace: _st, concise, ...initRest } = initiator;
+            return {
+              ...initRest,
+              concise: concise
+                ? {
+                    type: concise.type,
+                    topFrame: concise.topFrame,
+                    asyncAnchorFrame: concise.asyncAnchorFrame,
+                    // parser 类型 stack 与 topFrame 重叠，删除；其他类型限 10 帧
+                    stack:
+                      concise.type === "parser"
+                        ? undefined
+                        : concise.stack?.slice(0, 10),
+                  }
+                : undefined,
+            };
+          })()
+        : undefined;
+      const strippedResponse = response
+        ? (({
+            charset: _c,
+            remoteIPAddress: _ip,
+            remotePort: _port,
+            connectionReused: _cr,
+            connectionId: _ci,
+            fromDiskCache: _fd,
+            fromServiceWorker: _fs,
+            fromPrefetchCache: _fp,
+            serviceWorkerResponseSource: _sw,
+            cacheStorageCacheName: _cn,
+            encodedDataLength: _el,
+            base64Encoded: _b64,
+            redactionReason: _rr,
+            originalByteLength: _ob,
+            capturedByteLength: _cb,
+            ...respRest
+          }) => respRest)(response)
+        : undefined;
+      return {
+        ...rest,
+        sessionId: undefined,
+        loaderId: undefined,
+        frameId: undefined,
+        documentUrl: undefined,
+        statusText: undefined,
+        initialPriority: undefined,
+        referrerPolicy: undefined,
+        startedAtMonotonicMs: undefined,
+        requestExtraInfo: undefined,
+        responseExtraInfo: undefined,
+        initiator: strippedInitiator,
+        response: strippedResponse,
+      };
+    }),
+  };
+}
+
 export function buildEvidencePackage(
   snapshot: EvidencePackageSnapshot,
   assets: StaticReportAssets
@@ -390,7 +454,7 @@ export function buildEvidencePackage(
     },
     {
       name: "data/session.json",
-      data: strToU8(JSON.stringify(payload, null, 2)),
+      data: strToU8(JSON.stringify(stripForAiJson(payload), null, 2)),
     },
     ...networkBodyFiles,
   ];

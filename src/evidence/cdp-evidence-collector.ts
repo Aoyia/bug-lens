@@ -454,7 +454,10 @@ export class CdpEvidenceCollector {
           {
             id: crypto.randomUUID(),
             sessionId: session.id,
-            createdAt: value.timestamp ?? Date.now(),
+            createdAt:
+              value.timestamp != null
+                ? Math.round(value.timestamp * 1000)
+                : Date.now(),
             level: value.type ?? "log",
             text: (value.args ?? [])
               .map((arg) =>
@@ -502,7 +505,10 @@ export class CdpEvidenceCollector {
           {
             id: crypto.randomUUID(),
             sessionId: session.id,
-            createdAt: value.timestamp ?? Date.now(),
+            createdAt:
+              value.timestamp != null
+                ? Math.round(value.timestamp * 1000)
+                : Date.now(),
             level: "error",
             text:
               details?.exception?.description ?? details?.text ?? "未捕获异常",
@@ -543,7 +549,10 @@ export class CdpEvidenceCollector {
           {
             id: crypto.randomUUID(),
             sessionId: session.id,
-            createdAt: value.entry.timestamp ?? Date.now(),
+            createdAt:
+              value.entry.timestamp != null
+                ? Math.round(value.entry.timestamp * 1000)
+                : Date.now(),
             level: value.entry.level ?? "info",
             text: value.entry.text ?? "",
             source: value.entry.url,

@@ -388,6 +388,61 @@
   background-image: url("icons/icon_recording_32.png");
 }
 
+/* 全屏按钮状态 */
+#fullscreen-btn.active {
+  color: var(--zen-primary);
+  background: var(--zen-primary-light);
+}
+
+/* 全屏模式下视频容器 */
+.zen-video-container:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  background: #000000;
+  padding: 0;
+}
+
+.zen-video-container:fullscreen .zen-panel-title,
+.zen-video-container:fullscreen .zen-player-controls {
+  position: fixed;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.zen-video-container:fullscreen .zen-panel-title {
+  top: 0;
+  color: #ffffff;
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+.zen-video-container:fullscreen .zen-player-controls {
+  bottom: 0;
+  border-top-color: rgba(255, 255, 255, 0.1);
+}
+
+.zen-video-container:fullscreen .player-btn {
+  color: rgba(255, 255, 255, 0.8);
+}
+.zen-video-container:fullscreen .player-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+.zen-video-container:fullscreen .player-time-text {
+  color: rgba(255, 255, 255, 0.7);
+}
+.zen-video-container:fullscreen .seekbar-track {
+  background: rgba(255, 255, 255, 0.15);
+}
+.zen-video-container:fullscreen .video-viewport {
+  flex: 1;
+  height: 100%;
+}
+
 /* 右侧双栏/多面板工作区 Right Panel: Zen Tabbed Workspace - 紧凑极简 */
 .zen-right-panel {
   display: flex;

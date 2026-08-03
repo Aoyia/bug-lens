@@ -446,6 +446,38 @@ function bindSingleSeekbarPlayer(): void {
     }
   });
 
+  // 全屏按钮
+  const fullscreenBtn = document.getElementById(
+    "fullscreen-btn"
+  ) as HTMLButtonElement | null;
+  const fullscreenIcon = document.getElementById(
+    "fullscreen-icon"
+  ) as HTMLElement | null;
+  const fullscreenExitIcon = document.getElementById(
+    "fullscreen-exit-icon"
+  ) as HTMLElement | null;
+
+  const updateFullscreenUI = () => {
+    const isFullscreen = !!document.fullscreenElement;
+    if (fullscreenIcon) fullscreenIcon.hidden = isFullscreen;
+    if (fullscreenExitIcon) fullscreenExitIcon.hidden = !isFullscreen;
+    fullscreenBtn?.classList.toggle("active", isFullscreen);
+    fullscreenBtn?.setAttribute(
+      "title",
+      isFullscreen ? "退出全屏 (Esc)" : "全屏 (双击视频)"
+    );
+  };
+
+  fullscreenBtn?.addEventListener("click", () => {
+    if (!document.fullscreenElement) {
+      void videoContainer?.requestFullscreen().catch(() => undefined);
+    } else {
+      void document.exitFullscreen().catch(() => undefined);
+    }
+  });
+
+  document.addEventListener("fullscreenchange", updateFullscreenUI);
+
   window.addEventListener("keydown", (e: KeyboardEvent) => {
     const active = document.activeElement as HTMLElement | null;
     // 屏蔽在输入框、文本域或富文本编辑区打字时的快捷键
