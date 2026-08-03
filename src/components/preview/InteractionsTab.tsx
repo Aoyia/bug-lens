@@ -63,12 +63,10 @@ function formatStepForAi(
     `- 页面 URL: ${primary.page.url}`,
   ];
 
-  if (element.framework?.vue) {
-    const vueInfo = element.framework.vue;
-    const componentName = vueInfo.targetComponent?.componentName;
-    if (componentName) {
-      lines.push(`- Vue 组件: <${componentName}> (Vue ${vueInfo.version})`);
-    }
+  if (element.framework?.targetComponent) {
+    const fw = element.framework.targetComponent;
+    const label = fw.framework === "vue" ? "Vue" : "React";
+    lines.push(`- ${label} 组件: <${fw.componentName}> (${label} ${fw.version})`);
   }
 
   lines.push(`- 目标元素: ${elementSnippet}`);

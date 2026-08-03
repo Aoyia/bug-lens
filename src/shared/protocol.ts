@@ -126,26 +126,20 @@ export type RecordingSession = {
   error?: CaptureIssue;
 };
 
-export type VueComponentNode = {
-  version: 2 | 3;
+export type FrameworkComponentNode = {
+  framework: "vue" | "react";
+  version: number;
   componentName: string;
   props?: Record<string, unknown>;
   state?: Record<string, unknown>;
+  children?: FrameworkComponentNode[];
   isTarget?: boolean;
 };
 
-export type VueStoreSnapshot = {
-  type: "pinia" | "vuex";
-  storeId?: string;
-  state: Record<string, unknown>;
-};
-
-export type VueFrameworkSnapshot = {
-  version: 2 | 3;
-  targetComponent?: VueComponentNode;
-  parentChain: VueComponentNode[];
-  childrenComponents: VueComponentNode[];
-  stores?: VueStoreSnapshot[];
+export type FrameworkSnapshot = {
+  rootComponent?: FrameworkComponentNode;
+  targetComponent?: FrameworkComponentNode;
+  parentChain: FrameworkComponentNode[];
 };
 
 export type ElementDescriptor = {
@@ -164,9 +158,7 @@ export type ElementDescriptor = {
     stabilityScore: number;
     reasons: string[];
   }>;
-  framework?: {
-    vue?: VueFrameworkSnapshot;
-  };
+  framework?: FrameworkSnapshot;
 };
 
 export type InteractionRecord = {

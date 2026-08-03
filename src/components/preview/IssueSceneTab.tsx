@@ -1,7 +1,7 @@
 import { memo } from "preact/compat";
 import { useState } from "preact/hooks";
 import type { IssueScenePreview } from "../../preview/issue-scene-view";
-import { renderVueSnapshotMarkup } from "../../preview/vue-snapshot-view";
+import { renderFrameworkSnapshot } from "../../preview/framework-view";
 
 export interface IssueSceneTabProps {
   collection: { all: IssueScenePreview[]; included: IssueScenePreview[] };
@@ -115,8 +115,8 @@ export const IssueSceneTab = memo(function IssueSceneTab({
             .join("") || "";
         ancestorItems.push(`${scene.target.element.tagName}${elId}${elCls}`);
 
-        const vueSnapshotMarkup = renderVueSnapshotMarkup(
-          scene.target.element.framework?.vue
+        const vueSnapshotMarkup = renderFrameworkSnapshot(
+          scene.target.element.framework
         );
 
         return (
