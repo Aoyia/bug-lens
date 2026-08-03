@@ -32,6 +32,10 @@ export class DomObserver {
   private readonly inputSessions = new Map<Element, InputSession>();
   private keyRepeatSession: KeyRepeatSession | undefined;
   private attached = false;
+  private lastScrollX = 0;
+  private lastScrollY = 0;
+  private scrollSession: { firstRecord: InteractionRecord; timer: number } | undefined;
+  private lastConfirmedClick: { id: string; element: Element; clientX: number; clientY: number; createdAt: number } | undefined;
 
   // Store bound handlers for removal
   private readonly handlePointerdown: (event: PointerEvent) => void;
@@ -42,6 +46,9 @@ export class DomObserver {
   private readonly handleKeydownAltS: (event: KeyboardEvent) => void;
   private readonly handleKeydownAction: (event: KeyboardEvent) => void;
   private readonly handleKeyup: (event: KeyboardEvent) => void;
+  private readonly handleScroll: (event: Event) => void;
+  private readonly handleContextmenu: (event: MouseEvent) => void;
+  private readonly handleDblclick: (event: MouseEvent) => void;
 
   constructor(private readonly deps: DomObserverDeps) {
     this.handlePointerdown = this.onPointerdown.bind(this);
@@ -52,6 +59,9 @@ export class DomObserver {
     this.handleKeydownAltS = this.onKeydownAltS.bind(this);
     this.handleKeydownAction = this.onKeydownAction.bind(this);
     this.handleKeyup = this.onKeyup.bind(this);
+    this.handleScroll = this.onScroll.bind(this);
+    this.handleContextmenu = this.onContextmenu.bind(this);
+    this.handleDblclick = this.onDblclick.bind(this);
   }
 
   attach(): void {
@@ -88,6 +98,18 @@ export class DomObserver {
       capture: true,
       passive: true,
     });
+    document.addEventListener("scroll", this.handleScroll, {
+      capture: true,
+      passive: true,
+    });
+    document.addEventListener("contextmenu", this.handleContextmenu, {
+      capture: true,
+      passive: true,
+    });
+    document.addEventListener("dblclick", this.handleDblclick, {
+      capture: true,
+      passive: true,
+    });
   }
 
   detach(): void {
@@ -105,6 +127,9 @@ export class DomObserver {
     document.removeEventListener("keydown", this.handleKeydownAltS, true);
     document.removeEventListener("keydown", this.handleKeydownAction, true);
     document.removeEventListener("keyup", this.handleKeyup, true);
+    document.removeEventListener("scroll", this.handleScroll, true);
+    document.removeEventListener("contextmenu", this.handleContextmenu, true);
+    document.removeEventListener("dblclick", this.handleDblclick, true);
   }
 
   clearPending(): void {
@@ -118,6 +143,11 @@ export class DomObserver {
       window.clearTimeout(this.keyRepeatSession.idleTimer);
       this.keyRepeatSession = undefined;
     }
+    if (this.scrollSession) {
+      window.clearTimeout(this.scrollSession.timer);
+      this.scrollSession = undefined;
+    }
+    this.lastConfirmedClick = undefined;
   }
 
   // ─── Private ───
@@ -359,6 +389,13 @@ export class DomObserver {
       : this.createRecord(event, element, "confirmed");
     if (nearest) this.pending.delete(nearest.id);
     this.send(record, "interaction/confirmed");
+    this.lastConfirmedClick = {
+      id: record.id,
+      element,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      createdAt: Date.now(),
+    };
   }
 
   private flushInputSession(element: Element): void {
@@ -445,6 +482,12 @@ export class DomObserver {
       this.firstElement(event.composedPath()) ??
       (event.target instanceof Element ? event.target : undefined);
     if (!element || isWidgetElement(element)) return;
+
+    if (element instanceof HTMLInputElement && element.type === "file") {
+      this.onFileUpload(event, element, session);
+      return;
+    }
+
     const existing = this.inputSessions.get(element);
     if (existing) {
       const meta = this.inputMetadata(element, session);
@@ -480,6 +523,102 @@ export class DomObserver {
       this.createRecord(event, form, "confirmed", "submit", {
         formMethod: form.method.toUpperCase(),
         formAction: form.action,
+      })
+    );
+  }
+
+  private onScroll(event: Event): void {
+    const session = this.deps.getSession();
+    if (!session || this.deps.isIssueActive()) return;
+    const target = event.target instanceof Element ? event.target : undefined;
+    if (target && isWidgetElement(target)) return;
+    const dx = Math.abs(window.scrollX - this.lastScrollX);
+    const dy = Math.abs(window.scrollY - this.lastScrollY);
+    this.lastScrollX = window.scrollX;
+    this.lastScrollY = window.scrollY;
+    if (dx < 50 && dy < 50) return;
+
+    const direction =
+      dy > dx
+        ? window.scrollY > this.lastScrollY
+          ? "down"
+          : "up"
+        : window.scrollX > this.lastScrollX
+          ? "right"
+          : "left";
+
+    const record = this.createRecord(event, document.documentElement, "confirmed", "scroll", {
+      scrollX: window.scrollX,
+      scrollY: window.scrollY,
+      scrollDeltaX: dx,
+      scrollDeltaY: dy,
+      scrollDirection: direction,
+    });
+
+    if (this.scrollSession) {
+      window.clearTimeout(this.scrollSession.timer);
+      this.scrollSession.firstRecord = record;
+    } else {
+      this.scrollSession = { firstRecord: record, timer: 0 };
+    }
+    this.scrollSession.timer = window.setTimeout(() => {
+      if (this.scrollSession) {
+        this.sendConfirmed(this.scrollSession.firstRecord);
+        this.scrollSession = undefined;
+      }
+    }, 300);
+  }
+
+  private onContextmenu(event: MouseEvent): void {
+    const session = this.deps.getSession();
+    if (!session || this.deps.isIssueActive() || !event.isTrusted) return;
+    const element = this.firstElement(event.composedPath());
+    if (!element || isWidgetElement(element)) return;
+    this.sendConfirmed(this.createRecord(event, element, "confirmed", "contextmenu"));
+  }
+
+  private onDblclick(event: MouseEvent): void {
+    const session = this.deps.getSession();
+    if (!session || this.deps.isIssueActive() || !event.isTrusted) return;
+    const element = this.firstElement(event.composedPath());
+    if (!element || isWidgetElement(element)) return;
+
+    const last = this.lastConfirmedClick;
+    if (
+      last &&
+      last.element === element &&
+      Math.abs(last.clientX - event.clientX) < 3 &&
+      Math.abs(last.clientY - event.clientY) < 3 &&
+      Date.now() - last.createdAt < 100
+    ) {
+      void chrome.runtime.sendMessage(
+        message("interaction/upgrade", {
+          interactionId: last.id,
+          kind: "dblclick",
+        }, session.nonce)
+      );
+      this.lastConfirmedClick = undefined;
+      return;
+    }
+
+    this.sendConfirmed(this.createRecord(event, element, "confirmed", "dblclick"));
+  }
+
+  private onFileUpload(
+    event: Event,
+    input: HTMLInputElement,
+    session: { nonce: string; sessionId: string; privacyMode: "safe" | "raw" }
+  ): void {
+    const files = input.files;
+    if (!files || files.length === 0) return;
+    const safeMode = session.privacyMode !== "raw";
+    this.sendConfirmed(
+      this.createRecord(event, input, "confirmed", "file", {
+        fileCount: files.length,
+        fileNames: safeMode ? undefined : Array.from(files).map((f) => f.name),
+        fileTypes: Array.from(files).map((f) => f.type),
+        fileSizes: safeMode ? undefined : Array.from(files).map((f) => f.size),
+        fileAccept: input.accept || undefined,
       })
     );
   }

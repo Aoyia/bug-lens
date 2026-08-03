@@ -85,6 +85,21 @@ export class InteractionCapture {
     );
   }
 
+  async upgrade(
+    interactionId: string,
+    kind: InteractionRecord["kind"]
+  ): Promise<void> {
+    const session = await this.repository.getActiveSession();
+    if (!session) return;
+    const previous = await this.repository.getInteraction(interactionId);
+    if (!previous || previous.sessionId !== session.id) return;
+    if (previous.kind === kind) return;
+    await this.repository.saveInteractionWithinBudget({
+      ...previous,
+      kind,
+    });
+  }
+
   async drain(): Promise<string[]> {
     const errors: string[] = [];
     for (let round = 0; round < 3; round += 1) {

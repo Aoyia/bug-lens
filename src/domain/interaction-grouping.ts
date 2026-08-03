@@ -78,7 +78,7 @@ export function isSameElement(
  * 判断事件是否属于可合并的表单/输入/按键交互
  */
 function isFormOrInputKind(kind: InteractionRecord["kind"]): boolean {
-  return ["click", "input", "keydown", "change", "submit"].includes(kind);
+  return ["click", "input", "keydown", "change", "submit", "dblclick"].includes(kind);
 }
 
 /**

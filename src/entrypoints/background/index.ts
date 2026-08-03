@@ -889,6 +889,13 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender, sendResponse) => {
           );
           sendResponse({ ok: true });
           return;
+        case "interaction/upgrade":
+          await interactionCapture.upgrade(
+            incoming.payload.interactionId,
+            incoming.payload.kind
+          );
+          sendResponse({ ok: true });
+          return;
         case "issue-scene/start-selection": {
           sendResponse({ ok: true });
           return;

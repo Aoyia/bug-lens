@@ -172,7 +172,7 @@ export type ElementDescriptor = {
 export type InteractionRecord = {
   id: string;
   sessionId: string;
-  kind: "click" | "input" | "change" | "submit" | "keydown" | "navigation";
+  kind: "click" | "input" | "change" | "submit" | "keydown" | "navigation" | "scroll" | "contextmenu" | "dblclick" | "file";
   status: "candidate" | "confirmed" | "cancelled";
   createdAt: number;
   confirmedAt?: number;
@@ -214,6 +214,16 @@ export type InteractionRecord = {
     transitionQualifiers?: string[];
     fromUrl?: string;
     toUrl?: string;
+    scrollX?: number;
+    scrollY?: number;
+    scrollDeltaX?: number;
+    scrollDeltaY?: number;
+    scrollDirection?: "up" | "down" | "left" | "right";
+    fileCount?: number;
+    fileNames?: string[];
+    fileTypes?: string[];
+    fileSizes?: number[];
+    fileAccept?: string;
   };
   screenshot: {
     status: "pending" | "captured" | "unavailable" | "disabled";
@@ -567,6 +577,10 @@ export type RuntimeMessage =
       { interactionId: string; interaction?: InteractionRecord }
     >
   | Envelope<
+      "interaction/upgrade",
+      { interactionId: string; kind: InteractionRecord["kind"] }
+    >
+  | Envelope<
       "issue-scene/capture",
       {
         captureId: string;
@@ -701,6 +715,7 @@ export type RuntimeMessageResponseMap = {
   "interaction/candidate": { ok: true };
   "interaction/confirmed": { ok: true };
   "interaction/cancelled": { ok: true };
+  "interaction/upgrade": { ok: true };
   "issue-scene/capture": { ok: true; scene: IssueScene; dataUrl?: string };
   "issue-scene/commit": { ok: true; scene: IssueScene };
   "issue-scene/cancel": { ok: true };
