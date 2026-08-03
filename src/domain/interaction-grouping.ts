@@ -3,9 +3,19 @@ import type {
   ElementDescriptor,
 } from "../shared/protocol.ts";
 
+/**
+ * 表示被分组（合并）后的交互卡片的类型。
+ * - `form_input_submit`: 包含表单输入（可能还有提交）的复合操作
+ * - `continuous_click`: 对同一个元素的连续多次点击
+ * - `atomic`: 无法或无需合并的单次原子操作
+ */
 export type GroupedCardKind =
   "form_input_submit" | "continuous_click" | "atomic";
 
+/**
+ * 分组（合并）后的交互卡片的聚合元数据，
+ * 包含了用于前端展示的标题、描述、统计数据等。
+ */
 export interface GroupedMeta {
   title: string;
   description: string;
@@ -16,13 +26,22 @@ export interface GroupedMeta {
   finalValueLength?: number;
   totalInputEvents?: number;
   isCompositionInput?: boolean;
+  /**
+   * 用于作为卡片封面的主要截图记录（如果有的话）
+   */
   primaryScreenshotRecord?: InteractionRecord;
 }
 
+/**
+ * 分组（合并）后的交互卡片数据结构。
+ * 它将底层的细粒度 InteractionRecord 组合成对用户更友好的高层语义操作。
+ */
 export interface GroupedInteractionCard {
   id: string;
   kind: GroupedCardKind;
+  /** 代表这个分组核心意图的记录（例如最终输入或提交动作） */
   primaryRecord: InteractionRecord;
+  /** 组成该分组的所有底层记录 */
   children: InteractionRecord[];
   aggregatedMeta: GroupedMeta;
 }

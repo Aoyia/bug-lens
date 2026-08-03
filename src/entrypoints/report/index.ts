@@ -22,6 +22,7 @@ type StaticReportData = {
 declare global {
   interface Window {
     __WEB_BUG_REPORT_DATA__?: StaticReportData;
+    __BUG_LENS_DATA__?: StaticReportData;
   }
 }
 
@@ -33,8 +34,13 @@ if (typeof window !== "undefined") {
 }
 
 function loadReportData(): StaticReportData | undefined {
-  if (typeof window !== "undefined" && window.__WEB_BUG_REPORT_DATA__) {
-    return window.__WEB_BUG_REPORT_DATA__;
+  if (typeof window !== "undefined") {
+    if (window.__BUG_LENS_DATA__) {
+      return window.__BUG_LENS_DATA__;
+    }
+    if (window.__WEB_BUG_REPORT_DATA__) {
+      return window.__WEB_BUG_REPORT_DATA__;
+    }
   }
   const scriptEl = document.getElementById("__BUG_LENS_DATA__");
   if (scriptEl && scriptEl.textContent) {

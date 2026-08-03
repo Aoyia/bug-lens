@@ -23,6 +23,11 @@ export type IssueEditorDeps = {
   isMac: boolean;
 };
 
+/**
+ * 问题现场编辑器。
+ * 这是一个覆盖全屏的 UI 组件，允许用户在截图上进行圈选、添加批注、
+ * 描述问题现象并提交记录。
+ */
 export class IssueEditor {
   private editorElement: HTMLDivElement | undefined;
   private keydownListener: ((e: KeyboardEvent) => void) | undefined;
@@ -46,6 +51,12 @@ export class IssueEditor {
     if (restoreWidget) this.deps.onClose(true);
   }
 
+  /**
+   * 打开问题现场编辑器并渲染对应的截图和控制面板。
+   *
+   * @param scene 当前要编辑的问题场景数据（包含初始标注点等）
+   * @param dataUrl 截图的 Base64 URL（如果有的话）
+   */
   open(scene: IssueSceneInit, dataUrl?: string): void {
     const session = this.deps.getSession();
     if (!session) return;

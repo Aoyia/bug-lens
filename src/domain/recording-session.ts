@@ -17,6 +17,10 @@ type QualityCounters = Pick<
   | "networkEntryCount"
 >;
 
+/**
+ * 录制会话的状态机事件。
+ * 每一个事件都会通过 `applySessionEvent` 函数产生新的 RecordingSession 状态。
+ */
 export type RecordingSessionEvent =
   | { type: "started"; atEpochMs: number; issues?: CaptureIssue[] }
   | { type: "capture-issue"; issue: CaptureIssue }
@@ -61,6 +65,14 @@ function stoppedTimeline(
   };
 }
 
+/**
+ * 录制会话状态机的核心 Reducer 函数。
+ * 接收当前会话状态和一个领域事件，纯函数地计算出下一个状态。
+ *
+ * @param session 当前的录制会话状态
+ * @param event 触发的状态跃迁事件
+ * @returns 演进后的新录制会话状态
+ */
 export function applySessionEvent(
   session: RecordingSession,
   event: RecordingSessionEvent

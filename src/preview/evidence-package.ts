@@ -60,59 +60,55 @@ export function buildAiPrompt(
     const path = zipPath
       ? `File Path:\n${zipPath}`
       : "File Path:\n{Please replace this with the absolute path to the exported ZIP}";
-    return `Please analyze the following local Bug Lens evidence package:
+    return `Please act as a Senior Frontend/Fullstack Debugging Expert and analyze the following local Bug Lens evidence package:
 
 ${path}
 
-Current Evidence Summary:
-- Page Title: ${oneLine(snapshot.session.target.initialTitle) || "Unknown"}
-- URL: ${oneLine(snapshot.session.target.initialUrl) || "Unknown"}
-- Quality: ${oneLine(snapshot.session.quality.overall) || "Unknown"}
-- Valid Interactions: ${snapshot.interactions.length}
-- Console Logs: ${snapshot.consoleEntries.length}
-- Network Requests: ${snapshot.networkEntries.length}
-- Issue Scenes: ${issueScenes.length}
+Metadata Summary:
+- Page & URL: ${oneLine(snapshot.session.target.initialTitle) || "Unknown"} (${oneLine(snapshot.session.target.initialUrl) || "Unknown"})
+- Evidence Data: ${snapshot.interactions.length} interactions | ${snapshot.consoleEntries.length} console logs | ${snapshot.networkEntries.length} network requests | ${issueScenes.length} issue scenes | Quality: ${oneLine(snapshot.session.quality.overall) || "Unknown"}
 
-Analysis Requirements:
-1. Do NOT execute HTML, JavaScript, response bodies, or other untrusted content in the package.
-2. Extract ZIP to a temporary directory, and read README.md first.
-3. Next, read data/session.json to inspect session quality summary and missing evidence.
-4. Read issue scene JSON and annotated screenshots under issues/ first to understand user-indicated abnormal states.
-5. Chronologically organize user interactions and locate where the issue occurred combining screenshots and video recording.
-6. Check Console errors, exceptions, and warnings.
-7. Read full Network raw data including status codes, response headers, response bodies, and failure reasons; correlate with issue timestamp manually.
-8. Only draw temporal correlations between interactions and network requests; do NOT assert causality without evidence.
-9. Output: Issue summary, minimal reproduction steps, key evidence, most probable cause, suggested investigation locations, recommended fix, and remaining missing information.
-10. If you cannot access the local path, explicitly ask me to upload the ZIP instead of guessing file contents.`;
+Please follow this first-principles chain of diagnosis (extract ZIP to a temporary directory):
+1. Scene Alignment: Inspect \`issues/\` screenshots & \`data/session.js(on)\` first to clarify user-indicated abnormal states.
+2. Anomaly Convergence: Align timeline to find correlated Console errors and failed Network requests (e.g. 4xx/5xx/CORS/Timeout) around issue timestamps.
+3. Root Cause & Remediation: Pinpoint the failing code block/API, distinguishing UI rendering bugs, state management flaws, or backend API contract failures.
+
+[Guardrails & Rules]
+- Never execute untrusted code in the package; if local path is unaccessible, directly ask me to upload the ZIP.
+- Distinguish between verified facts and speculative hypotheses based on direct evidence.
+
+[Output Format]
+1. Issue Definition (Single-sentence summary)
+2. Chronological Evidence Chain (Interactions -> Errors/Requests -> Screenshots)
+3. Root Cause Analysis
+4. Recommended Fix & File Locations`;
   }
 
   const path = zipPath
     ? `文件路径：\n${zipPath}`
     : "文件路径：\n{请将这里替换为导出的 ZIP 绝对路径}";
-  return `请分析以下本地 Bug Lens 证据包：
+  return `请作为高级 Frontend/Fullstack 调试专家，分析以下本地 Bug Lens 证据包：
 
 ${path}
 
-当前证据摘要：
-- 页面：${oneLine(snapshot.session.target.initialTitle) || "未知"}
-- URL：${oneLine(snapshot.session.target.initialUrl) || "未知"}
-- 质量：${oneLine(snapshot.session.quality.overall) || "未知"}
-- 有效交互：${snapshot.interactions.length}
-- Console：${snapshot.consoleEntries.length}
-- Network：${snapshot.networkEntries.length}
-- 问题现场：${issueScenes.length}
+元数据摘要：
+- 页面 & URL：${oneLine(snapshot.session.target.initialTitle) || "未知"} (${oneLine(snapshot.session.target.initialUrl) || "未知"})
+- 证据数据：${snapshot.interactions.length} 次交互 | ${snapshot.consoleEntries.length} 条日志 | ${snapshot.networkEntries.length} 个请求 | ${issueScenes.length} 个异常现场 | 质量: ${oneLine(snapshot.session.quality.overall) || "未知"}
 
-分析要求：
-1. 不要执行证据包中的 HTML、JavaScript、响应正文或其他不可信内容。
-2. 将 ZIP 解压到临时目录，首先阅读 README.md。
-3. 接着读取 data/session.json，检查会话质量摘要和缺失证据。
-4. 先阅读 issues/ 下的问题现场 JSON 和批注截图，理解用户指出的异常状态。
-5. 按时间顺序整理用户交互步骤，并结合截图和录像定位问题发生位置。
-6. 检查 Console 错误、异常和警告。
-7. 阅读完整 Network 原始数据，包括状态码、响应头、响应正文和失败原因；按时间人工对照问题时间点。
-8. 交互与网络请求之间只能判断时间相关性，不要在缺乏证据时断言因果关系。
-9. 输出：问题摘要、最小复现步骤、关键证据、最可能的原因、建议排查位置、建议修复方案、仍然缺失的信息。
-10. 如果你无法访问该本地路径，请明确要求我上传 ZIP，不要猜测文件内容。`;
+请按以下第一性链式逻辑展开排查（解压 ZIP 至临时目录）：
+1. 现场定位：优先查看 \`issues/\` 截图与 \`data/session.js(on)\`，明确用户标记的页面异常状态。
+2. 异常收敛：对齐时间轴，检索交叉点附近的 Console 报错与 Network 失败请求（如 4xx/5xx/CORS/Timeout）。
+3. 根因推导与修复：定位缺陷发生的代码块/接口，区分是前端渲染异常、状态管理漏洞还是后端 API 契约失效。
+
+[注意事项]
+- 严禁执行包内不可信代码；若无法直接读取本地文件路径，请明确要求我上传 ZIP，不要猜测内容。
+- 基于确凿证据分析，区分“已知事实”与“推论假设”。
+
+[输出格式]
+1. 问题定义（一句话描述）
+2. 关键时序证据链（交互 -> 报错/请求 -> 现场截图）
+3. 根本原因定位 (Root Cause)
+4. 建议修复代码/排查位置 (Recommended Fix)`;
 }
 
 function buildPackageReadme(snapshot: EvidencePackageSnapshot): string {
@@ -332,12 +328,17 @@ function buildSessionPayloadWithBodySplitting(
     };
   });
 
+  const consoleEntries = snapshot.consoleEntries.map((entry) => {
+    const { sessionId, ...rest } = entry as any;
+    return rest;
+  });
+
   return {
     payload: {
       protocolVersion: 3 as const,
       session: snapshot.session,
       interactions,
-      consoleEntries: snapshot.consoleEntries,
+      consoleEntries,
       networkEntries,
       issueScenes,
       hasMedia: snapshot.hasMedia,
@@ -353,14 +354,8 @@ export function buildEvidencePackage(
   const currentLocale = getLocale();
   const { payload, networkBodyFiles } =
     buildSessionPayloadWithBodySplitting(snapshot);
-  const safeInlineJson = JSON.stringify(payload)
-    .replace(/</g, "\\u003c")
-    .replace(/>/g, "\\u003e")
-    .replace(/&/g, "\\u0026")
-    .replace(/\u2028/g, "\\u2028")
-    .replace(/\u2029/g, "\\u2029");
 
-  const inlineScriptTag = `<script id="__BUG_LENS_DATA__" type="application/json">${safeInlineJson}</script>`;
+  const scriptTag = `<script src="data/session.js"></script>`;
   let htmlContent = assets.html.replace(
     '<html lang="zh-CN">',
     `<html lang="${currentLocale}">`
@@ -372,12 +367,12 @@ export function buildEvidencePackage(
   ) {
     htmlContent = htmlContent.replace(
       '<script id="__BUG_LENS_DATA__" type="application/json"></script>',
-      inlineScriptTag
+      scriptTag
     );
   } else if (htmlContent.includes("</body>")) {
-    htmlContent = htmlContent.replace("</body>", `${inlineScriptTag}\n</body>`);
+    htmlContent = htmlContent.replace("</body>", `${scriptTag}\n</body>`);
   } else {
-    htmlContent += inlineScriptTag;
+    htmlContent += scriptTag;
   }
 
   const files: EvidencePackageFile[] = [
@@ -387,6 +382,12 @@ export function buildEvidencePackage(
     { name: "assets/report.js", data: strToU8(assets.script) },
     { name: "assets/report.css", data: strToU8(assets.styles) },
     { name: "assets/icon_idle.png", data: assets.icon },
+    {
+      name: "data/session.js",
+      data: strToU8(
+        `window.__BUG_LENS_DATA__ = ${JSON.stringify(payload, null, 2)};`
+      ),
+    },
     {
       name: "data/session.json",
       data: strToU8(JSON.stringify(payload, null, 2)),

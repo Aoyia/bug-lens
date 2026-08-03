@@ -91,13 +91,18 @@ test("evidence package hides the complete offline report behind one snapshot int
       "assets/report.js",
       "assets/report.css",
       "assets/icon_idle.png",
+      "data/session.js",
       "data/session.json",
     ]
   );
   assert.match(files.get("README.md")!, /Checkout page/);
   assert.match(files.get("README.md")!, /用户删除的交互步骤：2/);
   assert.match(files.get("README.md")!, /camera unavailable/);
-  assert.ok(files.get("report.html")!.includes('id="__BUG_LENS_DATA__"'));
+  assert.ok(
+    files
+      .get("report.html")!
+      .includes('<script src="data/session.js"></script>')
+  );
   assert.equal(
     JSON.parse(files.get("data/session.json")!).session.id,
     session.id
@@ -107,9 +112,9 @@ test("evidence package hides the complete offline report behind one snapshot int
 test("AI handoff prompt includes the selected package path and evidence counts", () => {
   const prompt = buildAiPrompt(snapshot, "/tmp/bug-lens.zip");
   assert.match(prompt, /\/tmp\/bug-lens\.zip/);
-  assert.match(prompt, /有效交互：0/);
-  assert.match(prompt, /Console：0/);
-  assert.match(prompt, /不要执行证据包中的 HTML/);
+  assert.match(prompt, /0 次交互/);
+  assert.match(prompt, /0 条日志/);
+  assert.match(prompt, /严禁执行包内不可信代码/);
 });
 
 test("evidence package exports binary interaction screenshots into screenshots/ directory and references relative paths in session.json", () => {

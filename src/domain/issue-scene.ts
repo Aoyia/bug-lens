@@ -5,6 +5,10 @@ import type {
   TargetDomSnapshot,
 } from "../shared/protocol.ts";
 
+/**
+ * 基于用户点击或视口信息，生成默认的标注信息（AnnotationModel）。
+ * 默认标注通常是一个红色的箭头框。
+ */
 export function defaultAnnotation(
   point: { clientX: number; clientY: number },
   viewport: { width: number; height: number },
@@ -87,6 +91,15 @@ export function normalizeAnnotation(
   };
 }
 
+/**
+ * 将用户补充的问题描述（Narrative）合并到现有的 IssueScene 中，
+ * 并将该场景标记为已提交 (committed)。
+ *
+ * @param scene 当前的问题现场快照
+ * @param narrative 用户输入的实际情况、预期和备注
+ * @param annotation 经过编辑或确认的最终标注信息
+ * @returns 更新后的 IssueScene
+ */
 export function withIssueNarrative(
   scene: IssueScene,
   narrative: IssueScene["narrative"],
@@ -106,6 +119,10 @@ export function withIssueNarrative(
   };
 }
 
+/**
+ * 标记特定 IssueScene 的处理结果（完整、部分完成或失败），
+ * 并在必要时附加错误 / 警告信息。
+ */
 export function markIssueSceneResult(
   scene: IssueScene,
   result: "complete" | "partial" | "failed",
@@ -118,6 +135,10 @@ export function markIssueSceneResult(
   };
 }
 
+/**
+ * 构造目标 DOM 元素的精简快照（用于保存和分析）。
+ * 为了防止数据过大，会限制保存的祖先元素层级数量和计算样式的数量。
+ */
 export function buildTargetSnapshot(
   element: TargetDomSnapshot
 ): TargetDomSnapshot {
