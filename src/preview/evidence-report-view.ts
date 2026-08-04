@@ -1,6 +1,7 @@
 import { h, render } from "preact";
 import type {
   ConsoleEntry,
+  FrameworkStateEvidence,
   InteractionRecord,
   NetworkEntry,
   RecordingSession,
@@ -12,9 +13,11 @@ import { ConsoleTab } from "../components/preview/ConsoleTab";
 import { NetworkTab } from "../components/preview/NetworkTab";
 import { InteractionsTab } from "../components/preview/InteractionsTab";
 import { IssueSceneTab } from "../components/preview/IssueSceneTab";
+import { FrameworkStateTab } from "../components/preview/FrameworkStateTab";
 import { StreamTab } from "../components/preview/StreamTab";
 import { formatElapsedEpochTime } from "../domain/evidence-clock";
 import { exportVideoClip } from "./video-clip-exporter";
+import { formatEnvironmentSummary } from "../domain/environment-capture";
 
 // 引入网络详情逻辑类型支持
 declare global {
@@ -31,6 +34,7 @@ export type EvidenceReportSnapshot = {
   consoleEntries: EvidenceCollection<ConsoleEntry>;
   networkEntries: EvidenceCollection<NetworkEntry>;
   issueScenes?: EvidenceCollection<IssueScenePreview>;
+  frameworkStates?: FrameworkStateEvidence[];
   hasMedia: boolean;
 };
 
@@ -63,6 +67,7 @@ export class EvidenceReportView {
   private readonly networkContainer: HTMLElement;
   private readonly interactionsContainer: HTMLElement;
   private readonly issueScenesContainer: HTMLElement;
+  private readonly frameworkStatesContainer: HTMLElement | null;
   private readonly streamContainer: HTMLElement | null;
 
   constructor(
@@ -83,6 +88,9 @@ export class EvidenceReportView {
       root.querySelector<HTMLElement>("#interactions")!;
     this.issueScenesContainer =
       root.querySelector<HTMLElement>("#issue-scenes")!;
+    this.frameworkStatesContainer = root.querySelector<HTMLElement>(
+      "#tab-pane-framework"
+    );
     this.streamContainer = root.querySelector<HTMLElement>("#tab-pane-stream");
 
     // Restore button wiring (editable mode only)
@@ -145,6 +153,18 @@ export class EvidenceReportView {
     if (metaEl) {
       metaEl.textContent = metaText;
       metaEl.setAttribute("title", metaText);
+    }
+    // 运行环境信息（系统/浏览器/分辨率）由录制握手时自动附带
+    const environmentEl = this.root.querySelector<HTMLElement>(
+      "#environment-summary"
+    );
+    if (environmentEl) {
+      const environmentText = formatEnvironmentSummary(
+        snapshot.session.target.environment
+      );
+      environmentEl.hidden = !environmentText;
+      environmentEl.textContent = environmentText;
+      if (environmentText) environmentEl.setAttribute("title", environmentText);
     }
 
     this.renderSummary();
@@ -253,6 +273,17 @@ export class EvidenceReportView {
       }),
       this.issueScenesContainer
     );
+
+    // Framework states tab
+    if (this.frameworkStatesContainer) {
+      render(
+        h(FrameworkStateTab, {
+          states: snapshot.frameworkStates ?? [],
+          startedAtEpochMs: snapshot.session.timeline.startedAtEpochMs,
+        }),
+        this.frameworkStatesContainer
+      );
+    }
 
     // Timeline stream tab (not present in offline report)
     if (this.streamContainer) {

@@ -1,4 +1,10 @@
 import { isEnvelope, message } from "../../shared/protocol";
+import {
+  captureFrameworkState,
+  isMeaningfulFrameworkState,
+} from "../../domain/framework-state-capture";
+import { captureEnvironment } from "../../domain/environment-capture";
+import type { FrameworkStateTrigger } from "../../shared/protocol";
 import { RecordingWidget } from "./collector/recording-widget";
 import { SelectionOverlay } from "./collector/selection-overlay";
 import { IssueEditor } from "./collector/issue-editor";
@@ -10,6 +16,7 @@ type ContentSession = {
   nonce: string;
   startedAtEpochMs?: number;
   privacyMode: "safe" | "raw";
+  captureFrameworkState?: boolean;
 };
 type ContentController = {
   refresh: (next: ContentSession | undefined) => void;
@@ -27,7 +34,11 @@ const existingController = window.__WEB_BUG_RECORDER_CONTROLLER__;
 if (existingController) {
   void chrome.runtime
     .sendMessage(
-      message("content/hello", { url: location.href, title: document.title })
+      message("content/hello", {
+        url: location.href,
+        title: document.title,
+        environment: captureEnvironment(),
+      })
     )
     .then((response) => {
       existingController.refresh(
@@ -37,6 +48,7 @@ if (existingController) {
               nonce: response.nonce,
               startedAtEpochMs: response.startedAtEpochMs,
               privacyMode: response.privacyMode === "raw" ? "raw" : "safe",
+              captureFrameworkState: Boolean(response.captureFrameworkState),
             }
           : undefined
       );
@@ -76,35 +88,48 @@ if (existingController) {
         .then(
           async (res: {
             ok?: boolean;
-            session?: { id: string; silentPrompt?: string };
+            session?: {
+              id: string;
+              silentPrompt?: string;
+              silentExportResult?: { ok: boolean; error?: string };
+            };
           }) => {
-            if (res?.ok) {
-              if (res.session?.silentPrompt) {
-                try {
-                  await navigator.clipboard.writeText(res.session.silentPrompt);
-                } catch {
-                  const textarea = document.createElement("textarea");
-                  textarea.value = res.session.silentPrompt;
-                  textarea.style.position = "fixed";
-                  textarea.style.opacity = "0";
-                  document.body.appendChild(textarea);
-                  textarea.select();
-                  document.execCommand("copy");
-                  textarea.remove();
-                }
-              }
+            if (!res?.ok) {
               widget.setSavingState(false);
-              widget.showToast("ZIP 下载完成，AI 提示词已自动复制到剪贴板！");
-              setTimeout(() => {
-                widget.unmount();
-              }, 1000);
-            } else {
-              widget.setSavingState(false);
+              widget.showToast("停止并导出失败，请重试");
+              return;
             }
+            if (res.session?.silentPrompt) {
+              try {
+                await navigator.clipboard.writeText(res.session.silentPrompt);
+              } catch {
+                const textarea = document.createElement("textarea");
+                textarea.value = res.session.silentPrompt;
+                textarea.style.position = "fixed";
+                textarea.style.opacity = "0";
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand("copy");
+                textarea.remove();
+              }
+            }
+            const exported = res.session?.silentExportResult;
+            widget.setSavingState(false);
+            if (exported && !exported.ok) {
+              widget.showToast(
+                "ZIP 导出失败，证据已保留，请从扩展历史记录中重新导出"
+              );
+            } else {
+              widget.showToast("ZIP 下载完成，AI 提示词已自动复制到剪贴板！");
+            }
+            setTimeout(() => {
+              widget.unmount();
+            }, 1000);
           }
         )
         .catch(() => {
           widget.setSavingState(false);
+          widget.showToast("停止并导出失败，请重试");
         });
     },
     onStopAndDiscard() {
@@ -120,7 +145,13 @@ if (existingController) {
       beginIssueSelection();
     },
     onTogglePause() {
-      monitor.toggleManualPause();
+      if (monitor.isIdlePaused) {
+        // 处于暂停态（闲置自动暂停或手动暂停）时点击按钮 = 继续
+        monitor.resume();
+      } else {
+        // 录制进行中点击按钮 = 手动暂停
+        monitor.toggleManualPause();
+      }
     },
     isPaused() {
       return monitor.isIdlePaused;
@@ -168,6 +199,7 @@ if (existingController) {
     isIssueActive: () => overlay.isActive || editor.isOpen,
     beginIssueSelection,
     removeIssueUi,
+    onEvidenceTick: () => captureFrameworkTick("interaction"),
   });
 
   const monitor: InactivityMonitor = new InactivityMonitor({
@@ -200,10 +232,37 @@ if (existingController) {
 
   // ─── Coordination ───
 
+  let lastFrameworkTickAt = 0;
+  const FRAMEWORK_TICK_MIN_INTERVAL_MS = 3_000;
+
+  function captureFrameworkTick(trigger: FrameworkStateTrigger): void {
+    if (!session?.sessionId) return;
+    if (!session.captureFrameworkState) return;
+    const now = Date.now();
+    if (
+      trigger !== "start" &&
+      now - lastFrameworkTickAt < FRAMEWORK_TICK_MIN_INTERVAL_MS
+    )
+      return;
+    lastFrameworkTickAt = now;
+    const state = captureFrameworkState({
+      sessionId: session.sessionId,
+      trigger,
+      privacyMode: session.privacyMode,
+    });
+    if (!isMeaningfulFrameworkState(state)) return;
+    void chrome.runtime
+      .sendMessage(
+        message("framework/state", { state }, session.sessionId, "background")
+      )
+      .catch(() => undefined);
+  }
+
   function beginIssueSelection(): void {
     if (overlay.isActive || editor.isOpen) return;
     widget.setIssueSelecting(true);
     overlay.open();
+    captureFrameworkTick("issue-scene");
   }
 
   function removeIssueUi(): void {
@@ -233,6 +292,7 @@ if (existingController) {
       widget.mount();
       if (health) widget.updateHealth(health);
       monitor.start();
+      captureFrameworkTick("start");
     } else {
       widget.unmount();
       monitor.stop();
@@ -256,7 +316,11 @@ if (existingController) {
   });
   chrome.runtime
     .sendMessage(
-      message("content/hello", { url: location.href, title: document.title })
+      message("content/hello", {
+        url: location.href,
+        title: document.title,
+        environment: captureEnvironment(),
+      })
     )
     .then((response) => {
       refreshSession(
@@ -266,6 +330,7 @@ if (existingController) {
               nonce: response.nonce,
               startedAtEpochMs: response.startedAtEpochMs,
               privacyMode: response.privacyMode === "raw" ? "raw" : "safe",
+              captureFrameworkState: Boolean(response.captureFrameworkState),
             }
           : undefined,
         response?.health

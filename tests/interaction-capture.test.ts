@@ -106,3 +106,52 @@ test("interaction capture serializes accepted events behind one capture interfac
   ]);
   assert.deepEqual(await capture.drain(), []);
 });
+
+test("iframe 内交互的截图失败会给出用户可读文案与独立错误码（A7）", async () => {
+  let stored: InteractionRecord | undefined;
+  const sessionEvents: RecordingSessionEvent[] = [];
+  // iframe 截图仅在开启点击截图时触发
+  const iframeSession: RecordingSession = {
+    ...session,
+    options: { ...session.options, captureScreenshots: true },
+  };
+  const capture = new InteractionCapture(
+    {
+      getActiveSession: async () => iframeSession,
+      getInteraction: async () => stored,
+      saveInteractionWithinBudget: async (next) => {
+        stored = next;
+        return { stored: true, usedBytes: 1, limitReached: false };
+      },
+    },
+    async (_sessionId, event) => {
+      sessionEvents.push(event);
+      return iframeSession;
+    },
+    () => false
+  );
+
+  await capture.handle(interaction, {
+    tab: { id: 7 },
+    frameId: 1,
+  } as chrome.runtime.MessageSender);
+
+  const issueEvent = sessionEvents.find(
+    (
+      event
+    ): event is Extract<RecordingSessionEvent, { type: "capture-issue" }> =>
+      event.type === "capture-issue"
+  );
+  assert.ok(issueEvent, "iframe 截图失败应产生 capture-issue 事件");
+  assert.equal(issueEvent.issue.code, "IFRAME_CAPTURE_UNSUPPORTED");
+  assert.match(
+    issueEvent.issue.message,
+    /内嵌页面/,
+    "错误文案应为用户可读文案而非开发者术语"
+  );
+  assert.ok(
+    !issueEvent.issue.message.includes("FRAME_GEOMETRY_UNAVAILABLE:"),
+    "告警不应包含开发者内部前缀"
+  );
+  assert.deepEqual(await capture.drain(), []);
+});

@@ -3,6 +3,7 @@ import { migrateSessionForExport } from "../export/export-manifest";
 import type {
   ConsoleEntry,
   EvidenceAsset,
+  FrameworkStateEvidence,
   InteractionRecord,
   IssueScene,
   NetworkEntry,
@@ -28,6 +29,7 @@ export type PreviewStorage = Pick<
   | "getEvidenceAssetsForSession"
   | "getMediaSummary"
   | "getMediaChunks"
+  | "getFrameworkStates"
   | "saveNetwork"
 >;
 
@@ -40,6 +42,7 @@ export class PreviewSessionRuntime {
   private consoleEntries: ConsoleEntry[] = [];
   private networkEntries: NetworkEntry[] = [];
   private issueScenes: IssueScene[] = [];
+  private frameworkStates: FrameworkStateEvidence[] = [];
   private issueAssets: EvidenceAsset[] = [];
   private interactionAssets: EvidenceAsset[] = [];
   private issueScenePreviews: IssueScenePreview[] = [];
@@ -105,6 +108,7 @@ export class PreviewSessionRuntime {
     );
     this.networkEntries = await this.storage.getNetwork(sessionId);
     this.issueScenes = await this.storage.getIssueScenes(sessionId);
+    this.frameworkStates = await this.storage.getFrameworkStates(sessionId);
     if (!this.issueAssets.length) {
       this.issueAssets = (
         await Promise.all(
@@ -187,6 +191,7 @@ export class PreviewSessionRuntime {
         all: this.issueScenePreviews,
         included: this.selection.includedIssueScenes(this.issueScenePreviews),
       },
+      frameworkStates: this.frameworkStates,
       hasMedia: Boolean(this.mediaUrl),
     };
   }
@@ -203,6 +208,7 @@ export class PreviewSessionRuntime {
         this.networkEntries
       ),
       issueScenes: this.selection.includedIssueScenes(this.issueScenes),
+      frameworkStates: this.frameworkStates,
       issueAssets: this.issueAssets
         .filter(
           (asset) =>

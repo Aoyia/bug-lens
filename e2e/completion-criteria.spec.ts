@@ -142,8 +142,16 @@ test.describe("Bug Lens 0.4.x 完成标准 1:1 E2E 验证套件", () => {
       logE2e(
         "完成标准 2-3 验证结果: PASS (成功通过真实 CDP Detach 触发 PART 流降级)"
       );
-    } catch {
-      test.skip(true, "Chrome API onDetach 事件未在无头沙箱上下文中主动回调");
+    } catch (error) {
+      test.info().annotations.push({
+        type: "environment",
+        description:
+          "无头沙箱上下文未主动回调 onDetach，PART 降级验证未能在本环境执行；" +
+          "PART 状态推导已由 tests/stream-health-monitor.test.ts 单测覆盖",
+      });
+      throw new Error(
+        `CRITERIA-2-3 PART 降级验证失败：${error instanceof Error ? error.message : String(error)}`
+      );
     }
 
     await targetPage.locator("#__wbr_stop_btn__").click();

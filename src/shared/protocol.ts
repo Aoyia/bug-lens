@@ -36,10 +36,13 @@ export type RecordingOptions = {
   captureNetwork: boolean;
   captureNetworkBodies: boolean;
   captureStaticBodies?: boolean;
+  captureFrameworkState?: boolean;
   privacyMode: "safe" | "raw";
   mediaTimesliceMs: number;
   maxResponseBodyBytes: number;
   maxSessionBytes: number;
+  /** 录像码率（bps）。缺省时由存储策略 compression 档位推导。 */
+  videoBitsPerSecond?: number;
 };
 
 export type StoragePolicy = {
@@ -61,7 +64,8 @@ export type EvidenceKind =
   | "console"
   | "network"
   | "networkBodies"
-  | "audio";
+  | "audio"
+  | "frameworkStates";
 export type EvidenceState =
   "captured" | "partial" | "failed" | "redacted" | "disabled" | "pending";
 export type EvidenceSummary = {
@@ -108,6 +112,8 @@ export type RecordingSession = {
     windowId?: number;
     initialUrl: string;
     initialTitle: string;
+    /** 录制环境快照（系统/浏览器/分辨率），由页面主帧握手时自动附带。 */
+    environment?: EnvironmentInfo;
   };
   options: RecordingOptions;
   timeline: {
@@ -122,6 +128,7 @@ export type RecordingSession = {
   browserEpoch?: string;
   previewPending?: boolean;
   silentPrompt?: string;
+  silentExportResult?: { ok: boolean; error?: string };
   resumedFromSessionId?: string;
   storage?: SessionStorage;
   error?: CaptureIssue;
@@ -141,6 +148,52 @@ export type FrameworkSnapshot = {
   rootComponent?: FrameworkComponentNode;
   targetComponent?: FrameworkComponentNode;
   parentChain: FrameworkComponentNode[];
+};
+
+export type FrameworkStateTrigger =
+  "start" | "interaction" | "issue-scene" | "resume";
+
+/**
+ * 录制时的运行环境快照（由页面主帧在握手时上报，无需用户手动填写）。
+ * screen 相关字段只在页面上下文（content script）中可读。
+ */
+export type EnvironmentInfo = {
+  /** 浏览器 User-Agent（如 "Mozilla/5.0 ... Chrome/126.0"） */
+  userAgent: string;
+  platform: string;
+  language: string;
+  /** 屏幕物理分辨率（px） */
+  screenWidth: number;
+  screenHeight: number;
+  devicePixelRatio: number;
+  /** 浏览器视口尺寸（CSS px） */
+  viewportWidth: number;
+  viewportHeight: number;
+  online: boolean;
+  capturedAtEpochMs: number;
+};
+
+export type FrameworkStateEvidence = {
+  id: string;
+  sessionId: string;
+  capturedAtEpochMs: number;
+  trigger: FrameworkStateTrigger;
+  page: {
+    url: string;
+    title: string;
+    frameId?: number;
+    viewport?: { width: number; height: number };
+    scrollY?: number;
+  };
+  snapshot?: FrameworkSnapshot;
+  /** 常见全局状态挂载点（SSR/Redux 等约定，已脱敏），如 __INITIAL_STATE__、__NUXT__ */
+  globalState?: Record<string, unknown>;
+  /** web storage 快照（已脱敏）；safe 模式下默认仅记录键名 */
+  webStorage?: {
+    localStorage?: Record<string, unknown>;
+    sessionStorage?: Record<string, unknown>;
+    redactedValues: boolean;
+  };
 };
 
 export type ElementDescriptor = {
@@ -618,9 +671,13 @@ export type RuntimeMessage =
   | Envelope<"issue-scene/cancel", { issueSceneId: string; nonce: string }>
   | Envelope<"issue-scene/start-selection", Record<string, never>>
   | Envelope<"issue-scene/cancel-selection", Record<string, never>>
-  | Envelope<"content/hello", { url: string; title: string }>
+  | Envelope<
+      "content/hello",
+      { url: string; title: string; environment?: EnvironmentInfo }
+    >
   | Envelope<"content/reset", Record<string, never>>
   | Envelope<"content/health-update", { health: RecordingHealthInfo }>
+  | Envelope<"framework/state", { state: FrameworkStateEvidence }>
   | Envelope<
       "offscreen/start-media",
       {
@@ -628,6 +685,7 @@ export type RuntimeMessage =
         sessionId: string;
         captureAudio: boolean;
         timesliceMs: number;
+        videoBitsPerSecond?: number;
       }
     >
   | Envelope<"offscreen/stop-media", { sessionId: string }>
@@ -738,10 +796,12 @@ export type RuntimeMessageResponseMap = {
     nonce?: string;
     startedAtEpochMs?: number;
     privacyMode?: "safe" | "raw";
+    captureFrameworkState?: boolean;
     health?: RecordingHealthInfo;
   };
   "content/reset": { ok: true };
   "content/health-update": { ok: true };
+  "framework/state": { ok: true; stored: boolean };
   "offscreen/start-media": { ok: true };
   "offscreen/stop-media": { ok: true };
   "offscreen/pause-media": { ok: true };

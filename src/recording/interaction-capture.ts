@@ -259,7 +259,7 @@ export class InteractionCapture {
     try {
       if ((sender.frameId ?? 0) !== 0)
         throw new Error(
-          "FRAME_GEOMETRY_UNAVAILABLE: iframe 坐标暂无法可靠映射到顶层视口"
+          "FRAME_GEOMETRY_UNAVAILABLE: 该区域为内嵌页面（iframe），暂不支持点击截图，操作日志已记录"
         );
       await this.assertTargetTabIsActive(session);
       const dataUrl = await this.executeCaptureVisibleTab(
@@ -330,20 +330,23 @@ export class InteractionCapture {
         });
       }
     } catch (error) {
-      const safeError = sanitizeText(
-        String(error),
-        session.options.privacyMode
-      );
-      const issueCode = safeError.includes(
-        "MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND"
-      )
-        ? "SCREENSHOT_QUOTA_EXCEEDED"
-        : safeError.includes("TARGET_TAB_NOT_ACTIVE")
-          ? "VISIBLE_TAB_NOT_ACTIVE"
-          : "SCREENSHOT_CAPTURE_FAILED";
+      const raw = String(error);
+      const safeError = sanitizeText(raw, session.options.privacyMode);
+      // iframe 截图暂不支持：将开发者错误映射为面向用户的纯文案，避免展示内部前缀
+      const isFrameGeometry = raw.includes("FRAME_GEOMETRY_UNAVAILABLE");
+      const userMessage = isFrameGeometry
+        ? "该区域为内嵌页面（iframe），暂不支持点击截图，操作日志已记录"
+        : safeError;
+      const issueCode = isFrameGeometry
+        ? "IFRAME_CAPTURE_UNSUPPORTED"
+        : safeError.includes("MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND")
+          ? "SCREENSHOT_QUOTA_EXCEEDED"
+          : safeError.includes("TARGET_TAB_NOT_ACTIVE")
+            ? "VISIBLE_TAB_NOT_ACTIVE"
+            : "SCREENSHOT_CAPTURE_FAILED";
       const result = await this.persist(session.id, interaction.id, {
         type: "screenshot-unavailable",
-        issue: safeError,
+        issue: userMessage,
       });
       if (
         !result.budgetRejected &&
@@ -356,7 +359,7 @@ export class InteractionCapture {
         });
         await this.writeSessionEvent(session.id, {
           type: "capture-issue",
-          issue: issue(issueCode, safeError, "screenshot"),
+          issue: issue(issueCode, userMessage, "screenshot"),
         });
       }
     }

@@ -56,3 +56,32 @@ test("ContentScriptManager.restore registers the script before executing it when
     "execute:7:true:content.js",
   ]);
 });
+
+test("ContentScriptManager 注入失败时自动重试一次", async () => {
+  let attempts = 0;
+  const calls: string[] = [];
+  (globalThis as any).chrome = {
+    scripting: {
+      async getRegisteredContentScripts() {
+        calls.push("getRegisteredContentScripts");
+        return [{ id: "web-bug-recorder-content" }];
+      },
+      async registerContentScripts() {},
+      async executeScript(details: { target: { tabId: number } }) {
+        attempts += 1;
+        calls.push(`execute:${details.target.tabId}:attempt${attempts}`);
+        if (attempts === 1) throw new Error("injection failed");
+      },
+      async unregisterContentScripts() {},
+    },
+  };
+  const manager = new ContentScriptManager();
+
+  await manager.activate(42);
+
+  assert.deepEqual(calls, [
+    "getRegisteredContentScripts",
+    "execute:42:attempt1",
+    "execute:42:attempt2",
+  ]);
+});

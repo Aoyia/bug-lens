@@ -55,6 +55,21 @@
   "responseBodies": {
     "message": "响应正文"
   },
+  "frameworkStates": {
+    "message": "框架状态"
+  },
+  "videoQuality": {
+    "message": "录像质量"
+  },
+  "videoQualityHigh": {
+    "message": "高清（体积较大）"
+  },
+  "videoQualityBalanced": {
+    "message": "均衡（推荐）"
+  },
+  "videoQualitySmall": {
+    "message": "省空间（画质较低）"
+  },
   "safeMode": {
     "message": "安全模式（推荐脱敏）"
   },
@@ -168,6 +183,18 @@
   "guideSkip": {
     "message": "跳过"
   },
+  "guidePopupStep1Title": {
+    "message": "一键开始录制"
+  },
+  "guidePopupStep1Desc": {
+    "message": "点击「开始录制」，Bug Lens 会捕获当前页面的操作轨迹、点击截图、Console 日志与 Network 请求。"
+  },
+  "guidePopupStep2Title": {
+    "message": "证据一览与隐私"
+  },
+  "guidePopupStep2Desc": {
+    "message": "录像、截图、控制台与网络证据会汇总于此，导出前可逐项检查或排除；默认安全模式会脱敏敏感数据。"
+  },
   "popupTitle": {
     "message": "Bug Lens"
   },
@@ -246,6 +273,18 @@
   },
   "rawModeWarning": {
     "message": "原始模式会保留未脱敏的页面和调试数据。仅在获准且会人工检查的场景使用。"
+  },
+  "privacyModeSafe": {
+    "message": "安全模式"
+  },
+  "privacyModeSafeDesc": {
+    "message": "本次会话为安全模式：URL、文本与请求体已脱敏；录像与截图不会自动脱敏，分享前请人工检查。"
+  },
+  "privacyModeRaw": {
+    "message": "原始模式 · 未脱敏"
+  },
+  "privacyModeRawDesc": {
+    "message": "本次会话为原始模式：页面与调试数据未脱敏；录像与截图同样不会自动脱敏，分享或交给 AI 前务必人工检查。"
   },
   "statusCaptured": {
     "message": "成功"

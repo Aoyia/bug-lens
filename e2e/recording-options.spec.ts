@@ -84,6 +84,16 @@ test.describe("Bug Lens Chrome Extension recording options", () => {
         "Boolean(document.querySelector('#network')?.checked)"
       )
     ).toBe(true);
+    expect(
+      await popup.evaluate<boolean>(
+        "Boolean(document.querySelector('#framework-state')?.checked)"
+      )
+    ).toBe(true);
+    expect(
+      await popup.evaluate<string>(
+        "document.querySelector('#video-quality')?.value || ''"
+      )
+    ).toBe("balanced");
 
     await popup.click("#video");
     await waitForPopupChecked(popup, "#video", false);
@@ -130,6 +140,8 @@ test.describe("Bug Lens Chrome Extension recording options", () => {
     expect(session.options.captureConsole).toBe(true);
     expect(session.options.captureNetwork).toBe(true);
     expect(session.options.captureNetworkBodies).toBe(true);
+    expect(session.options.captureFrameworkState).toBe(true);
+    expect(session.options.videoBitsPerSecond).toBe(2_500_000);
     expect(await mediaProbe.isOffscreenRecording(session.id)).toBe(false);
     const activeSnapshot = await mediaProbe.snapshot(session.id, targetTabId!);
     expect(activeSnapshot.capture).toBeUndefined();

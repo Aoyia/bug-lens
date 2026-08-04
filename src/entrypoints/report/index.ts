@@ -1,5 +1,6 @@
 import type {
   ConsoleEntry,
+  FrameworkStateEvidence,
   InteractionRecord,
   NetworkEntry,
   RecordingSession,
@@ -16,6 +17,7 @@ type StaticReportData = {
   consoleEntries: ConsoleEntry[];
   networkEntries: NetworkEntry[];
   issueScenes: IssueScenePreview[];
+  frameworkStates?: FrameworkStateEvidence[];
   hasMedia: boolean;
 };
 
@@ -79,6 +81,7 @@ if (!data || data.protocolVersion !== 3) {
         all: data.issueScenes ?? [],
         included: data.issueScenes ?? [],
       },
+      frameworkStates: data.frameworkStates ?? [],
       hasMedia: data.hasMedia,
     }),
   });

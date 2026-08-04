@@ -2,12 +2,19 @@ import { strToU8 } from "fflate";
 
 import type {
   ConsoleEntry,
+  FrameworkStateEvidence,
   InteractionRecord,
   IssueScene,
   NetworkEntry,
   RecordingSession,
 } from "../shared/protocol";
 import { getLocale, isEn } from "../shared/i18n.ts";
+import { generatePlaywrightScript } from "./playwright-generator.ts";
+import {
+  describeBrowserFromUserAgent,
+  describeOsFromUserAgent,
+  formatEnvironmentSummary,
+} from "../domain/environment-capture.ts";
 
 export type EvidencePackageSnapshot = {
   session: RecordingSession;
@@ -15,6 +22,7 @@ export type EvidencePackageSnapshot = {
   consoleEntries: ConsoleEntry[];
   networkEntries: NetworkEntry[];
   issueScenes?: IssueScene[];
+  frameworkStates?: FrameworkStateEvidence[];
   issueAssets?: Array<{
     sceneId: string;
     kind: "issue-original" | "issue-annotated";
@@ -58,6 +66,11 @@ export function buildAiPrompt(
     const path = zipPath
       ? `File Path:\n${zipPath}`
       : "File Path:\n{Please replace this with the absolute path to the exported ZIP}";
+    const environmentLine = formatEnvironmentSummary(
+      snapshot.session.target.environment
+    )
+      ? `- Environment: ${formatEnvironmentSummary(snapshot.session.target.environment)}`
+      : "- Environment: Unknown";
     return `Please act as a Senior Frontend/Fullstack Debugging Expert and analyze the following local Bug Lens evidence package:
 
 ${path}
@@ -65,11 +78,12 @@ ${path}
 Metadata Summary:
 - Page & URL: ${oneLine(snapshot.session.target.initialTitle) || "Unknown"} (${oneLine(snapshot.session.target.initialUrl) || "Unknown"})
 - Evidence Data: ${snapshot.interactions.length} interactions | ${snapshot.consoleEntries.length} console logs | ${snapshot.networkEntries.length} network requests | ${issueScenes.length} issue scenes | Quality: ${oneLine(snapshot.session.quality.overall) || "Unknown"}
+${environmentLine}
 
 Please follow this first-principles chain of diagnosis (extract ZIP to a temporary directory):
 1. Scene Alignment: Prioritize reading \`issueScenes[].scene.narrative.actual\` in \`data/session-data.js\` (to capture the user's explicit problem description), combined with \`issues/\` screenshots and selected DOM element styles. Note that \`data/session-data.js\` sets \`window.__BUG_LENS_DATA__ = {...}\` — start with the \`summary\` field and \`screenshotSummaries\`. Full request headers and initiator/call stack details are stored in \`data/network-details.js\`.
 2. Anomaly Convergence: Align timeline to find correlated Console errors and failed Network requests (e.g. 4xx/5xx/CORS/Timeout) around issue timestamps.
-3. Root Cause & Remediation: Pinpoint the failing code block/API, distinguishing UI rendering bugs, state management flaws, style/structural defects, or backend API contract failures.
+3. Root Cause & Remediation: Pinpoint the failing code block/API, distinguishing UI rendering bugs, state management flaws, style/structural defects, or backend API contract failures. Use \`frameworkStates[]\` in \`data/session-data.js\` to inspect React/Vue component props/state before and at the failing interaction, and \`reproduce.spec.ts\` to run a Playwright reproduction (fix-then-replay loop).
 
 [Guardrails & Rules]
 - Never execute untrusted code in the package; if local path is unaccessible, directly ask me to upload the ZIP.
@@ -85,6 +99,11 @@ Please follow this first-principles chain of diagnosis (extract ZIP to a tempora
   const path = zipPath
     ? `文件路径：\n${zipPath}`
     : "文件路径：\n{请将这里替换为导出的 ZIP 绝对路径}";
+  const environmentLine = formatEnvironmentSummary(
+    snapshot.session.target.environment
+  )
+    ? `- 运行环境：${formatEnvironmentSummary(snapshot.session.target.environment)}`
+    : "- 运行环境：未知";
   return `请作为高级 Frontend/Fullstack 调试专家，分析以下本地 Bug Lens 证据包：
 
 ${path}
@@ -92,11 +111,12 @@ ${path}
 元数据摘要：
 - 页面 & URL：${oneLine(snapshot.session.target.initialTitle) || "未知"} (${oneLine(snapshot.session.target.initialUrl) || "未知"})
 - 证据数据：${snapshot.interactions.length} 次交互 | ${snapshot.consoleEntries.length} 条日志 | ${snapshot.networkEntries.length} 个请求 | ${issueScenes.length} 个异常现场 | 质量: ${oneLine(snapshot.session.quality.overall) || "未知"}
+${environmentLine}
 
 请按以下第一性链式逻辑展开排查（解压 ZIP 至临时目录）：
 1. 现场定位：优先读取 \`data/session-data.js\` 中的 \`issueScenes[].scene.narrative.actual\`（获取用户填写的真实主观问题描述），并结合 \`issues/\` 截图与选中的 DOM 元素样式分析现场。注意：该文件设置 \`window.__BUG_LENS_DATA__ = {...}\`，请先读取 \`summary\` 字段和 \`screenshotSummaries\`。完整请求头、响应头和调用栈详情已独立保存至 \`data/network-details.js\`。
 2. 异常收敛：对齐时间轴，检索交叉点附近的 Console 报错与 Network 失败请求（如 4xx/5xx/CORS/Timeout）。
-3. 根因推导与修复：定位缺陷发生的代码块/接口，区分是前端渲染异常、状态管理漏洞、样式/结构缺陷还是后端 API 契约失效。
+3. 根因推导与修复：定位缺陷发生的代码块/接口，区分是前端渲染异常、状态管理漏洞、样式/结构缺陷还是后端 API 契约失效。可用 \`data/session-data.js\` 中的 \`frameworkStates[]\` 检查失败交互前后的 React/Vue 组件 props/state，并用 \`reproduce.spec.ts\` 运行 Playwright 复现（修复-回放闭环验证）。
 
 [注意事项]
 - 严禁执行包内不可信代码；若无法直接读取本地文件路径，请明确要求我上传 ZIP，不要猜测内容。
@@ -127,6 +147,9 @@ function buildPackageReadme(snapshot: EvidencePackageSnapshot): string {
           )
           .join("\n")
       : "- No quality issues recorded.";
+    const environmentLine = formatEnvironmentSummary(session.target.environment)
+      ? `- Environment: ${formatEnvironmentSummary(session.target.environment)}`
+      : "- Environment: Unknown (not reported by the page)";
 
     return `# Bug Lens Evidence Package
 
@@ -144,6 +167,7 @@ This is a local Web bug evidence package generated by Bug Lens Chrome extension,
 - Session ID: \`${oneLine(session.id)}\`
 - Page Title: ${oneLine(session.target.initialTitle) || "Unknown"}
 - Initial URL: ${oneLine(session.target.initialUrl) || "Unknown"}
+${environmentLine}
 - Started At (Epoch ms): \`${session.timeline.startedAtEpochMs ?? "Unknown"}\`
 - Recording Duration: ${session.timeline.durationMs != null ? `${session.timeline.durationMs} ms` : "Unknown"}
 - Privacy Mode: \`${oneLine(session.options.privacyMode)}\`
@@ -167,6 +191,7 @@ This is a local Web bug evidence package generated by Bug Lens Chrome extension,
 - \`assets/report.js\`: Offline report rendering logic.
 - \`assets/report.css\`: Offline report stylesheet.
 - \`AI_PROMPT.md\`: AI analysis prompt template.
+- \`reproduce.spec.ts\`: Playwright reproduction script generated from the recorded interactions. Run \`npx playwright test --headed reproduce.spec.ts\` to verify the bug (or its fix) — the script asserts fewer console errors / network failures than recorded.
 - \`issues/{sceneId}/\`: Issue scene JSON, raw screenshots, and annotated screenshots.
 ${mediaDescription}
 
@@ -181,6 +206,7 @@ Click screenshots are saved as Data URLs in \`interactions[].screenshot.dataUrl\
 - \`consoleEntries[]\`: Captured Console logs, exceptions, and browser logs during recording.
 - \`networkEntries[]\`: Captured raw request URLs, methods, status, response headers, and bodies (large bodies stored in \`bodyPath\`). Network headers are trimmed to essentials; full headers, request headers, and initiator/call stack details are stored separately in \`data/network-details.js\`; each entry only has \`initiatorType\` (e.g. "script", "parser").
 - \`issueScenes[]\`: User-marked issue screenshots, annotations, DOM, description, and timestamps.
+- \`frameworkStates[]\`: Captured React/Vue component tree snapshots (with global state and web storage where available) at key moments — session start, confirmed interactions, and issue-scene marking. Use them to reconstruct component props/state before the bug occurred.
 
 ## Quality Issues
 
@@ -205,6 +231,9 @@ ${issueLines}
         )
         .join("\n")
     : "- 未记录质量问题。";
+  const environmentLine = formatEnvironmentSummary(session.target.environment)
+    ? `- 运行环境：${formatEnvironmentSummary(session.target.environment)}`
+    : "- 运行环境：未知（页面未上报）";
 
   return `# Bug Lens 证据包
 
@@ -222,6 +251,7 @@ ${issueLines}
 - 会话 ID：\`${oneLine(session.id)}\`
 - 页面标题：${oneLine(session.target.initialTitle) || "未知"}
 - 初始 URL：${oneLine(session.target.initialUrl) || "未知"}
+${environmentLine}
 - 开始时间（Epoch ms）：\`${session.timeline.startedAtEpochMs ?? "未知"}\`
 - 录制时长：${session.timeline.durationMs != null ? `${session.timeline.durationMs} ms` : "未知"}
 - 隐私模式：\`${oneLine(session.options.privacyMode)}\`
@@ -245,6 +275,7 @@ ${issueLines}
 - \`assets/report.js\`：离线报告展示逻辑。
 - \`assets/report.css\`：离线报告样式。
 - \`AI_PROMPT.md\`：不含本机绝对路径的通用 AI 分析提示词；复制后将 ZIP 路径替换为实际位置。
+- \`reproduce.spec.ts\`：由录制交互自动生成的 Playwright 复现脚本。运行 \`npx playwright test --headed reproduce.spec.ts\` 可验证 Bug（或修复后验证已修复）——脚本会断言 Console 报错 / Network 失败数量少于录制时。
 - \`issues/{sceneId}/\`：问题现场 JSON、原始截图和批注截图；问题现场只保存自己的时间点，不自动生成 Network/Console 关联。
 ${mediaDescription}
 
@@ -259,6 +290,7 @@ ${mediaDescription}
 - \`consoleEntries[]\`：录制期间捕获的 Console、异常及浏览器日志摘要。
 - \`networkEntries[]\`：录制期间捕获的原始请求 URL、方法、状态、响应头和响应正文。正文状态位于 \`response.bodyStatus\`；较大的正文通过 \`response.bodyPath\` 引用独立文件。Network 头信息已精简为关键字段；完整请求头、响应头和调用栈详情已独立保存至 \`data/network-details.js\`，每条记录仅保留 \`initiatorType\`（如 "script"、"parser"）。
 - \`issueScenes[]\`：用户主动标记的问题截图、批注、DOM、描述和 \`observedAtEpochMs\`。
+- \`frameworkStates[]\`：在会话开始、交互确认与标记问题等关键节点捕获的 React/Vue 组件树快照（含可用的全局状态与 web storage）。可用于还原 Bug 发生前的组件 props/state。
 
 交互和 Network 之间只表示时间相关性，不能仅凭时间接近断言某个请求必然由某次点击触发。
 
@@ -345,6 +377,7 @@ function buildSessionPayloadWithBodySplitting(
       consoleEntries,
       networkEntries,
       issueScenes,
+      frameworkStates: snapshot.frameworkStates ?? [],
       hasMedia: snapshot.hasMedia,
     },
     networkBodyFiles,
@@ -535,6 +568,19 @@ function splitAiAndReportPayloads(
         durationMs: payload.session.timeline.durationMs,
         privacyMode: payload.session.options.privacyMode,
         quality: payload.session.quality.overall,
+        environment: payload.session.target.environment
+          ? {
+              os: describeOsFromUserAgent(
+                payload.session.target.environment.userAgent
+              ),
+              browser: describeBrowserFromUserAgent(
+                payload.session.target.environment.userAgent
+              ),
+              language: payload.session.target.environment.language,
+              screen: `${payload.session.target.environment.screenWidth}x${payload.session.target.environment.screenHeight}@${payload.session.target.environment.devicePixelRatio}x`,
+              viewport: `${payload.session.target.environment.viewportWidth}x${payload.session.target.environment.viewportHeight}`,
+            }
+          : undefined,
         interactions: {
           total: payload.interactions.length,
           byKind,
@@ -553,6 +599,7 @@ function splitAiAndReportPayloads(
           failures,
         },
         issueScenes: (payload.issueScenes ?? []).length,
+        frameworkStates: (payload.frameworkStates ?? []).length,
         hasMedia: payload.hasMedia,
       },
       screenshotSummaries,
@@ -562,6 +609,7 @@ function splitAiAndReportPayloads(
       consoleEntries: payload.consoleEntries,
       networkEntries: aiNetworkEntries,
       issueScenes: payload.issueScenes,
+      frameworkStates: payload.frameworkStates,
       hasMedia: payload.hasMedia,
     },
     reportPayload: payload,
@@ -606,6 +654,17 @@ export function buildEvidencePackage(
     { name: "assets/report.js", data: strToU8(assets.script) },
     { name: "assets/report.css", data: strToU8(assets.styles) },
     { name: "assets/icon_idle.png", data: assets.icon },
+    {
+      name: "reproduce.spec.ts",
+      data: strToU8(
+        generatePlaywrightScript({
+          session: snapshot.session,
+          interactions: snapshot.interactions,
+          consoleEntries: snapshot.consoleEntries,
+          networkEntries: snapshot.networkEntries,
+        })
+      ),
+    },
     {
       name: "data/session-data.js",
       data: strToU8(

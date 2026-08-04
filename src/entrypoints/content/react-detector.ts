@@ -63,9 +63,7 @@ function getFiberKey(el: Element): string | undefined {
   return undefined;
 }
 
-function getClosestFiber(
-  element: HTMLElement
-): object | undefined {
+function getClosestFiber(element: HTMLElement): object | undefined {
   let curr: HTMLElement | null = element;
   while (curr && curr !== document.body) {
     const fiberKey = getFiberKey(curr);
@@ -215,8 +213,7 @@ export function isReactProject(): boolean {
   try {
     const fiberKey = getFiberKey(document.body);
     if (fiberKey) return true;
-  } catch {
-  }
+  } catch {}
 
   try {
     const root = document.getElementById("root");
@@ -224,13 +221,11 @@ export function isReactProject(): boolean {
       const fiberKey = getFiberKey(root);
       if (fiberKey) return true;
     }
-  } catch {
-  }
+  } catch {}
 
   try {
     if (document.querySelector("#root, [data-reactroot]")) return true;
-  } catch {
-  }
+  } catch {}
 
   return false;
 }
@@ -262,13 +257,44 @@ export function detectReact(
 
   const rootFiber = getRootFiber(fiber as any);
   const rootChild = rootFiber ? rootFiber.child : null;
-  const rootComponent = rootChild
-    ? buildReactTree(rootChild, 0, 6)
-    : undefined;
+  const rootComponent = rootChild ? buildReactTree(rootChild, 0, 6) : undefined;
 
   return {
     targetComponent,
     rootComponent,
     parentChain,
   };
+}
+
+/**
+ * 独立证据流：无需目标元素，直接捕获整棵 React 组件树（脱敏）。
+ * 若页面没有可识别的 fiber 挂载点则返回 undefined。
+ */
+export function captureReactTree(): FrameworkSnapshot | undefined {
+  if (!isReactProject()) return undefined;
+
+  let fiber: object | undefined;
+  try {
+    const root = document.body ?? document.documentElement;
+    const key = root ? getFiberKey(root) : undefined;
+    if (key) fiber = (root as any)[key];
+    if (!fiber) {
+      const appRoot =
+        document.getElementById("root") ?? document.getElementById("app");
+      if (appRoot) {
+        const appKey = getFiberKey(appRoot);
+        if (appKey) fiber = (appRoot as any)[appKey];
+      }
+    }
+  } catch {
+    return undefined;
+  }
+  if (!fiber) return undefined;
+
+  const rootFiber = getRootFiber(fiber as any);
+  const rootChild = rootFiber ? rootFiber.child : null;
+  const rootComponent = rootChild ? buildReactTree(rootChild, 0, 6) : undefined;
+  if (!rootComponent) return undefined;
+
+  return { rootComponent, parentChain: [] };
 }

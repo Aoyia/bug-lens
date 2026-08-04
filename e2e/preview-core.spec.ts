@@ -346,13 +346,14 @@ test.describe("Bug Lens Chrome Extension E2E PREV-001: Preview Core Browsing & T
     );
 
     // ==========================================
-    // 六、五个 Preview 视图切换
+    // 六、六个 Preview 视图切换
     // ==========================================
     const tabs = [
       { key: "issues", paneId: "tab-pane-issues" },
       { key: "steps", paneId: "tab-pane-steps" },
       { key: "console", paneId: "tab-pane-console" },
       { key: "network", paneId: "tab-pane-network" },
+      { key: "framework", paneId: "tab-pane-framework" },
       { key: "stream", paneId: "tab-pane-stream" },
     ];
 
@@ -374,7 +375,7 @@ test.describe("Bug Lens Chrome Extension E2E PREV-001: Preview Core Browsing & T
     }
 
     logE2e(
-      `${scenarioId}: All 5 tabs active and visibility switching verified`
+      `${scenarioId}: All 6 tabs active and visibility switching verified`
     );
 
     // ==========================================

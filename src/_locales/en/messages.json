@@ -55,6 +55,21 @@
   "responseBodies": {
     "message": "Response Bodies"
   },
+  "frameworkStates": {
+    "message": "Framework State"
+  },
+  "videoQuality": {
+    "message": "Video quality"
+  },
+  "videoQualityHigh": {
+    "message": "High (larger file)"
+  },
+  "videoQualityBalanced": {
+    "message": "Balanced (recommended)"
+  },
+  "videoQualitySmall": {
+    "message": "Small (lower quality)"
+  },
   "safeMode": {
     "message": "Safe Mode (Sanitized)"
   },
@@ -168,6 +183,18 @@
   "guideSkip": {
     "message": "Skip"
   },
+  "guidePopupStep1Title": {
+    "message": "Start Recording in One Click"
+  },
+  "guidePopupStep1Desc": {
+    "message": "Click \"Start Recording\" and Bug Lens captures interactions, click screenshots, Console logs and Network requests from the current page."
+  },
+  "guidePopupStep2Title": {
+    "message": "Evidence Overview & Privacy"
+  },
+  "guidePopupStep2Desc": {
+    "message": "Video, screenshots, console and network evidence are collected here; review or exclude items before export. Safe mode redacts sensitive data by default."
+  },
   "popupTitle": {
     "message": "Bug Lens"
   },
@@ -246,6 +273,18 @@
   },
   "rawModeWarning": {
     "message": "Raw mode preserves unsanitized page and debugging data. Only use in authorized scenarios with manual review."
+  },
+  "privacyModeSafe": {
+    "message": "Safe mode"
+  },
+  "privacyModeSafeDesc": {
+    "message": "This session is in safe mode: URLs, text and request bodies are redacted. Recordings and screenshots are NOT auto-redacted; review before sharing."
+  },
+  "privacyModeRaw": {
+    "message": "Raw mode · Unredacted"
+  },
+  "privacyModeRawDesc": {
+    "message": "This session is in raw mode: page and debugging data are NOT redacted. Recordings and screenshots are also not auto-redacted; review carefully before sharing or sending to AI."
   },
   "statusCaptured": {
     "message": "Captured"

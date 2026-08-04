@@ -91,6 +91,7 @@ test("evidence package hides the complete offline report behind one snapshot int
       "assets/report.js",
       "assets/report.css",
       "assets/icon_idle.png",
+      "reproduce.spec.ts",
       "data/session-data.js",
       "data/network-details.js",
     ]
@@ -103,11 +104,18 @@ test("evidence package hides the complete offline report behind one snapshot int
       .get("report.html")!
       .includes('<script src="data/session-data.js"></script>')
   );
+  const reproScript = files.get("reproduce.spec.ts")!;
+  assert.match(
+    reproScript,
+    /import \{ test, expect \} from '@playwright\/test'/
+  );
+  assert.match(reproScript, /page\.goto/);
   const sessionJsContent = files.get("data/session-data.js")!;
   const sessionJsData = JSON.parse(
     sessionJsContent.replace(/^window\.__BUG_LENS_DATA__ = /, "").slice(0, -1)
   );
   assert.equal(sessionJsData.session.id, session.id);
+  assert.deepEqual(sessionJsData.frameworkStates, []);
 });
 
 test("AI handoff prompt includes the selected package path and evidence counts", () => {
@@ -173,4 +181,97 @@ test("evidence package exports binary interaction screenshots into screenshots/ 
     sessionData.interactions[0].screenshot.dataUrl,
     "screenshots/step-1.png"
   );
+});
+
+test("evidence package includes framework state snapshots and mentions the reproduction script in README", () => {
+  const snapshotWithFramework: EvidencePackageSnapshot = {
+    ...snapshot,
+    frameworkStates: [
+      {
+        id: "fw-1",
+        sessionId: session.id,
+        capturedAtEpochMs: 100,
+        trigger: "start",
+        page: { url: "https://example.com", title: "Checkout" },
+        snapshot: {
+          rootComponent: {
+            framework: "react",
+            version: 18,
+            componentName: "App",
+            children: [
+              {
+                framework: "react",
+                version: 18,
+                componentName: "CheckoutForm",
+                props: { items: 3 },
+              },
+            ],
+          },
+          parentChain: [],
+        },
+      },
+    ],
+  };
+  const files = buildEvidencePackage(snapshotWithFramework, reportAssets);
+  const sessionJsFile = files.find((f) => f.name === "data/session-data.js")!;
+  const sessionJsRaw = new TextDecoder().decode(sessionJsFile.data);
+  const sessionData = JSON.parse(
+    sessionJsRaw.replace(/^window\.__BUG_LENS_DATA__ = /, "").slice(0, -1)
+  );
+  assert.equal(sessionData.frameworkStates.length, 1);
+  assert.equal(
+    sessionData.frameworkStates[0].snapshot.rootComponent.componentName,
+    "App"
+  );
+  assert.equal(sessionData.summary.frameworkStates, 1);
+  const readme = new TextDecoder().decode(
+    files.find((f) => f.name === "README.md")!.data
+  );
+  assert.match(readme, /reproduce\.spec\.ts/);
+  assert.match(readme, /frameworkStates\[\]/);
+});
+
+test("evidence package includes automatically captured environment info", () => {
+  const sessionWithEnvironment: RecordingSession = {
+    ...session,
+    target: {
+      ...session.target,
+      environment: {
+        userAgent:
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+        platform: "MacIntel",
+        language: "zh-CN",
+        screenWidth: 2880,
+        screenHeight: 1800,
+        devicePixelRatio: 2,
+        viewportWidth: 1440,
+        viewportHeight: 900,
+        online: true,
+        capturedAtEpochMs: 12345,
+      },
+    },
+  };
+  const snapshotWithEnvironment: EvidencePackageSnapshot = {
+    ...snapshot,
+    session: sessionWithEnvironment,
+  };
+  const files = buildEvidencePackage(snapshotWithEnvironment, reportAssets);
+  const readme = new TextDecoder().decode(
+    files.find((f) => f.name === "README.md")!.data
+  );
+  assert.match(readme, /macOS 10\.15\.7/);
+  assert.match(readme, /Chrome 126/);
+  assert.match(readme, /2880×1800@2x/);
+
+  const prompt = buildAiPrompt(snapshotWithEnvironment, "/tmp/bug-lens.zip");
+  assert.match(prompt, /macOS 10\.15\.7/);
+
+  const sessionJsFile = files.find((f) => f.name === "data/session-data.js")!;
+  const sessionJsRaw = new TextDecoder().decode(sessionJsFile.data);
+  const sessionData = JSON.parse(
+    sessionJsRaw.replace(/^window\.__BUG_LENS_DATA__ = /, "").slice(0, -1)
+  );
+  assert.equal(sessionData.summary.environment.os, "macOS 10.15.7");
+  assert.equal(sessionData.summary.environment.browser, "Chrome 126");
+  assert.equal(sessionData.summary.environment.screen, "2880x1800@2x");
 });

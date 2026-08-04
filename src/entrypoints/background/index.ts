@@ -13,6 +13,11 @@ import {
 } from "../../domain/recording-session";
 import { sanitizeText, sanitizeUrl } from "../../domain/privacy-policy";
 import { normalizeRecordingOptions } from "../../domain/storage-policy";
+import {
+  buildSilentExportFailureEvent,
+  resolveSilentExportResult,
+  type SilentExportPackResult,
+} from "../../domain/silent-export";
 import { CdpEvidenceCollector } from "../../evidence/cdp-evidence-collector";
 import { ContentScriptManager } from "../../recording/content-script-manager";
 import { InteractionCapture } from "../../recording/interaction-capture";
@@ -43,7 +48,9 @@ const recordingCoordinator = new RecordingCoordinator({
   save(ids) {
     chrome.storage.session
       .set({ [STOPPING_IDS_KEY]: ids })
-      .catch(() => undefined);
+      .catch((error) =>
+        console.warn(`[Bug Lens] stopping 状态持久化失败：${String(error)}`)
+      );
   },
   async load() {
     const result = await chrome.storage.session.get(STOPPING_IDS_KEY);
@@ -259,6 +266,7 @@ async function startSessionImpl(
               sessionId: session.id,
               captureAudio: options.captureAudio,
               timesliceMs: options.mediaTimesliceMs,
+              videoBitsPerSecond: options.videoBitsPerSecond,
             },
             session.id,
             "offscreen"
@@ -471,37 +479,56 @@ async function performStopSession(
     }));
     if (!next) throw new Error(`未找到会话 (SESSION_NOT_FOUND:${session.id})`);
     if (silentExport) {
-      await db.clearActive(session.id);
       let prompt: string | undefined;
+      let packResult: SilentExportPackResult | undefined;
+      let caughtError: unknown;
       try {
         await ensureOffscreenDocument();
-        const packRes = (await chrome.runtime.sendMessage(
+        packResult = (await chrome.runtime.sendMessage(
           message(
             "offscreen/export-pack",
             { sessionId: session.id },
             undefined,
             "offscreen"
           )
-        )) as {
-          ok: boolean;
-          prompt?: string;
-          blobUrl?: string;
-          filename?: string;
-          error?: string;
-        };
+        )) as SilentExportPackResult;
 
-        if (packRes?.ok && packRes.blobUrl && packRes.filename) {
-          const downloadId = await chrome.downloads.download({
-            url: packRes.blobUrl,
-            filename: packRes.filename,
+        if (packResult?.ok && packResult.blobUrl && packResult.filename) {
+          await chrome.downloads.download({
+            url: packResult.blobUrl,
+            filename: packResult.filename,
             saveAs: false,
           });
-          prompt = packRes.prompt;
+          prompt = packResult.prompt;
         }
       } catch (err) {
-        // Silent export error fallback
+        caughtError = err;
       }
-      return { ...next, silentPrompt: prompt };
+      const silentExportResult = resolveSilentExportResult(
+        packResult,
+        caughtError
+      );
+      if (!silentExportResult.ok) {
+        const failed = await db.updateSession(session.id, (current) => ({
+          ...reduceSession(
+            current,
+            buildSilentExportFailureEvent(
+              silentExportResult.error ?? "未知错误",
+              current.options.privacyMode
+            )
+          ),
+          previewPending: true,
+        }));
+        if (failed)
+          return {
+            ...failed,
+            silentPrompt: prompt,
+            silentExportResult,
+          };
+      } else {
+        await db.clearActive(session.id);
+      }
+      return { ...next, silentPrompt: prompt, silentExportResult };
     }
     return await openPendingPreview(next, autoExport);
   } finally {
@@ -598,7 +625,9 @@ async function recoverInterruptedSession(
   code: string,
   messageText: string
 ): Promise<void> {
-  await reconcileSessionQuality(session.id).catch(() => undefined);
+  await reconcileSessionQuality(session.id).catch((error) =>
+    console.warn(`[Bug Lens] 恢复期质量对账失败：${String(error)}`)
+  );
   const recovered = await db.updateSession(session.id, (current) => ({
     ...reduceSession(current, {
       type: "recover",
@@ -616,7 +645,11 @@ async function recoverInterruptedSession(
 
 async function bootstrapRuntimeState(): Promise<void> {
   await recordingCoordinator.restoreStoppingIds();
-  await db.cleanupExpiredSessions().catch(() => undefined);
+  await db
+    .cleanupExpiredSessions()
+    .catch((error) =>
+      console.warn(`[Bug Lens] 过期会话清理失败：${String(error)}`)
+    );
   const browserEpoch = await browserEpochPromise;
   const session = await db.getActiveSession();
   if (!session) return;
@@ -774,8 +807,23 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender) => {
         if (valid) {
           if (!incoming.payload.stored) {
             streamHealthMonitor.updateStream("storage", "failed");
+            // 免维存储：写入被预算拒绝时立即回收过期会话，尽量不打断录制
+            void db
+              .cleanupExpiredSessions()
+              .catch((error) =>
+                console.warn(
+                  `[Bug Lens] 存储拒写后的自动清理失败：${String(error)}`
+                )
+              );
           } else if (incoming.payload.limitReached) {
             streamHealthMonitor.updateStream("storage", "disrupted");
+            void db
+              .cleanupExpiredSessions()
+              .catch((error) =>
+                console.warn(
+                  `[Bug Lens] 存储近限后的自动清理失败：${String(error)}`
+                )
+              );
           } else {
             streamHealthMonitor.updateStream("storage", "ok");
           }
@@ -893,6 +941,20 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender) => {
             ["PREPARING", "RECORDING", "DEGRADED"].includes(session.status) &&
             session.target.tabId === sender.tab?.id
           );
+          // 环境信息由页面主帧自动附带，无需用户手动填写
+          if (
+            allowed &&
+            incoming.payload.environment &&
+            !session!.target.environment
+          ) {
+            await db.updateSession(session!.id, (current) => ({
+              ...current,
+              target: {
+                ...current.target,
+                environment: incoming.payload.environment,
+              },
+            }));
+          }
           return {
             ok: true,
             active: allowed,
@@ -903,8 +965,23 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender) => {
                 session?.timeline.createdAtEpochMs)
               : undefined,
             privacyMode: allowed ? session?.options.privacyMode : undefined,
+            captureFrameworkState: allowed
+              ? session?.options.captureFrameworkState
+              : undefined,
             health: allowed ? streamHealthMonitor.getHealth() : undefined,
           };
+        }
+        case "framework/state": {
+          const state = incoming.payload.state;
+          const session = await db.getActiveSession();
+          const valid =
+            session &&
+            state.sessionId === session.id &&
+            ["PREPARING", "RECORDING", "DEGRADED"].includes(session.status) &&
+            session.target.tabId === sender.tab?.id;
+          if (!valid) return { ok: true, stored: false };
+          const result = await db.saveFrameworkStateWithinBudget(state);
+          return { ok: true, stored: result.stored };
         }
         case "interaction/candidate":
         case "interaction/confirmed":
@@ -1067,8 +1144,57 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
 chrome.runtime.onStartup.addListener(() => {
   void bootstrapPromise;
 });
-chrome.alarms.create("bug-lens-storage-cleanup", { periodInMinutes: 24 * 60 });
+// 免维存储：定期清理过期会话（6 小时一次，比 24 小时更及时回收空间）
+chrome.alarms.create("bug-lens-storage-cleanup", { periodInMinutes: 6 * 60 });
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === "bug-lens-storage-cleanup")
     void db.cleanupExpiredSessions();
+});
+
+const LAST_OPTIONS_KEY = "last-recording-options";
+
+/**
+ * 全局快捷键（F2）：直接对当前激活标签页启动录制，无需打开 Popup。
+ * 选项复用上次在 Popup 中选择的配置（未配置时用安全默认值）。
+ * 成功与否不弹系统通知：录制启动后页面内会自动出现录制挂件，
+ * 这本身就是最直观的启动反馈；不满足启动条件时静默跳过。
+ */
+async function startRecordingViaShortcut(): Promise<void> {
+  await bootstrapPromise;
+  const active = await db.getActiveSession();
+  if (
+    active &&
+    ["PREPARING", "RECORDING", "DEGRADED", "STOPPING"].includes(active.status)
+  ) {
+    return;
+  }
+  const [tab] = await chrome.tabs.query({
+    active: true,
+    currentWindow: true,
+  });
+  if (!tab?.id || !tab.url || !/^https?:/.test(tab.url)) {
+    return;
+  }
+  const stored = (await chrome.storage.local.get(LAST_OPTIONS_KEY)) as {
+    [LAST_OPTIONS_KEY]?: unknown;
+  };
+  const options = normalizeRecordingOptions(
+    stored[LAST_OPTIONS_KEY] as
+      Parameters<typeof normalizeRecordingOptions>[0] | undefined,
+    await db.getStoragePolicy()
+  );
+  try {
+    await startSession({
+      tabId: tab.id,
+      options,
+      commandId: crypto.randomUUID(),
+    });
+  } catch (error) {
+    console.warn(`[Bug Lens] F2 快捷键启动录制失败：${String(error)}`);
+  }
+}
+
+chrome.commands.onCommand.addListener((command) => {
+  if (command !== "start-recording") return;
+  void startRecordingViaShortcut();
 });

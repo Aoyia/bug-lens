@@ -30,6 +30,15 @@ CI 默认关闭这两项等待。测试终端会输出带时间戳的阶段日�
 
 Linux 必须使用 headed Chromium，并提供 Xvfb、窗口管理器和 `xdotool`。`DISPLAY` 必须指向该 Job 独占的虚拟桌面。浏览器窗口类无法自动匹配时，通过 `E2E_BROWSER_WINDOW_CLASS` 覆盖默认正则。
 
+## 导出测试平台矩阵
+
+导出链路拆分为两个用例，避免非 macOS CI 静默跳过核心验证：
+
+- `EXP-001-core`：**所有平台**执行。录制 → 排除 → 导出 ZIP → 完整性/内容校验 → 离线报告 → AI 交接，导出通过 Playwright download 事件拦截，不依赖原生保存对话框。
+- `EXP-001-native-save`：**仅 macOS** 执行（静态 skip + annotation 可见跳过）。驱动真实原生保存对话框，验证文件落盘到用户选择的目录。
+
+Linux/Windows CI 至少应执行 `EXP-001-core`，保证导出核心旅程与 ZIP 完整性始终有覆盖。
+
 ## 验证命令
 
 - `pnpm typecheck`：检查产品代码和 E2E TypeScript。

@@ -8,6 +8,8 @@ export type DomObserverDeps = {
   isIssueActive(): boolean;
   beginIssueSelection(): void;
   removeIssueUi(): void;
+  /** 一次用户交互被确认为有效后触发（用于框架状态等周期证据采集）。 */
+  onEvidenceTick?: () => void;
 };
 
 type InputSession = {
@@ -405,6 +407,7 @@ export class DomObserver {
       clientY: event.clientY,
       createdAt: Date.now(),
     };
+    this.deps.onEvidenceTick?.();
   }
 
   private flushInputSession(element: Element): void {

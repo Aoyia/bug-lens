@@ -23,6 +23,15 @@
         "linux": "Ctrl+Shift+Y",
         "windows": "Ctrl+Shift+Y"
       }
+    },
+    "start-recording": {
+      "suggested_key": {
+        "default": "F2",
+        "mac": "F2",
+        "linux": "F2",
+        "windows": "F2"
+      },
+      "description": "一键开始录制当前标签页"
     }
   },
   "icons": {
@@ -47,7 +56,6 @@
   ],
   "optional_host_permissions": ["http://*/*", "https://*/*"],
   "content_scripts": [],
-  "host_permissions": [],
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'none'"
   },

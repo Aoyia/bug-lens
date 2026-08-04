@@ -1,6 +1,8 @@
 import { memo } from "preact/compat";
 import { t } from "../../shared/i18n";
 
+export type VideoQuality = "quality" | "balanced" | "small";
+
 interface OptionsGridProps {
   controlsLocked: boolean;
   advancedOpen: boolean;
@@ -10,6 +12,8 @@ interface OptionsGridProps {
   captureConsole: boolean;
   captureNetwork: boolean;
   captureNetworkBodies: boolean;
+  captureFrameworkState: boolean;
+  videoQuality: VideoQuality;
   privacyMode: "safe" | "raw";
   onToggleAdvanced: () => void;
   onSetCaptureVideo: (val: boolean) => void;
@@ -18,6 +22,8 @@ interface OptionsGridProps {
   onSetCaptureConsole: (val: boolean) => void;
   onSetCaptureNetwork: (val: boolean) => void;
   onSetCaptureNetworkBodies: (val: boolean) => void;
+  onSetCaptureFrameworkState: (val: boolean) => void;
+  onSetVideoQuality: (val: VideoQuality) => void;
   onSetPrivacyMode: (mode: "safe" | "raw") => void;
 }
 
@@ -30,6 +36,8 @@ export const OptionsGrid = memo(function OptionsGrid({
   captureConsole,
   captureNetwork,
   captureNetworkBodies,
+  captureFrameworkState,
+  videoQuality,
   privacyMode,
   onToggleAdvanced,
   onSetCaptureVideo,
@@ -38,6 +46,8 @@ export const OptionsGrid = memo(function OptionsGrid({
   onSetCaptureConsole,
   onSetCaptureNetwork,
   onSetCaptureNetworkBodies,
+  onSetCaptureFrameworkState,
+  onSetVideoQuality,
   onSetPrivacyMode,
 }: OptionsGridProps) {
   return (
@@ -139,6 +149,18 @@ export const OptionsGrid = memo(function OptionsGrid({
               />
               <span>{t("responseBodies")}</span>
             </label>
+            <label className="scope-chip">
+              <input
+                id="framework-state"
+                type="checkbox"
+                checked={captureFrameworkState}
+                disabled={controlsLocked}
+                onChange={(e) =>
+                  onSetCaptureFrameworkState(e.currentTarget.checked)
+                }
+              />
+              <span>{t("frameworkStates")}</span>
+            </label>
           </div>
           <select
             id="privacy"
@@ -152,6 +174,29 @@ export const OptionsGrid = memo(function OptionsGrid({
             <option value="safe">{t("safeMode")}</option>
             <option value="raw">{t("rawMode")}</option>
           </select>
+          {privacyMode === "raw" && (
+            <div className="raw-mode-inline-warning" role="note">
+              {t("rawModeWarning")}
+            </div>
+          )}
+          {captureVideo && (
+            <label className="video-quality-row">
+              <span className="video-quality-label">{t("videoQuality")}</span>
+              <select
+                id="video-quality"
+                className="privacy-select"
+                value={videoQuality}
+                disabled={controlsLocked}
+                onChange={(e) =>
+                  onSetVideoQuality(e.currentTarget.value as VideoQuality)
+                }
+              >
+                <option value="quality">{t("videoQualityHigh")}</option>
+                <option value="balanced">{t("videoQualityBalanced")}</option>
+                <option value="small">{t("videoQualitySmall")}</option>
+              </select>
+            </label>
+          )}
         </div>
       )}
     </div>

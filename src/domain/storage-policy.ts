@@ -15,11 +15,19 @@ export const DEFAULT_RECORDING_OPTIONS: RecordingOptions = {
   captureNetwork: true,
   captureNetworkBodies: true,
   captureStaticBodies: false,
+  captureFrameworkState: true,
   privacyMode: "safe",
   mediaTimesliceMs: 1_000,
   maxResponseBodyBytes: DEFAULT_STORAGE_POLICY.maxResponseBodyBytes,
   maxSessionBytes: DEFAULT_STORAGE_POLICY.maxSessionBytes,
 };
+
+/** 录像码率（bps）按存储策略压缩档位映射，作为未显式指定时的默认值。 */
+export const VIDEO_BITRATE_BY_COMPRESSION = {
+  quality: 4_000_000,
+  balanced: 2_500_000,
+  small: 1_200_000,
+} as const;
 
 function boundedInteger(
   value: unknown,
@@ -80,12 +88,20 @@ export function normalizeRecordingOptions(
     captureStaticBodies:
       Boolean(value?.captureStaticBodies) &&
       value?.captureNetworkBodies !== false,
+    captureFrameworkState: value?.captureFrameworkState !== false,
     mediaTimesliceMs: boundedInteger(
       value?.mediaTimesliceMs,
       1_000,
       250,
       10_000
     ),
+    videoBitsPerSecond:
+      typeof value?.videoBitsPerSecond === "number" &&
+      Number.isFinite(value.videoBitsPerSecond) &&
+      value.videoBitsPerSecond >= 300_000 &&
+      value.videoBitsPerSecond <= 12_000_000
+        ? Math.round(value.videoBitsPerSecond)
+        : VIDEO_BITRATE_BY_COMPRESSION[policy.compression],
     maxResponseBodyBytes: boundedInteger(
       value?.maxResponseBodyBytes,
       policy.maxResponseBodyBytes,

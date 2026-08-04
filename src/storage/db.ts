@@ -3,6 +3,7 @@ import type {
   EvidenceAsset,
   ExportArtifact,
   ExportSelection,
+  FrameworkStateEvidence,
   InteractionRecord,
   IssueScene,
   NetworkEntry,
@@ -224,6 +225,7 @@ async function measureSessionBytes(sessionId: string): Promise<number> {
     "mediaChunks",
     "issueScenes",
     "evidenceAssets",
+    "frameworkStates",
   ];
   let total = 0;
   for (const storeName of storeNames) {
@@ -273,12 +275,20 @@ async function deleteIssueScene(issueSceneId: string): Promise<void> {
 }
 
 async function evidenceFor(session: RecordingSession) {
-  const [media, networkEntries, issueScenes] = await Promise.all([
-    getMediaSummary(session.id),
-    list<NetworkEntry>("networkEntries", "sessionId", session.id),
-    list<IssueScene>("issueScenes", "sessionId", session.id),
-  ]);
-  return buildEvidenceSummary(session, media, networkEntries, issueScenes);
+  const [media, networkEntries, issueScenes, frameworkStates] =
+    await Promise.all([
+      getMediaSummary(session.id),
+      list<NetworkEntry>("networkEntries", "sessionId", session.id),
+      list<IssueScene>("issueScenes", "sessionId", session.id),
+      list<FrameworkStateEvidence>("frameworkStates", "sessionId", session.id),
+    ]);
+  return buildEvidenceSummary(
+    session,
+    media,
+    networkEntries,
+    issueScenes,
+    frameworkStates.length
+  );
 }
 
 export const db = {
@@ -560,6 +570,16 @@ export const db = {
   saveMediaChunk: (chunk: MediaChunkRecord) => put("mediaChunks", chunk),
   saveMediaChunkWithinBudget: (chunk: MediaChunkRecord) =>
     putWithinSessionBudget("mediaChunks", chunk),
+  saveFrameworkStateWithinBudget: (state: FrameworkStateEvidence) =>
+    putWithinSessionBudget("frameworkStates", state),
+  getFrameworkStates: async (sessionId: string) =>
+    (
+      await list<FrameworkStateEvidence>(
+        "frameworkStates",
+        "sessionId",
+        sessionId
+      )
+    ).sort((left, right) => left.capturedAtEpochMs - right.capturedAtEpochMs),
   getMediaSummary,
   getMediaChunks: async (sessionId: string) =>
     (await list<MediaChunkRecord>("mediaChunks", "sessionId", sessionId)).sort(
@@ -693,6 +713,8 @@ export type EvidenceRepository = Pick<
   | "getNetwork"
   | "saveMediaChunk"
   | "saveMediaChunkWithinBudget"
+  | "saveFrameworkStateWithinBudget"
+  | "getFrameworkStates"
   | "getMediaSummary"
   | "getMediaChunks"
   | "iterateMediaChunks"

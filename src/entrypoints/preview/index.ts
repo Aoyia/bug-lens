@@ -7,6 +7,7 @@ import { PreviewSessionRuntime } from "../../preview/preview-session-runtime";
 import { generatePlaywrightScript } from "../../preview/playwright-generator";
 import { highlightJs } from "../../preview/rendering";
 import { copyTextToClipboard } from "../../preview/clipboard";
+import { applyPrivacyBadge } from "../../preview/privacy-badge";
 import { applyI18n } from "../../shared/i18n";
 import "../../shared/components/truncated-text";
 
@@ -162,6 +163,7 @@ async function load(): Promise<void> {
     $("#meta").textContent = "找不到会话";
     return;
   }
+  applyPrivacyBadge(document, runtime.currentSession);
   await exportController.load();
   if (runtime.mediaChunks) {
     $("#video-empty").textContent =

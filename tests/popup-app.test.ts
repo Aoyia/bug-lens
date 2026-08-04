@@ -9,6 +9,7 @@ test("PopupApp component tree retains essential CSS layout classes to prevent UI
     "RecordPanel.tsx",
     "OptionsGrid.tsx",
     "HistoryList.tsx",
+    "PopupGuide.tsx",
   ]
     .map((file) =>
       readFileSync(
@@ -52,6 +53,7 @@ test("PopupApp component tree i18n keys are 100% covered in locale bundles", () 
     "RecordPanel.tsx",
     "OptionsGrid.tsx",
     "HistoryList.tsx",
+    "PopupGuide.tsx",
   ]
     .map((file) =>
       readFileSync(
@@ -89,4 +91,48 @@ test("PopupApp component tree i18n keys are 100% covered in locale bundles", () 
       `i18n key '${key}' used in PopupApp.tsx is missing in en/messages.json`
     );
   }
+});
+
+test("首次使用引导移至 Popup 打开时展示（B1）", () => {
+  const popupApp = readFileSync(
+    resolve(process.cwd(), "src/components/popup/PopupApp.tsx"),
+    "utf8"
+  );
+  const guide = readFileSync(
+    resolve(process.cwd(), "src/components/popup/PopupGuide.tsx"),
+    "utf8"
+  );
+  const widget = readFileSync(
+    resolve(
+      process.cwd(),
+      "src/entrypoints/content/collector/recording-widget.ts"
+    ),
+    "utf8"
+  );
+
+  // 引导在 Popup 挂载时检查存储标记并展示
+  assert.ok(
+    popupApp.includes("hasCompletedGuide"),
+    "PopupApp 应在挂载时读取 hasCompletedGuide 标记"
+  );
+  assert.ok(
+    popupApp.includes("skipOnboardingGuide"),
+    "PopupApp 应支持 skipOnboardingGuide 跳过标记"
+  );
+  assert.ok(
+    popupApp.includes("hasCompletedGuide: true"),
+    "引导完成或跳过时应写入 hasCompletedGuide"
+  );
+
+  // 引导组件渲染在 Popup 内（data-testid 供测试/E2E 定位）
+  assert.ok(
+    guide.includes('data-testid="popup-guide"'),
+    "PopupGuide 应提供 data-testid='popup-guide'"
+  );
+
+  // 录制浮层不再触发网页内引导（避免打断录制并污染取证画面）
+  assert.ok(
+    !widget.includes("tryShowOnboardingGuide"),
+    "recording-widget 不应再调用网页内引导"
+  );
 });

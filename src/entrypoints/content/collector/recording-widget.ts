@@ -1,5 +1,4 @@
 import { t } from "../../../shared/i18n.ts";
-import { tryShowOnboardingGuide } from "../../../guide/onboarding-tour.ts";
 
 export type WidgetCallbacks = {
   onStop(): void;
@@ -488,7 +487,6 @@ export class RecordingWidget {
         };
         updateTimer();
         this.timerInterval = window.setInterval(updateTimer, 1000);
-        void tryShowOnboardingGuide(root);
       } else {
         window.addEventListener("DOMContentLoaded", attach, { once: true });
       }

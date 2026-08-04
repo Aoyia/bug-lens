@@ -7,11 +7,13 @@ import {
   type StorageOverview,
 } from "../../shared/protocol.ts";
 import { applyI18n, t } from "../../shared/i18n.ts";
+import { VIDEO_BITRATE_BY_COMPRESSION } from "../../domain/storage-policy.ts";
 import { useRpc } from "../../hooks/useRpc.ts";
 import { useSessionState } from "../../hooks/useSessionState.ts";
 import { RecordPanel } from "./RecordPanel.tsx";
-import { OptionsGrid } from "./OptionsGrid.tsx";
+import { OptionsGrid, type VideoQuality } from "./OptionsGrid.tsx";
 import { HistoryList } from "./HistoryList.tsx";
+import { PopupGuide } from "./PopupGuide.tsx";
 
 export function PopupApp() {
   const { send } = useRpc();
@@ -41,6 +43,9 @@ export function PopupApp() {
   const [captureNetwork, setCaptureNetwork] = useState<boolean>(true);
   const [captureNetworkBodies, setCaptureNetworkBodies] =
     useState<boolean>(true);
+  const [captureFrameworkState, setCaptureFrameworkState] =
+    useState<boolean>(true);
+  const [videoQuality, setVideoQuality] = useState<VideoQuality>("balanced");
   const [privacyMode, setPrivacyMode] = useState<"safe" | "raw">("safe");
 
   // History state
@@ -50,9 +55,63 @@ export function PopupApp() {
     undefined
   );
 
+  // First-use guide state: 首次使用引导在 Popup 打开时展示
+  const [showGuide, setShowGuide] = useState<boolean>(false);
+
+  const finishGuide = useCallback(() => {
+    setShowGuide(false);
+    void chrome.storage.local
+      .set({ hasCompletedGuide: true })
+      .catch(() => undefined);
+  }, []);
+
   useEffect(() => {
     applyI18n();
     refreshRecord();
+    void (async () => {
+      try {
+        const stored = (await chrome.storage.local.get([
+          "hasCompletedGuide",
+          "skipOnboardingGuide",
+          "last-recording-options",
+        ])) as {
+          hasCompletedGuide?: boolean;
+          skipOnboardingGuide?: boolean;
+          "last-recording-options"?: Partial<RecordingOptions>;
+        };
+        if (!stored?.hasCompletedGuide && !stored?.skipOnboardingGuide) {
+          setShowGuide(true);
+        }
+        // 回填上次录制选项，保证 Popup 与全局快捷键使用一致的配置
+        const last = stored?.["last-recording-options"];
+        if (last) {
+          if (typeof last.captureVideo === "boolean")
+            setCaptureVideo(last.captureVideo);
+          if (typeof last.captureAudio === "boolean")
+            setCaptureAudio(last.captureAudio);
+          if (typeof last.captureScreenshots === "boolean")
+            setCaptureScreenshots(last.captureScreenshots);
+          if (typeof last.captureConsole === "boolean")
+            setCaptureConsole(last.captureConsole);
+          if (typeof last.captureNetwork === "boolean")
+            setCaptureNetwork(last.captureNetwork);
+          if (typeof last.captureNetworkBodies === "boolean")
+            setCaptureNetworkBodies(last.captureNetworkBodies);
+          if (typeof last.captureFrameworkState === "boolean")
+            setCaptureFrameworkState(last.captureFrameworkState);
+          if (last.privacyMode === "safe" || last.privacyMode === "raw")
+            setPrivacyMode(last.privacyMode);
+          const bitrate = last.videoBitsPerSecond;
+          if (bitrate === VIDEO_BITRATE_BY_COMPRESSION.quality) {
+            setVideoQuality("quality");
+          } else if (bitrate === VIDEO_BITRATE_BY_COMPRESSION.small) {
+            setVideoQuality("small");
+          }
+        }
+      } catch {
+        // 存储不可用时静默跳过引导与选项回填
+      }
+    })();
   }, []);
 
   const formatBytes = useCallback((bytes: number): string => {
@@ -115,6 +174,15 @@ export function PopupApp() {
           sizeBytes: 0,
           detail: "",
         },
+        {
+          kind: "frameworkStates",
+          state: !session.options.captureFrameworkState
+            ? "disabled"
+            : "captured",
+          count: 0,
+          sizeBytes: 0,
+          detail: "",
+        },
       ];
     },
     []
@@ -129,6 +197,7 @@ export function PopupApp() {
       console: t("console"),
       network: t("network"),
       networkBodies: t("responseBodies"),
+      frameworkStates: t("frameworkStates"),
     };
     return map[evidence.kind] ?? evidence.kind;
   }, []);
@@ -203,64 +272,62 @@ export function PopupApp() {
       setErrorText(t("audioNeedsVideo"));
       return;
     }
-    const startRecording = async () => {
-      const options: RecordingOptions = {
-        captureVideo,
-        captureAudio: captureVideo ? captureAudio : false,
-        captureScreenshots,
-        captureConsole,
-        captureNetwork,
-        captureNetworkBodies: captureNetwork ? captureNetworkBodies : false,
-        privacyMode,
-        mediaTimesliceMs: 1000,
-        maxSessionBytes: 512 * 1024 * 1024,
-        maxResponseBodyBytes: 2 * 1024 * 1024,
-      };
-
-      setErrorText("");
-      try {
-        const isLocalhost =
-          activeTab.url?.includes("127.0.0.1") ||
-          activeTab.url?.includes("localhost");
-        const isHttpOrHttps =
-          (activeTab.url?.startsWith("http://") ||
-            activeTab.url?.startsWith("https://")) &&
-          !isLocalhost;
-        if (isHttpOrHttps) {
-          const hasPermission = await chrome.permissions
-            .contains({ origins: ["http://*/*", "https://*/*"] })
-            .catch(() => false);
-          if (!hasPermission) {
-            await chrome.storage.local.set({
-              pendingRecordingRequest: { tabId: activeTab.id, options },
-            });
-            await chrome.tabs.create({
-              url: chrome.runtime.getURL("permission.html"),
-            });
-            window.close();
-            return;
-          }
-        }
-        const result = await send("session/start", {
-          tabId: activeTab.id!,
-          options,
-          commandId: crypto.randomUUID(),
-        });
-        if (!result.ok) throw new Error(result.error || t("startFailed"));
-        updateSessionState(result.data?.session);
-      } catch (error) {
-        setErrorText(String(error));
-        await refreshRecord();
-      }
+    const options: RecordingOptions = {
+      captureVideo,
+      captureAudio: captureVideo ? captureAudio : false,
+      captureScreenshots,
+      captureConsole,
+      captureNetwork,
+      captureNetworkBodies: captureNetwork ? captureNetworkBodies : false,
+      captureFrameworkState,
+      privacyMode,
+      mediaTimesliceMs: 1000,
+      videoBitsPerSecond: VIDEO_BITRATE_BY_COMPRESSION[videoQuality],
+      maxSessionBytes: 512 * 1024 * 1024,
+      maxResponseBodyBytes: 2 * 1024 * 1024,
     };
 
-    if (privacyMode === "raw") {
-      setConfirmModal({
-        message: t("rawModeWarning"),
-        onConfirm: () => void startRecording(),
+    // 持久化最近一次选项，供全局快捷键一键录制复用
+    void chrome.storage.local
+      .set({ "last-recording-options": options })
+      .catch(() => undefined);
+
+    setErrorText("");
+    try {
+      // 非 localhost 的 http/https 页面需要全站访问权限才能注入采集脚本；
+      // 未授权时引导用户到权限授权中转页主动授权（走用户授权流程）。
+      const isLocalhost =
+        activeTab.url?.includes("127.0.0.1") ||
+        activeTab.url?.includes("localhost");
+      const isHttpOrHttps =
+        (activeTab.url?.startsWith("http://") ||
+          activeTab.url?.startsWith("https://")) &&
+        !isLocalhost;
+      if (isHttpOrHttps) {
+        const hasPermission = await chrome.permissions
+          .contains({ origins: ["http://*/*", "https://*/*"] })
+          .catch(() => false);
+        if (!hasPermission) {
+          await chrome.storage.local.set({
+            pendingRecordingRequest: { tabId: activeTab.id, options },
+          });
+          await chrome.tabs.create({
+            url: chrome.runtime.getURL("permission.html"),
+          });
+          window.close();
+          return;
+        }
+      }
+      const result = await send("session/start", {
+        tabId: activeTab.id!,
+        options,
+        commandId: crypto.randomUUID(),
       });
-    } else {
-      void startRecording();
+      if (!result.ok) throw new Error(result.error || t("startFailed"));
+      updateSessionState(result.data?.session);
+    } catch (error) {
+      setErrorText(String(error));
+      await refreshRecord();
     }
   }, [
     activeTab,
@@ -270,6 +337,8 @@ export function PopupApp() {
     captureConsole,
     captureNetwork,
     captureNetworkBodies,
+    captureFrameworkState,
+    videoQuality,
     privacyMode,
   ]);
 
@@ -472,6 +541,8 @@ export function PopupApp() {
           captureConsole={captureConsole}
           captureNetwork={captureNetwork}
           captureNetworkBodies={captureNetworkBodies}
+          captureFrameworkState={captureFrameworkState}
+          videoQuality={videoQuality}
           privacyMode={privacyMode}
           onToggleAdvanced={() => setAdvancedOpen(!advancedOpen)}
           onSetCaptureVideo={setCaptureVideo}
@@ -480,6 +551,8 @@ export function PopupApp() {
           onSetCaptureConsole={setCaptureConsole}
           onSetCaptureNetwork={setCaptureNetwork}
           onSetCaptureNetworkBodies={setCaptureNetworkBodies}
+          onSetCaptureFrameworkState={setCaptureFrameworkState}
+          onSetVideoQuality={setVideoQuality}
           onSetPrivacyMode={setPrivacyMode}
         />
       </section>
@@ -508,6 +581,12 @@ export function PopupApp() {
           {errorText}
         </div>
       )}
+
+      {/* 首次使用引导：仅在录制视图展示，完成或跳过写入 hasCompletedGuide */}
+      <PopupGuide
+        visible={showGuide && currentView === "record"}
+        onDone={finishGuide}
+      />
 
       {/* 自定义内联 Confirm 模态框 */}
       {confirmModal && (

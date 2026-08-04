@@ -138,8 +138,7 @@ export function isVueProject(): boolean {
     ) {
       return true;
     }
-  } catch {
-  }
+  } catch {}
 
   const candidates = [
     document.getElementById("app"),
@@ -168,9 +167,7 @@ function buildVueTree(
 ): FrameworkComponentNode | undefined {
   if (!comp || depth > maxDepth) return undefined;
 
-  const node = isVue3
-    ? extractVue3Component(comp)
-    : extractVue2Component(comp);
+  const node = isVue3 ? extractVue3Component(comp) : extractVue2Component(comp);
   if (!node) return undefined;
 
   const children: FrameworkComponentNode[] = [];
@@ -195,28 +192,21 @@ function buildVueTree(
           }
         }
       }
-    } catch {
-    }
+    } catch {}
   } else {
     try {
       if (comp.$children) {
         let siblingCount = 0;
         for (const child of comp.$children) {
           if (siblingCount >= 20) break;
-          const childNode = buildVueTree(
-            child,
-            false,
-            depth + 1,
-            maxDepth
-          );
+          const childNode = buildVueTree(child, false, depth + 1, maxDepth);
           if (childNode) {
             children.push(childNode);
             siblingCount++;
           }
         }
       }
-    } catch {
-    }
+    } catch {}
   }
 
   if (children.length > 0) {
@@ -274,13 +264,14 @@ export function detectVue(
       parent = parent.parent;
     }
 
-    let rootInstance = parentChain.length > 0
-      ? (() => {
-          let p = vue3Comp.parent;
-          while (p && p.parent) p = p.parent;
-          return p;
-        })()
-      : vue3Comp;
+    let rootInstance =
+      parentChain.length > 0
+        ? (() => {
+            let p = vue3Comp.parent;
+            while (p && p.parent) p = p.parent;
+            return p;
+          })()
+        : vue3Comp;
     if (!rootInstance) rootInstance = vue3Comp;
 
     const rootComponent = buildVueTree(rootInstance, true);
@@ -304,13 +295,14 @@ export function detectVue(
       parent = parent.$parent;
     }
 
-    const rootVm = parentChain.length > 0
-      ? (() => {
-          let p = vue2Vm.$parent;
-          while (p && p.$parent) p = p.$parent;
-          return p;
-        })()
-      : vue2Vm;
+    const rootVm =
+      parentChain.length > 0
+        ? (() => {
+            let p = vue2Vm.$parent;
+            while (p && p.$parent) p = p.$parent;
+            return p;
+          })()
+        : vue2Vm;
 
     const rootComponent = buildVueTree(rootVm, false);
 
@@ -319,6 +311,42 @@ export function detectVue(
       rootComponent,
       parentChain,
     };
+  }
+
+  return undefined;
+}
+
+/**
+ * 独立证据流：无需目标元素，直接捕获整棵 Vue 组件树（脱敏）。
+ * 优先使用 DevTools hook 暴露的根实例，其次从 document.body 上溯根实例。
+ */
+export function captureVueTree(): FrameworkSnapshot | undefined {
+  if (!isVueProject()) return undefined;
+
+  const hook = (window as any).__VUE_DEVTOOLS_GLOBAL_HOOK__;
+  if (hook?.apps && hook.apps.length > 0) {
+    const rootComponent = buildVueTree(hook.apps[0], true);
+    if (rootComponent) return { rootComponent, parentChain: [] };
+  }
+
+  try {
+    const mount = document.getElementById("app") ?? document.body;
+    const comp3 = (mount as any).__vueParentComponent;
+    if (comp3) {
+      let root = comp3;
+      while (root.parent) root = root.parent;
+      const rootComponent = buildVueTree(root, true);
+      if (rootComponent) return { rootComponent, parentChain: [] };
+    }
+    const vm2 = (mount as any).__vue__;
+    if (vm2) {
+      let root = vm2;
+      while (root.$parent) root = root.$parent;
+      const rootComponent = buildVueTree(root, false);
+      if (rootComponent) return { rootComponent, parentChain: [] };
+    }
+  } catch {
+    return undefined;
   }
 
   return undefined;

@@ -27,7 +27,8 @@ export function buildEvidenceSummary(
   session: RecordingSession,
   media: MediaSummary,
   networkEntries: NetworkEntry[],
-  issueScenes: IssueScene[] = []
+  issueScenes: IssueScene[] = [],
+  frameworkStateCount = 0
 ): EvidenceSummary[] {
   const screenshotCount =
     session.quality.primaryScreenshotCount +
@@ -152,6 +153,21 @@ export function buildEvidenceSummary(
           : truncatedBodyCount
             ? `${truncatedBodyCount} 条已截断`
             : `${networkBodyEntries.length} 条`,
+    },
+    {
+      kind: "frameworkStates",
+      state: !session.options.captureFrameworkState
+        ? "disabled"
+        : frameworkStateCount > 0
+          ? "captured"
+          : "partial",
+      count: frameworkStateCount,
+      sizeBytes: 0,
+      detail: !session.options.captureFrameworkState
+        ? "未采集"
+        : frameworkStateCount > 0
+          ? `${frameworkStateCount} 帧`
+          : "页面未识别到 React/Vue 组件树",
     },
   ];
 }

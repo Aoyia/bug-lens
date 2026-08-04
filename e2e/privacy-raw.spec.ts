@@ -96,7 +96,7 @@ test.describe("Bug Lens Chrome Extension E2E PRIV-002: Raw Mode Risk Warning & E
     logE2e("Initial environment state recorded", { baselineSessionCount });
 
     // ==========================================
-    // 1. 取消分支 (Cancel Branch)
+    // 1. Raw 模式直接录制（不再弹二次确认窗）
     // ==========================================
     const popup = await openActionPopup(targetPage);
     await popup.waitForSelector('[data-testid="record-panel"]');
@@ -111,6 +111,13 @@ test.describe("Bug Lens Chrome Extension E2E PRIV-002: Raw Mode Risk Warning & E
     );
     expect(selectedMode).toBe("raw");
 
+    // raw 模式改为内联警告，不应再出现 confirm 弹窗
+    await popup.waitForSelector(".raw-mode-inline-warning");
+    expect(await popup.isVisible(".raw-mode-inline-warning")).toBe(true);
+    const inlineWarning = await popup.text(".raw-mode-inline-warning");
+    expect(inlineWarning).toContain("原始模式");
+    expect(inlineWarning).toContain("未脱敏");
+
     await popup.click("#video");
     await waitForPopupChecked(popup, "#video", false);
 
@@ -123,79 +130,9 @@ test.describe("Bug Lens Chrome Extension E2E PRIV-002: Raw Mode Risk Warning & E
       screenshots: false,
     });
 
-    // 点击 Start Recording 触发风险弹窗
+    // 点击 Start Recording 直接开始录制（无二次确认弹窗）
     await popup.click('[data-testid="start-recording-btn"]');
-
-    // 明确断言弹窗与警告文案出现
-    await popup.waitForSelector(".confirm-overlay");
-    expect(await popup.isVisible(".confirm-overlay")).toBe(true);
-    const warningText = await popup.text(".confirm-message");
-    expect(warningText).toContain("原始模式");
-    expect(warningText).toContain("未脱敏");
-
-    logE2e("Raw mode warning modal appeared", {
-      hasWarningText: Boolean(warningText),
-    });
-
-    // 点击取消按钮
-    await popup.click(".btn-confirm-cancel");
-
-    // 严密校验取消后的状态：
-    await popup.waitForSelector('[data-testid="start-recording-btn"]');
     expect(await popup.isVisible(".confirm-overlay")).toBe(false);
-    expect(await popup.isVisible('[data-testid="start-recording-btn"]')).toBe(
-      true
-    );
-
-    const sessionCountAfterCancel = await mediaProbe.sessionCount();
-    expect(sessionCountAfterCancel).toBe(baselineSessionCount);
-
-    const activeSessionAfterCancel = await mediaProbe.activeSession();
-    expect(activeSessionAfterCancel).toBeUndefined();
-
-    const snapshotAfterCancel = await mediaProbe.snapshot("none", targetTabId!);
-    expect(snapshotAfterCancel.session).toBeUndefined();
-    expect(snapshotAfterCancel.capture?.status).not.toBe("active");
-    expect(snapshotAfterCancel.capture?.status).not.toBe("pending");
-    expect(snapshotAfterCancel.offscreenActive).toBe(false);
-
-    const isOffscreenActiveAfterCancel = await mediaProbe
-      .isOffscreenRecording("none")
-      .catch(() => false);
-    expect(isOffscreenActiveAfterCancel).toBe(false);
-
-    const badgeAfterCancel = await mediaProbe.getBadgeText(targetTabId!);
-    expect(badgeAfterCancel).toBe("");
-
-    // 断言 Popup 仍可交互操作 (例如切换开关联动)
-    await popup.click("#video");
-    await waitForPopupChecked(popup, "#video", true);
-
-    // 确认前必须恢复 video=false 和 screenshots=false
-    await popup.click("#video");
-    await waitForPopupChecked(popup, "#video", false);
-    const isScreenshotsChecked = await popup.evaluate<boolean>(
-      "Boolean(document.querySelector('#screenshots')?.checked)"
-    );
-    if (isScreenshotsChecked) {
-      await popup.click("#screenshots");
-      await waitForPopupChecked(popup, "#screenshots", false);
-    }
-
-    logE2e(
-      "Raw mode cancel branch assertions completely passed and restored options to false"
-    );
-
-    // ==========================================
-    // 2. 确认分支 (Confirm Branch)
-    // ==========================================
-    // 在同一个 Popup 中再次点击 Start Recording
-    await popup.click('[data-testid="start-recording-btn"]');
-    await popup.waitForSelector(".confirm-overlay");
-    expect(await popup.isVisible(".confirm-overlay")).toBe(true);
-
-    // 点击确定按钮
-    await popup.click(".btn-confirm-danger");
     await popup.dispose();
 
     // 等待 Session 建立
@@ -208,12 +145,24 @@ test.describe("Bug Lens Chrome Extension E2E PRIV-002: Raw Mode Risk Warning & E
     expect(session.options.captureNetwork).toBe(true);
     expect(session.options.captureNetworkBodies).toBe(true);
 
+    // 环境信息由页面主帧自动附带，无需用户手动填写
+    expect(session.target.environment).toBeTruthy();
+    expect(session.target.environment?.userAgent).toContain("Mozilla");
+    expect(session.target.environment?.screenWidth).toBeGreaterThan(0);
+    expect(session.target.environment?.viewportWidth).toBeGreaterThan(0);
+
     const sessionCountAfterConfirm = await mediaProbe.sessionCount();
     expect(sessionCountAfterConfirm).toBe(baselineSessionCount + 1);
 
-    logE2e("Raw mode session successfully created after confirmation", {
+    logE2e("Raw mode session created without secondary confirmation", {
       sessionId: session.id,
       privacyMode: session.options.privacyMode,
+      environment: session.target.environment
+        ? {
+            screen: `${session.target.environment.screenWidth}x${session.target.environment.screenHeight}`,
+            viewport: `${session.target.environment.viewportWidth}x${session.target.environment.viewportHeight}`,
+          }
+        : undefined,
     });
 
     // ==========================================

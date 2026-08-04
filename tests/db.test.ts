@@ -206,6 +206,30 @@ test("db interaction, console, network and media chunks CRUD and budget tests", 
   const mediaChunks = await db.getMediaChunks(sessionId);
   assert.equal(mediaChunks.length, 1);
 
+  // Framework state evidence
+  const frameworkWrite = await db.saveFrameworkStateWithinBudget({
+    id: "fw-1",
+    sessionId,
+    capturedAtEpochMs: Date.now(),
+    trigger: "start",
+    page: { url: "https://example.test", title: "Page" },
+    snapshot: {
+      rootComponent: {
+        framework: "react",
+        version: 18,
+        componentName: "App",
+      },
+      parentChain: [],
+    },
+  });
+  assert.equal(frameworkWrite.stored, true);
+  const frameworkStates = await db.getFrameworkStates(sessionId);
+  assert.equal(frameworkStates.length, 1);
+  assert.equal(
+    frameworkStates[0].snapshot?.rootComponent?.componentName,
+    "App"
+  );
+
   // Clear all history
   const cleared = await db.clearAllHistory();
   assert.equal(Array.isArray(cleared), true);

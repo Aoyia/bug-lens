@@ -94,7 +94,7 @@ async function startMedia(
     ]);
     recorder = new MediaRecorder(recordingStream, {
       mimeType: chooseMimeType(payload.captureAudio),
-      videoBitsPerSecond: 2_500_000,
+      videoBitsPerSecond: payload.videoBitsPerSecond ?? 2_500_000,
       audioBitsPerSecond: payload.captureAudio ? 128_000 : undefined,
     });
     recorder.ondataavailable = (event) => {

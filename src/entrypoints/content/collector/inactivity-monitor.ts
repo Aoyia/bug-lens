@@ -86,6 +86,21 @@ export class InactivityMonitor {
     }
   }
 
+  /**
+   * 显式恢复录制：无论当前处于闲置自动暂停还是手动暂停，都回到录制状态。
+   * 用于「继续」按钮，避免与 handleActivity 的自动恢复产生竞态
+   * （用户点「继续」时若因鼠标移动已自动恢复，取反逻辑会误判为再次暂停）。
+   */
+  resume(): void {
+    this.isManualPaused = false;
+    this._isIdlePaused = false;
+    if (this.pauseStartMs !== undefined) {
+      this.accumulatedPausedMs += Date.now() - this.pauseStartMs;
+      this.pauseStartMs = undefined;
+    }
+    this.callbacks.onResume();
+  }
+
   stop(): void {
     if (this.checkInterval) {
       clearInterval(this.checkInterval);
@@ -105,14 +120,8 @@ export class InactivityMonitor {
 
   private handleActivity = (): void => {
     if (this.isManualPaused) return;
-    if (this._isIdlePaused) {
-      this._isIdlePaused = false;
-      if (this.pauseStartMs !== undefined) {
-        this.accumulatedPausedMs += Date.now() - this.pauseStartMs;
-        this.pauseStartMs = undefined;
-      }
-      this.callbacks.onResume();
-    }
+    // 闲置自动暂停后不因鼠标移动自动恢复，必须由用户点击「继续」显式恢复，
+    // 避免「鼠标移动恢复录制 → 点击继续被取反为再次暂停」的竞态。
     this.lastActivityTime = Date.now();
   };
 }

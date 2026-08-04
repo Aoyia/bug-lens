@@ -30,6 +30,10 @@
                 data-i18n="readingReportData"
                 >正在读取报告数据…</truncated-text
               >
+              <truncated-text
+                id="environment-summary"
+                class="muted env-summary"
+              ></truncated-text>
             </div>
           </div>
         </div>
@@ -74,6 +78,9 @@
                 </button>
                 <button class="zen-tab-btn" data-tab="network">
                   <span data-i18n="networkRequests">Network 请求</span>
+                </button>
+                <button class="zen-tab-btn" data-tab="framework">
+                  <span data-i18n="frameworkStates">框架状态</span>
                 </button>
               </div>
             </div>
@@ -139,6 +146,12 @@
                   ></div>
                   <div id="network-detail" class="network-detail-panel"></div>
                 </div>
+              </div>
+            </div>
+
+            <div id="tab-pane-framework" class="zen-tab-pane" hidden>
+              <div class="integrated-card-panel">
+                <div id="framework-states" class="framework-state-list"></div>
               </div>
             </div>
           </div>

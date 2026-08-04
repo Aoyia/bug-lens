@@ -29,7 +29,18 @@
             <div class="brand-titles">
               <h1 id="title" data-i18n="previewTitle">录制预览</h1>
               <truncated-text id="meta" class="muted"></truncated-text>
+              <truncated-text
+                id="environment-summary"
+                class="muted env-summary"
+              ></truncated-text>
             </div>
+            <span
+              id="privacy-badge"
+              class="privacy-badge"
+              hidden
+              role="status"
+              aria-live="polite"
+            ></span>
           </div>
         </div>
         <div class="zen-titlebar-right">
@@ -124,8 +135,23 @@
               ></div>
             </div>
           </div>
-          <button id="export-playwright" class="secondary" style="margin-left: 6px;font-size:11px" title="生成 Playwright 自动化测试脚本草稿">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;vertical-align:middle">
+          <button
+            id="export-playwright"
+            class="secondary"
+            style="margin-left: 6px; font-size: 11px"
+            title="生成 Playwright 自动化测试脚本草稿"
+          >
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              style="margin-right: 4px; vertical-align: middle"
+            >
               <polyline points="16 18 22 12 16 6"></polyline>
               <polyline points="8 6 2 12 8 18"></polyline>
             </svg>
@@ -274,6 +300,16 @@
                 </button>
                 <button
                   class="zen-tab-btn"
+                  data-tab="framework"
+                  role="tab"
+                  aria-selected="false"
+                  aria-controls="tab-pane-framework"
+                  id="tab-btn-framework"
+                >
+                  <span data-i18n="frameworkStates">框架状态</span>
+                </button>
+                <button
+                  class="zen-tab-btn"
                   data-tab="stream"
                   role="tab"
                   aria-selected="false"
@@ -411,7 +447,20 @@
               </div>
             </div>
 
-            <!-- Tab 面板 5：全景瀑布流 -->
+            <!-- Tab 面板 5：框架状态 -->
+            <div
+              id="tab-pane-framework"
+              class="zen-tab-pane"
+              hidden
+              role="tabpanel"
+              aria-labelledby="tab-btn-framework"
+            >
+              <div class="integrated-card-panel">
+                <div id="framework-states" class="framework-state-list"></div>
+              </div>
+            </div>
+
+            <!-- Tab 面板 6：全景瀑布流 -->
             <div
               id="tab-pane-stream"
               class="zen-tab-pane"
@@ -852,15 +901,29 @@
       </div>
     </div>
 
-    <div id="playwright-modal" class="playwright-modal" hidden role="dialog" aria-modal="true" aria-labelledby="playwright-modal-title">
+    <div
+      id="playwright-modal"
+      class="playwright-modal"
+      hidden
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="playwright-modal-title"
+    >
       <div class="playwright-modal-content">
         <div class="playwright-modal-header">
           <h2 id="playwright-modal-title">Playwright 测试脚本草稿</h2>
-          <span class="playwright-modal-subtitle">此脚本为 AI 友好草稿，可能需要人工调优后才能运行</span>
-          <button id="playwright-modal-close" class="ghost" aria-label="关闭">×</button>
+          <span class="playwright-modal-subtitle"
+            >此脚本为 AI 友好草稿，可能需要人工调优后才能运行</span
+          >
+          <button id="playwright-modal-close" class="ghost" aria-label="关闭">
+            ×
+          </button>
         </div>
         <div class="playwright-modal-body">
-          <pre id="playwright-script-output" class="playwright-script-output"></pre>
+          <pre
+            id="playwright-script-output"
+            class="playwright-script-output"
+          ></pre>
         </div>
         <div class="playwright-modal-footer">
           <button id="playwright-copy" class="secondary">复制脚本</button>
