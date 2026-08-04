@@ -144,14 +144,17 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
       addEventListener() {},
     };
 
+    let timeoutCallback: Function | undefined;
     const mockWindow: any = {
-      setInterval(fn: Function, ms: number) {
-        return setInterval(fn, ms) as any;
+      setInterval() {
+        return 1;
       },
-      clearInterval(id: any) {
-        clearInterval(id);
-      },
+      clearInterval() {},
       setTimeout(fn: Function, ms: number) {
+        if (ms === 1500) {
+          timeoutCallback = fn;
+          return 999;
+        }
         return setTimeout(fn, ms) as any;
       },
       clearTimeout(id: any) {
@@ -159,6 +162,9 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
       },
       addEventListener() {},
       removeEventListener() {},
+      triggerCollapseTimer() {
+        if (timeoutCallback) timeoutCallback();
+      },
     };
     mockWindow.top = mockWindow;
 
@@ -180,7 +186,7 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
   });
 
   afterEach(() => {
-    if (widget && widget.isMounted) {
+    if (widget && widget.container) {
       widget.unmount();
     }
   });
@@ -189,13 +195,13 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
     widget = new RecordingWidget(callbacks);
     widget.mount();
 
-    assert.equal(widget.isMounted, true);
+    assert.equal(widget.container !== undefined, true);
     const dragHandle = mockRootElement.querySelector(".__wbr_drag_handle");
     assert.ok(dragHandle);
     assert.equal(dragHandle.textContent, "⋮⋮");
   });
 
-  test("triggers collapse after 1.5 seconds of inactivity and recovers on mouseenter", async () => {
+  test("triggers collapse after 1.5 seconds of inactivity and recovers on mouseenter", () => {
     widget = new RecordingWidget(callbacks);
     widget.mount();
 
@@ -204,12 +210,12 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
       false
     );
 
-    await new Promise((resolve) => setTimeout(resolve, 1650));
+    (globalThis.window as any).triggerCollapseTimer();
 
     assert.equal(
       mockRootElement.classList.contains("__wbr_collapsed__"),
       true,
-      "Widget should be collapsed after 1.5s"
+      "Widget should be collapsed after inactivity timeout"
     );
 
     mockRootElement.dispatchEvent({ type: "mouseenter" });
