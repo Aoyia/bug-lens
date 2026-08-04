@@ -304,6 +304,7 @@ async function startSessionImpl(
     });
     if (["RECORDING", "DEGRADED"].includes(started.status)) {
       navigationCapture.attach();
+      navigationCapture.setCurrentUrl(tab.url ?? "");
       streamHealthMonitor.initialize(payload.tabId, session.id, {
         captureVideo: options.captureVideo && mediaStarted,
         captureConsoleOrNetwork:

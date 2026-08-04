@@ -6,6 +6,7 @@ type NavigationRepository = Pick<EvidenceRepository, "getActiveSession">;
 
 export class NavigationCapture {
   private attached = false;
+  private currentUrl: string = "";
   private readonly listener: (
     details: chrome.webNavigation.WebNavigationTransitionCallbackDetails
   ) => void;
@@ -31,6 +32,10 @@ export class NavigationCapture {
     if (!this.attached || !chrome.webNavigation?.onCommitted) return;
     this.attached = false;
     chrome.webNavigation.onCommitted.removeListener(this.listener);
+  }
+
+  setCurrentUrl(url: string): void {
+    this.currentUrl = url;
   }
 
   private async onNavigationCommitted(
@@ -82,6 +87,7 @@ export class NavigationCapture {
       metadata: {
         navigationType: details.transitionType,
         transitionQualifiers: details.transitionQualifiers,
+        fromUrl: this.currentUrl || undefined,
         toUrl: details.url,
       },
       screenshot: { status: "unavailable" },
@@ -92,5 +98,6 @@ export class NavigationCapture {
     };
 
     await this.interactionCapture.handle(record, sender);
+    this.currentUrl = details.url;
   }
 }

@@ -1,9 +1,11 @@
 import type {
   DomAncestorSnapshot,
   ElementDescriptor,
+  FrameworkSnapshot,
   TargetDomSnapshot,
 } from "../../../shared/protocol";
 import { detectVue } from "../vue-detector";
+import { detectReact } from "../react-detector";
 
 // ─── Utilities ───
 
@@ -119,12 +121,19 @@ export function buildLocators(
     .slice(0, 8);
 }
 
+// ─── Framework Detection ───
+
+function probeElement(
+  element: HTMLElement
+): FrameworkSnapshot | undefined {
+  return detectVue(element) ?? detectReact(element);
+}
+
 // ─── Element Descriptor ───
 
 export function describe(
   element: Element,
-  privacyMode: "safe" | "raw",
-  options?: { includeFramework?: boolean }
+  privacyMode: "safe" | "raw"
 ): ElementDescriptor {
   const rect = element.getBoundingClientRect();
   const attributes: Record<string, string> = {};
@@ -138,10 +147,8 @@ export function describe(
       attributes[attr.name] = attr.value.slice(0, 512);
   }
   const role = element.getAttribute("role") || undefined;
-  const vueSnapshot =
-    options?.includeFramework && element instanceof HTMLElement
-      ? detectVue(element)
-      : undefined;
+  const framework =
+    element instanceof HTMLElement ? probeElement(element) : undefined;
   return {
     tagName: element.tagName.toLowerCase(),
     id: element.id || undefined,
@@ -157,7 +164,7 @@ export function describe(
       height: rect.height,
     },
     locators: buildLocators(element, privacyMode),
-    framework: vueSnapshot ? { vue: vueSnapshot } : undefined,
+    framework,
   };
 }
 
@@ -236,7 +243,7 @@ export function buildDomSnapshot(
   const input = element as HTMLInputElement;
   const snapshot: TargetDomSnapshot = {
     capturedAtEpochMs: Date.now(),
-    element: describe(element, privacyMode, { includeFramework: true }),
+    element: describe(element, privacyMode),
     ...snapshotHtml(element),
     ancestors,
     state: {

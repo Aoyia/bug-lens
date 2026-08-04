@@ -52,9 +52,10 @@ function pickLocator(
     : undefined;
 }
 
-function formatPlaywrightLocator(
-  locator: { kind: string; expression: string }
-): string {
+function formatPlaywrightLocator(locator: {
+  kind: string;
+  expression: string;
+}): string {
   switch (locator.kind) {
     case "testId":
       return `page.getByTestId(${JSON.stringify(locator.expression)})`;
@@ -88,7 +89,9 @@ function formatScrollPosition(interaction: InteractionRecord): string {
   return `await page.evaluate(() => { window.scrollTo(${sx}, ${sy}); });`;
 }
 
-function formatValue(metadata: InteractionRecord["metadata"]): string | undefined {
+function formatValue(
+  metadata: InteractionRecord["metadata"]
+): string | undefined {
   if (!metadata) return undefined;
   if (metadata.valueRedacted) return undefined;
   return metadata.value;
@@ -112,7 +115,9 @@ function formatStep(
   if (interaction.kind === "navigation") {
     const toUrl = interaction.metadata?.toUrl;
     if (toUrl) {
-      lines.push(`await page.goto(${JSON.stringify(escapeStr(toUrl))}, { waitUntil: 'domcontentloaded' });`);
+      lines.push(
+        `await page.goto(${JSON.stringify(escapeStr(toUrl))}, { waitUntil: 'domcontentloaded' });`
+      );
     }
     return lines;
   }
@@ -120,7 +125,9 @@ function formatStep(
   if (interaction.kind === "scroll") {
     const sx = interaction.metadata?.scrollX ?? 0;
     const sy = interaction.metadata?.scrollY ?? 0;
-    lines.push(`await page.evaluate(() => { window.scrollTo(${sx}, ${sy}); });`);
+    lines.push(
+      `await page.evaluate(() => { window.scrollTo(${sx}, ${sy}); });`
+    );
     return lines;
   }
 
@@ -152,7 +159,9 @@ function formatStep(
   if (interaction.kind === "input") {
     const value = formatValue(interaction.metadata);
     if (value !== undefined) {
-      lines.push(`await ${pwLocator}.fill(${JSON.stringify(escapeStr(value))});`);
+      lines.push(
+        `await ${pwLocator}.fill(${JSON.stringify(escapeStr(value))});`
+      );
     } else {
       lines.push(`await ${pwLocator}.click();`);
       lines.push(`// Value was redacted — fill with test data to proceed`);
@@ -163,7 +172,9 @@ function formatStep(
   if (interaction.kind === "change") {
     const value = formatValue(interaction.metadata);
     if (value !== undefined) {
-      lines.push(`await ${pwLocator}.selectOption(${JSON.stringify(escapeStr(value))});`);
+      lines.push(
+        `await ${pwLocator}.selectOption(${JSON.stringify(escapeStr(value))});`
+      );
     } else {
       lines.push(`await ${pwLocator}.click();`);
     }
@@ -178,15 +189,20 @@ function formatStep(
         return `{ name: ${JSON.stringify(name)}, mimeType: ${JSON.stringify(type)}, buffer: Buffer.from('...') }`;
       });
       lines.push(`// File upload: ${meta.fileCount ?? 1} file(s)`);
-      lines.push(`await page.getByLabel('...').setInputFiles([${files.join(", ")}]);`);
+      lines.push(
+        `await page.getByLabel('...').setInputFiles([${files.join(", ")}]);`
+      );
     } else {
-      lines.push(`// File upload: ${meta?.fileCount ?? 1} file(s) (type: ${meta?.fileTypes?.[0] || "unknown"})`);
+      lines.push(
+        `// File upload: ${meta?.fileCount ?? 1} file(s) (type: ${meta?.fileTypes?.[0] || "unknown"})`
+      );
       lines.push(`// AI: provide the file path to use as test data`);
-      lines.push(`// await page.getByLabel('...').setInputFiles('path/to/file.pdf');`);
+      lines.push(
+        `// await page.getByLabel('...').setInputFiles('path/to/file.pdf');`
+      );
     }
     return lines;
   }
-
   if (interaction.kind === "submit") {
     lines.push(`await ${pwLocator}.click();`);
     lines.push(`// Form submitted — may trigger navigation`);
@@ -219,7 +235,7 @@ export function generatePlaywrightScript(input: GeneratorInput): string {
     (e) => e.level === "warning"
   ).length;
   const recordedNetworkFailures = networkEntries.filter(
-    (e) => e.response?.status && e.response.status >= 400
+    (e) => e.status && e.status >= 400
   ).length;
 
   const lines: string[] = [];
@@ -229,7 +245,9 @@ export function generatePlaywrightScript(input: GeneratorInput): string {
   l(`// URL: ${session.target.initialUrl || "unknown"}`);
   l(`// Title: ${session.target.initialTitle || "untitled"}`);
   l(`// Privacy: ${session.options.privacyMode}`);
-  l(`// Recorded evidence: ${interactions.length} interactions, ${recordedErrors} console errors, ${recordedNetworkFailures} network failures`);
+  l(
+    `// Recorded evidence: ${interactions.length} interactions, ${recordedErrors} console errors, ${recordedNetworkFailures} network failures`
+  );
   l(`//`);
   l(`// Workflow:`);
   l(`//   1. Run: npx playwright test --headed this-file.spec.ts`);
@@ -241,7 +259,9 @@ export function generatePlaywrightScript(input: GeneratorInput): string {
   l(``);
   l(`import { test, expect } from '@playwright/test';`);
   l(``);
-  l(`test('reproduce: ${escapeStr(session.target.initialTitle || "recorded bug")}', async ({ page }) => {`);
+  l(
+    `test('reproduce: ${escapeStr(session.target.initialTitle || "recorded bug")}', async ({ page }) => {`
+  );
 
   const firstInteraction = interactions[0];
 
@@ -281,23 +301,35 @@ export function generatePlaywrightScript(input: GeneratorInput): string {
   l(`  // Assertions`);
 
   if (recordedErrors > 0) {
-    l(`  // During recording: ${recordedErrors} console error(s) were observed`);
+    l(
+      `  // During recording: ${recordedErrors} console error(s) were observed`
+    );
     l(`  // If the bug is fixed, replay should have fewer errors`);
     l(`  expect(consoleErrors.length).toBeLessThan(${recordedErrors});`);
   }
 
   if (recordedWarnings > 0) {
-    l(`  // During recording: ${recordedWarnings} console warning(s) were observed`);
+    l(
+      `  // During recording: ${recordedWarnings} console warning(s) were observed`
+    );
     l(`  expect(consoleWarnings.length).toBeLessThan(${recordedWarnings});`);
   }
 
   if (recordedNetworkFailures > 0) {
-    l(`  // During recording: ${recordedNetworkFailures} network failure(s) were observed`);
+    l(
+      `  // During recording: ${recordedNetworkFailures} network failure(s) were observed`
+    );
     l(`  // If the bug is fixed, replay should have fewer failures`);
-    l(`  expect(networkFailures.length).toBeLessThan(${recordedNetworkFailures});`);
+    l(
+      `  expect(networkFailures.length).toBeLessThan(${recordedNetworkFailures});`
+    );
   }
 
-  if (recordedErrors === 0 && recordedWarnings === 0 && recordedNetworkFailures === 0) {
+  if (
+    recordedErrors === 0 &&
+    recordedWarnings === 0 &&
+    recordedNetworkFailures === 0
+  ) {
     l(`  // No console errors or network failures were recorded`);
     l(`  // Add assertions here to verify the expected page state`);
     l(`  // await expect(page.locator('...')).toBeVisible();`);
@@ -305,7 +337,9 @@ export function generatePlaywrightScript(input: GeneratorInput): string {
 
   l(``);
   l(`  // Capture screenshot for visual comparison`);
-  l(`  await page.screenshot({ path: 'bug-replay-${escapeStr(session.target.initialTitle || "screenshot")}.png', fullPage: true });`);
+  l(
+    `  await page.screenshot({ path: 'bug-replay-${escapeStr(session.target.initialTitle || "screenshot")}.png', fullPage: true });`
+  );
   l(`});`);
 
   return lines.join("\n");

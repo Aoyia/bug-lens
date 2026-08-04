@@ -4,6 +4,8 @@ import { EvidenceReportView } from "../../preview/evidence-report-view";
 import { PreviewAiHandoff } from "../../preview/preview-ai-handoff";
 import { PreviewExportController } from "../../preview/preview-export-controller";
 import { PreviewSessionRuntime } from "../../preview/preview-session-runtime";
+import { generatePlaywrightScript } from "../../preview/playwright-generator";
+import { copyTextToClipboard } from "../../preview/clipboard";
 import { applyI18n } from "../../shared/i18n";
 import "../../shared/components/truncated-text";
 
@@ -47,6 +49,56 @@ exportController = new PreviewExportController({
   notify: (message) => reportView.notify(message),
   onArtifactChanged: () => aiHandoff.render(),
   onExportComplete: () => aiHandoff.autoCopyPrompt(),
+});
+
+// Playwright 脚本生成
+const playwrightModal = document.getElementById("playwright-modal") as HTMLElement;
+const playwrightOutput = document.getElementById("playwright-script-output") as HTMLElement;
+const playwrightBtn = document.getElementById("export-playwright") as HTMLButtonElement;
+const playwrightClose = document.getElementById("playwright-modal-close") as HTMLButtonElement;
+const playwrightCloseBtn = document.getElementById("playwright-modal-close-btn") as HTMLButtonElement;
+const playwrightCopy = document.getElementById("playwright-copy") as HTMLButtonElement;
+
+function generatePlaywright(): void {
+  const snapshot = runtime.getReportSnapshot();
+  if (!snapshot) {
+    reportView.notify("请先等待证据预览加载完成");
+    return;
+  }
+  const script = generatePlaywrightScript({
+    session: snapshot.session,
+    interactions: snapshot.interactions.included,
+    consoleEntries: snapshot.consoleEntries.included,
+    networkEntries: snapshot.networkEntries.included,
+  });
+  playwrightOutput.textContent = script;
+  playwrightModal.hidden = false;
+}
+
+playwrightBtn.addEventListener("click", generatePlaywright);
+
+playwrightClose.addEventListener("click", () => {
+  playwrightModal.hidden = true;
+});
+playwrightCloseBtn.addEventListener("click", () => {
+  playwrightModal.hidden = true;
+});
+playwrightModal.addEventListener("click", (e) => {
+  if (e.target === playwrightModal) {
+    playwrightModal.hidden = true;
+  }
+});
+
+playwrightCopy.addEventListener("click", async () => {
+  const text = playwrightOutput.textContent;
+  if (text) {
+    try {
+      await copyTextToClipboard(text, document);
+      reportView.notify("Playwright 脚本已复制");
+    } catch (error) {
+      reportView.notify(`复制失败：${String(error)}`);
+    }
+  }
 });
 
 async function loadMediaPreview(): Promise<void> {

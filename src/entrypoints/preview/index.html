@@ -13,6 +13,7 @@
     <link rel="stylesheet" href="preview-image-viewer.css" />
     <link rel="stylesheet" href="preview-issue-scenes.css" />
     <link rel="stylesheet" href="preview-stream.css" />
+    <link rel="stylesheet" href="preview-playwright.css" />
   </head>
   <body>
     <div class="zen-app-frame">
@@ -123,6 +124,13 @@
               ></div>
             </div>
           </div>
+          <button id="export-playwright" class="secondary" style="margin-left: 6px;font-size:11px" title="生成 Playwright 自动化测试脚本草稿">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;vertical-align:middle">
+              <polyline points="16 18 22 12 16 6"></polyline>
+              <polyline points="8 6 2 12 8 18"></polyline>
+            </svg>
+            Playwright
+          </button>
         </div>
       </header>
 
@@ -840,6 +848,23 @@
             <span class="shortcut-desc">显示此速查面板</span>
             <span class="shortcut-keys"><kbd class="shortcut-key">?</kbd></span>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="playwright-modal" class="playwright-modal" hidden role="dialog" aria-modal="true" aria-labelledby="playwright-modal-title">
+      <div class="playwright-modal-content">
+        <div class="playwright-modal-header">
+          <h2 id="playwright-modal-title">Playwright 测试脚本草稿</h2>
+          <span class="playwright-modal-subtitle">此脚本为 AI 友好草稿，可能需要人工调优后才能运行</span>
+          <button id="playwright-modal-close" class="ghost" aria-label="关闭">×</button>
+        </div>
+        <div class="playwright-modal-body">
+          <pre id="playwright-script-output" class="playwright-script-output"></pre>
+        </div>
+        <div class="playwright-modal-footer">
+          <button id="playwright-copy" class="secondary">复制脚本</button>
+          <button id="playwright-modal-close-btn" class="ghost">关闭</button>
         </div>
       </div>
     </div>
