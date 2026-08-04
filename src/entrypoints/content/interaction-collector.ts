@@ -119,6 +119,12 @@ if (existingController) {
     onMarkIssue() {
       beginIssueSelection();
     },
+    onTogglePause() {
+      monitor.toggleManualPause();
+    },
+    isPaused() {
+      return monitor.isIdlePaused;
+    },
     getStartedAtEpochMs() {
       return session?.startedAtEpochMs || cachedStartedAtEpochMs || Date.now();
     },

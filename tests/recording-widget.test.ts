@@ -74,6 +74,20 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
       },
     };
 
+    const pauseBtn = {
+      textContent: "Pause",
+      style: {},
+      addEventListener(type: string, fn: Function) {
+        addListener(this, type, fn);
+      },
+      removeEventListener(type: string, fn: Function) {
+        removeListener(this, type, fn);
+      },
+      dispatchEvent(evt: any) {
+        dispatch(this, evt);
+      },
+    };
+
     const stopBtn = {
       addEventListener(type: string, fn: Function) {
         addListener(this, type, fn);
@@ -128,6 +142,7 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
       },
       querySelector(sel: string) {
         if (sel.includes("drag_handle")) return dragHandle;
+        if (sel.includes("pause_btn")) return pauseBtn;
         if (sel.includes("stop_btn")) return stopBtn;
         if (sel.includes("timer_display")) return timerDisplay;
         return null;
@@ -281,5 +296,32 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
 
     // 应扣除 4 秒暂停时间：显示 00:06 (idlePaused)
     assert.equal(timerDisplay.textContent, "00:06 (idlePaused)");
+  });
+
+  test("triggers onTogglePause callback when pause button clicked", () => {
+    let pauseToggled = false;
+    const testCallbacks = {
+      ...callbacks,
+      onTogglePause: () => {
+        pauseToggled = true;
+      },
+    };
+
+    widget = new RecordingWidget(testCallbacks);
+    widget.mount();
+
+    const pauseBtn = mockRootElement.querySelector("#__wbr_pause_btn__");
+    assert.ok(pauseBtn);
+    pauseBtn.dispatchEvent({
+      type: "click",
+      stopPropagation: () => {},
+      preventDefault: () => {},
+    });
+
+    assert.equal(
+      pauseToggled,
+      true,
+      "Clicking pause button should invoke onTogglePause callback"
+    );
   });
 });

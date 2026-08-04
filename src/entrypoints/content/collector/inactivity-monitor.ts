@@ -23,8 +23,10 @@ export class InactivityMonitor {
 
   constructor(private readonly callbacks: InactivityCallbacks) {}
 
+  private isManualPaused = false;
+
   get isIdlePaused(): boolean {
-    return this._isIdlePaused;
+    return this._isIdlePaused || this.isManualPaused;
   }
 
   getPausedDurationMs(): number {
@@ -65,6 +67,25 @@ export class InactivityMonitor {
     }, 2_000);
   }
 
+  toggleManualPause(): boolean {
+    if (this.isManualPaused) {
+      this.isManualPaused = false;
+      this._isIdlePaused = false;
+      if (this.pauseStartMs !== undefined) {
+        this.accumulatedPausedMs += Date.now() - this.pauseStartMs;
+        this.pauseStartMs = undefined;
+      }
+      this.callbacks.onResume();
+      return false;
+    } else {
+      this.isManualPaused = true;
+      this._isIdlePaused = false;
+      this.pauseStartMs = Date.now();
+      this.callbacks.onPause();
+      return true;
+    }
+  }
+
   stop(): void {
     if (this.checkInterval) {
       clearInterval(this.checkInterval);
@@ -77,11 +98,13 @@ export class InactivityMonitor {
       this.listenersAttached = false;
     }
     this._isIdlePaused = false;
+    this.isManualPaused = false;
     this.accumulatedPausedMs = 0;
     this.pauseStartMs = undefined;
   }
 
   private handleActivity = (): void => {
+    if (this.isManualPaused) return;
     if (this._isIdlePaused) {
       this._isIdlePaused = false;
       if (this.pauseStartMs !== undefined) {

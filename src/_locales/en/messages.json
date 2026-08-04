@@ -118,7 +118,13 @@
     "message": "Evidence Summary"
   },
   "markIssue": {
-    "message": "Capture Issue"
+    "message": "Mark Issue"
+  },
+  "pauseRecording": {
+    "message": "Pause"
+  },
+  "resumeRecording": {
+    "message": "Resume"
   },
   "idlePaused": {
     "message": "Paused (Idle)"

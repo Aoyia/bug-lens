@@ -6,6 +6,8 @@ export type WidgetCallbacks = {
   onStopAndExport(): void;
   onStopAndDiscard(): void;
   onMarkIssue(): void;
+  onTogglePause?(): void;
+  isPaused?(): boolean;
   getStartedAtEpochMs(): number;
   isIdlePaused(): boolean;
   getPausedDurationMs?(): number;
@@ -262,6 +264,7 @@ export class RecordingWidget {
       <div class="__wbr_btn_group">
         <span id="__wbr_health_msg__" style="font-size:11px;color:#ffc107;display:none;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title=""></span>
         <button id="__wbr_issue_btn__" class="__wbr_btn" style="background:#b42318;" title="${t("shortcut")}: ${this.shortcutKeyText}">${t("markIssue")} (${this.shortcutKeyText})</button>
+        <button id="__wbr_pause_btn__" class="__wbr_btn __wbr_btn_pause" style="background:#d97706;">${t("pauseRecording")}</button>
         <button id="__wbr_stop_btn__" class="__wbr_btn">${t("stopRecording")}</button>
         <button id="__wbr_stop_export_btn__" class="__wbr_btn __wbr_btn_export" style="background:#165dff;">${t("stopAndExport")}</button>
         <button id="__wbr_discard_btn__" class="__wbr_btn __wbr_btn_discard" style="background:#4e5969;">${t("stopAndDiscard")}</button>
@@ -280,6 +283,19 @@ export class RecordingWidget {
         document.body.appendChild(root);
         this.container = root;
 
+        const pauseBtn =
+          root.querySelector<HTMLButtonElement>("#__wbr_pause_btn__");
+        if (pauseBtn) {
+          pauseBtn.addEventListener(
+            "click",
+            (e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              this.callbacks.onTogglePause?.();
+            },
+            true
+          );
+        }
         const stopBtn = root.querySelector("#__wbr_stop_btn__");
         if (stopBtn) {
           stopBtn.addEventListener(
@@ -441,6 +457,20 @@ export class RecordingWidget {
         const updateTimer = () => {
           if (this._isSaving) return;
           const display = root.querySelector("#__wbr_timer_display__");
+          const pauseBtn =
+            root.querySelector<HTMLButtonElement>("#__wbr_pause_btn__");
+          const isPaused =
+            this.callbacks.isPaused?.() || this.callbacks.isIdlePaused();
+
+          if (pauseBtn) {
+            pauseBtn.textContent = isPaused
+              ? t("resumeRecording")
+              : t("pauseRecording");
+            pauseBtn.style.background = isPaused ? "#165dff" : "#d97706";
+          }
+
+          this.updatePauseState(isPaused);
+
           if (display) {
             const startTime = this.callbacks.getStartedAtEpochMs();
             const pausedDurationMs =

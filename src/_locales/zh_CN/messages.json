@@ -120,6 +120,12 @@
   "markIssue": {
     "message": "标记问题"
   },
+  "pauseRecording": {
+    "message": "暂停"
+  },
+  "resumeRecording": {
+    "message": "继续"
+  },
   "idlePaused": {
     "message": "闲置已暂停"
   },
