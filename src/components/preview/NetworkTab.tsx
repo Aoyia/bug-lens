@@ -36,12 +36,41 @@ function renderNetworkDetailHtml(entry?: NetworkEntry): string {
   if (!entry)
     return '<div class="network-detail-empty">点击上方网络请求查看详情</div>';
   const response = entry.response;
-  const headers = response?.headers || {};
+  const extraDetail =
+    typeof window !== "undefined" && window.__BUG_LENS_NETWORK_DETAILS__
+      ? window.__BUG_LENS_NETWORK_DETAILS__[entry.id]
+      : undefined;
+  const headers = extraDetail?.responseHeaders || response?.headers || {};
+  const reqHeaders = extraDetail?.requestHeaders || entry.requestHeaders || {};
+  const initiator = extraDetail?.initiator || entry.initiator;
+
+  const reqHeaderNames = Object.keys(reqHeaders);
   const headerNames = Object.keys(headers);
+
+  const reqHeaderBlock = reqHeaderNames.length
+    ? `<div class="network-detail-section"><details><summary>请求头 (${reqHeaderNames.length})</summary><div class="network-detail-content"><table class="headers-table">${reqHeaderNames.map((name) => `<tr><td class="header-name">${escapeHtml(name)}:</td><td class="header-value">${escapeHtml(reqHeaderNames.length ? reqHeaders[name] : "")}</td></tr>`).join("")}</table></div></details></div>`
+    : "";
+
+  let initiatorBlock = "";
+  if (initiator) {
+    let initiatorContent = "";
+    if (typeof initiator === "string") {
+      initiatorContent = escapeHtml(initiator);
+    } else if (initiator.concise?.topFrame) {
+      const top = initiator.concise.topFrame;
+      initiatorContent = `类型: ${escapeHtml(initiator.type || "script")}\n触发位置: ${escapeHtml(top.url)}:${top.lineNumber}:${top.columnNumber}`;
+    } else {
+      initiatorContent = escapeHtml(JSON.stringify(initiator, null, 2));
+    }
+    initiatorBlock = `<div class="network-detail-section"><details><summary>发起方 / 调用栈 (Initiator)</summary><div class="network-detail-content"><pre class="code" style="white-space: pre-wrap; font-size: 11px;">${initiatorContent}</pre></div></details></div>`;
+  }
+
   const headerBlock = `
+    ${reqHeaderBlock}
     <div class="network-detail-section"><details><summary>响应头 (${headerNames.length})</summary><div class="network-detail-content">
       ${headerNames.length ? `<table class="headers-table">${headerNames.map((name) => `<tr><td class="header-name">${escapeHtml(name)}:</td><td class="header-value">${escapeHtml(headers[name])}</td></tr>`).join("")}</table>` : '<div class="muted">无响应头</div>'}
-    </div></details></div>`;
+    </div></details></div>
+    ${initiatorBlock}`;
 
   let body = "";
   if (!response) body = '<div class="muted">未收到响应元数据</div>';

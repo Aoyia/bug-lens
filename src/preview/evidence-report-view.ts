@@ -14,6 +14,13 @@ import { InteractionsTab } from "../components/preview/InteractionsTab";
 import { IssueSceneTab } from "../components/preview/IssueSceneTab";
 import { StreamTab } from "../components/preview/StreamTab";
 
+// 引入网络详情逻辑类型支持
+declare global {
+  interface Window {
+    __BUG_LENS_NETWORK_DETAILS__?: Record<string, any>;
+  }
+}
+
 type EvidenceCollection<T> = { all: T[]; included: T[] };
 
 export type EvidenceReportSnapshot = {

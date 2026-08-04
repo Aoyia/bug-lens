@@ -91,9 +91,8 @@ test("evidence package hides the complete offline report behind one snapshot int
       "assets/report.js",
       "assets/report.css",
       "assets/icon_idle.png",
-      "data/session.js",
-      "data/report-data.js",
-      "data/network-details.json",
+      "data/session-data.js",
+      "data/network-details.js",
     ]
   );
   assert.match(files.get("README.md")!, /Checkout page/);
@@ -102,9 +101,9 @@ test("evidence package hides the complete offline report behind one snapshot int
   assert.ok(
     files
       .get("report.html")!
-      .includes('<script src="data/report-data.js"></script>')
+      .includes('<script src="data/session-data.js"></script>')
   );
-  const sessionJsContent = files.get("data/session.js")!;
+  const sessionJsContent = files.get("data/session-data.js")!;
   const sessionJsData = JSON.parse(
     sessionJsContent.replace(/^window\.__BUG_LENS_DATA__ = /, "").slice(0, -1)
   );
@@ -165,7 +164,7 @@ test("evidence package exports binary interaction screenshots into screenshots/ 
   const files = buildEvidencePackage(snapshotWithScreenshots, reportAssets);
   const fileNames = files.map((f) => f.name);
   assert.ok(fileNames.includes("screenshots/step-1.png"));
-  const sessionJsFile = files.find((f) => f.name === "data/session.js")!;
+  const sessionJsFile = files.find((f) => f.name === "data/session-data.js")!;
   const sessionJsRaw = new TextDecoder().decode(sessionJsFile.data);
   const sessionData = JSON.parse(
     sessionJsRaw.replace(/^window\.__BUG_LENS_DATA__ = /, "").slice(0, -1)
