@@ -107,15 +107,25 @@ test.describe("Bug Lens 0.4.x 1000+次真实DOM点击与万级吞吐 E2E 测试"
 
     const inputLocator = targetPage.locator("#test-text-input");
 
-    // 2. 1,000+ 次真实 DOM 高频点击爆破循环：单轮轻量高频触发 50 次 DOM click
+    const clickBtnLocator = targetPage.locator("#test-click-btn");
+    const errorBtnLocator = targetPage.locator("#test-error-btn");
+
+    // 2. 1,000+ 次真实 DOM 高频点击爆破循环
     while (Date.now() < deadline) {
       roundCounter++;
 
-      const clicksInRound = await targetPage
+      // 真实 CDP 物理点击，产生 isTrusted = true 顶级硬件级事件
+      await clickBtnLocator.click().catch(() => undefined);
+      await errorBtnLocator.click().catch(() => undefined);
+
+      let clicksInRound = 2; // 基础真实物理点击
+
+      // 补充批量合成事件以增加日志爆破吞吐量
+      const syntheticCount = await targetPage
         .evaluate(() => {
           const btn = document.getElementById("test-click-btn");
           const errBtn = document.getElementById("test-error-btn");
-          const count = 50;
+          const count = 48;
           for (let i = 0; i < count; i++) {
             const target = i % 2 === 0 ? btn : errBtn;
             if (target) {
@@ -132,9 +142,17 @@ test.describe("Bug Lens 0.4.x 1000+次真实DOM点击与万级吞吐 E2E 测试"
         })
         .catch(() => 0);
 
+      clicksInRound += syntheticCount;
       clickOperationCount += clicksInRound;
 
-      // 文本输入
+      // 增加真实指针移动，持续刷新活跃感应器
+      if (roundCounter % 3 === 0) {
+        const x = 100 + (roundCounter * 7) % 300;
+        const y = 150 + (roundCounter * 11) % 200;
+        await targetPage.mouse.move(x, y).catch(() => undefined);
+      }
+
+      // 文本输入（真实键盘）
       if (roundCounter % 10 === 0) {
         await inputLocator
           .fill(`Typing event count=${clickOperationCount}`)
@@ -199,7 +217,6 @@ test.describe("Bug Lens 0.4.x 1000+次真实DOM点击与万级吞吐 E2E 测试"
       if (roundCounter % 5 === 0) {
         const chunkCount = await mediaProbe.mediaChunkCount(sessionId);
         const currentSession = await mediaProbe.activeSession();
-        const elapsedSec = Math.floor((Date.now() - startTime) / 1000);
         logE2e(
           `💥 压测进行中 [已真实点击 ${clickOperationCount} 次 / 目标 1,000+ 次]`,
           {
@@ -212,9 +229,15 @@ test.describe("Bug Lens 0.4.x 1000+次真实DOM点击与万级吞吐 E2E 测试"
             status: currentSession?.status,
           }
         );
+
+        // 防闲置自动暂停机制防守：若检测到 PAUSED，自动触发硬件物理点击唤醒
+        if (currentSession?.status === "PAUSED") {
+          logE2e("⚠️ 检测到闲置暂停状态，触发真实物理点击唤醒恢复录制...");
+          await clickBtnLocator.click({ force: true }).catch(() => undefined);
+        }
       }
 
-      await delay(10);
+      await delay(30);
     }
 
     logE2e(`🔥 打压阶段完成，正在停止录制并做终极 1,000+ 次点击落盘校验...`, {
