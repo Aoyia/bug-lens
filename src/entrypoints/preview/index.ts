@@ -489,10 +489,10 @@ function bindSingleSeekbarPlayer(): void {
   const togglePlay = () => {
     if (video.paused) {
       void video.play();
-      showHud("► 播放");
+      showHud("播放");
     } else {
       video.pause();
-      showHud("❚❚ 暂停");
+      showHud("暂停");
     }
   };
 
@@ -504,10 +504,10 @@ function bindSingleSeekbarPlayer(): void {
   video.addEventListener("dblclick", () => {
     if (!document.fullscreenElement) {
       void videoContainer?.requestFullscreen().catch(() => undefined);
-      showHud("⛶ 全屏");
+      showHud("全屏");
     } else {
       void document.exitFullscreen().catch(() => undefined);
-      showHud("🗗 退出全屏");
+      showHud("退出全屏");
     }
   });
 

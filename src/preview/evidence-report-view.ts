@@ -13,6 +13,8 @@ import { NetworkTab } from "../components/preview/NetworkTab";
 import { InteractionsTab } from "../components/preview/InteractionsTab";
 import { IssueSceneTab } from "../components/preview/IssueSceneTab";
 import { StreamTab } from "../components/preview/StreamTab";
+import { formatElapsedEpochTime } from "../domain/evidence-clock";
+import { exportVideoClip } from "./video-clip-exporter";
 
 // 引入网络详情逻辑类型支持
 declare global {
@@ -263,8 +265,31 @@ export class EvidenceReportView {
             networkEntries: snapshot.networkEntries.included,
           },
           onSeekVideo: seekVideo,
-          onExportClip: (_timestamp: number) => {
-            // clip export is handled by the video player in index.ts
+          onExportClip: (timestamp: number) => {
+            seekVideo(timestamp);
+            const originEpochMs =
+              snapshot.session.timeline.startedAtEpochMs ??
+              snapshot.session.timeline.createdAtEpochMs;
+            const timeStr =
+              originEpochMs != null
+                ? formatElapsedEpochTime(timestamp, originEpochMs)
+                : "00-00";
+
+            const video = this.root.querySelector<HTMLVideoElement>("#video");
+            if (!video || video.hidden || !video.src) {
+              this.shell.notify("当前会话无可用录像，无法导出视频片段");
+              return;
+            }
+
+            const relSec =
+              originEpochMs != null ? (timestamp - originEpochMs) / 1000 : 0;
+            const startSec = Math.max(0, relSec - 2.5);
+            const endSec = Math.min(video.duration || 0, relSec + 2.5);
+            const safeName = `clip-${(timeStr || "00-00").replace(/:/g, "-")}.mp4`;
+
+            void exportVideoClip(video, startSec, endSec, safeName, (msg) =>
+              this.shell.notify(msg)
+            );
           },
         }),
         this.streamContainer
