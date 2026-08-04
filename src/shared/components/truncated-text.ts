@@ -35,8 +35,10 @@ export class TruncatedText extends HTMLElement {
     this.render();
   }
 
-  attributeChangedCallback(): void {
-    this.render();
+  attributeChangedCallback(name: string): void {
+    if (name === "text") {
+      this.render();
+    }
   }
 
   private render(): void {

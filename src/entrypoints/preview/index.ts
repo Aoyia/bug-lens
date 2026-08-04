@@ -5,6 +5,7 @@ import { PreviewAiHandoff } from "../../preview/preview-ai-handoff";
 import { PreviewExportController } from "../../preview/preview-export-controller";
 import { PreviewSessionRuntime } from "../../preview/preview-session-runtime";
 import { generatePlaywrightScript } from "../../preview/playwright-generator";
+import { highlightJs } from "../../preview/rendering";
 import { copyTextToClipboard } from "../../preview/clipboard";
 import { applyI18n } from "../../shared/i18n";
 import "../../shared/components/truncated-text";
@@ -52,12 +53,24 @@ exportController = new PreviewExportController({
 });
 
 // Playwright 脚本生成
-const playwrightModal = document.getElementById("playwright-modal") as HTMLElement;
-const playwrightOutput = document.getElementById("playwright-script-output") as HTMLElement;
-const playwrightBtn = document.getElementById("export-playwright") as HTMLButtonElement;
-const playwrightClose = document.getElementById("playwright-modal-close") as HTMLButtonElement;
-const playwrightCloseBtn = document.getElementById("playwright-modal-close-btn") as HTMLButtonElement;
-const playwrightCopy = document.getElementById("playwright-copy") as HTMLButtonElement;
+const playwrightModal = document.getElementById(
+  "playwright-modal"
+) as HTMLElement;
+const playwrightOutput = document.getElementById(
+  "playwright-script-output"
+) as HTMLElement;
+const playwrightBtn = document.getElementById(
+  "export-playwright"
+) as HTMLButtonElement;
+const playwrightClose = document.getElementById(
+  "playwright-modal-close"
+) as HTMLButtonElement;
+const playwrightCloseBtn = document.getElementById(
+  "playwright-modal-close-btn"
+) as HTMLButtonElement;
+const playwrightCopy = document.getElementById(
+  "playwright-copy"
+) as HTMLButtonElement;
 
 function generatePlaywright(): void {
   const snapshot = runtime.getReportSnapshot();
@@ -71,7 +84,7 @@ function generatePlaywright(): void {
     consoleEntries: snapshot.consoleEntries.included,
     networkEntries: snapshot.networkEntries.included,
   });
-  playwrightOutput.textContent = script;
+  playwrightOutput.innerHTML = highlightJs(script);
   playwrightModal.hidden = false;
 }
 

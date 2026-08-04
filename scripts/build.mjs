@@ -1,4 +1,4 @@
-import { build, context } from "esbuild";
+import { build, context, transform } from "esbuild";
 import { cp, mkdir, rm, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { watch as watchFS } from "node:fs";
@@ -11,6 +11,15 @@ const isE2e =
 
 await rm(outdir, { recursive: true, force: true });
 await mkdir(outdir, { recursive: true });
+
+async function copyCssAsset(src, dest) {
+  const css = await readFile(src, "utf-8");
+  const result = await transform(css, {
+    loader: "css",
+    minify: !isWatch,
+  });
+  await writeFile(dest, result.code);
+}
 
 const entries = {
   background: "src/entrypoints/background/index.ts",
@@ -57,15 +66,15 @@ async function copyStaticAssets() {
     resolve(root, "src/entrypoints/report/index.html"),
     resolve(outdir, "report-template.html")
   );
-  await cp(
+  await copyCssAsset(
     resolve(root, "src/entrypoints/report/static.css"),
     resolve(outdir, "report-static.css")
   );
-  await cp(
+  await copyCssAsset(
     resolve(root, "src/shared/styles/tokens.css"),
     resolve(outdir, "tokens.css")
   );
-  await cp(
+  await copyCssAsset(
     resolve(root, "src/entrypoints/popup/styles/popup.css"),
     resolve(outdir, "popup.css")
   );
@@ -78,8 +87,9 @@ async function copyStaticAssets() {
     "image-viewer",
     "issue-scenes",
     "stream",
+    "playwright",
   ]) {
-    await cp(
+    await copyCssAsset(
       resolve(root, `src/entrypoints/preview/styles/${style}.css`),
       resolve(outdir, `preview-${style}.css`)
     );

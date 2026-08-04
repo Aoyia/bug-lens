@@ -147,8 +147,8 @@ test.describe("Bug Lens 0.4.x 1000+次真实DOM点击与万级吞吐 E2E 测试"
 
       // 增加真实指针移动，持续刷新活跃感应器
       if (roundCounter % 3 === 0) {
-        const x = 100 + (roundCounter * 7) % 300;
-        const y = 150 + (roundCounter * 11) % 200;
+        const x = 100 + ((roundCounter * 7) % 300);
+        const y = 150 + ((roundCounter * 11) % 200);
         await targetPage.mouse.move(x, y).catch(() => undefined);
       }
 
@@ -231,7 +231,7 @@ test.describe("Bug Lens 0.4.x 1000+次真实DOM点击与万级吞吐 E2E 测试"
         );
 
         // 防闲置自动暂停机制防守：若检测到 PAUSED，自动触发硬件物理点击唤醒
-        if (currentSession?.status === "PAUSED") {
+        if ((currentSession?.status as string) === "PAUSED") {
           logE2e("⚠️ 检测到闲置暂停状态，触发真实物理点击唤醒恢复录制...");
           await clickBtnLocator.click({ force: true }).catch(() => undefined);
         }

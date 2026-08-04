@@ -92,7 +92,8 @@ test("evidence package hides the complete offline report behind one snapshot int
       "assets/report.css",
       "assets/icon_idle.png",
       "data/session.js",
-      "data/session.json",
+      "data/report-data.js",
+      "data/network-details.json",
     ]
   );
   assert.match(files.get("README.md")!, /Checkout page/);
@@ -101,12 +102,13 @@ test("evidence package hides the complete offline report behind one snapshot int
   assert.ok(
     files
       .get("report.html")!
-      .includes('<script src="data/session.js"></script>')
+      .includes('<script src="data/report-data.js"></script>')
   );
-  assert.equal(
-    JSON.parse(files.get("data/session.json")!).session.id,
-    session.id
+  const sessionJsContent = files.get("data/session.js")!;
+  const sessionJsData = JSON.parse(
+    sessionJsContent.replace(/^window\.__BUG_LENS_DATA__ = /, "").slice(0, -1)
   );
+  assert.equal(sessionJsData.session.id, session.id);
 });
 
 test("AI handoff prompt includes the selected package path and evidence counts", () => {
@@ -163,9 +165,10 @@ test("evidence package exports binary interaction screenshots into screenshots/ 
   const files = buildEvidencePackage(snapshotWithScreenshots, reportAssets);
   const fileNames = files.map((f) => f.name);
   assert.ok(fileNames.includes("screenshots/step-1.png"));
-  const sessionJsonFile = files.find((f) => f.name === "data/session.json")!;
+  const sessionJsFile = files.find((f) => f.name === "data/session.js")!;
+  const sessionJsRaw = new TextDecoder().decode(sessionJsFile.data);
   const sessionData = JSON.parse(
-    new TextDecoder().decode(sessionJsonFile.data)
+    sessionJsRaw.replace(/^window\.__BUG_LENS_DATA__ = /, "").slice(0, -1)
   );
   assert.equal(
     sessionData.interactions[0].screenshot.dataUrl,
