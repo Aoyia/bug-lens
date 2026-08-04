@@ -37,8 +37,55 @@ export class RecordingWidget {
     this.shortcutKeyText = this.isMac ? "Option+S" : "Alt+S";
   }
 
-  get isMounted(): boolean {
-    return Boolean(this.container);
+  showToast(message: string, durationMs = 2800): void {
+    const existing = document.querySelector("#__wbr_toast__");
+    if (existing) existing.remove();
+
+    const toast = document.createElement("div");
+    toast.id = "__wbr_toast__";
+    toast.setAttribute("data-wbr-ignore", "true");
+    toast.style.cssText = `
+      position: fixed !important;
+      top: 16px !important;
+      left: 50% !important;
+      transform: translateX(-50%) !important;
+      background: #ffffff !important;
+      -webkit-backdrop-filter: blur(16px) !important;
+      backdrop-filter: blur(16px) !important;
+      border: 1px solid rgba(0, 0, 0, 0.08) !important;
+      color: #1d2129 !important;
+      padding: 6px 16px !important;
+      border-radius: 2px !important;
+      font-size: 12px !important;
+      font-weight: 500 !important;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+      z-index: 2147483647 !important;
+      display: flex !important;
+      align-items: center !important;
+      gap: 8px !important;
+      pointer-events: none !important;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+      animation: __wbr_toast_in__ 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    `;
+
+    if (!document.querySelector("#__wbr_toast_style__")) {
+      const style = document.createElement("style");
+      style.id = "__wbr_toast_style__";
+      style.textContent = `
+        @keyframes __wbr_toast_in__ {
+          from { transform: translate(-50%, -12px); opacity: 0; }
+          to { transform: translate(-50%, 0); opacity: 1; }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    toast.textContent = message;
+    document.body.appendChild(toast);
+
+    window.setTimeout(() => {
+      toast.remove();
+    }, durationMs);
   }
 
   mount(): void {
@@ -475,62 +522,6 @@ export class RecordingWidget {
     } else {
       this.container.classList.remove("__wbr_saving__");
     }
-  }
-
-  showToast(message: string): void {
-    const root = document.body;
-    if (!root) return;
-    const oldToast = document.querySelector("#__wbr_widget_toast__");
-    if (oldToast) oldToast.remove();
-
-    const toast = document.createElement("div");
-    toast.id = "__wbr_widget_toast__";
-    toast.setAttribute("data-wbr-ignore", "true");
-    toast.style.cssText = `
-      position: fixed !important;
-      bottom: 72px !important;
-      right: 24px !important;
-      z-index: 2147483647 !important;
-      display: flex !important;
-      align-items: center !important;
-      gap: 8px !important;
-      padding: 10px 16px !important;
-      background: rgba(20, 24, 31, 0.92) !important;
-      backdrop-filter: blur(14px) !important;
-      -webkit-backdrop-filter: blur(14px) !important;
-      border: 1px solid rgba(255, 255, 255, 0.18) !important;
-      color: #ffffff !important;
-      border-radius: 8px !important;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.36) !important;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-      font-size: 13px !important;
-      font-weight: 500 !important;
-      pointer-events: none !important;
-      transition: opacity 0.25s ease, transform 0.25s ease !important;
-      opacity: 0 !important;
-      transform: translateY(8px) !important;
-    `;
-
-    toast.innerHTML = `
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#52c41a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M22 11.08V12a10 10 10 1 1-5.93-9.14"></path>
-        <polyline points="22 4 12 14.01 9 11.01"></polyline>
-      </svg>
-      <span>${message}</span>
-    `;
-
-    root.appendChild(toast);
-
-    requestAnimationFrame(() => {
-      toast.style.opacity = "1";
-      toast.style.transform = "translateY(0)";
-    });
-
-    setTimeout(() => {
-      toast.style.opacity = "0";
-      toast.style.transform = "translateY(8px)";
-      setTimeout(() => toast.remove(), 250);
-    }, 3000);
   }
 
   setIssueSelecting(selecting: boolean): void {

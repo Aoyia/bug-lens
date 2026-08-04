@@ -92,10 +92,12 @@ if (existingController) {
                   document.execCommand("copy");
                   textarea.remove();
                 }
-                widget.showToast("AI 提示词已复制");
               }
               widget.setSavingState(false);
-              widget.unmount();
+              widget.showToast("ZIP 下载完成，AI 提示词已自动复制到剪贴板！");
+              setTimeout(() => {
+                widget.unmount();
+              }, 1000);
             } else {
               widget.setSavingState(false);
             }
