@@ -62,18 +62,18 @@ function formatPlaywrightLocator(locator: {
     case "role": {
       const match = locator.expression.match(/^role=(\S+)/);
       if (match) {
-        return `page.getByRole(${JSON.stringify(match[1])})`;
+        return `page.getByRole(${JSON.stringify(match[1])}).first()`;
       }
-      return `page.locator(${JSON.stringify(locator.expression)})`;
+      return `page.locator(${JSON.stringify(locator.expression)}).first()`;
     }
     case "text":
-      return `page.getByText(${JSON.stringify(locator.expression)})`;
+      return `page.getByText(${JSON.stringify(locator.expression)}).first()`;
     case "id":
       return `page.locator(${JSON.stringify(`#${CSS.escape(locator.expression)}`)})`;
     case "css":
-      return `page.locator(${JSON.stringify(locator.expression)})`;
+      return `page.locator(${JSON.stringify(locator.expression)}).first()`;
     default:
-      return `page.locator(${JSON.stringify(locator.expression)})`;
+      return `page.locator(${JSON.stringify(locator.expression)}).first()`;
   }
 }
 
@@ -86,7 +86,7 @@ function formatScrollPosition(interaction: InteractionRecord): string {
   const sx = interaction.coordinates.scrollX;
   const sy = interaction.coordinates.scrollY;
   if (sx === 0 && sy === 0) return "";
-  return `await page.evaluate(() => { window.scrollTo(${sx}, ${sy}); });`;
+  return `await page.evaluate(() => { window.scrollTo({ left: ${sx}, top: ${sy}, behavior: 'smooth' }); });`;
 }
 
 function formatValue(
@@ -126,7 +126,7 @@ function formatStep(
     const sx = interaction.metadata?.scrollX ?? 0;
     const sy = interaction.metadata?.scrollY ?? 0;
     lines.push(
-      `await page.evaluate(() => { window.scrollTo(${sx}, ${sy}); });`
+      `await page.evaluate(() => { window.scrollTo({ left: ${sx}, top: ${sy}, behavior: 'smooth' }); });`
     );
     return lines;
   }
@@ -267,8 +267,17 @@ export function generatePlaywrightScript(input: GeneratorInput): string {
 
   if (firstInteraction) {
     l(`  await ${formatViewport(firstInteraction)};`);
-    l(``);
   }
+
+  const hasNavigatedAtStart =
+    firstInteraction && firstInteraction.kind === "navigation";
+
+  if (!hasNavigatedAtStart && session.target.initialUrl) {
+    l(
+      `  await page.goto(${JSON.stringify(escapeStr(session.target.initialUrl))}, { waitUntil: 'domcontentloaded' });`
+    );
+  }
+  l(``);
 
   if (recordedErrors > 0 || recordedWarnings > 0) {
     l(`  const consoleErrors: string[] = [];`);
@@ -290,7 +299,16 @@ export function generatePlaywrightScript(input: GeneratorInput): string {
     l(``);
   }
 
+  let lastTimestamp = originEpochMs;
+
   for (const interaction of interactions) {
+    const stepDelay = interaction.createdAt - lastTimestamp;
+    if (stepDelay > 400) {
+      const pacedDelay = Math.min(Math.max(Math.round(stepDelay), 300), 2500);
+      l(`  await page.waitForTimeout(${pacedDelay});`);
+    }
+    lastTimestamp = interaction.createdAt;
+
     const step = formatStep(interaction, originEpochMs);
     for (const line of step) {
       l(`  ${line}`);
