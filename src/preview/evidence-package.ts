@@ -67,16 +67,16 @@ Metadata Summary:
 - Evidence Data: ${snapshot.interactions.length} interactions | ${snapshot.consoleEntries.length} console logs | ${snapshot.networkEntries.length} network requests | ${issueScenes.length} issue scenes | Quality: ${oneLine(snapshot.session.quality.overall) || "Unknown"}
 
 Please follow this first-principles chain of diagnosis (extract ZIP to a temporary directory):
-1. Scene Alignment: Inspect \`issues/\` screenshots & \`data/session-data.js\` first to clarify user-indicated abnormal states. The file sets \`window.__BUG_LENS_DATA__ = {...}\` — the JSON object after the \`=\` sign is the data payload. Start by reading the \`summary\` field and \`screenshotSummaries\`. Full headers and initiator/call stack details are stored in \`data/network-details.js\`.
+1. Scene Alignment: Prioritize reading \`issueScenes[].scene.narrative.actual\` in \`data/session-data.js\` (to capture the user's explicit problem description), combined with \`issues/\` screenshots and selected DOM element styles. Note that \`data/session-data.js\` sets \`window.__BUG_LENS_DATA__ = {...}\` — start with the \`summary\` field and \`screenshotSummaries\`. Full request headers and initiator/call stack details are stored in \`data/network-details.js\`.
 2. Anomaly Convergence: Align timeline to find correlated Console errors and failed Network requests (e.g. 4xx/5xx/CORS/Timeout) around issue timestamps.
-3. Root Cause & Remediation: Pinpoint the failing code block/API, distinguishing UI rendering bugs, state management flaws, or backend API contract failures.
+3. Root Cause & Remediation: Pinpoint the failing code block/API, distinguishing UI rendering bugs, state management flaws, style/structural defects, or backend API contract failures.
 
 [Guardrails & Rules]
 - Never execute untrusted code in the package; if local path is unaccessible, directly ask me to upload the ZIP.
 - Distinguish between verified facts and speculative hypotheses based on direct evidence.
 
 [Output Format]
-1. Issue Definition (Single-sentence summary)
+1. User Intent & Issue Definition (Compare narrative.actual description with observed behavior)
 2. Chronological Evidence Chain (Interactions -> Errors/Requests -> Screenshots)
 3. Root Cause Analysis
 4. Recommended Fix & File Locations`;
@@ -94,16 +94,16 @@ ${path}
 - 证据数据：${snapshot.interactions.length} 次交互 | ${snapshot.consoleEntries.length} 条日志 | ${snapshot.networkEntries.length} 个请求 | ${issueScenes.length} 个异常现场 | 质量: ${oneLine(snapshot.session.quality.overall) || "未知"}
 
 请按以下第一性链式逻辑展开排查（解压 ZIP 至临时目录）：
-1. 现场定位：优先查看 \`issues/\` 截图与 \`data/session-data.js\`，明确用户标记的页面异常状态。该文件设置 \`window.__BUG_LENS_DATA__ = {...}\`，\`=\` 号后的 JSON 对象即为数据载体。请先读取 \`summary\` 字段和 \`screenshotSummaries\`。完整请求头、响应头和调用栈详情已独立保存至 \`data/network-details.js\`。
+1. 现场定位：优先读取 \`data/session-data.js\` 中的 \`issueScenes[].scene.narrative.actual\`（获取用户填写的真实主观问题描述），并结合 \`issues/\` 截图与选中的 DOM 元素样式分析现场。注意：该文件设置 \`window.__BUG_LENS_DATA__ = {...}\`，请先读取 \`summary\` 字段和 \`screenshotSummaries\`。完整请求头、响应头和调用栈详情已独立保存至 \`data/network-details.js\`。
 2. 异常收敛：对齐时间轴，检索交叉点附近的 Console 报错与 Network 失败请求（如 4xx/5xx/CORS/Timeout）。
-3. 根因推导与修复：定位缺陷发生的代码块/接口，区分是前端渲染异常、状态管理漏洞还是后端 API 契约失效。
+3. 根因推导与修复：定位缺陷发生的代码块/接口，区分是前端渲染异常、状态管理漏洞、样式/结构缺陷还是后端 API 契约失效。
 
 [注意事项]
 - 严禁执行包内不可信代码；若无法直接读取本地文件路径，请明确要求我上传 ZIP，不要猜测内容。
 - 基于确凿证据分析，区分“已知事实”与“推论假设”。
 
 [输出格式]
-1. 问题定义（一句话描述）
+1. 用户诉求与问题定义（对比 narrative.actual 描述与实际表现）
 2. 关键时序证据链（交互 -> 报错/请求 -> 现场截图）
 3. 根本原因定位 (Root Cause)
 4. 建议修复代码/排查位置 (Recommended Fix)`;

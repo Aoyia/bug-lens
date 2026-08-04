@@ -5,6 +5,16 @@ import {
 } from "../../shared/protocol";
 import { db } from "../../storage/db";
 import { evaluateOffscreenStorageWrite } from "../../storage/storage-health-coordinator";
+import { PreviewSessionRuntime } from "../../preview/preview-session-runtime";
+import {
+  buildEvidencePackage,
+  buildAiPrompt,
+  type StaticReportAssets,
+} from "../../preview/evidence-package";
+import {
+  writeEvidenceArchive,
+  type ArchiveFile,
+} from "../../export/export-pipeline";
 
 let recorder: MediaRecorder | undefined;
 let capturedStream: MediaStream | undefined;
@@ -445,6 +455,52 @@ async function renderIssueImage(
   }
 }
 
+async function exportPack(payload: { sessionId: string }): Promise<{
+  prompt: string;
+  blobUrl: string;
+  filename: string;
+}> {
+  const runtime = new PreviewSessionRuntime(db);
+  await runtime.load(payload.sessionId);
+  const snapshot = runtime.getPackageSnapshot();
+  if (!snapshot) {
+    throw new Error("FAILED_TO_LOAD_SNAPSHOT: 无法生成报告快照");
+  }
+
+  const filename = `web-bug-report-${payload.sessionId.slice(0, 8)}.zip`;
+  const reportAssets: StaticReportAssets = {
+    html: "",
+    script: "",
+    styles: "",
+    icon: new Uint8Array(0),
+  };
+
+  const packageFiles = buildEvidencePackage(snapshot, reportAssets);
+  const zipChunks: Uint8Array[] = [];
+  const sink = {
+    write: async (chunk: Uint8Array) => {
+      zipChunks.push(chunk);
+    },
+    close: async () => {},
+    abort: async () => {},
+  };
+
+  await writeEvidenceArchive({
+    files: packageFiles as ArchiveFile[],
+    sessionId: payload.sessionId,
+    mediaSource: db,
+    sink,
+  });
+
+  const zipBlob = new Blob(zipChunks as BlobPart[], {
+    type: "application/zip",
+  });
+  const blobUrl = URL.createObjectURL(zipBlob);
+  const prompt = buildAiPrompt(snapshot, filename);
+
+  return { prompt, blobUrl, filename };
+}
+
 chrome.runtime.onMessage.addListener((raw: unknown) => {
   if (!isEnvelope(raw)) return;
   const incoming = raw as RuntimeMessage;
@@ -477,6 +533,10 @@ chrome.runtime.onMessage.addListener((raw: unknown) => {
       .catch((error) => ({ ok: false, error: String(error) }));
   if (incoming.type === "offscreen/render-issue-image")
     return renderIssueImage(incoming.payload)
+      .then((result) => ({ ok: true, ...result }))
+      .catch((error) => ({ ok: false, error: String(error) }));
+  if (incoming.type === "offscreen/export-pack")
+    return exportPack(incoming.payload)
       .then((result) => ({ ok: true, ...result }))
       .catch((error) => ({ ok: false, error: String(error) }));
 });

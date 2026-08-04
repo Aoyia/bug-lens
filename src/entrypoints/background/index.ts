@@ -28,6 +28,21 @@ const EXTENSION_VERSION = "0.4.0";
 const STOPPING_IDS_KEY = "bug-lens-stopping-ids";
 const streamHealthMonitor = new StreamHealthMonitor();
 
+async function ensureOffscreenDocument(): Promise<void> {
+  const contexts = await (
+    chrome.runtime.getContexts as unknown as (
+      filter: unknown
+    ) => Promise<chrome.runtime.ExtensionContext[]>
+  )({ contextTypes: ["OFFSCREEN_DOCUMENT"] });
+  if (!contexts.length)
+    await chrome.offscreen.createDocument({
+      url: "offscreen.html",
+      reasons: ["BLOBS"],
+      justification:
+        "Render and persist issue scene screenshots and export silent ZIP archives locally.",
+    });
+}
+
 setStorageBudgetListener((sessionId, result) => {
   if (streamHealthMonitor.getSessionId() !== sessionId) return;
   if (!result.stored) {
@@ -384,7 +399,8 @@ async function performStopSession(
   session: RecordingSession,
   commandId?: string,
   autoExport = false,
-  discard = false
+  discard = false,
+  silentExport = false
 ): Promise<RecordingSession | undefined> {
   if (["PREVIEW_READY", "EXPORTED", "FAILED"].includes(session.status))
     return session;
@@ -460,9 +476,37 @@ async function performStopSession(
         type: "stop-completed",
         issue: cleanupIssue,
       }),
-      previewPending: true,
+      previewPending: !silentExport,
     }));
     if (!next) throw new Error(`未找到会话 (SESSION_NOT_FOUND:${session.id})`);
+    if (silentExport) {
+      await db.clearActive(session.id);
+      let prompt: string | undefined;
+      try {
+        await ensureOffscreenDocument();
+        const packRes = (await chrome.runtime.sendMessage(
+          message("offscreen/export-pack", { sessionId: session.id })
+        )) as {
+          ok: boolean;
+          prompt?: string;
+          blobUrl?: string;
+          filename?: string;
+          error?: string;
+        };
+
+        if (packRes?.ok && packRes.blobUrl && packRes.filename) {
+          const downloadId = await chrome.downloads.download({
+            url: packRes.blobUrl,
+            filename: packRes.filename,
+            saveAs: false,
+          });
+          prompt = packRes.prompt;
+        }
+      } catch (err) {
+        // Silent export error fallback
+      }
+      return { ...next, silentPrompt: prompt };
+    }
     return await openPendingPreview(next, autoExport);
   } finally {
     recordingCoordinator.finishStopping(session.id);
@@ -472,7 +516,8 @@ async function performStopSession(
 async function stopSessionImpl(
   commandId?: string,
   autoExport = false,
-  discard = false
+  discard = false,
+  silentExport = false
 ): Promise<RecordingSession | undefined> {
   let session: RecordingSession | undefined;
   if (commandId) {
@@ -503,17 +548,18 @@ async function stopSessionImpl(
     }
   }
   return recordingCoordinator.runStop(session.id, () =>
-    performStopSession(session!, commandId, autoExport, discard)
+    performStopSession(session!, commandId, autoExport, discard, silentExport)
   );
 }
 
 function stopSession(
   commandId?: string,
   autoExport = false,
-  discard = false
+  discard = false,
+  silentExport = false
 ): Promise<RecordingSession | undefined> {
   return recordingCoordinator.runLifecycle(() =>
-    stopSessionImpl(commandId, autoExport, discard)
+    stopSessionImpl(commandId, autoExport, discard, silentExport)
   );
 }
 
@@ -794,7 +840,8 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender, sendResponse) => {
             session: await stopSession(
               incoming.payload.commandId,
               incoming.payload.autoExport,
-              incoming.payload.discard
+              incoming.payload.discard,
+              incoming.payload.silentExport
             ),
           });
           return;

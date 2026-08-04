@@ -121,6 +121,7 @@ export type RecordingSession = {
   commandIds?: { start: string; stop?: string };
   browserEpoch?: string;
   previewPending?: boolean;
+  silentPrompt?: string;
   resumedFromSessionId?: string;
   storage?: SessionStorage;
   error?: CaptureIssue;
@@ -561,7 +562,12 @@ export type RuntimeMessage =
     >
   | Envelope<
       "session/stop",
-      { commandId?: string; autoExport?: boolean; discard?: boolean }
+      {
+        commandId?: string;
+        autoExport?: boolean;
+        silentExport?: boolean;
+        discard?: boolean;
+      }
     >
   | Envelope<"session/status", { session?: RecordingSession }>
   | Envelope<"session/list", { query?: string }>
@@ -671,6 +677,12 @@ export type RuntimeMessage =
         limitReached: boolean;
         stored: boolean;
       }
+    >
+  | Envelope<
+      "offscreen/export-pack",
+      {
+        sessionId: string;
+      }
     >;
 
 export function message<T extends RuntimeMessage["type"], P>(
@@ -744,4 +756,11 @@ export type RuntimeMessageResponseMap = {
   "offscreen/media-chunk": { ok: boolean; error?: string };
   "offscreen/media-state": { ok: true };
   "offscreen/storage-state": { ok: true };
+  "offscreen/export-pack": {
+    ok: true;
+    prompt?: string;
+    zipBlobUrl?: string;
+    filename?: string;
+    error?: string;
+  };
 };

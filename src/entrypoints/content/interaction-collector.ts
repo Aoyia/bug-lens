@@ -63,13 +63,47 @@ if (existingController) {
       );
     },
     onStopAndExport() {
-      widget.setSavingState(true);
-      void chrome.runtime.sendMessage(
-        message("session/stop", {
-          commandId: crypto.randomUUID(),
-          autoExport: true,
-        })
-      );
+      widget.setSavingState(true, "正在打包 ZIP 并在复制提示词...");
+      const commandId = crypto.randomUUID();
+      chrome.runtime
+        .sendMessage(
+          message("session/stop", {
+            commandId,
+            autoExport: true,
+            silentExport: true,
+          })
+        )
+        .then(
+          async (res: {
+            ok?: boolean;
+            session?: { id: string; silentPrompt?: string };
+          }) => {
+            if (res?.ok) {
+              if (res.session?.silentPrompt) {
+                try {
+                  await navigator.clipboard.writeText(res.session.silentPrompt);
+                } catch {
+                  const textarea = document.createElement("textarea");
+                  textarea.value = res.session.silentPrompt;
+                  textarea.style.position = "fixed";
+                  textarea.style.opacity = "0";
+                  document.body.appendChild(textarea);
+                  textarea.select();
+                  document.execCommand("copy");
+                  textarea.remove();
+                }
+                widget.showToast("AI 提示词已复制");
+              }
+              widget.setSavingState(false);
+              widget.unmount();
+            } else {
+              widget.setSavingState(false);
+            }
+          }
+        )
+        .catch(() => {
+          widget.setSavingState(false);
+        });
     },
     onStopAndDiscard() {
       void chrome.runtime.sendMessage(

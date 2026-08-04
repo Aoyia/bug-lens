@@ -17,6 +17,7 @@ const $ = <T extends HTMLElement>(selector: string) =>
 const params = new URLSearchParams(location.search);
 const sessionId = params.get("sessionId") || undefined;
 const autoExport = params.get("autoExport") === "1";
+const silentMode = params.get("silent") === "1";
 const runtime = new PreviewSessionRuntime(db);
 
 const reportView = new EvidenceReportView(document, {
@@ -49,7 +50,15 @@ exportController = new PreviewExportController({
   getMediaChunkCount: () => runtime.mediaChunks,
   notify: (message) => reportView.notify(message),
   onArtifactChanged: () => aiHandoff.render(),
-  onExportComplete: () => aiHandoff.autoCopyPrompt(),
+  onExportComplete: async () => {
+    const copied = await aiHandoff.autoCopyPrompt();
+    if (silentMode) {
+      setTimeout(() => {
+        window.close();
+      }, 1000);
+    }
+    return copied;
+  },
 });
 
 // Playwright 脚本生成
