@@ -86,7 +86,7 @@ function formatScrollPosition(interaction: InteractionRecord): string {
   const sx = interaction.coordinates.scrollX;
   const sy = interaction.coordinates.scrollY;
   if (sx === 0 && sy === 0) return "";
-  return `await page.evaluate(() => { window.scrollTo({ left: ${sx}, top: ${sy}, behavior: 'smooth' }); });`;
+  return `await page.evaluate(() => { window.scrollTo(${sx}, ${sy}); });`;
 }
 
 function formatValue(
@@ -126,7 +126,7 @@ function formatStep(
     const sx = interaction.metadata?.scrollX ?? 0;
     const sy = interaction.metadata?.scrollY ?? 0;
     lines.push(
-      `await page.evaluate(() => { window.scrollTo({ left: ${sx}, top: ${sy}, behavior: 'smooth' }); });`
+      `await page.evaluate(() => { window.scrollTo(${sx}, ${sy}); });`
     );
     return lines;
   }
