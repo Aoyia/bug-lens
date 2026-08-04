@@ -294,6 +294,12 @@ test.describe("Bug Lens Chrome Extension recording lifecycle", () => {
       chunkCountAfterClose,
     });
 
+    // 14.5 验证 Widget 闲置暂停/时间冻结与恢复机制
+    const timerDisplay = targetPage.locator("#__wbr_timer_display__");
+    await expect(timerDisplay).toBeVisible();
+    const initialTimerText = await timerDisplay.innerText();
+    expect(initialTimerText).toMatch(/^\d{2}:\d{2}$/);
+
     // 15. 从页面内可见停止按钮停止录制
     const stopButton = targetPage.locator("#__wbr_stop_btn__");
     await expect(stopButton).toBeVisible();

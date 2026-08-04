@@ -10,6 +10,8 @@ export class InactivityMonitor {
   private _isIdlePaused = false;
   private checkInterval: number | undefined;
   private listenersAttached = false;
+  private accumulatedPausedMs = 0;
+  private pauseStartMs: number | undefined;
   private readonly events = [
     "pointermove",
     "pointerdown",
@@ -25,10 +27,20 @@ export class InactivityMonitor {
     return this._isIdlePaused;
   }
 
+  getPausedDurationMs(): number {
+    let currentPause = 0;
+    if (this._isIdlePaused && this.pauseStartMs !== undefined) {
+      currentPause = Date.now() - this.pauseStartMs;
+    }
+    return this.accumulatedPausedMs + currentPause;
+  }
+
   start(): void {
     this.stop();
     this.lastActivityTime = Date.now();
     this._isIdlePaused = false;
+    this.accumulatedPausedMs = 0;
+    this.pauseStartMs = undefined;
 
     if (!this.listenersAttached) {
       this.events.forEach((type) => {
@@ -47,6 +59,7 @@ export class InactivityMonitor {
         Date.now() - this.lastActivityTime >= this.TIMEOUT_MS
       ) {
         this._isIdlePaused = true;
+        this.pauseStartMs = Date.now();
         this.callbacks.onPause();
       }
     }, 2_000);
@@ -64,11 +77,17 @@ export class InactivityMonitor {
       this.listenersAttached = false;
     }
     this._isIdlePaused = false;
+    this.accumulatedPausedMs = 0;
+    this.pauseStartMs = undefined;
   }
 
   private handleActivity = (): void => {
     if (this._isIdlePaused) {
       this._isIdlePaused = false;
+      if (this.pauseStartMs !== undefined) {
+        this.accumulatedPausedMs += Date.now() - this.pauseStartMs;
+        this.pauseStartMs = undefined;
+      }
       this.callbacks.onResume();
     }
     this.lastActivityTime = Date.now();

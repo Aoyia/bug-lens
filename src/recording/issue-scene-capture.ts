@@ -6,10 +6,12 @@ import {
 } from "../domain/issue-scene.ts";
 import { sanitizeIssueScene, sanitizeText } from "../domain/privacy-policy.ts";
 import { db } from "../storage/db.ts";
+import { ensureOffscreenDocument } from "../shared/offscreen.ts";
 import {
   message,
   type CaptureIssue,
   type IssueScene,
+  type RecordingSession,
   type RuntimeMessage,
 } from "../shared/protocol.ts";
 
@@ -295,7 +297,8 @@ export class IssueSceneCapture {
             annotation: committed.annotation,
             devicePixelRatio: committed.page.devicePixelRatio,
           },
-          session.id
+          session.id,
+          "offscreen"
         )
       );
       const next = await db.updateIssueScene(committed.id, (scene) =>
@@ -346,18 +349,4 @@ export class IssueSceneCapture {
     if (!scene || scene.sessionId !== session.id) return;
     await db.deleteIssueScene(scene.id);
   }
-}
-
-async function ensureOffscreenDocument(): Promise<void> {
-  const contexts = await (
-    chrome.runtime.getContexts as unknown as (
-      filter: unknown
-    ) => Promise<chrome.runtime.ExtensionContext[]>
-  )({ contextTypes: ["OFFSCREEN_DOCUMENT"] });
-  if (!contexts.length)
-    await chrome.offscreen.createDocument({
-      url: "offscreen.html",
-      reasons: ["BLOBS"],
-      justification: "Render and persist issue scene screenshots locally.",
-    });
 }

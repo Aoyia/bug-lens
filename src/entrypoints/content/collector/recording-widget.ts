@@ -8,6 +8,7 @@ export type WidgetCallbacks = {
   onMarkIssue(): void;
   getStartedAtEpochMs(): number;
   isIdlePaused(): boolean;
+  getPausedDurationMs?(): number;
 };
 
 export class RecordingWidget {
@@ -442,9 +443,11 @@ export class RecordingWidget {
           const display = root.querySelector("#__wbr_timer_display__");
           if (display) {
             const startTime = this.callbacks.getStartedAtEpochMs();
+            const pausedDurationMs =
+              this.callbacks.getPausedDurationMs?.() ?? 0;
             const sec = Math.max(
               0,
-              Math.floor((Date.now() - startTime) / 1000)
+              Math.floor((Date.now() - startTime - pausedDurationMs) / 1000)
             );
             const m = String(Math.floor(sec / 60)).padStart(2, "0");
             const s = String(sec % 60).padStart(2, "0");

@@ -25,6 +25,7 @@ import {
 } from "./indexed-db-schema.ts";
 import { deleteSessionAndEvidence } from "./session-deletion.ts";
 import {
+  flushStorageBatchQueue,
   putWithinSessionBudget,
   type BudgetWriteResult,
 } from "./storage-budget.ts";
@@ -44,7 +45,11 @@ export type MediaChunkRecord = {
   mimeType: string;
   chunk: ArrayBuffer;
 };
-export type { BudgetWriteResult } from "./storage-budget.ts";
+export {
+  flushStorageBatchQueue,
+  putWithinSessionBudget,
+  type BudgetWriteResult,
+} from "./storage-budget.ts";
 
 async function put(storeName: StoreName, value: unknown): Promise<void> {
   const db = await openDb();

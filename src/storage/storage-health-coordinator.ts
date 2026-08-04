@@ -32,7 +32,8 @@ export function evaluateOffscreenStorageWrite(
           limitReached: result.limitReached,
           stored: result.stored,
         },
-        sessionId
+        sessionId,
+        "background"
       ),
     };
   }

@@ -58,11 +58,16 @@ async function run(): Promise<void> {
       await chrome.storage.local.remove("pendingRecordingRequest");
 
       const response = await chrome.runtime.sendMessage(
-        message("session/start", {
-          tabId,
-          options,
-          commandId: crypto.randomUUID(),
-        })
+        message(
+          "session/start",
+          {
+            tabId,
+            options,
+            commandId: crypto.randomUUID(),
+          },
+          undefined,
+          "background"
+        )
       );
 
       if (!response?.ok) {

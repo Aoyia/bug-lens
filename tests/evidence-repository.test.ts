@@ -3,7 +3,7 @@ import test from "node:test";
 
 import "fake-indexeddb/auto";
 
-import { db } from "../src/storage/db.ts";
+import { db, flushStorageBatchQueue } from "../src/storage/db.ts";
 import type { RecordingSession } from "../src/shared/protocol.ts";
 
 function prepareVersion4Media(): Promise<void> {
@@ -102,30 +102,23 @@ test("session history reports bounded storage and deletion cascades evidence", a
     storage: { usedBytes: 0 },
   };
   await db.saveSession(session);
-  assert.equal(
-    (
-      await db.saveConsoleWithinBudget({
-        id: "budget:1",
-        sessionId: "budget",
-        createdAt: 1,
-        level: "log",
-        text: "ok",
-      })
-    ).stored,
-    true
-  );
-  assert.equal(
-    (
-      await db.saveConsoleWithinBudget({
-        id: "budget:2",
-        sessionId: "budget",
-        createdAt: 2,
-        level: "log",
-        text: "x".repeat(1024),
-      })
-    ).stored,
-    false
-  );
+  const p1 = db.saveConsoleWithinBudget({
+    id: "budget:1",
+    sessionId: "budget",
+    createdAt: 1,
+    level: "log",
+    text: "ok",
+  });
+  const p2 = db.saveConsoleWithinBudget({
+    id: "budget:2",
+    sessionId: "budget",
+    createdAt: 2,
+    level: "log",
+    text: "x".repeat(1024),
+  });
+  await flushStorageBatchQueue();
+  assert.equal((await p1).stored, true);
+  assert.equal((await p2).stored, false);
   const [overview] = await db.listSessionOverviews("budget");
   assert.equal(overview.session.id, "budget");
   assert.equal(

@@ -276,7 +276,8 @@ export class InteractionCapture {
             viewportWidth: interaction.coordinates.viewport.width,
             viewportHeight: interaction.coordinates.viewport.height,
           },
-          session.id
+          session.id,
+          "offscreen"
         )
       );
       if (!annotated?.ok || typeof annotated.dataUrl !== "string")

@@ -34,8 +34,17 @@ export class DomObserver {
   private attached = false;
   private lastScrollX = 0;
   private lastScrollY = 0;
-  private scrollSession: { firstRecord: InteractionRecord; timer: number } | undefined;
-  private lastConfirmedClick: { id: string; element: Element; clientX: number; clientY: number; createdAt: number } | undefined;
+  private scrollSession:
+    { firstRecord: InteractionRecord; timer: number } | undefined;
+  private lastConfirmedClick:
+    | {
+        id: string;
+        element: Element;
+        clientX: number;
+        clientY: number;
+        createdAt: number;
+      }
+    | undefined;
 
   // Store bound handlers for removal
   private readonly handlePointerdown: (event: PointerEvent) => void;
@@ -547,13 +556,19 @@ export class DomObserver {
           ? "right"
           : "left";
 
-    const record = this.createRecord(event, document.documentElement, "confirmed", "scroll", {
-      scrollX: window.scrollX,
-      scrollY: window.scrollY,
-      scrollDeltaX: dx,
-      scrollDeltaY: dy,
-      scrollDirection: direction,
-    });
+    const record = this.createRecord(
+      event,
+      document.documentElement,
+      "confirmed",
+      "scroll",
+      {
+        scrollX: window.scrollX,
+        scrollY: window.scrollY,
+        scrollDeltaX: dx,
+        scrollDeltaY: dy,
+        scrollDirection: direction,
+      }
+    );
 
     if (this.scrollSession) {
       window.clearTimeout(this.scrollSession.timer);
@@ -574,7 +589,9 @@ export class DomObserver {
     if (!session || this.deps.isIssueActive() || !event.isTrusted) return;
     const element = this.firstElement(event.composedPath());
     if (!element || isWidgetElement(element)) return;
-    this.sendConfirmed(this.createRecord(event, element, "confirmed", "contextmenu"));
+    this.sendConfirmed(
+      this.createRecord(event, element, "confirmed", "contextmenu")
+    );
   }
 
   private onDblclick(event: MouseEvent): void {
@@ -592,16 +609,22 @@ export class DomObserver {
       Date.now() - last.createdAt < 100
     ) {
       void chrome.runtime.sendMessage(
-        message("interaction/upgrade", {
-          interactionId: last.id,
-          kind: "dblclick",
-        }, session.nonce)
+        message(
+          "interaction/upgrade",
+          {
+            interactionId: last.id,
+            kind: "dblclick",
+          },
+          session.sessionId
+        )
       );
       this.lastConfirmedClick = undefined;
       return;
     }
 
-    this.sendConfirmed(this.createRecord(event, element, "confirmed", "dblclick"));
+    this.sendConfirmed(
+      this.createRecord(event, element, "confirmed", "dblclick")
+    );
   }
 
   private onFileUpload(

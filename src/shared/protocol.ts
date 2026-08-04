@@ -541,10 +541,14 @@ export type RecordingHealthInfo = {
   streams: StreamHealthVector;
 };
 
+export type RuntimeMessageTarget =
+  "background" | "offscreen" | "content" | "popup";
+
 export type Envelope<T extends string, P = unknown> = {
   protocolVersion: typeof PROTOCOL_VERSION;
   messageId: string;
   type: T;
+  target?: RuntimeMessageTarget;
   sentAt: number;
   sessionId?: string;
   payload: P;
@@ -652,16 +656,6 @@ export type RuntimeMessage =
       }
     >
   | Envelope<
-      "offscreen/media-chunk",
-      {
-        sessionId: string;
-        chunk: ArrayBuffer;
-        sequence: number;
-        mimeType: string;
-        recordedAt: number;
-      }
-    >
-  | Envelope<
       "offscreen/media-state",
       {
         sessionId: string;
@@ -688,12 +682,14 @@ export type RuntimeMessage =
 export function message<T extends RuntimeMessage["type"], P>(
   type: T,
   payload: P,
-  sessionId?: string
+  sessionId?: string,
+  target?: RuntimeMessageTarget
 ): Envelope<T, P> {
   return {
     protocolVersion: PROTOCOL_VERSION,
     messageId: crypto.randomUUID(),
     type,
+    target,
     sentAt: Date.now(),
     sessionId,
     payload,
@@ -753,13 +749,12 @@ export type RuntimeMessageResponseMap = {
   "offscreen/status": { ok: true; active?: boolean };
   "offscreen/annotate-image": { ok: true };
   "offscreen/render-issue-image": { ok: true };
-  "offscreen/media-chunk": { ok: boolean; error?: string };
   "offscreen/media-state": { ok: true };
   "offscreen/storage-state": { ok: true };
   "offscreen/export-pack": {
     ok: true;
     prompt?: string;
-    zipBlobUrl?: string;
+    blobUrl?: string;
     filename?: string;
     error?: string;
   };

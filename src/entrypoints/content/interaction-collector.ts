@@ -1,4 +1,4 @@
-import { message } from "../../shared/protocol";
+import { isEnvelope, message } from "../../shared/protocol";
 import { RecordingWidget } from "./collector/recording-widget";
 import { SelectionOverlay } from "./collector/selection-overlay";
 import { IssueEditor } from "./collector/issue-editor";
@@ -125,6 +125,9 @@ if (existingController) {
     isIdlePaused(): boolean {
       return monitor.isIdlePaused;
     },
+    getPausedDurationMs(): number {
+      return monitor.getPausedDurationMs();
+    },
   });
 
   const editor = new IssueEditor({
@@ -169,7 +172,8 @@ if (existingController) {
           message(
             "offscreen/pause-media",
             { sessionId: session.sessionId },
-            session.sessionId
+            session.sessionId,
+            "offscreen"
           )
         );
     },
@@ -180,7 +184,8 @@ if (existingController) {
           message(
             "offscreen/resume-media",
             { sessionId: session.sessionId },
-            session.sessionId
+            session.sessionId,
+            "offscreen"
           )
         );
     },
@@ -234,18 +239,12 @@ if (existingController) {
 
   window.__WEB_BUG_RECORDER_CONTROLLER__ = { refresh: refreshSession };
   chrome.runtime.onMessage.addListener((raw: unknown) => {
-    if (!raw || typeof raw !== "object") return;
-    const msg = raw as {
-      type?: string;
-      sessionId?: string;
-      payload?: {
-        health?: import("../../shared/protocol").RecordingHealthInfo;
-      };
-    };
-    if (msg.type === "content/reset") refreshSession(undefined);
-    if (msg.type === "content/health-update" && msg.payload?.health) {
-      if (session && msg.sessionId === session.sessionId) {
-        widget.updateHealth(msg.payload.health);
+    if (!isEnvelope(raw)) return;
+    if (raw.target && raw.target !== "content") return;
+    if (raw.type === "content/reset") refreshSession(undefined);
+    if (raw.type === "content/health-update" && raw.payload?.health) {
+      if (session && raw.sessionId === session.sessionId) {
+        widget.updateHealth(raw.payload.health);
       }
     }
   });

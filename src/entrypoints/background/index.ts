@@ -23,25 +23,11 @@ import { StreamHealthMonitor } from "../../recording/stream-health-monitor";
 
 import { setStorageBudgetListener } from "../../storage/storage-budget";
 import { validateStorageHealthUpdate } from "../../storage/storage-health-coordinator";
+import { ensureOffscreenDocument } from "../../shared/offscreen";
 
 const EXTENSION_VERSION = "0.4.0";
 const STOPPING_IDS_KEY = "bug-lens-stopping-ids";
 const streamHealthMonitor = new StreamHealthMonitor();
-
-async function ensureOffscreenDocument(): Promise<void> {
-  const contexts = await (
-    chrome.runtime.getContexts as unknown as (
-      filter: unknown
-    ) => Promise<chrome.runtime.ExtensionContext[]>
-  )({ contextTypes: ["OFFSCREEN_DOCUMENT"] });
-  if (!contexts.length)
-    await chrome.offscreen.createDocument({
-      url: "offscreen.html",
-      reasons: ["BLOBS"],
-      justification:
-        "Render and persist issue scene screenshots and export silent ZIP archives locally.",
-    });
-}
 
 setStorageBudgetListener((sessionId, result) => {
   if (streamHealthMonitor.getSessionId() !== sessionId) return;
@@ -174,20 +160,6 @@ function issue(
   };
 }
 
-async function ensureOffscreen(): Promise<void> {
-  const contexts = await (
-    chrome.runtime.getContexts as unknown as (
-      filter: unknown
-    ) => Promise<chrome.runtime.ExtensionContext[]>
-  )({ contextTypes: ["OFFSCREEN_DOCUMENT"] });
-  if (contexts.length) return;
-  await chrome.offscreen.createDocument({
-    url: "offscreen.html",
-    reasons: ["USER_MEDIA", "BLOBS"],
-    justification: "Record the selected tab and persist media chunks locally.",
-  });
-}
-
 async function startSessionImpl(
   payload: Extract<RuntimeMessage, { type: "session/start" }>["payload"]
 ): Promise<RecordingSession> {
@@ -267,7 +239,10 @@ async function startSessionImpl(
                     )
             )
           ).catch(() => undefined);
-    await ensureOffscreen();
+    await ensureOffscreenDocument([
+      "USER_MEDIA" as chrome.offscreen.Reason,
+      "BLOBS" as chrome.offscreen.Reason,
+    ]);
     await contentScripts.activate(payload.tabId);
     const debuggerIssue =
       options.captureConsole || options.captureNetwork
@@ -285,7 +260,8 @@ async function startSessionImpl(
               captureAudio: options.captureAudio,
               timesliceMs: options.mediaTimesliceMs,
             },
-            session.id
+            session.id,
+            "offscreen"
           )
         )
         .catch((error) => ({ ok: false, error: String(error) }));
@@ -331,7 +307,12 @@ async function startSessionImpl(
     } else if (mediaStarted) {
       await chrome.runtime
         .sendMessage(
-          message("offscreen/stop-media", { sessionId: session.id }, session.id)
+          message(
+            "offscreen/stop-media",
+            { sessionId: session.id },
+            session.id,
+            "offscreen"
+          )
         )
         .catch(() => undefined);
     }
@@ -341,7 +322,12 @@ async function startSessionImpl(
     if (mediaStarted)
       await chrome.runtime
         .sendMessage(
-          message("offscreen/stop-media", { sessionId: session.id }, session.id)
+          message(
+            "offscreen/stop-media",
+            { sessionId: session.id },
+            session.id,
+            "offscreen"
+          )
         )
         .catch(() => undefined);
     const failure = issue(
@@ -424,7 +410,12 @@ async function performStopSession(
 
     const mediaResponse = await chrome.runtime
       .sendMessage(
-        message("offscreen/stop-media", { sessionId: session.id }, session.id)
+        message(
+          "offscreen/stop-media",
+          { sessionId: session.id },
+          session.id,
+          "offscreen"
+        )
       )
       .catch((error) => ({ ok: false, error: String(error) }));
     if (mediaResponse?.ok === false)
@@ -485,7 +476,12 @@ async function performStopSession(
       try {
         await ensureOffscreenDocument();
         const packRes = (await chrome.runtime.sendMessage(
-          message("offscreen/export-pack", { sessionId: session.id })
+          message(
+            "offscreen/export-pack",
+            { sessionId: session.id },
+            undefined,
+            "offscreen"
+          )
         )) as {
           ok: boolean;
           prompt?: string;
@@ -689,7 +685,12 @@ async function bootstrapRuntimeState(): Promise<void> {
     const mediaStatus = contexts.length
       ? await chrome.runtime
           .sendMessage(
-            message("offscreen/status", { sessionId: session.id }, session.id)
+            message(
+              "offscreen/status",
+              { sessionId: session.id },
+              session.id,
+              "offscreen"
+            )
           )
           .catch(() => undefined)
       : undefined;
@@ -737,7 +738,9 @@ async function pauseMediaSession(sessionId: string): Promise<void> {
   const session = await db.getSession(sessionId);
   if (session && session.options.captureVideo) {
     await chrome.runtime
-      .sendMessage(message("offscreen/pause-media", { sessionId }, sessionId))
+      .sendMessage(
+        message("offscreen/pause-media", { sessionId }, sessionId, "offscreen")
+      )
       .catch(() => undefined);
   }
 }
@@ -746,25 +749,19 @@ async function resumeMediaSession(sessionId: string): Promise<void> {
   const session = await db.getSession(sessionId);
   if (session && session.options.captureVideo) {
     await chrome.runtime
-      .sendMessage(message("offscreen/resume-media", { sessionId }, sessionId))
+      .sendMessage(
+        message("offscreen/resume-media", { sessionId }, sessionId, "offscreen")
+      )
       .catch(() => undefined);
   }
 }
 
-chrome.runtime.onMessage.addListener((raw: unknown, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((raw: unknown, sender) => {
   if (!isEnvelope(raw)) return;
   const incoming = raw as RuntimeMessage;
-  if (
-    incoming.type === "offscreen/start-media" ||
-    incoming.type === "offscreen/stop-media" ||
-    incoming.type === "offscreen/pause-media" ||
-    incoming.type === "offscreen/resume-media" ||
-    incoming.type === "offscreen/status" ||
-    incoming.type === "offscreen/annotate-image" ||
-    incoming.type === "offscreen/render-issue-image"
-  )
-    return;
-  void (async () => {
+  if (incoming.target && incoming.target !== "background") return;
+
+  return (async () => {
     try {
       if (incoming.type === "offscreen/storage-state") {
         const active = await db.getActiveSession();
@@ -783,8 +780,7 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender, sendResponse) => {
             streamHealthMonitor.updateStream("storage", "ok");
           }
         }
-        sendResponse({ ok: true });
-        return;
+        return { ok: true };
       }
       if (incoming.type === "offscreen/media-state") {
         const activeSession = await db.getActiveSession();
@@ -823,19 +819,17 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender, sendResponse) => {
             }
           }
         }
-        sendResponse({ ok: true });
-        return;
+        return { ok: true };
       }
       await bootstrapPromise;
       switch (incoming.type) {
         case "session/start":
-          sendResponse({
+          return {
             ok: true,
             session: await startSession(incoming.payload),
-          });
-          return;
+          };
         case "session/stop":
-          sendResponse({
+          return {
             ok: true,
             session: await stopSession(
               incoming.payload.commandId,
@@ -843,65 +837,55 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender, sendResponse) => {
               incoming.payload.discard,
               incoming.payload.silentExport
             ),
-          });
-          return;
+          };
         case "session/status":
-          sendResponse({ ok: true, session: await db.getActiveSession() });
-          return;
+          return { ok: true, session: await db.getActiveSession() };
         case "session/list":
-          sendResponse({
+          return {
             ok: true,
             sessions: await db.listSessionOverviews(incoming.payload.query),
-          });
-          return;
+          };
         case "session/delete": {
           const active = await db.getActiveSession();
           if (active?.id === incoming.payload.sessionId)
             throw new Error("不能删除正在录制的会话");
-          sendResponse({
+          return {
             ok: true,
             deleted: await db.deleteSession(incoming.payload.sessionId),
-          });
-          return;
+          };
         }
         case "session/resume":
-          sendResponse({
+          return {
             ok: true,
             session: await continueInterruptedSession(
               incoming.payload.sessionId,
               incoming.payload.commandId
             ),
-          });
-          return;
+          };
         case "storage/get":
-          sendResponse({ ok: true, storage: await db.getStorageOverview() });
-          return;
+          return { ok: true, storage: await db.getStorageOverview() };
         case "storage/update":
-          sendResponse({
+          return {
             ok: true,
             policy: await db.saveStoragePolicy(incoming.payload.policy),
-          });
-          return;
+          };
         case "storage/cleanup":
-          sendResponse({
+          return {
             ok: true,
             deletedSessionIds: await db.cleanupExpiredSessions(),
-          });
-          return;
+          };
         case "storage/clear-all":
-          sendResponse({
+          return {
             ok: true,
             deletedSessionIds: await db.clearAllHistory(),
-          });
-          return;
+          };
         case "session/open-preview":
           await chrome.tabs.create({
             url: chrome.runtime.getURL(
               `preview.html?sessionId=${incoming.payload.sessionId}`
             ),
           });
-          sendResponse({ ok: true });
-          return;
+          return { ok: true };
         case "content/hello": {
           const session = await db.getActiveSession();
           const allowed = Boolean(
@@ -909,7 +893,7 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender, sendResponse) => {
             ["PREPARING", "RECORDING", "DEGRADED"].includes(session.status) &&
             session.target.tabId === sender.tab?.id
           );
-          sendResponse({
+          return {
             ok: true,
             active: allowed,
             sessionId: allowed ? session?.id : undefined,
@@ -920,14 +904,12 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender, sendResponse) => {
               : undefined,
             privacyMode: allowed ? session?.options.privacyMode : undefined,
             health: allowed ? streamHealthMonitor.getHealth() : undefined,
-          });
-          return;
+          };
         }
         case "interaction/candidate":
         case "interaction/confirmed":
           await interactionCapture.handle(incoming.payload.interaction, sender);
-          sendResponse({ ok: true });
-          return;
+          return { ok: true };
         case "interaction/cancelled":
           await interactionCapture.cancel(
             incoming.payload.interactionId,
@@ -935,23 +917,17 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender, sendResponse) => {
             incoming.sessionId,
             sender
           );
-          sendResponse({ ok: true });
-          return;
+          return { ok: true };
         case "interaction/upgrade":
           await interactionCapture.upgrade(
             incoming.payload.interactionId,
             incoming.payload.kind
           );
-          sendResponse({ ok: true });
-          return;
-        case "issue-scene/start-selection": {
-          sendResponse({ ok: true });
-          return;
-        }
-        case "issue-scene/cancel-selection": {
-          sendResponse({ ok: true });
-          return;
-        }
+          return { ok: true };
+        case "issue-scene/start-selection":
+          return { ok: true };
+        case "issue-scene/cancel-selection":
+          return { ok: true };
         case "issue-scene/capture": {
           const result = await issueSceneCapture.capture(
             incoming.payload,
@@ -968,22 +944,20 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender, sendResponse) => {
                   : 0,
             },
           });
-          sendResponse({
+          return {
             ok: true,
             scene: result.scene,
             dataUrl: result.dataUrl,
-          });
-          return;
+          };
         }
         case "issue-scene/commit": {
           const scene = await issueSceneCapture.commit(
             incoming.payload,
             sender
           );
-          sendResponse({ ok: true, scene });
           if (incoming.payload.stopAfterCommit)
             void stopSession(`issue-scene:${scene.id}`);
-          return;
+          return { ok: true, scene };
         }
         case "issue-scene/cancel": {
           await issueSceneCapture.cancel(
@@ -991,35 +965,15 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender, sendResponse) => {
             incoming.payload.nonce,
             sender
           );
-          sendResponse({ ok: true });
-          return;
-        }
-        case "offscreen/media-chunk": {
-          const result = await db.saveMediaChunkWithinBudget({
-            id: `${incoming.payload.sessionId}:${incoming.payload.sequence}`,
-            ...incoming.payload,
-          });
-          if (!result.stored) {
-            streamHealthMonitor.updateStream("storage", "failed");
-          } else if (result.limitReached) {
-            streamHealthMonitor.updateStream("storage", "disrupted");
-          } else {
-            streamHealthMonitor.updateStream("storage", "ok");
-          }
-          sendResponse({
-            ok: result.stored,
-            error: result.stored ? undefined : "SESSION_STORAGE_LIMIT_REACHED",
-          });
-          return;
+          return { ok: true };
         }
         default:
-          sendResponse({ ok: false, error: "UNSUPPORTED_MESSAGE" });
+          return { ok: false, error: "UNSUPPORTED_MESSAGE" };
       }
     } catch (error) {
-      sendResponse({ ok: false, error: String(error) });
+      return { ok: false, error: String(error) };
     }
   })();
-  return true;
 });
 
 chrome.debugger.onEvent.addListener((source, method, params) => {

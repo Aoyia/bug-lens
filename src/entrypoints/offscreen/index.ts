@@ -139,7 +139,8 @@ async function startMedia(
                     error:
                       "SESSION_STORAGE_LIMIT_REACHED: 已停止录像以遵守单会话大小限制。",
                   },
-                  sessionId
+                  sessionId,
+                  "background"
                 )
               )
               .catch(() => undefined);
@@ -156,7 +157,8 @@ async function startMedia(
                   state: "error",
                   error: `媒体分片写入失败：${String(error)}`,
                 },
-                sessionId
+                sessionId,
+                "background"
               )
             )
             .catch(() => undefined);
@@ -175,7 +177,8 @@ async function startMedia(
             state: "error",
             error: String(event.error ?? "MediaRecorder error"),
           },
-          activeSessionId
+          activeSessionId,
+          "background"
         )
       );
     };
@@ -190,7 +193,8 @@ async function startMedia(
                 state: "error",
                 error: "媒体轨道意外结束",
               },
-              activeSessionId
+              activeSessionId,
+              "background"
             )
           );
       })
@@ -504,6 +508,7 @@ async function exportPack(payload: { sessionId: string }): Promise<{
 chrome.runtime.onMessage.addListener((raw: unknown) => {
   if (!isEnvelope(raw)) return;
   const incoming = raw as RuntimeMessage;
+  if (incoming.target && incoming.target !== "offscreen") return;
   if (incoming.type === "offscreen/start-media")
     return startMedia(incoming.payload)
       .then(() => ({ ok: true }))

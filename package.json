@@ -14,7 +14,7 @@
     "build": "node scripts/build.mjs",
     "dev": "node scripts/build.mjs --watch",
     "package": "node scripts/package.mjs",
-    "test": "node --test tests/*.test.ts",
+    "test": "tsx --test tests/*.test.ts",
     "test:e2e": "node scripts/build.mjs --e2e && playwright test --headed",
     "typecheck": "tsc --noEmit && tsc --project tsconfig.e2e.json",
     "typecheck:e2e": "tsc --project tsconfig.e2e.json",
@@ -31,6 +31,7 @@
     "lint-staged": "^17.3.0",
     "preact-render-to-string": "^6.7.0",
     "prettier": "^3.9.6",
+    "tsx": "^4.23.5",
     "typescript": "^5.8.0"
   },
   "dependencies": {

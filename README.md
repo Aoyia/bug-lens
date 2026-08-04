@@ -39,6 +39,7 @@ graph LR
 - **Zero Backend & Privacy-First**: Exports self-contained, offline ZIP packages. Data remains 100% local with redaction modes for sensitive tokens/headers.
 - **Deep AI Integration**:
   - `AI_PROMPT.md`: Pre-formatted instructions guiding AI models to analyze evidence step-by-step.
+  - **Automatic Clipboard Integration**: Automatically copies the generated AI Prompt to the system clipboard upon export completion (`onExportComplete`), notifying the user via a Toast message (`"ZIP 下载完成，AI 提示词已自动复制到剪贴板！"` / `"ZIP download complete, AI prompt automatically copied to clipboard!"`) for immediate pasting into Cursor / Claude Code.
   - **Structured Context**: Provides structured JSON representations for DOM snapshots, console errors, and network payloads.
 - **Timeline Inspection & Filtering**: Interactively sync logs with video playback and exclude sensitive or redundant data before exporting.
 

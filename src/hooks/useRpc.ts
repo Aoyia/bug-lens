@@ -37,7 +37,7 @@ export function useRpc() {
       inflightRef.current++;
       try {
         const response: unknown = await chrome.runtime.sendMessage(
-          message(type, payload, sessionId)
+          message(type, payload, sessionId, "background")
         );
         if (
           response &&

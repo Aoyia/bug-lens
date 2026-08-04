@@ -86,6 +86,10 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
       },
     };
 
+    const timerDisplay = {
+      textContent: "00:00",
+    };
+
     const classSet = new Set<string>();
     const styleObj: Record<string, string> = {};
 
@@ -125,6 +129,7 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
       querySelector(sel: string) {
         if (sel.includes("drag_handle")) return dragHandle;
         if (sel.includes("stop_btn")) return stopBtn;
+        if (sel.includes("timer_display")) return timerDisplay;
         return null;
       },
       remove() {},
@@ -145,8 +150,10 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
     };
 
     let timeoutCallback: Function | undefined;
+    let intervalCallback: Function | undefined;
     const mockWindow: any = {
-      setInterval() {
+      setInterval(fn: Function) {
+        intervalCallback = fn;
         return 1;
       },
       clearInterval() {},
@@ -164,6 +171,9 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
       removeEventListener() {},
       triggerCollapseTimer() {
         if (timeoutCallback) timeoutCallback();
+      },
+      triggerInterval() {
+        if (intervalCallback) intervalCallback();
       },
     };
     mockWindow.top = mockWindow;
@@ -240,5 +250,36 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
       null,
       "Saved position should be cleared on new recording session"
     );
+  });
+
+  test("deducts paused duration correctly in timer display when idle paused", () => {
+    let isPaused = false;
+    let pausedDurationMs = 0;
+    const startMs = Date.now() - 10_000; // 已经开始录制 10 秒
+
+    const testCallbacks = {
+      ...callbacks,
+      getStartedAtEpochMs: () => startMs,
+      isIdlePaused: () => isPaused,
+      getPausedDurationMs: () => pausedDurationMs,
+    };
+
+    widget = new RecordingWidget(testCallbacks);
+    widget.mount();
+
+    // 初始运行状态：已录制 10 秒，显示 00:10
+    (globalThis.window as any).triggerInterval();
+    const timerDisplay = mockRootElement.querySelector(
+      "#__wbr_timer_display__"
+    );
+    assert.equal(timerDisplay.textContent, "00:10");
+
+    // 切换为闲置暂停状态，暂停了 4 秒
+    isPaused = true;
+    pausedDurationMs = 4_000;
+    (globalThis.window as any).triggerInterval();
+
+    // 应扣除 4 秒暂停时间：显示 00:06 (idlePaused)
+    assert.equal(timerDisplay.textContent, "00:06 (idlePaused)");
   });
 });
