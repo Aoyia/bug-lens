@@ -32,6 +32,15 @@
         "windows": "Alt+R"
       },
       "description": "一键开始录制当前标签页"
+    },
+    "take-screenshot": {
+      "suggested_key": {
+        "default": "Alt+X",
+        "mac": "Option+X",
+        "linux": "Alt+X",
+        "windows": "Alt+X"
+      },
+      "description": "一键拉框截图并收集 DOM 元素上下文"
     }
   },
   "icons": {
@@ -45,6 +54,7 @@
     "activeTab",
     "tabs",
     "alarms",
+    "clipboardWrite",
     "debugger",
     "downloads",
     "offscreen",

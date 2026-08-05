@@ -730,6 +730,7 @@ export type RuntimeMessage =
         stored: boolean;
       }
     >
+  | Envelope<"screenshot/trigger", { tabId?: number }>
   | Envelope<
       "offscreen/export-pack",
       {
@@ -811,6 +812,7 @@ export type RuntimeMessageResponseMap = {
   "offscreen/render-issue-image": { ok: true };
   "offscreen/media-state": { ok: true };
   "offscreen/storage-state": { ok: true };
+  "screenshot/trigger": { ok: true };
   "offscreen/export-pack": {
     ok: true;
     prompt?: string;

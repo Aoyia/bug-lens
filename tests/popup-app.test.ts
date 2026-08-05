@@ -41,6 +41,10 @@ test("PopupApp component tree retains essential CSS layout classes to prevent UI
     "Must contain primary action button with 'action-btn start' styling"
   );
   assert.ok(
+    popupAppCode.includes('data-testid="take-screenshot-btn"'),
+    "Must contain independent screenshot action button with data-testid='take-screenshot-btn'"
+  );
+  assert.ok(
     popupAppCode.includes('className="scopes-grid"') ||
       popupAppCode.includes('class="scopes-grid"'),
     "Must contain scope grid styling container"

@@ -32,6 +32,34 @@ declare global {
   }
 }
 
+import { ScreenshotOverlay } from "../../screenshot/screenshot-overlay";
+import { recentErrorsTracker } from "../../screenshot/recent-errors-tracker";
+
+recentErrorsTracker.startListening();
+
+let screenshotOverlayInstance: ScreenshotOverlay | null = null;
+
+chrome.runtime.onMessage.addListener((msg, _sender, _sendResponse) => {
+  if (msg && msg.type === "TRIGGER_SCREENSHOT_OVERLAY" && msg.viewportDataUrl) {
+    if (!screenshotOverlayInstance) {
+      screenshotOverlayInstance = new ScreenshotOverlay();
+    }
+    screenshotOverlayInstance.show({
+      viewportDataUrl: msg.viewportDataUrl,
+      onComplete: (payload) => {
+        console.log(
+          "Bug Lens: Screenshot Payload captured & copied to clipboard",
+          payload
+        );
+        screenshotOverlayInstance = null;
+      },
+      onCancel: () => {
+        screenshotOverlayInstance = null;
+      },
+    });
+  }
+});
+
 const existingController = window.__WEB_BUG_RECORDER_CONTROLLER__;
 if (existingController) {
   void chrome.runtime

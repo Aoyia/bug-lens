@@ -1080,6 +1080,24 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender) => {
           );
           return { ok: true };
         }
+        case "screenshot/trigger": {
+          const targetTabId = incoming.payload?.tabId || sender.tab?.id;
+          if (!targetTabId) {
+            const [activeTab] = await chrome.tabs.query({
+              active: true,
+              currentWindow: true,
+            });
+            if (activeTab?.id && activeTab.windowId !== undefined) {
+              await triggerScreenshotInTab(activeTab.id, activeTab.windowId);
+            }
+          } else {
+            const tab = await chrome.tabs.get(targetTabId).catch(() => null);
+            if (tab?.id && tab.windowId !== undefined) {
+              await triggerScreenshotInTab(tab.id, tab.windowId);
+            }
+          }
+          return { ok: true };
+        }
         default:
           return { ok: false, error: "UNSUPPORTED_MESSAGE" };
       }
@@ -1231,7 +1249,52 @@ async function startRecordingViaShortcut(): Promise<void> {
   }
 }
 
+export async function triggerScreenshotInTab(
+  tabId: number,
+  windowId: number
+): Promise<void> {
+  await bootstrapPromise;
+  const tab = await chrome.tabs.get(tabId).catch(() => null);
+  if (!tab || !tab.url || !/^https?:/.test(tab.url)) {
+    console.warn("[Bug Lens] 截图功能仅支持 http/https 普通网页");
+    return;
+  }
+
+  // 1. 确保 Content Script 在触发截图前被注入并激活
+  await contentScripts.activate(tabId).catch((err) => {
+    console.warn(`[Bug Lens] 动态注入 Content Script 失败: ${String(err)}`);
+  });
+
+  // 2. 截取视口图像
+  const dataUrl = await chrome.tabs.captureVisibleTab(windowId, {
+    format: "png",
+  });
+
+  // 3. 唤起页面的 Screenshot Overlay
+  await chrome.tabs.sendMessage(tabId, {
+    type: "TRIGGER_SCREENSHOT_OVERLAY",
+    viewportDataUrl: dataUrl,
+  });
+}
+
+async function startScreenshotViaShortcut(): Promise<void> {
+  await bootstrapPromise;
+  const [tab] = await chrome.tabs.query({
+    active: true,
+    currentWindow: true,
+  });
+  if (!tab?.id || tab.windowId === undefined) return;
+  try {
+    await triggerScreenshotInTab(tab.id, tab.windowId);
+  } catch (error) {
+    console.warn(`[Bug Lens] 快捷键触发截图失败：${String(error)}`);
+  }
+}
+
 chrome.commands.onCommand.addListener((command) => {
-  if (command !== "start-recording") return;
-  void startRecordingViaShortcut();
+  if (command === "start-recording") {
+    void startRecordingViaShortcut();
+  } else if (command === "take-screenshot") {
+    void startScreenshotViaShortcut();
+  }
 });
