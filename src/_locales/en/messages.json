@@ -80,7 +80,7 @@
     "message": "Start Recording"
   },
   "stopRecording": {
-    "message": "Stop Recording"
+    "message": "Stop & Export"
   },
   "saving": {
     "message": "Saving..."
@@ -133,7 +133,7 @@
     "message": "Evidence Summary"
   },
   "markIssue": {
-    "message": "Mark Issue"
+    "message": "Mark Screenshot"
   },
   "pauseRecording": {
     "message": "Pause"
@@ -166,7 +166,7 @@
     "message": "Automatic Evidence Collection"
   },
   "guideStep2Desc": {
-    "message": "Automatically collects Network, Console logs, and step records. Pauses after 60s of inactivity."
+    "message": "Automatically collects Network, Console logs, and step records. Pauses after 30s of inactivity."
   },
   "guideStep3Title": {
     "message": "100% Local & Safe Privacy"

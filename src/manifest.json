@@ -26,10 +26,10 @@
     },
     "start-recording": {
       "suggested_key": {
-        "default": "F2",
-        "mac": "F2",
-        "linux": "F2",
-        "windows": "F2"
+        "default": "Alt+R",
+        "mac": "Option+R",
+        "linux": "Alt+R",
+        "windows": "Alt+R"
       },
       "description": "一键开始录制当前标签页"
     }

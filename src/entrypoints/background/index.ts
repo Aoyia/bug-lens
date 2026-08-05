@@ -15,6 +15,7 @@ import { sanitizeText, sanitizeUrl } from "../../domain/privacy-policy";
 import { normalizeRecordingOptions } from "../../domain/storage-policy";
 import {
   buildSilentExportFailureEvent,
+  injectAbsolutePathToPrompt,
   resolveSilentExportResult,
   type SilentExportPackResult,
 } from "../../domain/silent-export";
@@ -462,6 +463,31 @@ async function performStopSession(
     return undefined;
   }
 
+  async function resolveDownloadedFilePath(
+    downloadId: number,
+    maxWaitMs = 3000
+  ): Promise<string | undefined> {
+    if (typeof chrome === "undefined" || !chrome.downloads?.search) {
+      return undefined;
+    }
+    const start = Date.now();
+    while (Date.now() - start < maxWaitMs) {
+      const item = await new Promise<chrome.downloads.DownloadItem | undefined>(
+        (resolve) => {
+          chrome.downloads.search({ id: downloadId }, (items) => {
+            if (chrome.runtime?.lastError) resolve(undefined);
+            else resolve(items?.[0]);
+          });
+        }
+      );
+      if (item?.filename) {
+        return item.filename;
+      }
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    return undefined;
+  }
+
   const cleanupIssue = cleanupErrors.length
     ? issue(
         "SESSION_STOP_PARTIAL",
@@ -494,12 +520,22 @@ async function performStopSession(
         )) as SilentExportPackResult;
 
         if (packResult?.ok && packResult.blobUrl && packResult.filename) {
-          await chrome.downloads.download({
+          const downloadId = await chrome.downloads.download({
             url: packResult.blobUrl,
             filename: packResult.filename,
             saveAs: false,
           });
           prompt = packResult.prompt;
+          if (downloadId && prompt) {
+            const absolutePath = await resolveDownloadedFilePath(downloadId);
+            if (absolutePath) {
+              prompt = injectAbsolutePathToPrompt(
+                prompt,
+                packResult.filename,
+                absolutePath
+              );
+            }
+          }
         }
       } catch (err) {
         caughtError = err;
@@ -1154,7 +1190,8 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 const LAST_OPTIONS_KEY = "last-recording-options";
 
 /**
- * 全局快捷键（F2）：直接对当前激活标签页启动录制，无需打开 Popup。
+ * 全局快捷键（start-recording，默认 Alt+R / Option+R）：
+ * 直接对当前激活标签页启动录制，无需打开 Popup。
  * 选项复用上次在 Popup 中选择的配置（未配置时用安全默认值）。
  * 成功与否不弹系统通知：录制启动后页面内会自动出现录制挂件，
  * 这本身就是最直观的启动反馈；不满足启动条件时静默跳过。
@@ -1190,7 +1227,7 @@ async function startRecordingViaShortcut(): Promise<void> {
       commandId: crypto.randomUUID(),
     });
   } catch (error) {
-    console.warn(`[Bug Lens] F2 快捷键启动录制失败：${String(error)}`);
+    console.warn(`[Bug Lens] 全局快捷键启动录制失败：${String(error)}`);
   }
 }
 

@@ -48,3 +48,17 @@ export function buildSilentExportFailureEvent(
   };
   return { type: "capture-issue", issue };
 }
+
+/**
+ * 将提示词模板中的文件名/相对路径替换为 Chrome 下载完成后的实际物理绝对路径。
+ */
+export function injectAbsolutePathToPrompt(
+  prompt: string,
+  relativeFilename: string,
+  absolutePath: string
+): string {
+  if (!prompt || !relativeFilename || !absolutePath) return prompt;
+  return prompt
+    .replace(`文件路径：\n${relativeFilename}`, `文件路径：\n${absolutePath}`)
+    .replace(`File Path:\n${relativeFilename}`, `File Path:\n${absolutePath}`);
+}

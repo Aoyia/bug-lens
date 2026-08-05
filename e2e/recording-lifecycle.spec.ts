@@ -51,6 +51,14 @@ test.describe("Bug Lens Chrome Extension recording lifecycle", () => {
     );
     expect(await startPopup.text("#url")).toBe(serverUrl);
 
+    // 4.1 开始录制按钮应展示明确的快捷键提示（与 manifest start-recording 一致）
+    const expectedShortcut =
+      process.platform === "darwin" ? "Option+R" : "Alt+R";
+    await startPopup.waitForSelector('[data-testid="start-recording-btn"] kbd');
+    expect(
+      await startPopup.text('[data-testid="start-recording-btn"] kbd')
+    ).toBe(expectedShortcut);
+
     // 5. 点击开始按钮启动录制
     await startPopup.click('[data-testid="start-recording-btn"]');
     logE2e("Clicked start recording in first Popup");

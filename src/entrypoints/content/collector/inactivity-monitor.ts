@@ -5,7 +5,7 @@ export type InactivityCallbacks = {
 };
 
 export class InactivityMonitor {
-  private readonly TIMEOUT_MS = 60_000;
+  private readonly TIMEOUT_MS = 30_000;
   private lastActivityTime = Date.now();
   private _isIdlePaused = false;
   private checkInterval: number | undefined;
@@ -92,13 +92,18 @@ export class InactivityMonitor {
    * （用户点「继续」时若因鼠标移动已自动恢复，取反逻辑会误判为再次暂停）。
    */
   resume(): void {
-    this.isManualPaused = false;
+    const wasPaused = this._isIdlePaused || this.isManualPaused;
     this._isIdlePaused = false;
-    if (this.pauseStartMs !== undefined) {
-      this.accumulatedPausedMs += Date.now() - this.pauseStartMs;
-      this.pauseStartMs = undefined;
+    this.isManualPaused = false;
+    const now = Date.now();
+    this.lastActivityTime = now;
+    if (wasPaused) {
+      if (this.pauseStartMs !== undefined) {
+        this.accumulatedPausedMs += now - this.pauseStartMs;
+        this.pauseStartMs = undefined;
+      }
+      this.callbacks.onResume();
     }
-    this.callbacks.onResume();
   }
 
   stop(): void {
@@ -120,8 +125,15 @@ export class InactivityMonitor {
 
   private handleActivity = (): void => {
     if (this.isManualPaused) return;
-    // 闲置自动暂停后不因鼠标移动自动恢复，必须由用户点击「继续」显式恢复，
-    // 避免「鼠标移动恢复录制 → 点击继续被取反为再次暂停」的竞态。
-    this.lastActivityTime = Date.now();
+    const now = Date.now();
+    this.lastActivityTime = now;
+    if (this._isIdlePaused) {
+      this._isIdlePaused = false;
+      if (this.pauseStartMs !== undefined) {
+        this.accumulatedPausedMs += now - this.pauseStartMs;
+        this.pauseStartMs = undefined;
+      }
+      this.callbacks.onResume();
+    }
   };
 }

@@ -78,41 +78,43 @@ describe("InactivityMonitor - 暂停/继续竞态修复 (A3)", () => {
     delete (globalThis as Record<string, unknown>).window;
   });
 
-  test("60 秒无操作后自动进入闲置暂停", () => {
+  test("30 秒无操作后自动进入闲置暂停", () => {
     monitor.start();
-    mock.timers.tick(61_000);
+    mock.timers.tick(15_000);
+    fw.tickAllIntervals();
+    assert.equal(monitor.isIdlePaused, false);
+
+    mock.timers.tick(16_000);
     fw.tickAllIntervals();
     assert.equal(monitor.isIdlePaused, true);
     assert.equal(onPauseCalls, 1);
     monitor.stop();
   });
 
-  test("闲置暂停后鼠标移动不再自动恢复录制（竞态根因修复）", () => {
+  test("闲置暂停后鼠标移动自动恢复录制", () => {
     monitor.start();
-    mock.timers.tick(61_000);
+    mock.timers.tick(31_000);
     fw.tickAllIntervals();
     assert.equal(monitor.isIdlePaused, true);
 
-    // 用户移动鼠标（handleActivity），不应触发自动恢复
+    // 用户移动鼠标（handleActivity），触发自动恢复
     fw.dispatch("pointermove");
-    assert.equal(monitor.isIdlePaused, true, "闲置暂停后移动鼠标不应自动恢复");
-    assert.equal(onResumeCalls, 0, "不应调用 onResume");
+    assert.equal(monitor.isIdlePaused, false, "闲置暂停后移动鼠标应自动恢复");
+    assert.equal(onResumeCalls, 1, "应调用 onResume");
     monitor.stop();
   });
 
   test("闲置暂停后调用 resume() 恢复录制，且不会被再次暂停", () => {
     monitor.start();
-    mock.timers.tick(61_000);
+    mock.timers.tick(31_000);
     fw.tickAllIntervals();
     assert.equal(monitor.isIdlePaused, true);
 
-    // 模拟 widget「继续」按钮回调：先移动鼠标（handleActivity），再点击继续
-    fw.dispatch("pointermove");
-    // interaction-collector 的新逻辑：isIdlePaused 时 resume，否则 toggleManualPause
+    // 移动鼠标或调用 resume 均恢复录制
     if (monitor.isIdlePaused) monitor.resume();
     else monitor.toggleManualPause();
 
-    assert.equal(onResumeCalls, 1, "点击继续应恢复录制");
+    assert.equal(onResumeCalls, 1, "调用 resume 应恢复录制");
     assert.equal(monitor.isIdlePaused, false, "恢复后不应处于暂停态");
     // 继续录制后（又过了 2s 间隔检查），不应再次触发暂停
     mock.timers.tick(2_000);

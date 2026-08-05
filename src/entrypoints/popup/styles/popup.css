@@ -387,6 +387,19 @@ button.action-btn.start:hover {
   box-shadow: 0 4px 12px rgba(22, 93, 255, 0.35);
   transform: translateY(-1px);
 }
+kbd.shortcut-hint {
+  margin-left: 4px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  color: #ffffff;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: 0.3px;
+}
 button.action-btn.stop {
   background: var(--danger);
   color: #ffffff;

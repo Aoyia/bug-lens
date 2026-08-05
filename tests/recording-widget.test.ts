@@ -9,7 +9,6 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
 
   const callbacks = {
     onStop: () => {},
-    onStopAndExport: () => {},
     onStopAndDiscard: () => {},
     onMarkIssue: () => {},
     getStartedAtEpochMs: () => Date.now(),
@@ -63,20 +62,6 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
 
     const dragHandle = {
       textContent: "⋮⋮",
-      addEventListener(type: string, fn: Function) {
-        addListener(this, type, fn);
-      },
-      removeEventListener(type: string, fn: Function) {
-        removeListener(this, type, fn);
-      },
-      dispatchEvent(evt: any) {
-        dispatch(this, evt);
-      },
-    };
-
-    const pauseBtn = {
-      textContent: "Pause",
-      style: {},
       addEventListener(type: string, fn: Function) {
         addListener(this, type, fn);
       },
@@ -142,7 +127,6 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
       },
       querySelector(sel: string) {
         if (sel.includes("drag_handle")) return dragHandle;
-        if (sel.includes("pause_btn")) return pauseBtn;
         if (sel.includes("stop_btn")) return stopBtn;
         if (sel.includes("timer_display")) return timerDisplay;
         return null;
@@ -150,21 +134,56 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
       remove() {},
     };
 
+    const appendedElements: any[] = [];
     const doc = {
       body: {
-        appendChild(child: any) {},
+        appendChild(child: any) {
+          appendedElements.push(child);
+        },
       },
       createElement(tag: string) {
-        return mockRootElement;
+        let _innerHTML = "";
+        const el: any = {
+          id: "",
+          style: {
+            ...mockRootElement.style,
+            cssText: "",
+          },
+          get innerHTML() {
+            return _innerHTML;
+          },
+          set innerHTML(val: string) {
+            _innerHTML = val;
+            el.textContent = val.replace(/<[^>]*>/g, "");
+          },
+          textContent: "",
+          setAttribute() {},
+          remove() {
+            const idx = appendedElements.indexOf(el);
+            if (idx !== -1) appendedElements.splice(idx, 1);
+          },
+          querySelector(sel: string) {
+            return mockRootElement.querySelector(sel);
+          },
+          classList: mockRootElement.classList,
+          addEventListener: mockRootElement.addEventListener,
+          removeEventListener: mockRootElement.removeEventListener,
+          dispatchEvent: mockRootElement.dispatchEvent,
+          getBoundingClientRect: mockRootElement.getBoundingClientRect,
+        };
+        return el;
       },
       querySelector(sel: string) {
         if (sel === "#__wbr_recording_widget__") return mockRootElement;
+        const found = appendedElements.find((e) => e.id && `#${e.id}` === sel);
+        if (found) return found;
         return null;
       },
       addEventListener() {},
     };
 
-    let timeoutCallback: Function | undefined;
+    let timeoutIdSeq = 1000;
+    const pendingTimeouts = new Map<number, Function>();
     let intervalCallback: Function | undefined;
     const mockWindow: any = {
       setInterval(fn: Function) {
@@ -174,18 +193,27 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
       clearInterval() {},
       setTimeout(fn: Function, ms: number) {
         if (ms === 1500) {
-          timeoutCallback = fn;
-          return 999;
+          const id = ++timeoutIdSeq;
+          pendingTimeouts.set(id, fn);
+          return id;
         }
         return setTimeout(fn, ms) as any;
       },
       clearTimeout(id: any) {
+        pendingTimeouts.delete(id);
         clearTimeout(id);
       },
       addEventListener() {},
       removeEventListener() {},
       triggerCollapseTimer() {
-        if (timeoutCallback) timeoutCallback();
+        // 触发最近一次仍处于 pending 状态的折叠计时器
+        const ids = [...pendingTimeouts.keys()];
+        const lastId = ids[ids.length - 1];
+        if (lastId !== undefined) {
+          const fn = pendingTimeouts.get(lastId)!;
+          pendingTimeouts.delete(lastId);
+          fn();
+        }
       },
       triggerInterval() {
         if (intervalCallback) intervalCallback();
@@ -251,6 +279,43 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
     );
   });
 
+  test("stays expanded while mouse hovers and only collapses after mouse leaves", () => {
+    widget = new RecordingWidget(callbacks);
+    widget.mount();
+
+    // 鼠标悬停：即使折叠计时器到点也不应折叠
+    mockRootElement.dispatchEvent({ type: "mouseenter" });
+    (globalThis.window as any).triggerCollapseTimer();
+    assert.equal(
+      mockRootElement.classList.contains("__wbr_collapsed__"),
+      false,
+      "Widget should stay expanded while mouse is hovering"
+    );
+
+    // 悬停期间移动鼠标：持续保持展开
+    mockRootElement.dispatchEvent({ type: "mousemove" });
+    (globalThis.window as any).triggerCollapseTimer();
+    assert.equal(
+      mockRootElement.classList.contains("__wbr_collapsed__"),
+      false,
+      "Widget should keep expanding on mousemove while hovering"
+    );
+
+    // 鼠标移出后才开始折叠倒计时
+    mockRootElement.dispatchEvent({ type: "mouseleave" });
+    assert.equal(
+      mockRootElement.classList.contains("__wbr_collapsed__"),
+      false,
+      "Widget should not collapse immediately on mouseleave"
+    );
+    (globalThis.window as any).triggerCollapseTimer();
+    assert.equal(
+      mockRootElement.classList.contains("__wbr_collapsed__"),
+      true,
+      "Widget should collapse after mouse leaves and timeout elapses"
+    );
+  });
+
   test("resets position to default on new recording session mount", () => {
     sessionStorage.setItem(
       "__wbr_widget_pos__",
@@ -298,30 +363,18 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
     assert.equal(timerDisplay.textContent, "00:06 (idlePaused)");
   });
 
-  test("triggers onTogglePause callback when pause button clicked", () => {
-    let pauseToggled = false;
-    const testCallbacks = {
-      ...callbacks,
-      onTogglePause: () => {
-        pauseToggled = true;
-      },
-    };
+  test("shows toast notification with zen light style consistent with preview page", () => {
+    widget = new RecordingWidget(callbacks);
+    widget.showToast("测试提示文本");
 
-    widget = new RecordingWidget(testCallbacks);
-    widget.mount();
-
-    const pauseBtn = mockRootElement.querySelector("#__wbr_pause_btn__");
-    assert.ok(pauseBtn);
-    pauseBtn.dispatchEvent({
-      type: "click",
-      stopPropagation: () => {},
-      preventDefault: () => {},
-    });
-
-    assert.equal(
-      pauseToggled,
-      true,
-      "Clicking pause button should invoke onTogglePause callback"
+    const toast = document.querySelector("#__wbr_toast__") as HTMLElement;
+    assert.ok(toast, "Toast element should exist in DOM");
+    assert.match(toast.textContent || "", /测试提示文本/);
+    assert.match(toast.style.cssText, /background:\s*#ffffff/);
+    assert.match(toast.style.cssText, /color:\s*#1d2129/);
+    assert.match(
+      toast.style.cssText,
+      /border:\s*1px solid rgba\(0,\s*0,\s*0,\s*0\.08\)/
     );
   });
 });

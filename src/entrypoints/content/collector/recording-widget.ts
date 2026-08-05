@@ -2,10 +2,8 @@ import { t } from "../../../shared/i18n.ts";
 
 export type WidgetCallbacks = {
   onStop(): void;
-  onStopAndExport(): void;
   onStopAndDiscard(): void;
   onMarkIssue(): void;
-  onTogglePause?(): void;
   isPaused?(): boolean;
   getStartedAtEpochMs(): number;
   isIdlePaused(): boolean;
@@ -17,6 +15,7 @@ export class RecordingWidget {
   private timerInterval: number | undefined;
   private autoCollapseTimer: number | undefined;
   private isDragging = false;
+  private isHovering = false;
   private cleanupCollapseListeners?: () => void;
   private _isSaving = false;
   private readonly callbacks: WidgetCallbacks;
@@ -50,43 +49,43 @@ export class RecordingWidget {
       position: fixed !important;
       top: 16px !important;
       left: 50% !important;
-      transform: translateX(-50%) !important;
+      transform: translateX(-50%) translateY(-10px) !important;
+      z-index: 2147483647 !important;
       background: #ffffff !important;
       -webkit-backdrop-filter: blur(16px) !important;
       backdrop-filter: blur(16px) !important;
       border: 1px solid rgba(0, 0, 0, 0.08) !important;
       color: #1d2129 !important;
       padding: 6px 16px !important;
-      border-radius: 2px !important;
-      font-size: 12px !important;
+      border-radius: 6px !important;
+      font-size: 13px !important;
       font-weight: 500 !important;
       box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.05) !important;
-      z-index: 2147483647 !important;
       display: flex !important;
       align-items: center !important;
       gap: 8px !important;
       pointer-events: none !important;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-      animation: __wbr_toast_in__ 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+      transition: opacity 0.2s ease, transform 0.2s ease !important;
+      opacity: 0 !important;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
     `;
 
-    if (!document.querySelector("#__wbr_toast_style__")) {
-      const style = document.createElement("style");
-      style.id = "__wbr_toast_style__";
-      style.textContent = `
-        @keyframes __wbr_toast_in__ {
-          from { transform: translate(-50%, -12px); opacity: 0; }
-          to { transform: translate(-50%, 0); opacity: 1; }
-        }
-      `;
-      document.head.appendChild(style);
-    }
-
-    toast.textContent = message;
+    toast.innerHTML = `<span style="color:#00b42a;font-size:16px;">✓</span> <span>${message}</span>`;
     document.body.appendChild(toast);
 
-    window.setTimeout(() => {
-      toast.remove();
+    const rAF =
+      typeof requestAnimationFrame === "function"
+        ? requestAnimationFrame
+        : (fn: FrameRequestCallback) => setTimeout(fn, 0);
+    rAF(() => {
+      toast.style.opacity = "1";
+      toast.style.transform = "translateX(-50%) translateY(0)";
+    });
+
+    setTimeout(() => {
+      toast.style.opacity = "0";
+      toast.style.transform = "translateX(-50%) translateY(-10px)";
+      setTimeout(() => toast.remove(), 200);
     }, durationMs);
   }
 
@@ -250,8 +249,6 @@ export class RecordingWidget {
         }
         .__wbr_btn:hover { background: #f76565 !important; }
         .__wbr_btn:active { background: #cb2727 !important; }
-        .__wbr_btn_export:hover { background: #4080ff !important; }
-        .__wbr_btn_export:active { background: #0e42d2 !important; }
         .__wbr_btn_discard:hover { background: #606d7d !important; }
         .__wbr_btn_discard:active { background: #3c4652 !important; }
         .__wbr_timer { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important; font-size: 12px !important; color: #e5e6eb !important; font-weight: 600 !important; flex-shrink: 0 !important; }
@@ -263,9 +260,7 @@ export class RecordingWidget {
       <div class="__wbr_btn_group">
         <span id="__wbr_health_msg__" style="font-size:11px;color:#ffc107;display:none;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title=""></span>
         <button id="__wbr_issue_btn__" class="__wbr_btn" style="background:#b42318;" title="${t("shortcut")}: ${this.shortcutKeyText}">${t("markIssue")} (${this.shortcutKeyText})</button>
-        <button id="__wbr_pause_btn__" class="__wbr_btn __wbr_btn_pause" style="background:#d97706;">${t("pauseRecording")}</button>
         <button id="__wbr_stop_btn__" class="__wbr_btn">${t("stopRecording")}</button>
-        <button id="__wbr_stop_export_btn__" class="__wbr_btn __wbr_btn_export" style="background:#165dff;">${t("stopAndExport")}</button>
         <button id="__wbr_discard_btn__" class="__wbr_btn __wbr_btn_discard" style="background:#4e5969;">${t("stopAndDiscard")}</button>
       </div>
     `;
@@ -282,19 +277,6 @@ export class RecordingWidget {
         document.body.appendChild(root);
         this.container = root;
 
-        const pauseBtn =
-          root.querySelector<HTMLButtonElement>("#__wbr_pause_btn__");
-        if (pauseBtn) {
-          pauseBtn.addEventListener(
-            "click",
-            (e) => {
-              e.stopPropagation();
-              e.preventDefault();
-              this.callbacks.onTogglePause?.();
-            },
-            true
-          );
-        }
         const stopBtn = root.querySelector("#__wbr_stop_btn__");
         if (stopBtn) {
           stopBtn.addEventListener(
@@ -303,30 +285,6 @@ export class RecordingWidget {
               e.stopPropagation();
               e.preventDefault();
               this.callbacks.onStop();
-            },
-            true
-          );
-        }
-        const stopExportBtn = root.querySelector("#__wbr_stop_export_btn__");
-        if (stopExportBtn) {
-          stopExportBtn.addEventListener(
-            "click",
-            (e) => {
-              e.stopPropagation();
-              e.preventDefault();
-              this.callbacks.onStopAndExport();
-            },
-            true
-          );
-        }
-        const discardBtn = root.querySelector("#__wbr_discard_btn__");
-        if (discardBtn) {
-          discardBtn.addEventListener(
-            "click",
-            (e) => {
-              e.stopPropagation();
-              e.preventDefault();
-              this.callbacks.onStopAndDiscard();
             },
             true
           );
@@ -341,6 +299,18 @@ export class RecordingWidget {
           },
           true
         );
+        const discardBtn = root.querySelector("#__wbr_discard_btn__");
+        if (discardBtn) {
+          discardBtn.addEventListener(
+            "click",
+            (e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              this.callbacks.onStopAndDiscard();
+            },
+            true
+          );
+        }
 
         // Setup Drag Handle Logic
         const dragHandle =
@@ -417,18 +387,33 @@ export class RecordingWidget {
           );
         }
 
-        // Setup Auto-Collapse 3s Logic
-        const onUserActivity = () => {
+        // Setup Auto-Collapse Logic
+        // 鼠标悬停期间保持展开：只清除折叠计时器，不再重新安排折叠
+        const onMouseEnter = () => {
           if (this._isSaving) return;
-          this.resetCollapseTimer();
+          this.isHovering = true;
+          this.keepExpanded();
+        };
+        const onMouseMove = () => {
+          if (this._isSaving) return;
+          this.keepExpanded();
+        };
+        const onFocusIn = () => {
+          if (this._isSaving) return;
+          if (this.isHovering) {
+            this.keepExpanded();
+          } else {
+            this.resetCollapseTimer();
+          }
         };
 
-        root.addEventListener("mouseenter", onUserActivity);
-        root.addEventListener("mousemove", onUserActivity);
-        root.addEventListener("focusin", onUserActivity);
+        root.addEventListener("mouseenter", onMouseEnter);
+        root.addEventListener("mousemove", onMouseMove);
+        root.addEventListener("focusin", onFocusIn);
 
         const onMouseLeave = () => {
           if (this._isSaving) return;
+          this.isHovering = false;
           if (this.autoCollapseTimer) {
             window.clearTimeout(this.autoCollapseTimer);
           }
@@ -444,9 +429,9 @@ export class RecordingWidget {
         root.addEventListener("mouseleave", onMouseLeave);
 
         this.cleanupCollapseListeners = () => {
-          root.removeEventListener("mouseenter", onUserActivity);
-          root.removeEventListener("mousemove", onUserActivity);
-          root.removeEventListener("focusin", onUserActivity);
+          root.removeEventListener("mouseenter", onMouseEnter);
+          root.removeEventListener("mousemove", onMouseMove);
+          root.removeEventListener("focusin", onFocusIn);
           root.removeEventListener("mouseleave", onMouseLeave);
         };
 
@@ -456,17 +441,8 @@ export class RecordingWidget {
         const updateTimer = () => {
           if (this._isSaving) return;
           const display = root.querySelector("#__wbr_timer_display__");
-          const pauseBtn =
-            root.querySelector<HTMLButtonElement>("#__wbr_pause_btn__");
           const isPaused =
             this.callbacks.isPaused?.() || this.callbacks.isIdlePaused();
-
-          if (pauseBtn) {
-            pauseBtn.textContent = isPaused
-              ? t("resumeRecording")
-              : t("pauseRecording");
-            pauseBtn.style.background = isPaused ? "#165dff" : "#d97706";
-          }
 
           this.updatePauseState(isPaused);
 
@@ -503,7 +479,7 @@ export class RecordingWidget {
     if (this.container) {
       this.container.classList.remove("__wbr_collapsed__");
     }
-    if (!this.isDragging) {
+    if (!this.isDragging && !this.isHovering) {
       this.autoCollapseTimer = window.setTimeout(() => {
         if (this.container && !this.isDragging && !this._isSaving) {
           this.container.classList.add("__wbr_collapsed__");
@@ -512,8 +488,19 @@ export class RecordingWidget {
     }
   }
 
+  private keepExpanded(): void {
+    if (this.autoCollapseTimer) {
+      window.clearTimeout(this.autoCollapseTimer);
+      this.autoCollapseTimer = undefined;
+    }
+    if (this.container) {
+      this.container.classList.remove("__wbr_collapsed__");
+    }
+  }
+
   unmount(): void {
     this._isSaving = false;
+    this.isHovering = false;
     if (this.timerInterval) {
       clearInterval(this.timerInterval);
       this.timerInterval = undefined;

@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   buildSilentExportFailureEvent,
+  injectAbsolutePathToPrompt,
   resolveSilentExportResult,
   type SilentExportPackResult,
 } from "../src/domain/silent-export.ts";
@@ -81,4 +82,28 @@ test("buildSilentExportFailureEvent 在 raw 模式下保留原始错误信息", 
   );
   if (event.type !== "capture-issue") return;
   assert.match(event.issue.message, /my-secret-token/);
+});
+
+test("injectAbsolutePathToPrompt 将中英文 Prompt 模板中的相对文件名替换为实际物理绝对路径", () => {
+  const promptZh = `请分析证据包：\n\n文件路径：\nweb-bug-report-123.zip\n\n元数据：...`;
+  const resZh = injectAbsolutePathToPrompt(
+    promptZh,
+    "web-bug-report-123.zip",
+    "/Users/zhijian/Downloads/web-bug-report-123.zip"
+  );
+  assert.equal(
+    resZh,
+    `请分析证据包：\n\n文件路径：\n/Users/zhijian/Downloads/web-bug-report-123.zip\n\n元数据：...`
+  );
+
+  const promptEn = `Please analyze package:\n\nFile Path:\nweb-bug-report-123.zip\n\nMetadata:...`;
+  const resEn = injectAbsolutePathToPrompt(
+    promptEn,
+    "web-bug-report-123.zip",
+    "/Users/zhijian/Downloads/web-bug-report-123.zip"
+  );
+  assert.equal(
+    resEn,
+    `Please analyze package:\n\nFile Path:\n/Users/zhijian/Downloads/web-bug-report-123.zip\n\nMetadata:...`
+  );
 });

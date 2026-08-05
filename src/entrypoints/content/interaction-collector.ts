@@ -1,4 +1,6 @@
 import { isEnvelope, message } from "../../shared/protocol";
+import { t } from "../../shared/i18n";
+import { copyTextToClipboard } from "../../preview/clipboard";
 import {
   captureFrameworkState,
   isMeaningfulFrameworkState,
@@ -68,69 +70,27 @@ if (existingController) {
   // ─── Module Instances ───
 
   const widget: RecordingWidget = new RecordingWidget({
-    onStop() {
+    async onStop() {
       widget.setSavingState(true);
-      void chrome.runtime.sendMessage(
-        message("session/stop", { commandId: crypto.randomUUID() })
-      );
-    },
-    onStopAndExport() {
-      widget.setSavingState(true, "正在打包 ZIP 并在复制提示词...");
-      const commandId = crypto.randomUUID();
-      chrome.runtime
-        .sendMessage(
+      try {
+        const res = await chrome.runtime.sendMessage(
           message("session/stop", {
-            commandId,
-            autoExport: true,
+            commandId: crypto.randomUUID(),
             silentExport: true,
           })
-        )
-        .then(
-          async (res: {
-            ok?: boolean;
-            session?: {
-              id: string;
-              silentPrompt?: string;
-              silentExportResult?: { ok: boolean; error?: string };
-            };
-          }) => {
-            if (!res?.ok) {
-              widget.setSavingState(false);
-              widget.showToast("停止并导出失败，请重试");
-              return;
-            }
-            if (res.session?.silentPrompt) {
-              try {
-                await navigator.clipboard.writeText(res.session.silentPrompt);
-              } catch {
-                const textarea = document.createElement("textarea");
-                textarea.value = res.session.silentPrompt;
-                textarea.style.position = "fixed";
-                textarea.style.opacity = "0";
-                document.body.appendChild(textarea);
-                textarea.select();
-                document.execCommand("copy");
-                textarea.remove();
-              }
-            }
-            const exported = res.session?.silentExportResult;
-            widget.setSavingState(false);
-            if (exported && !exported.ok) {
-              widget.showToast(
-                "ZIP 导出失败，证据已保留，请从扩展历史记录中重新导出"
-              );
-            } else {
-              widget.showToast("ZIP 下载完成，AI 提示词已自动复制到剪贴板！");
-            }
-            setTimeout(() => {
-              widget.unmount();
-            }, 1000);
+        );
+        const prompt = res?.session?.silentPrompt;
+        if (prompt) {
+          try {
+            await copyTextToClipboard(prompt);
+          } catch {
+            // ignore
           }
-        )
-        .catch(() => {
-          widget.setSavingState(false);
-          widget.showToast("停止并导出失败，请重试");
-        });
+        }
+        widget.showToast(t("exportSuccessCopied"));
+      } catch {
+        // ignore
+      }
     },
     onStopAndDiscard() {
       void chrome.runtime.sendMessage(
@@ -143,15 +103,6 @@ if (existingController) {
     },
     onMarkIssue() {
       beginIssueSelection();
-    },
-    onTogglePause() {
-      if (monitor.isIdlePaused) {
-        // 处于暂停态（闲置自动暂停或手动暂停）时点击按钮 = 继续
-        monitor.resume();
-      } else {
-        // 录制进行中点击按钮 = 手动暂停
-        monitor.toggleManualPause();
-      }
     },
     isPaused() {
       return monitor.isIdlePaused;

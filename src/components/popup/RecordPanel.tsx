@@ -5,6 +5,14 @@ import {
 } from "../../shared/protocol";
 import { t } from "../../shared/i18n";
 
+const isMac =
+  typeof navigator !== "undefined" &&
+  Boolean(
+    /(Mac|iPhone|iPod|iPad)/i.test(navigator.platform || navigator.userAgent)
+  );
+/** 全局录制快捷键（与 src/manifest.json 中 start-recording 的 suggested_key 保持一致） */
+const recordShortcut = isMac ? "Option+R" : "Alt+R";
+
 interface RecordPanelProps {
   activeSession?: RecordingSession;
   activeTab?: chrome.tabs.Tab;
@@ -82,6 +90,7 @@ export const RecordPanel = memo(function RecordPanel({
             className="action-btn start"
             onClick={onStart}
             aria-label={t("startRecording")}
+            title={`${t("startRecording")} (${recordShortcut})`}
           >
             <svg
               width="14"
@@ -93,6 +102,7 @@ export const RecordPanel = memo(function RecordPanel({
               <circle cx="12" cy="12" r="8"></circle>
             </svg>
             <span>{t("startRecording")}</span>
+            <kbd className="shortcut-hint">{recordShortcut}</kbd>
           </button>
         )}
         {active && (

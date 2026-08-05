@@ -80,7 +80,7 @@
     "message": "开始录制"
   },
   "stopRecording": {
-    "message": "结束录制"
+    "message": "结束并导出"
   },
   "saving": {
     "message": "保存中..."
@@ -133,7 +133,7 @@
     "message": "证据概览"
   },
   "markIssue": {
-    "message": "标记问题"
+    "message": "标记截图"
   },
   "pauseRecording": {
     "message": "暂停"
@@ -166,7 +166,7 @@
     "message": "自动证据收集"
   },
   "guideStep2Desc": {
-    "message": "录制会自动记录 Network 请求、Console 日志与交互步骤，无操作 60s 自动暂停。"
+    "message": "录制会自动记录 Network 请求、Console 日志与交互步骤，无操作 30s 自动暂停。"
   },
   "guideStep3Title": {
     "message": "纯本地隐私安全"

@@ -9,6 +9,7 @@ import {
 import { applyI18n, t } from "../../shared/i18n.ts";
 import { VIDEO_BITRATE_BY_COMPRESSION } from "../../domain/storage-policy.ts";
 import { useRpc } from "../../hooks/useRpc.ts";
+import { copyTextToClipboard } from "../../preview/clipboard";
 import { useSessionState } from "../../hooks/useSessionState.ts";
 import { RecordPanel } from "./RecordPanel.tsx";
 import { OptionsGrid, type VideoQuality } from "./OptionsGrid.tsx";
@@ -347,8 +348,17 @@ export function PopupApp() {
     try {
       const result = await send("session/stop", {
         commandId: crypto.randomUUID(),
+        silentExport: true,
       });
       if (!result.ok) throw new Error(result.error || t("stopFailed"));
+      const prompt = result.data?.session?.silentPrompt;
+      if (prompt) {
+        try {
+          await copyTextToClipboard(prompt);
+        } catch {
+          // ignore
+        }
+      }
       updateSessionState(result.data?.session);
     } catch (error) {
       setErrorText(String(error));
