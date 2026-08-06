@@ -356,17 +356,19 @@ body {
 
 /* Shutter Action Button */
 .actions {
-  margin-top: 4px;
+  margin-top: 6px;
 }
 button.action-btn {
-  width: 100%;
-  height: 38px;
+  flex: 1;
+  min-width: 0;
+  height: 36px;
   border: none;
   border-radius: var(--radius-sm);
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
@@ -376,7 +378,7 @@ button.action-btn {
 button.action-btn.start {
   background: linear-gradient(135deg, var(--bl-primary) 0%, #0e42d2 100%);
   color: #ffffff;
-  box-shadow: 0 2px 8px rgba(22, 93, 255, 0.25);
+  box-shadow: 0 2px 6px rgba(22, 93, 255, 0.22);
 }
 button.action-btn.start:hover {
   background: linear-gradient(
@@ -384,36 +386,26 @@ button.action-btn.start:hover {
     var(--bl-primary-hover) 0%,
     var(--bl-primary) 100%
   );
-  box-shadow: 0 4px 12px rgba(22, 93, 255, 0.35);
+  box-shadow: 0 4px 10px rgba(22, 93, 255, 0.3);
   transform: translateY(-1px);
-}
-kbd.shortcut-hint {
-  margin-left: 4px;
-  padding: 1px 6px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.18);
-  border: 1px solid rgba(255, 255, 255, 0.32);
-  color: #ffffff;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 1.5;
-  letter-spacing: 0.3px;
 }
 button.action-btn.stop {
   background: var(--danger);
   color: #ffffff;
-  box-shadow: 0 2px 8px rgba(245, 63, 63, 0.25);
+  box-shadow: 0 2px 6px rgba(245, 63, 63, 0.22);
 }
 button.action-btn.stop:hover {
   background: var(--danger-hover);
 }
 button.action-btn.secondary {
-  background: var(--bl-primary-light, rgba(22, 93, 255, 0.08));
-  color: var(--primary);
+  background: #f4f5f7;
+  color: var(--ink-main);
+  border: 1px solid var(--border-subtle);
 }
 button.action-btn.secondary:hover {
-  background: rgba(22, 93, 255, 0.15);
+  background: #e5e6eb;
+  color: var(--primary);
+  border-color: rgba(22, 93, 255, 0.2);
 }
 
 /* Search Wrapper */

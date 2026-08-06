@@ -33,9 +33,40 @@ export class ScreenshotOverlay {
 
   constructor() {
     this.handleKeyDown = this.handleKeyDown.bind(this);
+    this.handlePreventScroll = this.handlePreventScroll.bind(this);
     this.handleMouseDown = this.handleMouseDown.bind(this);
     this.handleMouseMove = this.handleMouseMove.bind(this);
     this.handleMouseUp = this.handleMouseUp.bind(this);
+  }
+
+  private handlePreventScroll(e: Event): void {
+    if (e.type === "keydown") {
+      const ke = e as KeyboardEvent;
+      const scrollKeys = [
+        " ",
+        "Space",
+        "PageUp",
+        "PageDown",
+        "ArrowUp",
+        "ArrowDown",
+        "Home",
+        "End",
+      ];
+      if (scrollKeys.includes(ke.key)) {
+        const target = ke.target as HTMLElement;
+        if (
+          target &&
+          (target.tagName === "INPUT" || target.tagName === "TEXTAREA")
+        ) {
+          return;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    } else {
+      e.preventDefault();
+      e.stopPropagation();
+    }
   }
 
   show(options: {
@@ -237,8 +268,8 @@ export class ScreenshotOverlay {
           color: #ffffff;
         }
         .toolbar button.active {
-          background: rgba(240, 65, 66, 0.2);
-          color: #f04142;
+          background: rgba(250, 82, 82, 0.2);
+          color: #FA5252;
         }
         .toolbar button.cancel-btn:hover {
           background: rgba(239, 68, 68, 0.25);
@@ -289,10 +320,16 @@ export class ScreenshotOverlay {
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="5" y1="19" x2="19" y2="5"/><polyline points="12 5 19 5 19 12"/></svg>
           </button>
           <button data-tool="privacy" title="马赛克打码 (M)">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <svg width="15" height="15" viewBox="0 0 1024 1024" fill="currentColor">
+              <path d="M7.13007408 512v252.43496297h252.43496295V512H7.13007408z m252.43496295 504.86992592H512v-252.43496295H259.56503703v252.43496295z m757.30488889 0v-252.43496295h-252.43496295v252.43496295h252.43496295zM7.13007408 7.13007408v252.43496295h252.43496295V7.13007408H7.13007408zM512 512v252.43496297h252.43496297V512H512z m0-252.43496297H259.56503703V512H512V259.56503703z m252.43496297-252.43496295H512v252.43496295h252.43496297V7.13007408zM1016.86992592 512V259.56503703h-252.43496295V512h252.43496295z"></path>
+            </svg>
           </button>
           <button data-tool="text" title="文本批注 (T)">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="4 7 4 4 20 4 20 7"/>
+              <line x1="12" y1="4" x2="12" y2="20"/>
+              <line x1="9" y1="20" x2="15" y2="20"/>
+            </svg>
           </button>
           <div class="divider"></div>
           <button data-action="cancel" class="cancel-btn" title="取消 (ESC)">
@@ -308,8 +345,19 @@ export class ScreenshotOverlay {
     this.shadowRoot.appendChild(wrapper);
     document.body.appendChild(this.container);
 
-    // 3. 事件监听绑定
+    // 3. 事件监听绑定与全局滚动拦截
     window.addEventListener("keydown", this.handleKeyDown, true);
+    window.addEventListener("wheel", this.handlePreventScroll, {
+      passive: false,
+      capture: true,
+    });
+    window.addEventListener("touchmove", this.handlePreventScroll, {
+      passive: false,
+      capture: true,
+    });
+    window.addEventListener("keydown", this.handlePreventScroll, {
+      capture: true,
+    });
     wrapper.addEventListener("mousedown", this.handleMouseDown);
     wrapper.addEventListener("mousemove", this.handleMouseMove);
     wrapper.addEventListener("mouseup", this.handleMouseUp);
@@ -650,7 +698,7 @@ export class ScreenshotOverlay {
       // 十字准星 Crosshair
       const cx = magCanvas.width / 2;
       const cy = magCanvas.height / 2;
-      ctx.strokeStyle = "#ff3b30";
+      ctx.strokeStyle = "#FA5252";
       ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.moveTo(cx - 8, cy);
@@ -756,29 +804,36 @@ export class ScreenshotOverlay {
 
     for (const ann of list) {
       ctx.save();
-      ctx.strokeStyle = ann.color || "#ff3b30";
-      ctx.fillStyle = ann.color || "#ff3b30";
+      ctx.strokeStyle = ann.color || "#FA5252";
+      ctx.fillStyle = ann.color || "#FA5252";
       ctx.lineWidth = 2.5;
 
       if (ann.type === "rect") {
+        const lw = 2;
+        const rx = Math.floor(ann.bounds.x);
+        const ry = Math.floor(ann.bounds.y);
+        const rw = Math.round(ann.bounds.width);
+        const rh = Math.round(ann.bounds.height);
+
+        const rOuter = Math.min(6, Math.min(rw, rh) / 2);
+        const rInner = Math.max(0, rOuter - lw);
+
+        ctx.save();
+        ctx.imageSmoothingEnabled = false;
+        ctx.fillStyle = ann.color || "#FA5252";
+
         ctx.beginPath();
-        if (ctx.roundRect) {
-          ctx.roundRect(
-            ann.bounds.x,
-            ann.bounds.y,
-            ann.bounds.width,
-            ann.bounds.height,
-            4
-          );
+        if (ctx.roundRect && rw > 2 * lw && rh > 2 * lw) {
+          ctx.roundRect(rx, ry, rw, rh, rOuter);
+          ctx.roundRect(rx + lw, ry + lw, rw - 2 * lw, rh - 2 * lw, rInner);
         } else {
-          ctx.rect(
-            ann.bounds.x,
-            ann.bounds.y,
-            ann.bounds.width,
-            ann.bounds.height
-          );
+          ctx.rect(rx, ry, rw, rh);
+          if (rw > 2 * lw && rh > 2 * lw) {
+            ctx.rect(rx + lw, ry + lw, rw - 2 * lw, rh - 2 * lw);
+          }
         }
-        ctx.stroke();
+        ctx.fill("evenodd");
+        ctx.restore();
       } else if (ann.type === "arrow") {
         const sx = ann.startPoint.x;
         const sy = ann.startPoint.y;
@@ -805,34 +860,44 @@ export class ScreenshotOverlay {
         ctx.closePath();
         ctx.fill();
       } else if (ann.type === "privacy") {
-        ctx.fillStyle = "rgba(15, 23, 42, 0.95)";
-        if (ctx.roundRect) {
-          ctx.beginPath();
-          ctx.roundRect(
-            ann.bounds.x,
-            ann.bounds.y,
-            ann.bounds.width,
-            ann.bounds.height,
-            4
-          );
-          ctx.fill();
-        } else {
-          ctx.fillRect(
-            ann.bounds.x,
-            ann.bounds.y,
-            ann.bounds.width,
-            ann.bounds.height
-          );
+        const x = Math.round(ann.bounds.x);
+        const y = Math.round(ann.bounds.y);
+        const w = Math.round(ann.bounds.width);
+        const h = Math.round(ann.bounds.height);
+        const dpr = window.devicePixelRatio || 1;
+
+        if (w > 0 && h > 0 && this.viewportImage) {
+          const tileSize = 8;
+          const sampleW = Math.max(1, Math.floor(w / tileSize));
+          const sampleH = Math.max(1, Math.floor(h / tileSize));
+
+          const offCanvas = document.createElement("canvas");
+          offCanvas.width = sampleW;
+          offCanvas.height = sampleH;
+          const offCtx = offCanvas.getContext("2d");
+          if (offCtx) {
+            offCtx.imageSmoothingEnabled = false;
+            offCtx.drawImage(
+              this.viewportImage,
+              x * dpr,
+              y * dpr,
+              w * dpr,
+              h * dpr,
+              0,
+              0,
+              sampleW,
+              sampleH
+            );
+
+            ctx.save();
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(offCanvas, 0, 0, sampleW, sampleH, x, y, w, h);
+            ctx.restore();
+          }
+        } else if (w > 0 && h > 0) {
+          ctx.fillStyle = "rgba(100, 116, 139, 0.7)";
+          ctx.fillRect(x, y, w, h);
         }
-        ctx.fillStyle = "#38bdf8";
-        ctx.font = "bold 11px ui-monospace, SFMono-Regular, monospace";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(
-          "[REDACTED]",
-          ann.bounds.x + ann.bounds.width / 2,
-          ann.bounds.y + ann.bounds.height / 2
-        );
       } else if (ann.type === "text") {
         const px = ann.position.x;
         const py = ann.position.y;
@@ -996,6 +1061,15 @@ export class ScreenshotOverlay {
 
   destroy(): void {
     window.removeEventListener("keydown", this.handleKeyDown, true);
+    window.removeEventListener("wheel", this.handlePreventScroll, {
+      capture: true,
+    } as any);
+    window.removeEventListener("touchmove", this.handlePreventScroll, {
+      capture: true,
+    } as any);
+    window.removeEventListener("keydown", this.handlePreventScroll, {
+      capture: true,
+    } as any);
     if (this.container && this.container.parentElement) {
       this.container.parentElement.removeChild(this.container);
     }

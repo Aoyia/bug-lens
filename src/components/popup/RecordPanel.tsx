@@ -119,7 +119,6 @@ export const RecordPanel = memo(function RecordPanel({
                 <circle cx="12" cy="12" r="8"></circle>
               </svg>
               <span>{t("startRecording")}</span>
-              <kbd className="shortcut-hint">{recordShortcut}</kbd>
             </button>
             <button
               id="take-screenshot"
@@ -136,13 +135,14 @@ export const RecordPanel = memo(function RecordPanel({
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
                 aria-hidden="true"
               >
-                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
-                <circle cx="12" cy="13" r="4"></circle>
+                <path d="M6 2v14a2 2 0 0 0 2 2h14"></path>
+                <path d="M18 22V8a2 2 0 0 0-2-2H2"></path>
               </svg>
               <span>截图</span>
-              <kbd className="shortcut-hint">{screenshotShortcut}</kbd>
             </button>
           </>
         )}

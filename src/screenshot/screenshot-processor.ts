@@ -50,30 +50,37 @@ export function drawAnnotationsOnCanvas(
 ): void {
   for (const ann of annotations) {
     ctx.save();
-    const strokeColor = ann.color || "#ff3b30";
+    const strokeColor = ann.color || "#FA5252";
     ctx.strokeStyle = strokeColor;
     ctx.fillStyle = strokeColor;
     ctx.lineWidth = 3 * dpr;
 
     if (ann.type === "rect") {
+      const lw = Math.max(2, Math.round(2 * dpr));
+      const rx = Math.floor(ann.bounds.x * dpr);
+      const ry = Math.floor(ann.bounds.y * dpr);
+      const rw = Math.round(ann.bounds.width * dpr);
+      const rh = Math.round(ann.bounds.height * dpr);
+
+      const rOuter = Math.min(6 * dpr, Math.min(rw, rh) / 2);
+      const rInner = Math.max(0, rOuter - lw);
+
+      ctx.save();
+      ctx.imageSmoothingEnabled = false;
+      ctx.fillStyle = ann.color || "#FA5252";
+
       ctx.beginPath();
-      if (ctx.roundRect) {
-        ctx.roundRect(
-          ann.bounds.x * dpr,
-          ann.bounds.y * dpr,
-          ann.bounds.width * dpr,
-          ann.bounds.height * dpr,
-          4 * dpr
-        );
+      if (ctx.roundRect && rw > 2 * lw && rh > 2 * lw) {
+        ctx.roundRect(rx, ry, rw, rh, rOuter);
+        ctx.roundRect(rx + lw, ry + lw, rw - 2 * lw, rh - 2 * lw, rInner);
       } else {
-        ctx.rect(
-          ann.bounds.x * dpr,
-          ann.bounds.y * dpr,
-          ann.bounds.width * dpr,
-          ann.bounds.height * dpr
-        );
+        ctx.rect(rx, ry, rw, rh);
+        if (rw > 2 * lw && rh > 2 * lw) {
+          ctx.rect(rx + lw, ry + lw, rw - 2 * lw, rh - 2 * lw);
+        }
       }
-      ctx.stroke();
+      ctx.fill("evenodd");
+      ctx.restore();
     } else if (ann.type === "arrow") {
       const sx = ann.startPoint.x * dpr;
       const sy = ann.startPoint.y * dpr;
@@ -102,26 +109,36 @@ export function drawAnnotationsOnCanvas(
       ctx.closePath();
       ctx.fill();
     } else if (ann.type === "privacy") {
-      // 高质感脱敏打码
-      const x = ann.bounds.x * dpr;
-      const y = ann.bounds.y * dpr;
-      const w = ann.bounds.width * dpr;
-      const h = ann.bounds.height * dpr;
+      // 真实像素化马赛克 (Pixelated Mosaic)
+      const x = Math.round(ann.bounds.x * dpr);
+      const y = Math.round(ann.bounds.y * dpr);
+      const w = Math.round(ann.bounds.width * dpr);
+      const h = Math.round(ann.bounds.height * dpr);
 
-      ctx.fillStyle = "rgba(15, 23, 42, 0.95)";
-      if (ctx.roundRect) {
-        ctx.beginPath();
-        ctx.roundRect(x, y, w, h, 4 * dpr);
-        ctx.fill();
-      } else {
-        ctx.fillRect(x, y, w, h);
+      if (w > 0 && h > 0) {
+        const tileSize = Math.max(6, Math.round(10 * dpr));
+        const sampleW = Math.max(1, Math.floor(w / tileSize));
+        const sampleH = Math.max(1, Math.floor(h / tileSize));
+
+        const offCanvas =
+          typeof document !== "undefined"
+            ? document.createElement("canvas")
+            : null;
+        if (offCanvas) {
+          offCanvas.width = sampleW;
+          offCanvas.height = sampleH;
+          const offCtx = offCanvas.getContext("2d");
+          if (offCtx) {
+            offCtx.imageSmoothingEnabled = false;
+            offCtx.drawImage(ctx.canvas, x, y, w, h, 0, 0, sampleW, sampleH);
+
+            ctx.save();
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(offCanvas, 0, 0, sampleW, sampleH, x, y, w, h);
+            ctx.restore();
+          }
+        }
       }
-
-      ctx.fillStyle = "#38bdf8";
-      ctx.font = `bold ${11 * dpr}px ui-monospace, SFMono-Regular, monospace`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("[REDACTED]", x + w / 2, y + h / 2);
     } else if (ann.type === "text") {
       // 绘制高档 Inline 文本气泡
       const px = ann.position.x * dpr;

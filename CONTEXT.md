@@ -35,3 +35,27 @@ _Avoid_: second preview implementation, editable export
 **Issue Scene**:
 A user-confirmed abnormal page state containing a clean screenshot, independent SVG annotation, target DOM snapshot, narrative and observed timestamp. It does not own or automatically link Network, Console or interaction records.
 _Avoid_: automatically inferred causal evidence, linked request bundle
+
+**Framework State Snapshot**:
+A React component tree or Vue component chain (including Pinia/Vuex stores) and key webStorage entries captured at a moment, with sensitive keys redacted.
+_Avoid_: framework dump, component dump
+
+**Environment Snapshot**:
+The top-frame runtime environment captured at a moment: user agent, platform, language, screen and viewport size, device pixel ratio and online status.
+_Avoid_: env info, browser fingerprint
+
+**Video Clip**:
+A short re-encoded segment (default 5 seconds around a selected time) exported from the recorded media via Canvas + MediaRecorder. It is a derived artifact, never the source recording.
+_Avoid_: video editing, trimmed video
+
+**Silent Export**:
+A stop-flow that packages and downloads the evidence package from the Offscreen document without opening the Preview page. A failure must surface as a session quality issue, never as a fake success.
+_Avoid_: background export, auto-export
+
+**Screenshot Evidence Package**:
+A standalone ZIP produced by the crop-and-annotate flow (screenshot.png, ai-prompt.md, dom-context.json, environment.json). It is independent of any Recording Session and its stores.
+_Avoid_: quick screenshot, screenshot export
+
+**Spatial-Temporal Causal Slice**:
+A structured evidence slice combining a user-selected pixel region, spatially pruned DOM components and a short temporal trace of errors and network responses around the capture moment.
+_Avoid_: crop analysis, region dump
