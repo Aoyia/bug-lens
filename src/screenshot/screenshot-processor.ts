@@ -182,6 +182,17 @@ export interface ScreenshotProcessResult {
   promptInjectedWithPath: boolean;
 }
 
+/** 将 Blob 转为 data URL 字符串（content script 上下文可用 FileReader） */
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () =>
+      reject(reader.error ?? new Error("FileReader 读取 Blob 失败"));
+    reader.readAsDataURL(blob);
+  });
+}
+
 /** 将文本写入系统剪切板（navigator.clipboard 优先，execCommand 兜底） */
 async function writeTextToClipboard(text: string): Promise<boolean> {
   let writeSuccess = false;
@@ -331,34 +342,33 @@ export async function processScreenshot(
     },
   };
 
-  const markdownContent = formatPayloadToMarkdown(payload);
+  // 5. 先写入占位符提示词：发生在用户点击“完成”的手势窗口内，写入最可靠，
+  //    确保用户在任何后续失败下都能拿到可用的 AI 提示词。
+  await writeTextToClipboard(formatPayloadToMarkdown(payload));
 
-  // 5. 优先同步写入系统剪切板（确保 Markdown AI Prompt 100% 成功写入）
-  await writeTextToClipboard(markdownContent);
-
-  // 6. 打包 ZIP 并下载。优先经由 background 触发下载（content script 无 chrome.downloads
-  //    权限），拿到真实绝对路径后回写剪切板提示词；background 不可用时回退页面内 <a download>。
-  let promptInjectedWithPath = false;
+  // 6. 打包 ZIP 并触发下载。优先经由 background 下载（content script 无
+  //    chrome.downloads 权限）并解析真实绝对路径；background 不可用时回退页面内
+  //    <a download>（该路径无法拿到绝对路径，提示词保留占位符）。
+  let zipPath: string | undefined;
+  let downloaded = false;
   try {
     const zipPack = buildScreenshotZipPackage(payload);
-    let downloadedViaBackground = false;
     if (typeof chrome !== "undefined" && chrome.runtime?.id) {
       try {
-        const data = await zipPack.blob.arrayBuffer();
+        // 直接发送 data URL 字符串而非 ArrayBuffer：字符串在消息序列化中不会丢字节，
+        // 规避 ArrayBuffer 跨上下文传递被清空/序列化成空对象的问题。
+        const dataUrl = await blobToDataUrl(zipPack.blob);
         const response = (await chrome.runtime.sendMessage(
-          message("screenshot/download", { data, filename: zipPack.filename })
+          message("screenshot/download", {
+            dataUrl,
+            filename: zipPack.filename,
+          })
         )) as
           | { ok?: boolean; downloadId?: number; absolutePath?: string }
           | undefined;
         if (response?.ok) {
-          downloadedViaBackground = true;
-          if (response.absolutePath) {
-            const finalPrompt = formatPayloadToMarkdown(
-              payload,
-              response.absolutePath
-            );
-            promptInjectedWithPath = await writeTextToClipboard(finalPrompt);
-          }
+          downloaded = true;
+          zipPath = response.absolutePath;
         }
       } catch (bgErr) {
         console.warn(
@@ -367,13 +377,20 @@ export async function processScreenshot(
         );
       }
     }
-    if (!downloadedViaBackground) {
+    if (!downloaded) {
       triggerZipDownload(zipPack.blobUrl, zipPack.filename);
     } else if (zipPack.blobUrl) {
       URL.revokeObjectURL(zipPack.blobUrl);
     }
   } catch (zipErr) {
     console.warn("Bug Lens: 截图 ZIP 打包下载异常", zipErr);
+  }
+
+  // 7. 拿到真实绝对路径后，覆盖写回带真实路径的最终提示词，替换占位符。
+  let promptInjectedWithPath = false;
+  if (zipPath) {
+    const finalPrompt = formatPayloadToMarkdown(payload, zipPath);
+    promptInjectedWithPath = await writeTextToClipboard(finalPrompt);
   }
 
   return { payload, promptInjectedWithPath };

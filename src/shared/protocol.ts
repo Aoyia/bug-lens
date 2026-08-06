@@ -759,7 +759,7 @@ export type RuntimeMessage =
   | Envelope<
       "screenshot/download",
       {
-        data: ArrayBuffer;
+        dataUrl: string;
         filename: string;
       }
     >

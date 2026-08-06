@@ -13,6 +13,7 @@ import {
 } from "../../domain/recording-session";
 import { sanitizeText, sanitizeUrl } from "../../domain/privacy-policy";
 import { normalizeRecordingOptions } from "../../domain/storage-policy";
+import { waitForDownloadCompletion } from "../../domain/download-path-resolver";
 import {
   buildSilentExportFailureEvent,
   injectAbsolutePathToPrompt,
@@ -392,29 +393,30 @@ async function continueInterruptedSession(
   });
 }
 
-async function resolveDownloadedFilePath(
-  downloadId: number,
-  maxWaitMs = 3000
-): Promise<string | undefined> {
+async function searchDownload(
+  downloadId: number
+): Promise<chrome.downloads.DownloadItem | undefined> {
   if (typeof chrome === "undefined" || !chrome.downloads?.search) {
     return undefined;
   }
-  const start = Date.now();
-  while (Date.now() - start < maxWaitMs) {
-    const item = await new Promise<chrome.downloads.DownloadItem | undefined>(
-      (resolve) => {
-        chrome.downloads.search({ id: downloadId }, (items) => {
-          if (chrome.runtime?.lastError) resolve(undefined);
-          else resolve(items?.[0]);
-        });
-      }
-    );
-    if (item?.filename) {
-      return item.filename;
-    }
-    await new Promise((r) => setTimeout(r, 100));
-  }
-  return undefined;
+  return new Promise<chrome.downloads.DownloadItem | undefined>((resolve) => {
+    chrome.downloads.search({ id: downloadId }, (items) => {
+      if (chrome.runtime?.lastError) resolve(undefined);
+      else resolve(items?.[0]);
+    });
+  });
+}
+
+async function resolveDownloadedFilePath(
+  downloadId: number,
+  maxWaitMs = 15000
+): Promise<string | undefined> {
+  const result = await waitForDownloadCompletion(
+    downloadId,
+    searchDownload,
+    maxWaitMs
+  );
+  return result.state === "complete" ? result.filename : undefined;
 }
 
 async function performStopSession(
@@ -1108,21 +1110,16 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender) => {
           return { ok: true };
         }
         case "screenshot/download": {
-          // content script 无 chrome.downloads 权限：由 background 触发下载并解析真实绝对路径
-          const { data, filename } = incoming.payload;
-          const blob = new Blob([data], { type: "application/zip" });
-          const blobUrl = URL.createObjectURL(blob);
-          try {
-            const downloadId = await chrome.downloads.download({
-              url: blobUrl,
-              filename,
-              saveAs: false,
-            });
-            const absolutePath = await resolveDownloadedFilePath(downloadId);
-            return { ok: true, downloadId, absolutePath };
-          } finally {
-            URL.revokeObjectURL(blobUrl);
-          }
+          // content script 无 chrome.downloads 权限：由 background 触发下载并解析真实绝对路径。
+          // 内容脚本直接发送 data URL 字符串，background 无需 createObjectURL（SW 不支持）。
+          const { dataUrl, filename } = incoming.payload;
+          const downloadId = await chrome.downloads.download({
+            url: dataUrl,
+            filename,
+            saveAs: false,
+          });
+          const absolutePath = await resolveDownloadedFilePath(downloadId);
+          return { ok: true, downloadId, absolutePath };
         }
         default:
           return { ok: false, error: "UNSUPPORTED_MESSAGE" };
