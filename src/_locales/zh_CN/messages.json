@@ -153,6 +153,33 @@
   "redo": {
     "message": "恢复"
   },
+  "expectedCardTitle": {
+    "message": "预期应该发生什么？"
+  },
+  "expectedChipCrash": {
+    "message": "页面崩溃"
+  },
+  "expectedChipWrongData": {
+    "message": "数据不对"
+  },
+  "expectedChipStyle": {
+    "message": "样式错乱"
+  },
+  "expectedChipNoResponse": {
+    "message": "操作无反应"
+  },
+  "expectedChipLoadFailed": {
+    "message": "加载失败"
+  },
+  "expectedPlaceholder": {
+    "message": "例如：提交后应显示成功提示并跳转"
+  },
+  "expectedSkip": {
+    "message": "跳过"
+  },
+  "expectedConfirm": {
+    "message": "确认"
+  },
   "shortcut": {
     "message": "快捷键"
   },
@@ -339,6 +366,9 @@
   },
   "viewFullPrompt": {
     "message": "查看完整提示词"
+  },
+  "generatePlaywright": {
+    "message": "生成 Playwright 脚本"
   },
   "loadingMedia": {
     "message": "正在读取媒体分片…"

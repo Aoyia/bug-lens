@@ -1,11 +1,13 @@
 import type {
   ConsoleEntry,
   DiagnosticStackFrame,
+  ExpectedStatement,
   InteractionRecord,
   IssueScene,
   RecordingOptions,
   TargetDomSnapshot,
 } from "../shared/protocol";
+import { normalizeExpected } from "./issue-scene";
 
 export type PrivacyMode = RecordingOptions["privacyMode"];
 
@@ -503,6 +505,29 @@ export function sanitizeDomSnapshot(
   };
 }
 
+/**
+ * 脱敏"期望陈述"：先经 normalizeExpected 归一化（兼容旧版 string 形态），
+ * 再对 text 与 tags 逐项走 sanitizeText，保留 confidence 语义。
+ */
+export function sanitizeExpectedStatement(
+  expected: string | ExpectedStatement | undefined,
+  mode: PrivacyMode
+): ExpectedStatement | undefined {
+  const normalized = normalizeExpected(expected);
+  if (!normalized) return undefined;
+  const text = sanitizeText(normalized.text, mode, 8_192).trim();
+  if (!text) return undefined;
+  const tags = normalized.tags
+    ?.map((tag) => sanitizeText(tag, mode, 256).trim())
+    .filter((tag) => tag.length > 0)
+    .slice(0, 8);
+  return {
+    text,
+    ...(tags && tags.length > 0 ? { tags } : {}),
+    confidence: normalized.confidence === "explicit" ? "explicit" : "missing",
+  };
+}
+
 export function sanitizeIssueScene(
   scene: IssueScene,
   mode: PrivacyMode
@@ -518,9 +543,7 @@ export function sanitizeIssueScene(
     narrative: scene.narrative
       ? {
           actual: sanitizeText(scene.narrative.actual, mode, 8_192),
-          expected: scene.narrative.expected
-            ? sanitizeText(scene.narrative.expected, mode, 8_192)
-            : undefined,
+          expected: sanitizeExpectedStatement(scene.narrative.expected, mode),
           note: scene.narrative.note
             ? sanitizeText(scene.narrative.note, mode, 8_192)
             : undefined,

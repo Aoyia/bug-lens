@@ -55,7 +55,30 @@ test("domain/issue-scene functions create and normalize scene properties", () =>
     normalized
   );
   assert.equal(withNarr.narrative?.actual, "Button broke");
-  assert.equal(withNarr.narrative?.expected, "Button works");
+  // 旧版 string 形态经 normalizeExpected 归一为结构化期望，无法判定是否显式表达，
+  // 保守标记 confidence 为 "missing"
+  assert.deepEqual(withNarr.narrative?.expected, {
+    text: "Button works",
+    confidence: "missing",
+  });
+
+  const explicitNarr = withIssueNarrative(
+    baseScene,
+    {
+      actual: "Button broke",
+      expected: {
+        text: "Button works",
+        tags: ["crash"],
+        confidence: "explicit",
+      },
+    },
+    normalized
+  );
+  assert.deepEqual(explicitNarr.narrative?.expected, {
+    text: "Button works",
+    tags: ["crash"],
+    confidence: "explicit",
+  });
 
   const completed = markIssueSceneResult(withNarr, "complete");
   assert.equal(completed.status, "complete");

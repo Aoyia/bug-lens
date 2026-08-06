@@ -1,6 +1,7 @@
 import type {
   AnnotationModel,
   CaptureIssue,
+  ExpectedStatement,
   IssueScene,
   TargetDomSnapshot,
 } from "../shared/protocol.ts";
@@ -92,6 +93,33 @@ export function normalizeAnnotation(
 }
 
 /**
+ * 归一化用户的"期望"陈述，兼容历史数据形态。
+ * - `undefined` / 空串 → `undefined`
+ * - 旧版 `string` → `{ text, confidence: "missing" }`（历史形态无法判定是否显式表达，保守标 missing）
+ * - `ExpectedStatement` → 裁剪 text 与 tags；text 为空则视为缺失
+ */
+export function normalizeExpected(
+  raw: string | ExpectedStatement | undefined
+): ExpectedStatement | undefined {
+  if (typeof raw === "string") {
+    const text = raw.trim();
+    return text ? { text, confidence: "missing" } : undefined;
+  }
+  if (!raw) return undefined;
+  const text = raw.text?.trim() ?? "";
+  if (!text) return undefined;
+  const tags = raw.tags
+    ?.map((tag) => tag.trim())
+    .filter((tag) => tag.length > 0)
+    .slice(0, 8);
+  return {
+    text,
+    ...(tags && tags.length > 0 ? { tags } : {}),
+    confidence: raw.confidence === "explicit" ? "explicit" : "missing",
+  };
+}
+
+/**
  * 将用户补充的问题描述（Narrative）合并到现有的 IssueScene 中，
  * 并将该场景标记为已提交 (committed)。
  *
@@ -112,7 +140,7 @@ export function withIssueNarrative(
     committedAtEpochMs: Date.now(),
     narrative: {
       actual,
-      expected: narrative?.expected?.trim() || undefined,
+      expected: normalizeExpected(narrative?.expected),
       note: narrative?.note?.trim() || undefined,
     },
     annotation: normalizeAnnotation(annotation),

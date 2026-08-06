@@ -88,6 +88,10 @@ test.describe("Bug Lens Chrome Extension E2E PREV-001: Preview Core Browsing & T
 
     // (2) 创建一条完整 Issue Scene
     await markIssueButton.click();
+    // 期望速记卡：跳过（不阻断流程），随后进入元素选择
+    const expectedCard = targetPage.locator("#__wbr_expected_card__");
+    await expect(expectedCard).toBeVisible({ timeout: 3_000 });
+    await expectedCard.locator("[data-expected-skip]").click();
     const selectionOverlay = targetPage.locator("#__wbr_issue_selection__");
     await expect(selectionOverlay).toBeVisible({ timeout: 3_000 });
 
@@ -101,7 +105,7 @@ test.describe("Bug Lens Chrome Extension E2E PREV-001: Preview Core Browsing & T
 
     const finishBtn = targetPage
       .locator("#__wbr_issue_selection__")
-      .locator("button", { hasText: "完成截图" });
+      .locator("button", { hasText: "进入截图" });
     await expect(finishBtn).toBeVisible({ timeout: 3_000 });
     await finishBtn.click();
 
@@ -124,9 +128,6 @@ test.describe("Bug Lens Chrome Extension E2E PREV-001: Preview Core Browsing & T
       { steps: 5 }
     );
     await targetPage.mouse.up();
-
-    await issueEditor.locator("[data-issue-toggle-more]").click();
-    await expect(issueEditor.locator("[data-issue-details-box]")).toBeVisible();
 
     const actualText = "PREV-001 实际缺陷描述";
     const expectedText = "PREV-001 预期行为说明";
@@ -409,6 +410,22 @@ test.describe("Bug Lens Chrome Extension E2E PREV-001: Preview Core Browsing & T
       await toggleBackBtn.click();
       expect(await cardImg.getAttribute("src")).toBe(initialImgSrc);
     }
+
+    // 点击截图打开大图预览
+    const imageModal = previewPage.locator("#image-modal");
+    await expect(imageModal).toBeHidden();
+    await cardImg.click();
+    await expect(imageModal).toBeVisible();
+    await expect(imageModal.locator("#modal-image")).toHaveAttribute(
+      "src",
+      initialImgSrc ?? ""
+    );
+    const modalTitle = await imageModal
+      .locator("#modal-step-title")
+      .innerText();
+    expect(modalTitle).toContain("问题现场 1");
+    await imageModal.locator("#modal-close-btn").click();
+    await expect(imageModal).toBeHidden();
 
     // 点击“跳转录像”
     const sceneSeekBtn = card.locator("button", { hasText: "跳转录像" });

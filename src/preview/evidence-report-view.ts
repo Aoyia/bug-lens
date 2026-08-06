@@ -269,6 +269,9 @@ export class EvidenceReportView {
             }
           : undefined,
         onSeekVideo: seekVideo,
+        onOpenImage: (sceneId, mode) => {
+          this.imageViewer.openScenes(issueScenes.included, sceneId, mode);
+        },
         onNotify: (message: string) => this.shell.notify(message),
       }),
       this.issueScenesContainer

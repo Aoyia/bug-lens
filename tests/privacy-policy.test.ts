@@ -286,7 +286,11 @@ test("sanitizeDomSnapshot and sanitizeIssueScene redacts targets and narratives"
     annotation: { x: 10, y: 20, width: 30, height: 40, label: "Secret area" },
     narrative: {
       actual: "Got user@example.test error",
-      expected: "Normal flow",
+      expected: {
+        text: "Normal flow user@example.test",
+        tags: ["crash", "token=abc"],
+        confidence: "explicit",
+      },
       note: "See token=abc",
     },
     issues: [
@@ -306,6 +310,43 @@ test("sanitizeDomSnapshot and sanitizeIssueScene redacts targets and narratives"
     "https://example.test/path?secret=[REDACTED]"
   );
   assert.match(sanitizedScene.narrative?.actual ?? "", /REDACTED/);
+  // 期望陈述按结构化形态脱敏：text/tags 逐项走 sanitizeText，confidence 语义保留
+  assert.match(sanitizedScene.narrative?.expected?.text ?? "", /REDACTED/);
+  const sanitizedTags = sanitizedScene.narrative?.expected?.tags ?? [];
+  assert.ok(sanitizedTags.includes("crash"));
+  assert.ok(sanitizedTags.some((tag) => tag.includes("REDACTED")));
+  assert.equal(sanitizedScene.narrative?.expected?.confidence, "explicit");
+});
+
+test("sanitizeExpectedStatement migrates legacy string expected instead of dropping it", async () => {
+  const { sanitizeExpectedStatement } =
+    await import("../src/domain/privacy-policy.ts");
+
+  // 旧版 string 形态：脱敏后保留文本，且保守标记 confidence 为 missing
+  const fromString = sanitizeExpectedStatement(
+    "页面应显示成功提示 user@example.test",
+    "safe"
+  );
+  assert.ok(fromString);
+  assert.match(fromString.text, /页面应显示成功提示/);
+  assert.match(fromString.text, /REDACTED/);
+  assert.equal(fromString.confidence, "missing");
+  assert.equal(fromString.tags, undefined);
+
+  // 结构化形态不受影响
+  const fromObject = sanitizeExpectedStatement(
+    { text: "正常流程", tags: ["crash"], confidence: "explicit" },
+    "safe"
+  );
+  assert.deepEqual(fromObject, {
+    text: "正常流程",
+    tags: ["crash"],
+    confidence: "explicit",
+  });
+
+  // 空字符串 / undefined 仍视为缺失
+  assert.equal(sanitizeExpectedStatement("   ", "safe"), undefined);
+  assert.equal(sanitizeExpectedStatement(undefined, "safe"), undefined);
 });
 
 test("safe mode preserves nested JSON structure while redacting nested.secret", () => {

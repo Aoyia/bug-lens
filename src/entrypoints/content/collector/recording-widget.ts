@@ -3,7 +3,8 @@ import { t } from "../../../shared/i18n.ts";
 export type WidgetCallbacks = {
   onStop(): void;
   onStopAndDiscard(): void;
-  onMarkIssue(): void;
+  /** 点击"标记问题"时触发；anchor 为鼠标点击坐标（用于速记卡就近定位）。 */
+  onMarkIssue(anchor?: { x: number; y: number }): void;
   isPaused?(): boolean;
   getStartedAtEpochMs(): number;
   isIdlePaused(): boolean;
@@ -292,10 +293,11 @@ export class RecordingWidget {
         const issueBtn = root.querySelector("#__wbr_issue_btn__");
         issueBtn?.addEventListener(
           "click",
-          (e) => {
+          (e: Event) => {
             e.stopPropagation();
             e.preventDefault();
-            this.callbacks.onMarkIssue();
+            const me = e as MouseEvent;
+            this.callbacks.onMarkIssue({ x: me.clientX, y: me.clientY });
           },
           true
         );

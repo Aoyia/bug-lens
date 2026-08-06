@@ -110,8 +110,12 @@ export interface AIScreenshotPayload {
 
 /**
  * 将 AIScreenshotPayload 转化为供 AI 直接使用的 Markdown 上下文 Prompt 字符串。
+ * 传入 zipPath 时（下载完成拿到真实绝对路径后）会替换路径占位符，供 AI 直接读取 ZIP。
  */
-export function formatPayloadToMarkdown(payload: AIScreenshotPayload): string {
+export function formatPayloadToMarkdown(
+  payload: AIScreenshotPayload,
+  zipPath?: string
+): string {
   const errCount = payload.environment.recentConsoleErrors.length;
   const reqCount = payload.environment.recentFailedRequests.length;
   const title = payload.environment.title || "未知页面";
@@ -119,11 +123,13 @@ export function formatPayloadToMarkdown(payload: AIScreenshotPayload): string {
   const w = Math.round(payload.cropBounds.width);
   const h = Math.round(payload.cropBounds.height);
   const dpr = payload.image.devicePixelRatio || 1;
+  const pathLine = zipPath
+    ? `文件路径：\n${zipPath}`
+    : "文件路径：\n{请将这里替换为导出的 ZIP 绝对路径}";
 
   return `请作为高级 Frontend/Fullstack 调试专家，分析以下本地 Bug Lens 截图证据包：
 
-文件路径：
-{请将这里替换为导出的 ZIP 绝对路径}
+${pathLine}
 
 元数据摘要：
 - 页面 & URL：${title} (${url})

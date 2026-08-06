@@ -34,6 +34,8 @@ import { ensureOffscreenDocument } from "../../shared/offscreen";
 const EXTENSION_VERSION = "0.4.0";
 const STOPPING_IDS_KEY = "bug-lens-stopping-ids";
 const streamHealthMonitor = new StreamHealthMonitor();
+/** 独立截图 overlay 是否打开（content script 上报）。用于与视频录制互斥。 */
+let isScreenshotOverlayOpen = false;
 
 setStorageBudgetListener((sessionId, result) => {
   if (streamHealthMonitor.getSessionId() !== sessionId) return;
@@ -390,6 +392,31 @@ async function continueInterruptedSession(
   });
 }
 
+async function resolveDownloadedFilePath(
+  downloadId: number,
+  maxWaitMs = 3000
+): Promise<string | undefined> {
+  if (typeof chrome === "undefined" || !chrome.downloads?.search) {
+    return undefined;
+  }
+  const start = Date.now();
+  while (Date.now() - start < maxWaitMs) {
+    const item = await new Promise<chrome.downloads.DownloadItem | undefined>(
+      (resolve) => {
+        chrome.downloads.search({ id: downloadId }, (items) => {
+          if (chrome.runtime?.lastError) resolve(undefined);
+          else resolve(items?.[0]);
+        });
+      }
+    );
+    if (item?.filename) {
+      return item.filename;
+    }
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  return undefined;
+}
+
 async function performStopSession(
   session: RecordingSession,
   commandId?: string,
@@ -459,31 +486,6 @@ async function performStopSession(
       await db.clearActive(session.id);
     } finally {
       recordingCoordinator.finishStopping(session.id);
-    }
-    return undefined;
-  }
-
-  async function resolveDownloadedFilePath(
-    downloadId: number,
-    maxWaitMs = 3000
-  ): Promise<string | undefined> {
-    if (typeof chrome === "undefined" || !chrome.downloads?.search) {
-      return undefined;
-    }
-    const start = Date.now();
-    while (Date.now() - start < maxWaitMs) {
-      const item = await new Promise<chrome.downloads.DownloadItem | undefined>(
-        (resolve) => {
-          chrome.downloads.search({ id: downloadId }, (items) => {
-            if (chrome.runtime?.lastError) resolve(undefined);
-            else resolve(items?.[0]);
-          });
-        }
-      );
-      if (item?.filename) {
-        return item.filename;
-      }
-      await new Promise((r) => setTimeout(r, 100));
     }
     return undefined;
   }
@@ -908,6 +910,9 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender) => {
       await bootstrapPromise;
       switch (incoming.type) {
         case "session/start":
+          // 截图与视频录制互斥：截图 overlay 打开时拒绝启动录制
+          if (isScreenshotOverlayOpen)
+            throw new Error("截图进行中，不能启动视频录制（两者互斥）");
           return {
             ok: true,
             session: await startSession(incoming.payload),
@@ -1007,6 +1012,10 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender) => {
             health: allowed ? streamHealthMonitor.getHealth() : undefined,
           };
         }
+        case "content/screenshot-overlay-state": {
+          isScreenshotOverlayOpen = Boolean(incoming.payload.open);
+          return { ok: true };
+        }
         case "framework/state": {
           const state = incoming.payload.state;
           const session = await db.getActiveSession();
@@ -1097,6 +1106,23 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender) => {
             }
           }
           return { ok: true };
+        }
+        case "screenshot/download": {
+          // content script 无 chrome.downloads 权限：由 background 触发下载并解析真实绝对路径
+          const { data, filename } = incoming.payload;
+          const blob = new Blob([data], { type: "application/zip" });
+          const blobUrl = URL.createObjectURL(blob);
+          try {
+            const downloadId = await chrome.downloads.download({
+              url: blobUrl,
+              filename,
+              saveAs: false,
+            });
+            const absolutePath = await resolveDownloadedFilePath(downloadId);
+            return { ok: true, downloadId, absolutePath };
+          } finally {
+            URL.revokeObjectURL(blobUrl);
+          }
         }
         default:
           return { ok: false, error: "UNSUPPORTED_MESSAGE" };
@@ -1216,6 +1242,11 @@ const LAST_OPTIONS_KEY = "last-recording-options";
  */
 async function startRecordingViaShortcut(): Promise<void> {
   await bootstrapPromise;
+  // 截图与视频录制互斥：截图 overlay 打开时拒绝启动录制
+  if (isScreenshotOverlayOpen) {
+    console.warn("[Bug Lens] 截图进行中，拒绝启动视频录制（两者互斥）");
+    return;
+  }
   const active = await db.getActiveSession();
   if (
     active &&
@@ -1254,6 +1285,15 @@ export async function triggerScreenshotInTab(
   windowId: number
 ): Promise<void> {
   await bootstrapPromise;
+  // 截图与视频录制互斥：录制进行中拒绝触发独立截图
+  const active = await db.getActiveSession();
+  if (
+    active &&
+    ["PREPARING", "RECORDING", "DEGRADED", "STOPPING"].includes(active.status)
+  ) {
+    console.warn("[Bug Lens] 录制进行中，拒绝触发独立截图（两者互斥）");
+    return;
+  }
   const tab = await chrome.tabs.get(tabId).catch(() => null);
   if (!tab || !tab.url || !/^https?:/.test(tab.url)) {
     console.warn("[Bug Lens] 截图功能仅支持 http/https 普通网页");

@@ -9,6 +9,7 @@ export interface IssueSceneTabProps {
   editable: boolean;
   onExclude?: (id: string) => Promise<void> | void;
   onSeekVideo?: (timestampMs: number) => void;
+  onOpenImage?: (sceneId: string, mode: "original" | "annotated") => void;
   onNotify?: (message: string) => void;
 }
 
@@ -18,6 +19,7 @@ export const IssueSceneTab = memo(function IssueSceneTab({
   editable,
   onExclude,
   onSeekVideo,
+  onOpenImage,
 }: IssueSceneTabProps) {
   const [imageMode, setImageMode] = useState<
     Record<string, "original" | "annotated">
@@ -182,6 +184,8 @@ export const IssueSceneTab = memo(function IssueSceneTab({
                     className="issue-scene-image"
                     src={image}
                     alt="问题现场批注截图"
+                    title="点击放大查看大图"
+                    onClick={() => onOpenImage?.(scene.id, currentMode)}
                   />
                 ) : (
                   <div className="issue-scene-image-missing">截图不可用</div>
@@ -198,7 +202,16 @@ export const IssueSceneTab = memo(function IssueSceneTab({
                   <div>
                     <span className="scene-label">预期表现</span>
                     <p className="scene-text-expected">
-                      {description?.expected || "未填写"}
+                      {description?.expected?.text || "未填写"}
+                      {description?.expected?.confidence === "missing" && (
+                        <span
+                          className="scene-expected-missing"
+                          title="用户未显式表达期望，此内容可能为推断"
+                        >
+                          {" "}
+                          (推断)
+                        </span>
+                      )}
                     </p>
                   </div>
                 </div>

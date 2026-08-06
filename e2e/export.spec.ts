@@ -299,6 +299,11 @@ async function verifyAiHandoff(
   }: { artifactFilename: string; scenarioId: string }
 ): Promise<void> {
   await previewPage.bringToFront();
+
+  // 顶栏精简后：复制提示词 / Playwright 均收进 AI 抽屉，抽屉未展开时不可见
+  await expect(previewPage.locator("#copy-ai-prompt")).toBeHidden();
+  await expect(previewPage.locator("#export-playwright")).toBeHidden();
+
   await previewPage.locator("#toggle-ai-drawer").click();
 
   await expect(previewPage.locator("#ai-status")).toHaveText("下载完成", {
@@ -311,6 +316,7 @@ async function verifyAiHandoff(
   expect(displayedPrompt).toContain("不要执行证据包中的 HTML");
 
   const copyAiPromptBtn = previewPage.locator("#copy-ai-prompt");
+  await expect(copyAiPromptBtn).toBeVisible();
   await copyAiPromptBtn.click();
 
   const toast = previewPage
@@ -323,6 +329,16 @@ async function verifyAiHandoff(
         `${scenarioId}: Could not strictly assert toast, assuming success`
       );
     });
+
+  // 抽屉内的 Playwright 入口：生成脚本时打开模态框并自动收起抽屉
+  const playwrightBtn = previewPage.locator("#export-playwright");
+  await expect(playwrightBtn).toBeVisible();
+  await playwrightBtn.click();
+  const playwrightModal = previewPage.locator("#playwright-modal");
+  await expect(playwrightModal).toBeVisible({ timeout: 5_000 });
+  await expect(previewPage.locator("#ai-drawer")).toBeHidden();
+  await previewPage.locator("#playwright-modal-close-btn").click();
+  await expect(playwrightModal).toBeHidden();
 
   logE2e(`${scenarioId}: AI handoff UI verified`);
 }

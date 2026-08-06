@@ -1,6 +1,12 @@
 import type { InteractionRecord } from "../shared/protocol";
+import type { IssueScenePreview } from "./issue-scene-view";
 
-type ScreenshotItem = { interaction: InteractionRecord; stepIndex: number };
+type ViewerImageItem = {
+  id: string;
+  title: string;
+  downloadName: string;
+  dataUrl: string;
+};
 
 function dataUrlToBlob(dataUrl: string): Blob {
   const [metadata, encoded = ""] = dataUrl.split(",", 2);
@@ -18,7 +24,7 @@ function dataUrlToBlob(dataUrl: string): Blob {
 export class ImageViewer {
   private readonly root: Document;
   private readonly notify: (message: string) => void;
-  private items: ScreenshotItem[] = [];
+  private items: ViewerImageItem[] = [];
   private currentIndex = 0;
   private scale = 1;
   private translateX = 0;
@@ -35,12 +41,64 @@ export class ImageViewer {
   }
 
   open(interactions: InteractionRecord[], interactionId: string): void {
-    this.items = interactions
-      .map((interaction, stepIndex) => ({ interaction, stepIndex }))
-      .filter(({ interaction }) => Boolean(interaction.screenshot.dataUrl));
-    const selectedIndex = this.items.findIndex(
-      ({ interaction }) => interaction.id === interactionId
+    const items: ViewerImageItem[] = interactions.flatMap(
+      (interaction, stepIndex) => {
+        const dataUrl = interaction.screenshot.dataUrl;
+        if (!dataUrl) return [];
+        return [
+          {
+            id: interaction.id,
+            title: `步骤 ${stepIndex + 1}. ${interaction.element.text || interaction.element.tagName}`,
+            downloadName: `step-${stepIndex + 1}-screenshot.png`,
+            dataUrl,
+          },
+        ];
+      }
     );
+    this.openItems(items, interactionId);
+  }
+
+  openScenes(
+    scenes: IssueScenePreview[],
+    sceneId: string,
+    mode: "original" | "annotated" = "annotated"
+  ): void {
+    const items: ViewerImageItem[] = [];
+    let selectedId: string | undefined;
+    for (const [sceneIndex, item] of scenes.entries()) {
+      const scene = item.scene;
+      const candidates: Array<{
+        mode: "original" | "annotated";
+        url?: string;
+      }> = [
+        { mode: "annotated", url: item.annotatedSource },
+        { mode: "original", url: item.originalSource },
+      ];
+      let sceneFirstId: string | undefined;
+      for (const candidate of candidates) {
+        if (!candidate.url) continue;
+        const id = `${scene.id}:${candidate.mode}`;
+        items.push({
+          id,
+          title: `问题现场 ${sceneIndex + 1} · ${new Date(scene.observedAtEpochMs).toLocaleTimeString()}（${candidate.mode === "annotated" ? "批注图" : "原图"}）`,
+          downloadName: `issue-scene-${sceneIndex + 1}-${candidate.mode}.png`,
+          dataUrl: candidate.url,
+        });
+        if (!sceneFirstId) sceneFirstId = id;
+        if (scene.id === sceneId && candidate.mode === mode) selectedId = id;
+      }
+      if (scene.id === sceneId && !selectedId && sceneFirstId) {
+        selectedId = sceneFirstId;
+      }
+    }
+    this.openItems(items, selectedId);
+  }
+
+  private openItems(items: ViewerImageItem[], selectedId?: string): void {
+    this.items = items;
+    const selectedIndex = selectedId
+      ? this.items.findIndex((item) => item.id === selectedId)
+      : -1;
     this.currentIndex = selectedIndex < 0 ? 0 : selectedIndex;
     if (!this.items.length) return;
     this.updateView();
@@ -81,10 +139,8 @@ export class ImageViewer {
   private updateView(): void {
     const current = this.items[this.currentIndex];
     if (!current) return;
-    this.element<HTMLImageElement>("#modal-image").src =
-      current.interaction.screenshot.dataUrl || "";
-    this.element("#modal-step-title").textContent =
-      `步骤 ${current.stepIndex + 1}. ${current.interaction.element.text || current.interaction.element.tagName}`;
+    this.element<HTMLImageElement>("#modal-image").src = current.dataUrl;
+    this.element("#modal-step-title").textContent = current.title;
     this.element("#modal-step-counter").textContent =
       `${this.currentIndex + 1} / ${this.items.length}`;
     this.element<HTMLButtonElement>("#modal-prev-btn").disabled =
@@ -117,8 +173,7 @@ export class ImageViewer {
   }
 
   private async copyCurrent(): Promise<void> {
-    const dataUrl =
-      this.items[this.currentIndex]?.interaction.screenshot.dataUrl;
+    const dataUrl = this.items[this.currentIndex]?.dataUrl;
     if (!dataUrl) return;
     try {
       const blob = dataUrlToBlob(dataUrl);
@@ -136,11 +191,11 @@ export class ImageViewer {
 
   private downloadCurrent(): void {
     const current = this.items[this.currentIndex];
-    const dataUrl = current?.interaction.screenshot.dataUrl;
+    const dataUrl = current?.dataUrl;
     if (!dataUrl) return;
     const link = this.root.createElement("a");
     link.href = dataUrl;
-    link.download = `step-${current.stepIndex + 1}-screenshot.png`;
+    link.download = current.downloadName;
     this.root.body.appendChild(link);
     link.click();
     link.remove();

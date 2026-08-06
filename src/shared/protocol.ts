@@ -512,6 +512,20 @@ export type EvidenceAsset = {
   height: number;
   createdAtEpochMs: number;
 };
+/**
+ * 用户对问题现场的"期望"陈述（结构化）。
+ * confidence 区分"用户显式表达"与"未捕获/缺失"，供 AI 诊断时如实使用，
+ * 禁止在缺失时脑补为已知事实。
+ */
+export type ExpectedStatement = {
+  /** 用户语言描述（速记卡输入或编辑器填写；chips 文案并入） */
+  text: string;
+  /** 快速标签（速记卡 chips 选择结果，可空） */
+  tags?: string[];
+  /** 期望是否被用户显式表达 */
+  confidence: "explicit" | "missing";
+};
+
 export type IssueScene = {
   id: string;
   sessionId: string;
@@ -530,7 +544,11 @@ export type IssueScene = {
   };
   target: TargetDomSnapshot;
   targets?: TargetDomSnapshot[];
-  narrative?: { actual: string; expected?: string; note?: string };
+  narrative?: {
+    actual: string;
+    expected?: ExpectedStatement;
+    note?: string;
+  };
   annotation: AnnotationModel;
   screenshot: {
     status: "pending" | "captured" | "partial" | "unavailable";
@@ -652,6 +670,8 @@ export type RuntimeMessage =
         nonce: string;
         observedAtEpochMs: number;
         selectionStartedAtEpochMs?: number;
+        /** 按下"标记问题"瞬间捕获的期望（速记卡确认结果） */
+        expectedAtMarkTime?: ExpectedStatement;
         page: IssueScene["page"];
         target: TargetDomSnapshot;
         targets?: TargetDomSnapshot[];
@@ -663,7 +683,11 @@ export type RuntimeMessage =
       {
         issueSceneId: string;
         nonce: string;
-        narrative: { actual: string; expected?: string; note?: string };
+        narrative: {
+          actual: string;
+          expected?: ExpectedStatement;
+          note?: string;
+        };
         annotation: AnnotationModel;
         stopAfterCommit: boolean;
       }
@@ -677,6 +701,7 @@ export type RuntimeMessage =
     >
   | Envelope<"content/reset", Record<string, never>>
   | Envelope<"content/health-update", { health: RecordingHealthInfo }>
+  | Envelope<"content/screenshot-overlay-state", { open: boolean }>
   | Envelope<"framework/state", { state: FrameworkStateEvidence }>
   | Envelope<
       "offscreen/start-media",
@@ -731,6 +756,13 @@ export type RuntimeMessage =
       }
     >
   | Envelope<"screenshot/trigger", { tabId?: number }>
+  | Envelope<
+      "screenshot/download",
+      {
+        data: ArrayBuffer;
+        filename: string;
+      }
+    >
   | Envelope<
       "offscreen/export-pack",
       {
@@ -802,6 +834,7 @@ export type RuntimeMessageResponseMap = {
   };
   "content/reset": { ok: true };
   "content/health-update": { ok: true };
+  "content/screenshot-overlay-state": { ok: true };
   "framework/state": { ok: true; stored: boolean };
   "offscreen/start-media": { ok: true };
   "offscreen/stop-media": { ok: true };
@@ -813,6 +846,11 @@ export type RuntimeMessageResponseMap = {
   "offscreen/media-state": { ok: true };
   "offscreen/storage-state": { ok: true };
   "screenshot/trigger": { ok: true };
+  "screenshot/download": {
+    ok: true;
+    downloadId?: number;
+    absolutePath?: string;
+  };
   "offscreen/export-pack": {
     ok: true;
     prompt?: string;

@@ -101,6 +101,20 @@ describe("Screenshot Payload Formatter", () => {
     assert.match(md, /请作为高级 Frontend\/Fullstack 调试专家/);
     assert.match(md, /https:\/\/example\.com\/checkout/);
     assert.match(md, /1 条 Console 报错 \| 1 个失败网络请求/);
+    // 未提供路径时保留占位符，等待用户手动替换
+    assert.match(md, /请将这里替换为导出的 ZIP 绝对路径/);
+  });
+
+  test("formatPayloadToMarkdown injects the real ZIP absolute path when zipPath is provided", () => {
+    const md = formatPayloadToMarkdown(
+      mockPayload,
+      "/Users/tester/Downloads/bug-lens-screenshot-2026-08-06.zip"
+    );
+    assert.match(
+      md,
+      /文件路径：\n\/Users\/tester\/Downloads\/bug-lens-screenshot-2026-08-06\.zip/
+    );
+    assert.doesNotMatch(md, /请将这里替换为导出的 ZIP 绝对路径/);
   });
 
   test("formatPayloadToHtml generates HTML with embedded image and markdown pre tag", () => {

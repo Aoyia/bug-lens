@@ -68,13 +68,25 @@ test.describe("Bug Lens Chrome Extension E2E ISSUE-001: Issue Scene Recording Jo
     const markIssueButton = targetPage.locator("#__wbr_issue_btn__");
     await expect(markIssueButton).toBeVisible({ timeout: 5_000 });
 
+    // 问题现场文案（速记卡与编辑器共用）
+    const actualText = "点击提交后页面没有任何响应";
+    const expectedText = "页面应显示提交成功提示";
+    const noteText = "ISSUE-001 自动化问题现场";
+
     // ==========================================
     // 四、进入问题选择模式
     // ==========================================
     // 1. 真实点击页面浮层标记按钮
     await markIssueButton.click();
 
-    // 2. 断言选择模式状态
+    // 2. 期望速记卡（Trigger-to-express）：先捕获期望，再进入元素选择
+    const expectedCard = targetPage.locator("#__wbr_expected_card__");
+    await expect(expectedCard).toBeVisible({ timeout: 3_000 });
+    await expectedCard.locator("[data-expected-input]").fill(expectedText);
+    await expectedCard.locator("[data-expected-confirm]").click();
+    await expect(expectedCard).toBeHidden();
+
+    // 3. 断言选择模式状态
     const selectionOverlay = targetPage.locator("#__wbr_issue_selection__");
     await expect(selectionOverlay).toBeVisible({ timeout: 3_000 });
 
@@ -119,7 +131,7 @@ test.describe("Bug Lens Chrome Extension E2E ISSUE-001: Issue Scene Recording Jo
         if (!selection || !selection.shadowRoot) return false;
         const finishBtn = selection.shadowRoot.querySelector("button");
         return Boolean(
-          finishBtn && finishBtn.textContent?.includes("完成截图 (1)")
+          finishBtn && finishBtn.textContent?.includes("进入截图 (1)")
         );
       },
       undefined,
@@ -142,10 +154,10 @@ test.describe("Bug Lens Chrome Extension E2E ISSUE-001: Issue Scene Recording Jo
       "Selection overlay successfully blocked regular interaction and page click events"
     );
 
-    // 6. 真实点击选择浮层中的“完成截图”按钮 (通过 Playwright locator 穿透 Shadow DOM)
+    // 6. 真实点击选择浮层中的"进入截图"按钮 (通过 Playwright locator 穿透 Shadow DOM)
     const finishBtn = targetPage
       .locator("#__wbr_issue_selection__")
-      .locator("button", { hasText: "完成截图" });
+      .locator("button", { hasText: "进入截图" });
     await expect(finishBtn).toBeVisible();
     await finishBtn.click();
 
@@ -184,23 +196,12 @@ test.describe("Bug Lens Chrome Extension E2E ISSUE-001: Issue Scene Recording Jo
     await targetPage.mouse.move(endX, endY, { steps: 5 });
     await targetPage.mouse.up();
 
-    // 4. 展开“详细”区域
-    const toggleMoreBtn = issueEditor.locator("[data-issue-toggle-more]");
-    await toggleMoreBtn.click();
-    await expect(issueEditor.locator("[data-issue-details-box]")).toBeVisible();
-
-    // 5. 填写文案
-    const actualText = "点击提交后页面没有任何响应";
-    const expectedText = "页面应显示提交成功提示";
-    const noteText = "ISSUE-001 自动化问题现场";
-    const labelText = "提交按钮异常";
-
+    // 4. 填写文案（期望输入框已由速记卡回填，此处确认最终值）
     await issueEditor.locator("[data-issue-actual]").fill(actualText);
     await issueEditor.locator("[data-issue-expected]").fill(expectedText);
     await issueEditor.locator("[data-issue-note]").fill(noteText);
-    await issueEditor.locator("[data-issue-label]").fill(labelText);
 
-    // 6. 点击“保存并继续”
+    // 5. 点击"保存并继续"
     const saveBtn = issueEditor.locator("[data-issue-save]");
     await saveBtn.click();
 
@@ -268,9 +269,11 @@ test.describe("Bug Lens Chrome Extension E2E ISSUE-001: Issue Scene Recording Jo
     // 七、Issue Scene 持久化契约
     // ==========================================
     expect(recordedScene.narrative?.actual).toBe(actualText);
-    expect(recordedScene.narrative?.expected).toBe(expectedText);
+    expect(recordedScene.narrative?.expected).toEqual({
+      text: expectedText,
+      confidence: "explicit",
+    });
     expect(recordedScene.narrative?.note).toBe(noteText);
-    expect(recordedScene.annotation?.label).toBe(labelText);
 
     expect(recordedScene.annotation?.userAnnotations?.length).toBe(1);
     const rectAnno = recordedScene.annotation?.userAnnotations?.[0];
@@ -438,6 +441,20 @@ test.describe("Bug Lens Chrome Extension E2E ISSUE-001: Issue Scene Recording Jo
 
     const restoredImageSrc = await cardImage.getAttribute("src");
     expect(restoredImageSrc).toBe(cardImageDimensions.src);
+
+    // 点击截图打开大图预览
+    const imageModal = previewPage.locator("#image-modal");
+    await expect(imageModal).toBeHidden();
+    await cardImage.click();
+    await expect(imageModal).toBeVisible();
+    const modalImage = imageModal.locator("#modal-image");
+    await expect(modalImage).toHaveAttribute("src", restoredImageSrc ?? "");
+    const modalTitle = await imageModal
+      .locator("#modal-step-title")
+      .innerText();
+    expect(modalTitle).toContain("问题现场 1");
+    await imageModal.locator("#modal-close-btn").click();
+    await expect(imageModal).toBeHidden();
 
     // 点击“跳转录像”
     const video = previewPage.locator("#video");

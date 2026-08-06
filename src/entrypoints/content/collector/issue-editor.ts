@@ -1,4 +1,8 @@
-import { message, type AnnotationModel } from "../../../shared/protocol";
+import {
+  message,
+  type AnnotationModel,
+  type IssueScene,
+} from "../../../shared/protocol";
 import { t } from "../../../shared/i18n";
 
 type ActiveDrawing = {
@@ -13,6 +17,8 @@ export type IssueSceneInit = {
   id: string;
   page: { viewport: { width: number; height: number } };
   annotation: AnnotationModel;
+  /** 速记卡确认的期望（capture 阶段已随场景落库），用于编辑器回填 */
+  narrative?: IssueScene["narrative"];
 };
 
 export type IssueEditorDeps = {
@@ -22,6 +28,17 @@ export type IssueEditorDeps = {
   onStopAfterCommit(): void;
   isMac: boolean;
 };
+
+/**
+ * P1 完整性兜底：实际表现为空时的二次确认决策。
+ * 首次提交且实际为空 → 需要提示并拦截（返回 true）；已提示过或实际非空 → 允许提交。
+ */
+export function shouldWarnEmptyActual(
+  actual: string,
+  alreadyWarned: boolean
+): boolean {
+  return actual.trim().length === 0 && !alreadyWarned;
+}
 
 /**
  * 问题现场编辑器。
@@ -112,36 +129,36 @@ export class IssueEditor {
         cursor: not-allowed;
       }
     </style>
-    <div style="position:absolute;top:18px;left:50%;transform:translateX(-50%);z-index:30;background:rgba(255,255,255,0.96);backdrop-filter:blur(16px);border:1px solid #e5e6eb;border-radius:4px;box-shadow:0 4px 16px rgba(0,0,0,0.12);padding:4px 8px;display:flex;align-items:center;gap:8px">
-      <div style="display:flex;align-items:center;gap:3px">
-        <button data-issue-tool="none" class="__wbr_issue_action __wbr_tool_btn" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:26px;background:#165dff;color:#ffffff;border:1px solid #165dff;border-radius:3px;cursor:pointer;padding:0;flex-shrink:0" title="浏览模式 (查看)">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+    <div style="position:absolute;top:14px;left:50%;transform:translateX(-50%);z-index:30;background:rgba(255,255,255,0.72);backdrop-filter:blur(14px);border:1px solid rgba(229,230,235,0.9);border-radius:4px;box-shadow:0 2px 10px rgba(0,0,0,0.08);padding:3px 6px;display:flex;align-items:center;gap:6px">
+      <div style="display:flex;align-items:center;gap:2px">
+        <button data-issue-tool="none" class="__wbr_issue_action __wbr_tool_btn" style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:22px;background:#165dff;color:#ffffff;border:1px solid #165dff;border-radius:3px;cursor:pointer;padding:0;flex-shrink:0" title="浏览模式 (查看)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
         </button>
-        <button data-issue-tool="rect" class="__wbr_issue_action __wbr_tool_btn" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:26px;background:#ffffff;color:#1d2129;border:1px solid #e5e6eb;border-radius:3px;cursor:pointer;padding:0;flex-shrink:0" title="绘制矩形框">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+        <button data-issue-tool="rect" class="__wbr_issue_action __wbr_tool_btn" style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:22px;background:transparent;color:#5f6b7c;border:1px solid transparent;border-radius:3px;cursor:pointer;padding:0;flex-shrink:0" title="绘制矩形框">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
         </button>
-        <button data-issue-tool="arrow" class="__wbr_issue_action __wbr_tool_btn" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:26px;background:#ffffff;color:#1d2129;border:1px solid #e5e6eb;border-radius:3px;cursor:pointer;padding:0;flex-shrink:0" title="绘制箭头">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="19" x2="19" y2="5"/><polyline points="12 5 19 5 19 12"/></svg>
+        <button data-issue-tool="arrow" class="__wbr_issue_action __wbr_tool_btn" style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:22px;background:transparent;color:#5f6b7c;border:1px solid transparent;border-radius:3px;cursor:pointer;padding:0;flex-shrink:0" title="绘制箭头">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="19" x2="19" y2="5"/><polyline points="12 5 19 5 19 12"/></svg>
         </button>
-        <button data-issue-tool="text" class="__wbr_issue_action __wbr_tool_btn" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:26px;background:#ffffff;color:#1d2129;border:1px solid #e5e6eb;border-radius:3px;cursor:pointer;padding:0;flex-shrink:0" title="添加文字批注">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="12" y1="4" x2="12" y2="20"/><line x1="9" y1="20" x2="15" y2="20"/></svg>
-        </button>
-      </div>
-      <div style="height:12px;width:1px;background:#e5e6eb"></div>
-      <div style="display:flex;align-items:center;gap:3px">
-        <button data-issue-tool-undo class="__wbr_issue_action" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:26px;background:#ffffff;color:#1d2129;border:1px solid #e5e6eb;border-radius:3px;cursor:pointer;padding:0;flex-shrink:0" title="${t("undo")}">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/></svg>
-        </button>
-        <button data-issue-tool-redo class="__wbr_issue_action" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:26px;background:#ffffff;color:#1d2129;border:1px solid #e5e6eb;border-radius:3px;cursor:pointer;padding:0;flex-shrink:0" title="${t("redo")}">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5v0A5.5 5.5 0 0 0 9.5 20H13"/></svg>
+        <button data-issue-tool="text" class="__wbr_issue_action __wbr_tool_btn" style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:22px;background:transparent;color:#5f6b7c;border:1px solid transparent;border-radius:3px;cursor:pointer;padding:0;flex-shrink:0" title="添加文字批注">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="12" y1="4" x2="12" y2="20"/><line x1="9" y1="20" x2="15" y2="20"/></svg>
         </button>
       </div>
-      <div style="height:12px;width:1px;background:#e5e6eb"></div>
-      <div style="display:flex;align-items:center;gap:3px">
-        <button data-issue-reselect class="__wbr_issue_action" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:26px;background:#ffffff;color:#1d2129;border:1px solid #e5e6eb;border-radius:3px;cursor:pointer;padding:0;flex-shrink:0" title="重新选择元素">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+      <div style="height:12px;width:1px;background:rgba(229,230,235,0.8)"></div>
+      <div style="display:flex;align-items:center;gap:2px">
+        <button data-issue-tool-undo class="__wbr_issue_action" style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:22px;background:transparent;color:#1d2129;border:1px solid transparent;border-radius:3px;cursor:pointer;padding:0;flex-shrink:0" title="${t("undo")}">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/></svg>
         </button>
-        <button data-issue-cancel class="__wbr_issue_action" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:26px;background:#ffffff;color:#5f6b7c;border:1px solid #e5e6eb;border-radius:3px;cursor:pointer;padding:0;flex-shrink:0;font-size:13px" title="取消关闭">✕</button>
+        <button data-issue-tool-redo class="__wbr_issue_action" style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:22px;background:transparent;color:#1d2129;border:1px solid transparent;border-radius:3px;cursor:pointer;padding:0;flex-shrink:0" title="${t("redo")}">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5v0A5.5 5.5 0 0 0 9.5 20H13"/></svg>
+        </button>
+      </div>
+      <div style="height:12px;width:1px;background:rgba(229,230,235,0.8)"></div>
+      <div style="display:flex;align-items:center;gap:2px">
+        <button data-issue-reselect class="__wbr_issue_action" style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:22px;background:transparent;color:#5f6b7c;border:1px solid transparent;border-radius:3px;cursor:pointer;padding:0;flex-shrink:0" title="重新选择元素">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+        </button>
+        <button data-issue-cancel class="__wbr_issue_action" style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:22px;background:transparent;color:#5f6b7c;border:1px solid transparent;border-radius:3px;cursor:pointer;padding:0;flex-shrink:0;font-size:12px" title="取消关闭">✕</button>
       </div>
     </div>
     <div style="width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;padding:52px 12px 24px;box-sizing:border-box;overflow:hidden;position:relative">
@@ -151,30 +168,21 @@ export class IssueEditor {
       </div>
     </div>
     <div data-issue-control-card style="position:fixed;z-index:30;width:min(calc(100vw - 32px),640px);background:rgba(255,255,255,0.96);backdrop-filter:blur(20px);border:1px solid #e5e6eb;border-radius:2px;box-shadow:0 8px 30px rgba(0,0,0,0.18);padding:10px 12px;display:flex;flex-direction:column;gap:8px;transition:top 0.15s ease-out, left 0.15s ease-out">
-      <div data-issue-details-box style="display:none;flex-direction:column;gap:8px;padding-bottom:6px;border-bottom:1px solid #e5e6eb">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-          <label style="display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:500;color:#5f6b7c">
-            预期表现
-            <textarea data-issue-expected rows="2" placeholder="例如：应显示成功提示" style="width:100%;box-sizing:border-box;padding:6px 8px;font-size:12px;font-family:inherit;resize:none;outline:none;border-radius:2px"></textarea>
-          </label>
-          <label style="display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:500;color:#5f6b7c">
-            截图短标签 (可选)
-            <input data-issue-label maxlength="80" placeholder="例如：登陆页表单" style="width:100%;box-sizing:border-box;padding:6px 8px;font-size:12px;font-family:inherit;outline:none;border-radius:2px">
-          </label>
-        </div>
-        <label style="display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:500;color:#5f6b7c">
-          补充说明
-          <textarea data-issue-note rows="2" placeholder="补充上下文" style="width:100%;box-sizing:border-box;padding:6px 8px;font-size:12px;font-family:inherit;resize:none;outline:none;border-radius:2px"></textarea>
-        </label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <input data-issue-actual placeholder="实际表现 (例如：点击无反应)" style="width:100%;box-sizing:border-box;height:34px;padding:0 10px;font-size:12px;font-family:inherit;outline:none;border-radius:2px">
+        <input data-issue-expected placeholder="预期：例如应显示成功提示" style="width:100%;box-sizing:border-box;height:34px;padding:0 10px;font-size:12px;font-family:inherit;outline:none;border-radius:2px">
       </div>
+      <label style="display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:500;color:#5f6b7c">
+        补充说明 (可选) · 前因、复现步骤、影响范围
+        <textarea data-issue-note rows="2" placeholder="补充上下文" style="width:100%;box-sizing:border-box;padding:6px 8px;font-size:12px;font-family:inherit;resize:none;outline:none;border-radius:2px"></textarea>
+      </label>
       <div style="display:flex;align-items:center;gap:8px">
         <div data-issue-drag-handle style="display:flex;align-items:center;justify-content:center;cursor:grab;padding:0 2px;color:#8c97a8;user-select:none;touch-action:none" title="按住拖拽拖动面板">
           <svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor"><circle cx="3" cy="3" r="1.5"/><circle cx="7" cy="3" r="1.5"/><circle cx="3" cy="8" r="1.5"/><circle cx="7" cy="8" r="1.5"/><circle cx="3" cy="13" r="1.5"/><circle cx="7" cy="13" r="1.5"/></svg>
         </div>
-        <input data-issue-actual placeholder="描述问题实际表现 (例如：点击无反应)" style="flex:1;height:34px;box-sizing:border-box;padding:0 10px;font-size:12px;font-family:inherit;outline:none;border-radius:2px">
-        <button data-issue-toggle-more class="__wbr_issue_action" style="display:inline-flex;align-items:center;gap:3px;background:transparent;color:#5f6b7c;border:1px solid #e5e6eb;border-radius:2px;height:34px;padding:0 8px;font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap">详细 ▾</button>
-        <button data-issue-save class="__wbr_issue_action" style="display:inline-flex;align-items:center;gap:4px;background:#ffffff;color:#1d2129;border:1px solid #e5e6eb;border-radius:2px;height:34px;padding:0 10px;font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap">保存并继续</button>
-        <button data-issue-save-stop class="__wbr_issue_action" style="display:inline-flex;align-items:center;gap:4px;background:#ef233c;color:#ffffff;border:none;border-radius:2px;height:34px;padding:0 14px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">保存并结束</button>
+        <div style="flex:1"></div>
+        <button data-issue-save class="__wbr_issue_action" style="display:inline-flex;align-items:center;gap:4px;background:#165dff;color:#ffffff;border:1px solid #165dff;border-radius:2px;height:34px;padding:0 16px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">保存并继续</button>
+        <button data-issue-save-stop class="__wbr_issue_action" style="display:inline-flex;align-items:center;gap:4px;background:transparent;color:#86909c;border:1px solid #e5e6eb;border-radius:2px;height:28px;padding:0 8px;font-size:12px;font-weight:400;cursor:pointer;white-space:nowrap" title="保存并停止录制">保存并结束</button>
       </div>
       <div data-issue-error style="color:#b42318;font-size:12px;padding:6px 10px;border-radius:2px;background:#fde3df;border:1px solid #f99f95;display:none"></div>
     </div>`;
@@ -278,6 +286,15 @@ export class IssueEditor {
     const actualInput = root.querySelector<HTMLInputElement>(
       "[data-issue-actual]"
     );
+    // A2 前置回填：速记卡确认的期望已在 capture 阶段落库，打开编辑器时
+    // 回填到输入框，用户只需确认或微调。
+    const expectedInput = root.querySelector<HTMLInputElement>(
+      "[data-issue-expected]"
+    );
+    const backfillExpected = scene.narrative?.expected?.text?.trim();
+    if (expectedInput && backfillExpected) {
+      expectedInput.value = backfillExpected;
+    }
     setTimeout(() => actualInput?.focus(), 50);
 
     // ─── Drawing Tools ───
@@ -296,9 +313,9 @@ export class IssueEditor {
         activeTool = tool;
         toolButtons.forEach((b) => {
           const isCurrent = b === btn;
-          b.style.background = isCurrent ? "#165dff" : "#ffffff";
-          b.style.color = isCurrent ? "#ffffff" : "#1d2129";
-          b.style.borderColor = isCurrent ? "#165dff" : "#e5e6eb";
+          b.style.background = isCurrent ? "#165dff" : "transparent";
+          b.style.color = isCurrent ? "#ffffff" : "#5f6b7c";
+          b.style.borderColor = isCurrent ? "#165dff" : "transparent";
         });
         svg.style.cursor = activeTool === "none" ? "default" : "crosshair";
       });
@@ -318,14 +335,14 @@ export class IssueEditor {
       if (undoBtn) {
         undoBtn.disabled = !hasUndo;
         undoBtn.style.color = hasUndo ? "#1d2129" : "#c0c6d0";
-        undoBtn.style.background = hasUndo ? "#ffffff" : "#f7f8fa";
+        undoBtn.style.background = "transparent";
         undoBtn.style.cursor = hasUndo ? "pointer" : "not-allowed";
         undoBtn.style.opacity = "1";
       }
       if (redoBtn) {
         redoBtn.disabled = !hasRedo;
         redoBtn.style.color = hasRedo ? "#1d2129" : "#c0c6d0";
-        redoBtn.style.background = hasRedo ? "#ffffff" : "#f7f8fa";
+        redoBtn.style.background = "transparent";
         redoBtn.style.cursor = hasRedo ? "pointer" : "not-allowed";
         redoBtn.style.opacity = "1";
       }
@@ -562,28 +579,21 @@ export class IssueEditor {
       }
     });
 
-    // ─── Details Toggle & Form ───
-    const detailsBox = root.querySelector<HTMLElement>(
-      "[data-issue-details-box]"
-    )!;
-    const toggleBtn = root.querySelector<HTMLElement>(
-      "[data-issue-toggle-more]"
-    );
-    toggleBtn?.addEventListener("click", () => {
-      const isHidden = detailsBox.style.display === "none";
-      detailsBox.style.display = isHidden ? "flex" : "none";
-      toggleBtn.textContent = isHidden ? "收起 ▴" : "详细 ▾";
-      requestAnimationFrame(positionControlCard);
-    });
+    // ─── Form & Commit ───
     const error = root.querySelector<HTMLElement>("[data-issue-error]")!;
     const setError = (msg: string) => {
-      if (msg) {
-        error.textContent = msg;
-        error.style.display = "block";
-      } else {
-        error.textContent = "";
-        error.style.display = "none";
-      }
+      error.textContent = msg || "";
+      error.style.display = msg ? "block" : "none";
+      error.style.color = "#b42318";
+      error.style.background = "#fde3df";
+      error.style.borderColor = "#f99f95";
+    };
+    const setWarning = (msg: string) => {
+      error.textContent = msg;
+      error.style.display = "block";
+      error.style.color = "#9a6700";
+      error.style.background = "#fff7e6";
+      error.style.borderColor = "#ffd591";
     };
     const cancel = () => {
       window.removeEventListener("resize", positionControlCard);
@@ -605,17 +615,21 @@ export class IssueEditor {
         cancel();
         this.deps.onReselect();
       });
+    // P1 完整性兜底：实际表现为空时首次点击提示并聚焦，再次点击确认按空记录保存。
+    let emptyActualWarned = false;
     const commit = (stopAfterCommit: boolean) => {
-      const actual = root.querySelector<HTMLInputElement>(
-        "[data-issue-actual]"
-      )!.value;
-      const expected = root.querySelector<HTMLTextAreaElement>(
+      const actual = (actualInput?.value ?? "").trim();
+      if (shouldWarnEmptyActual(actual, emptyActualWarned)) {
+        emptyActualWarned = true;
+        setWarning("实际表现为空：请补充问题现象；再次点击保存将按空记录");
+        actualInput?.focus();
+        return;
+      }
+      const expectedText = root.querySelector<HTMLInputElement>(
         "[data-issue-expected]"
       )!.value;
       const note =
         root.querySelector<HTMLTextAreaElement>("[data-issue-note]")!.value;
-      const label =
-        root.querySelector<HTMLInputElement>("[data-issue-label]")!.value;
       root.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
         button.disabled = true;
       });
@@ -626,8 +640,15 @@ export class IssueEditor {
             {
               issueSceneId: scene.id,
               nonce: session.nonce,
-              narrative: { actual, expected, note },
-              annotation: { ...annotation, label: label.trim() || undefined },
+              narrative: {
+                actual,
+                // A3 结构化提交：编辑器中的期望视为用户显式表达（explicit）
+                expected: expectedText.trim()
+                  ? { text: expectedText.trim(), confidence: "explicit" }
+                  : undefined,
+                note,
+              },
+              annotation,
               stopAfterCommit,
             },
             session.sessionId

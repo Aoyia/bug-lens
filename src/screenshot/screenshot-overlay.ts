@@ -4,6 +4,17 @@ import type {
 } from "../domain/screenshot-payload.ts";
 import { processScreenshot } from "./screenshot-processor.ts";
 
+/**
+ * 截图完成后的 toast 文案：根据 ZIP 是否已注入本地绝对路径区分提示。
+ */
+export function buildScreenshotToastMessage(
+  promptInjectedWithPath: boolean
+): string {
+  return promptInjectedWithPath
+    ? "已下载 ZIP 并复制 AI 提示词（含本地绝对路径）！"
+    : "已下载 ZIP 并复制 AI 提示词，请在提示词中手动填入 ZIP 路径";
+}
+
 export class ScreenshotOverlay {
   private container: HTMLDivElement | null = null;
   private shadowRoot: ShadowRoot | null = null;
@@ -1034,13 +1045,13 @@ export class ScreenshotOverlay {
     }
 
     try {
-      const payload = await processScreenshot({
+      const { payload, promptInjectedWithPath } = await processScreenshot({
         viewportDataUrl,
         cropBounds: this.selection,
         annotations: this.annotations,
       });
 
-      this.showToast("已打包下载 ZIP 资源包并复制 AI 提示词到剪切板！");
+      this.showToast(buildScreenshotToastMessage(promptInjectedWithPath));
 
       if (this.onCompleteCallback) {
         this.onCompleteCallback(payload);

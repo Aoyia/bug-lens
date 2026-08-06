@@ -1,10 +1,10 @@
 import {
-  formatPayloadToHtml,
   formatPayloadToMarkdown,
   type AIScreenshotPayload,
   type AnnotationItem,
   type RectBounds,
 } from "../domain/screenshot-payload.ts";
+import { message } from "../shared/protocol.ts";
 import { collectSpatialDomTree } from "./dom-spatial-collector.ts";
 import { recentErrorsTracker } from "./recent-errors-tracker.ts";
 import {
@@ -174,10 +174,55 @@ export function drawAnnotationsOnCanvas(
   }
 }
 
+/**
+ * 截图处理结果。promptInjectedWithPath 表示剪切板中的 AI 提示词是否已写入真实 ZIP 绝对路径。
+ */
+export interface ScreenshotProcessResult {
+  payload: AIScreenshotPayload;
+  promptInjectedWithPath: boolean;
+}
+
+/** 将文本写入系统剪切板（navigator.clipboard 优先，execCommand 兜底） */
+async function writeTextToClipboard(text: string): Promise<boolean> {
+  let writeSuccess = false;
+  if (typeof navigator !== "undefined" && navigator.clipboard) {
+    if (navigator.clipboard.writeText) {
+      try {
+        await navigator.clipboard.writeText(text);
+        writeSuccess = true;
+      } catch (err) {
+        console.warn(
+          "Bug Lens: clipboard.writeText 写入失败，准备 Fallback",
+          err
+        );
+      }
+    }
+  }
+  // 如果 API 被阻断，通过 execCommand("copy") 兜底写入纯文本 Prompt
+  if (!writeSuccess && typeof document !== "undefined") {
+    try {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      textarea.style.left = "-9999px";
+      textarea.style.top = "-9999px";
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      const success = document.execCommand("copy");
+      document.body.removeChild(textarea);
+      if (success) writeSuccess = true;
+    } catch (err3) {
+      console.warn("Bug Lens: execCommand 复制降级失败", err3);
+    }
+  }
+  return writeSuccess;
+}
+
 /** 核心处理器：物理裁剪图片、提取 DOM 上下文、写入多 MIME 剪切板 */
 export async function processScreenshot(
   options: ProcessScreenshotOptions
-): Promise<AIScreenshotPayload> {
+): Promise<ScreenshotProcessResult> {
   const dpr =
     options.devicePixelRatio ||
     (typeof window !== "undefined" ? window.devicePixelRatio : 1);
@@ -289,47 +334,47 @@ export async function processScreenshot(
   const markdownContent = formatPayloadToMarkdown(payload);
 
   // 5. 优先同步写入系统剪切板（确保 Markdown AI Prompt 100% 成功写入）
-  let writeSuccess = false;
-  if (typeof navigator !== "undefined" && navigator.clipboard) {
-    if (navigator.clipboard.writeText) {
+  await writeTextToClipboard(markdownContent);
+
+  // 6. 打包 ZIP 并下载。优先经由 background 触发下载（content script 无 chrome.downloads
+  //    权限），拿到真实绝对路径后回写剪切板提示词；background 不可用时回退页面内 <a download>。
+  let promptInjectedWithPath = false;
+  try {
+    const zipPack = buildScreenshotZipPackage(payload);
+    let downloadedViaBackground = false;
+    if (typeof chrome !== "undefined" && chrome.runtime?.id) {
       try {
-        await navigator.clipboard.writeText(markdownContent);
-        writeSuccess = true;
-      } catch (err) {
+        const data = await zipPack.blob.arrayBuffer();
+        const response = (await chrome.runtime.sendMessage(
+          message("screenshot/download", { data, filename: zipPack.filename })
+        )) as
+          | { ok?: boolean; downloadId?: number; absolutePath?: string }
+          | undefined;
+        if (response?.ok) {
+          downloadedViaBackground = true;
+          if (response.absolutePath) {
+            const finalPrompt = formatPayloadToMarkdown(
+              payload,
+              response.absolutePath
+            );
+            promptInjectedWithPath = await writeTextToClipboard(finalPrompt);
+          }
+        }
+      } catch (bgErr) {
         console.warn(
-          "Bug Lens: clipboard.writeText 写入失败，准备 Fallback",
-          err
+          "Bug Lens: 经由 background 下载截图 ZIP 失败，回退页面内下载",
+          bgErr
         );
       }
     }
-  }
-
-  // 6. 如果 API 被阻断，通过 execCommand("copy") 兜底写入纯文本 Prompt
-  if (!writeSuccess && typeof document !== "undefined") {
-    try {
-      const textarea = document.createElement("textarea");
-      textarea.value = markdownContent;
-      textarea.style.position = "fixed";
-      textarea.style.left = "-9999px";
-      textarea.style.top = "-9999px";
-      document.body.appendChild(textarea);
-      textarea.focus();
-      textarea.select();
-      const success = document.execCommand("copy");
-      document.body.removeChild(textarea);
-      if (success) writeSuccess = true;
-    } catch (err3) {
-      console.warn("Bug Lens: execCommand 复制降级失败", err3);
+    if (!downloadedViaBackground) {
+      triggerZipDownload(zipPack.blobUrl, zipPack.filename);
+    } else if (zipPack.blobUrl) {
+      URL.revokeObjectURL(zipPack.blobUrl);
     }
-  }
-
-  // 7. 打包与触发 ZIP 文件下载（置于剪切板写入之后，避免 DOM 操作/下载动作打断剪切板权限手势）
-  try {
-    const zipPack = buildScreenshotZipPackage(payload);
-    triggerZipDownload(zipPack.blobUrl, zipPack.filename);
   } catch (zipErr) {
     console.warn("Bug Lens: 截图 ZIP 打包下载异常", zipErr);
   }
 
-  return payload;
+  return { payload, promptInjectedWithPath };
 }

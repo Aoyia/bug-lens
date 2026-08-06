@@ -1,6 +1,7 @@
 import {
   message,
   type AnnotationModel,
+  type ExpectedStatement,
   type TargetDomSnapshot,
 } from "../../../shared/protocol";
 import { defaultAnnotation } from "../../../domain/issue-scene";
@@ -27,6 +28,8 @@ export type SelectionOverlayDeps = {
   getSession():
     | { sessionId: string; nonce: string; privacyMode: "safe" | "raw" }
     | undefined;
+  /** 速记卡确认的期望（按下"标记问题"瞬间捕获），随 capture 消息透传 */
+  getPendingExpected?(): ExpectedStatement | undefined;
   onCaptureComplete(
     scene: {
       id: string;
@@ -135,7 +138,7 @@ export class SelectionOverlay {
     });
 
     const finishBtn = document.createElement("button");
-    finishBtn.textContent = "完成截图 (0)";
+    finishBtn.textContent = "进入截图 (0)";
     Object.assign(finishBtn.style, {
       background: "#ef233c",
       color: "#fff",
@@ -146,6 +149,7 @@ export class SelectionOverlay {
       fontWeight: "600",
       cursor: "pointer",
     });
+    finishBtn.title = "回车快捷进入截图";
 
     const clearBtn = document.createElement("button");
     clearBtn.textContent = "清空";
@@ -184,11 +188,11 @@ export class SelectionOverlay {
       { element: Element; clientX: number; clientY: number } | undefined;
 
     const updateUI = () => {
-      finishBtn.textContent = `完成截图 (${selectedItems.length})`;
+      finishBtn.textContent = `进入截图 (${selectedItems.length})`;
       if (selectedItems.length > 0) {
-        statusText.textContent = `已选中 ${selectedItems.length} 个元素 · 单击网页继续添加`;
+        statusText.textContent = `已选中 ${selectedItems.length} 个元素 · 单击继续添加 · 回车进入截图`;
       } else {
-        statusText.textContent = "多元素标记模式已开启 · 点击选择网页元素";
+        statusText.textContent = `标记模式 (${this.deps.shortcutKeyText}) · 点击选择网页元素 · 回车进入截图`;
       }
     };
 
@@ -278,15 +282,21 @@ export class SelectionOverlay {
       updateUI();
     };
 
-    finishBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      e.preventDefault();
+    // 结束选择并进入截图编辑器：按钮点击与回车共用同一路径
+    const doFinish = () => {
+      if (selectedItems.length === 0 && !currentHovered) return;
       shadow.querySelectorAll("div").forEach((el) => {
         if (el.textContent === "✕") el.style.display = "none";
       });
       hint.style.display = "none";
       outline.style.display = "none";
       this.captureMulti(selectedItems, currentHovered);
+    };
+
+    finishBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      doFinish();
     });
 
     clearBtn.addEventListener("click", (e) => {
@@ -353,10 +363,15 @@ export class SelectionOverlay {
     );
 
     this.escapeListener = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && this._isActive) {
+      if (!this._isActive) return;
+      if (event.key === "Escape") {
         event.preventDefault();
         this.close();
         this.deps.onCancel();
+      } else if (event.key === "Enter") {
+        // 回车快捷进入截图：有已选元素或正在 hover 的元素时生效，否则忽略
+        event.preventDefault();
+        doFinish();
       }
     };
     window.addEventListener("keydown", this.escapeListener, true);
@@ -541,6 +556,7 @@ export class SelectionOverlay {
               nonce: session.nonce,
               observedAtEpochMs: Date.now(),
               selectionStartedAtEpochMs,
+              expectedAtMarkTime: this.deps.getPendingExpected?.(),
               page: {
                 url: location.href,
                 title: document.title,

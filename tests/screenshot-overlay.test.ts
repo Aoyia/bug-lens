@@ -1,6 +1,9 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { ScreenshotOverlay } from "../src/screenshot/screenshot-overlay.ts";
+import {
+  ScreenshotOverlay,
+  buildScreenshotToastMessage,
+} from "../src/screenshot/screenshot-overlay.ts";
 
 describe("Screenshot Overlay - 微信截图4大核心优化卡口", () => {
   test("安全实例化 ScreenshotOverlay 结构", () => {
@@ -19,5 +22,10 @@ describe("Screenshot Overlay - 微信截图4大核心优化卡口", () => {
     assert.equal(typeof (overlay as any).spawnInlineTextInput, "function");
     assert.equal((overlay as any).isSelectionLocked, false);
     assert.equal((overlay as any).handleDblClick, undefined);
+  });
+
+  test("截图完成 toast 文案随 promptInjectedWithPath 分支", () => {
+    assert.match(buildScreenshotToastMessage(true), /含本地绝对路径/);
+    assert.match(buildScreenshotToastMessage(false), /手动填入 ZIP 路径/);
   });
 });

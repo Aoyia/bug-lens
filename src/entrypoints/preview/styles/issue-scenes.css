@@ -252,6 +252,12 @@
   font-size: 13px;
   color: var(--bl-text-sub, #4e5969);
 }
+.scene-expected-missing {
+  font-size: 11px;
+  font-weight: 500;
+  color: #f7a600;
+  white-space: nowrap;
+}
 .scene-note-wrap {
   padding-bottom: 8px;
   border-bottom: 1px solid var(--bl-border-subtle, #f2f3f5);

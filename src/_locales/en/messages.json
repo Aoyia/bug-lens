@@ -153,6 +153,33 @@
   "redo": {
     "message": "Redo"
   },
+  "expectedCardTitle": {
+    "message": "What should have happened?"
+  },
+  "expectedChipCrash": {
+    "message": "Page crash"
+  },
+  "expectedChipWrongData": {
+    "message": "Wrong data"
+  },
+  "expectedChipStyle": {
+    "message": "Broken layout"
+  },
+  "expectedChipNoResponse": {
+    "message": "No response"
+  },
+  "expectedChipLoadFailed": {
+    "message": "Load failed"
+  },
+  "expectedPlaceholder": {
+    "message": "e.g. a success toast should appear and redirect after submit"
+  },
+  "expectedSkip": {
+    "message": "Skip"
+  },
+  "expectedConfirm": {
+    "message": "Confirm"
+  },
   "shortcut": {
     "message": "Shortcut"
   },
@@ -339,6 +366,9 @@
   },
   "viewFullPrompt": {
     "message": "View Full Prompt"
+  },
+  "generatePlaywright": {
+    "message": "Generate Playwright Script"
   },
   "loadingMedia": {
     "message": "Loading media chunks…"

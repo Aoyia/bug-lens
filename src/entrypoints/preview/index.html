@@ -45,27 +45,7 @@
         </div>
         <div class="zen-titlebar-right">
           <div class="ai-prompt-popover-wrapper">
-            <!-- 1 步直达一键复制 AI 提示词 -->
-            <button id="copy-ai-prompt" class="secondary">
-              <span data-i18n="copyAiPrompt"
-                ><svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  style="margin-right: 4px"
-                >
-                  <path
-                    d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
-                  ></path></svg
-                >复制 AI 提示词</span
-              >
-            </button>
-            <!-- 悬浮查看路径与高级选项 -->
+            <!-- AI 交接状态 + 抽屉开关（复制提示词 / 路径 / Playwright 均在抽屉内） -->
             <button
               id="toggle-ai-drawer"
               class="ghost"
@@ -93,12 +73,30 @@
               </svg>
             </button>
 
-            <!-- AI 分析轻量悬浮抽屉 (挂载至按钮组正下方) -->
+            <!-- AI 分析轻量悬浮抽屉 (挂载至按钮正下方) -->
             <section id="ai-drawer" class="zen-ai-drawer" hidden>
               <div id="ai-path" class="ai-path" data-i18n="aiPathPlaceholder">
                 请先点击“导出离线报告”，完成下载后获取绝对路径。
               </div>
               <div class="ai-actions">
+                <button id="copy-ai-prompt" class="secondary">
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    style="margin-right: 4px; vertical-align: middle"
+                  >
+                    <path
+                      d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+                    ></path>
+                  </svg>
+                  <span data-i18n="copyAiPrompt">复制 AI 提示词</span>
+                </button>
                 <button
                   id="copy-ai-path"
                   class="secondary"
@@ -122,6 +120,28 @@
                 </summary>
                 <pre id="ai-prompt" class="ai-prompt"></pre>
               </details>
+              <div class="ai-drawer-divider"></div>
+              <button
+                id="export-playwright"
+                class="secondary ai-drawer-action"
+                title="生成 Playwright 自动化测试脚本草稿"
+              >
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  style="margin-right: 4px; vertical-align: middle"
+                >
+                  <polyline points="16 18 22 12 16 6"></polyline>
+                  <polyline points="8 6 2 12 8 18"></polyline>
+                </svg>
+                <span data-i18n="generatePlaywright">生成 Playwright 脚本</span>
+              </button>
             </section>
           </div>
 
@@ -135,28 +155,6 @@
               ></div>
             </div>
           </div>
-          <button
-            id="export-playwright"
-            class="secondary"
-            style="margin-left: 6px; font-size: 11px"
-            title="生成 Playwright 自动化测试脚本草稿"
-          >
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              style="margin-right: 4px; vertical-align: middle"
-            >
-              <polyline points="16 18 22 12 16 6"></polyline>
-              <polyline points="8 6 2 12 8 18"></polyline>
-            </svg>
-            Playwright
-          </button>
         </div>
       </header>
 

@@ -162,6 +162,18 @@
 .zen-ai-drawer[hidden] {
   display: none !important;
 }
+
+/* 抽屉内次级操作：分割线 + 整行按钮 */
+.ai-drawer-divider {
+  height: 1px;
+  margin: 12px 0;
+  background: var(--zen-border-subtle, rgba(0, 0, 0, 0.08));
+}
+
+.ai-drawer-action {
+  width: 100%;
+  justify-content: center;
+}
 @keyframes zen-slide-down {
   from {
     opacity: 0;

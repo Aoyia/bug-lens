@@ -2,6 +2,7 @@ import {
   defaultAnnotation,
   markIssueSceneResult,
   normalizeAnnotation,
+  normalizeExpected,
   withIssueNarrative,
 } from "../domain/issue-scene.ts";
 import { sanitizeIssueScene, sanitizeText } from "../domain/privacy-policy.ts";
@@ -173,6 +174,12 @@ export class IssueSceneCapture {
       target: payload.target,
       targets: payload.targets,
       annotation,
+      narrative: payload.expectedAtMarkTime
+        ? {
+            actual: "",
+            expected: normalizeExpected(payload.expectedAtMarkTime),
+          }
+        : undefined,
       screenshot: { status: "pending" },
       issues: [],
     };

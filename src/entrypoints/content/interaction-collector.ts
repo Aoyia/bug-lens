@@ -6,10 +6,14 @@ import {
   isMeaningfulFrameworkState,
 } from "../../domain/framework-state-capture";
 import { captureEnvironment } from "../../domain/environment-capture";
-import type { FrameworkStateTrigger } from "../../shared/protocol";
+import type {
+  ExpectedStatement,
+  FrameworkStateTrigger,
+} from "../../shared/protocol";
 import { RecordingWidget } from "./collector/recording-widget";
 import { SelectionOverlay } from "./collector/selection-overlay";
 import { IssueEditor } from "./collector/issue-editor";
+import { ExpectedCaptureCard } from "./collector/expected-capture-card";
 import { DomObserver } from "./collector/dom-observer";
 import { InactivityMonitor } from "./collector/inactivity-monitor";
 
@@ -37,6 +41,12 @@ import { recentErrorsTracker } from "../../screenshot/recent-errors-tracker";
 
 recentErrorsTracker.startListening();
 
+// 截图 overlay 初始为关闭：content script 重新注入（页面刷新等）时刷新 background
+// 的互斥标志，避免截图 overlay 异常销毁后残留"截图中"状态卡住录制启动。
+void chrome.runtime
+  .sendMessage(message("content/screenshot-overlay-state", { open: false }))
+  .catch(() => undefined);
+
 let screenshotOverlayInstance: ScreenshotOverlay | null = null;
 
 chrome.runtime.onMessage.addListener((msg, _sender, _sendResponse) => {
@@ -44,6 +54,14 @@ chrome.runtime.onMessage.addListener((msg, _sender, _sendResponse) => {
     if (!screenshotOverlayInstance) {
       screenshotOverlayInstance = new ScreenshotOverlay();
     }
+    // 截图 overlay 开闭状态上报 background，用于与视频录制互斥：
+    // 截图中拒绝启动录制，录制中拒绝触发截图。
+    const reportOverlayState = (open: boolean) => {
+      void chrome.runtime
+        .sendMessage(message("content/screenshot-overlay-state", { open }))
+        .catch(() => undefined);
+    };
+    reportOverlayState(true);
     screenshotOverlayInstance.show({
       viewportDataUrl: msg.viewportDataUrl,
       onComplete: (payload) => {
@@ -52,9 +70,11 @@ chrome.runtime.onMessage.addListener((msg, _sender, _sendResponse) => {
           payload
         );
         screenshotOverlayInstance = null;
+        reportOverlayState(false);
       },
       onCancel: () => {
         screenshotOverlayInstance = null;
+        reportOverlayState(false);
       },
     });
   }
@@ -88,6 +108,8 @@ if (existingController) {
   window.__WEB_BUG_RECORDER_INSTALLED__ = true;
   let session: ContentSession | undefined;
   let cachedStartedAtEpochMs: number | undefined;
+  /** 速记卡确认的期望，随 issue-scene/capture 透传，编辑器打开后清空。 */
+  let pendingExpected: ExpectedStatement | undefined;
 
   const isMac =
     typeof navigator !== "undefined" &&
@@ -129,8 +151,8 @@ if (existingController) {
       );
       widget.unmount();
     },
-    onMarkIssue() {
-      beginIssueSelection();
+    onMarkIssue(anchor) {
+      beginIssueSelection(anchor);
     },
     isPaused() {
       return monitor.isIdlePaused;
@@ -162,7 +184,9 @@ if (existingController) {
 
   const overlay: SelectionOverlay = new SelectionOverlay({
     getSession: () => session,
+    getPendingExpected: () => pendingExpected,
     onCaptureComplete(scene, dataUrl) {
+      pendingExpected = undefined;
       widget.unmount();
       editor.open(scene, dataUrl);
     },
@@ -179,6 +203,17 @@ if (existingController) {
     beginIssueSelection,
     removeIssueUi,
     onEvidenceTick: () => captureFrameworkTick("interaction"),
+  });
+
+  const expectedCard = new ExpectedCaptureCard({
+    onSubmit(expected) {
+      pendingExpected = expected;
+      proceedToIssueSelection();
+    },
+    onSkip() {
+      pendingExpected = undefined;
+      proceedToIssueSelection();
+    },
   });
 
   const monitor: InactivityMonitor = new InactivityMonitor({
@@ -237,7 +272,15 @@ if (existingController) {
       .catch(() => undefined);
   }
 
-  function beginIssueSelection(): void {
+  function beginIssueSelection(anchor?: { x: number; y: number }): void {
+    if (overlay.isActive || editor.isOpen || expectedCard.isOpen) return;
+    // 先弹出期望速记卡：在记忆峰值捕获"预期应该发生什么"（P2），
+    // 确认/跳过后再进入元素选择，全程不阻断主流程。
+    // 卡片就近锚定鼠标位置；快捷键触发时无锚点，回退顶部居中。
+    expectedCard.open(anchor);
+  }
+
+  function proceedToIssueSelection(): void {
     if (overlay.isActive || editor.isOpen) return;
     widget.setIssueSelecting(true);
     overlay.open();
@@ -247,6 +290,7 @@ if (existingController) {
   function removeIssueUi(): void {
     overlay.close();
     editor.close(false);
+    expectedCard.close();
     widget.setIssueSelecting(false);
   }
 

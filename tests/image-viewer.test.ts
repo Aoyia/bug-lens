@@ -3,7 +3,8 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { ImageViewer } from "../src/preview/image-viewer.ts";
-import type { InteractionRecord } from "../src/shared/protocol.ts";
+import type { InteractionRecord, IssueScene } from "../src/shared/protocol.ts";
+import type { IssueScenePreview } from "../src/preview/issue-scene-view.ts";
 
 type FakeElement = {
   hidden: boolean;
@@ -110,4 +111,98 @@ test("image viewer opens against the real preview template contract", () => {
       value: previousWindow,
     });
   }
+});
+
+function buildScene(id: string): IssueScene {
+  return {
+    id,
+    sessionId: "session",
+    status: "complete",
+    observedAtEpochMs: 1_700_000_000_000,
+    page: { url: "https://example.test", title: "Example", frameId: 0 },
+    target: {
+      capturedAtEpochMs: 1_700_000_000_000,
+      element: {
+        tagName: "BUTTON",
+        classNames: [],
+        attributes: {},
+        text: "Preview",
+        boundingBox: { x: 0, y: 0, width: 10, height: 10 },
+        locators: [],
+      },
+      ancestors: [],
+      state: {},
+      computedStyle: {},
+    },
+    annotation: {
+      type: "arrow-box",
+      color: "#ef233c",
+      point: { xRatio: 0.5, yRatio: 0.5 },
+    },
+    screenshot: { status: "captured" },
+    issues: [],
+  };
+}
+
+function withStubWindow(fn: () => void): void {
+  const previousWindow = globalThis.window;
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: { addEventListener() {}, setTimeout },
+  });
+  try {
+    fn();
+  } finally {
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: previousWindow,
+    });
+  }
+}
+
+test("image viewer opens issue scene screenshots and selects the requested mode", () => {
+  withStubWindow(() => {
+    const root = previewDocument();
+    const viewer = new ImageViewer(root, () => undefined);
+    const modal = root.querySelector<FakeElement>("#image-modal")!;
+    const modalImage = root.querySelector<FakeElement>("#modal-image")!;
+    const modalTitle = root.querySelector<FakeElement>("#modal-step-title")!;
+    const counter = root.querySelector<FakeElement>("#modal-step-counter")!;
+    modal.hidden = true;
+
+    const scenes: IssueScenePreview[] = [
+      {
+        scene: buildScene("scene-1"),
+        annotatedSource: "data:image/png;base64,AA==",
+        originalSource: "data:image/png;base64,BB==",
+      },
+      {
+        scene: buildScene("scene-2"),
+        originalSource: "data:image/png;base64,CC==",
+      },
+    ];
+
+    // 默认 annotated 模式定位
+    viewer.openScenes(scenes, "scene-1", "annotated");
+    assert.equal(modal.hidden, false);
+    assert.equal(modalImage.src, "data:image/png;base64,AA==");
+    assert.match(modalTitle.textContent, /问题现场 1/);
+    assert.equal(counter.textContent, "1 / 3");
+
+    // original 模式定位
+    viewer.openScenes(scenes, "scene-1", "original");
+    assert.equal(modalImage.src, "data:image/png;base64,BB==");
+    assert.match(modalTitle.textContent, /问题现场 1/);
+    assert.equal(counter.textContent, "2 / 3");
+
+    // 场景缺少 annotated 时回退到其第一张可用图
+    viewer.openScenes(scenes, "scene-2", "annotated");
+    assert.equal(modalImage.src, "data:image/png;base64,CC==");
+    assert.match(modalTitle.textContent, /问题现场 2/);
+
+    // 无截图场景不打开 modal
+    modal.hidden = true;
+    viewer.openScenes([{ scene: buildScene("scene-empty") }], "scene-empty");
+    assert.equal(modal.hidden, true);
+  });
 });

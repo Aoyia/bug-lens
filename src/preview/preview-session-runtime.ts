@@ -10,6 +10,7 @@ import type {
   RecordingSession,
 } from "../shared/protocol";
 import type { db } from "../storage/db";
+import { normalizeExpected } from "../domain/issue-scene";
 import { PreviewController } from "./preview-controller";
 import type { EvidencePackageSnapshot } from "./evidence-package";
 import type { EvidenceReportSnapshot } from "./evidence-report-view";
@@ -107,7 +108,19 @@ export class PreviewSessionRuntime {
       (left, right) => left.createdAt - right.createdAt
     );
     this.networkEntries = await this.storage.getNetwork(sessionId);
-    this.issueScenes = await this.storage.getIssueScenes(sessionId);
+    this.issueScenes = (await this.storage.getIssueScenes(sessionId)).map(
+      (scene) =>
+        scene.narrative
+          ? {
+              ...scene,
+              narrative: {
+                ...scene.narrative,
+                // 兼容旧版 string 形态的期望陈述，避免预览/导出时静默丢失
+                expected: normalizeExpected(scene.narrative.expected),
+              },
+            }
+          : scene
+    );
     this.frameworkStates = await this.storage.getFrameworkStates(sessionId);
     if (!this.issueAssets.length) {
       this.issueAssets = (

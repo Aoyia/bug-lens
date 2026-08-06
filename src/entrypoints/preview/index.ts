@@ -96,6 +96,8 @@ function generatePlaywright(): void {
   });
   playwrightOutput.innerHTML = highlightJs(script);
   playwrightModal.hidden = false;
+  const aiDrawer = document.getElementById("ai-drawer");
+  if (aiDrawer) aiDrawer.hidden = true;
 }
 
 playwrightBtn.addEventListener("click", generatePlaywright);
