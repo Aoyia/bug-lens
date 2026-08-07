@@ -437,10 +437,7 @@ export class ScreenshotOverlay {
   private handleKeyDown(e: KeyboardEvent): void {
     if (e.key === "Escape") {
       this.cancel();
-    } else if (
-      (e.key === "Enter" || (e.key === "c" && (e.metaKey || e.ctrlKey))) &&
-      this.selection
-    ) {
+    } else if (e.key === "c" && (e.metaKey || e.ctrlKey) && this.selection) {
       e.preventDefault();
       e.stopPropagation();
       this.confirm(this.cachedViewportDataUrl);
@@ -1079,10 +1076,7 @@ export class ScreenshotOverlay {
     };
 
     input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        commitText();
-      } else if (e.key === "Escape") {
+      if (e.key === "Escape") {
         input.remove();
       }
     });
