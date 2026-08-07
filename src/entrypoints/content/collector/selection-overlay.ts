@@ -66,13 +66,9 @@ export class SelectionOverlay {
   }
 
   open(): void {
-    const session = this.deps.getSession();
-    if (!session || this._isActive) return;
+    if (!this.deps.getSession() || this._isActive) return;
     this._isActive = true;
     this.startedAtEpochMs = Date.now();
-    void chrome.runtime.sendMessage(
-      message("issue-scene/start-selection", {}, session.sessionId)
-    );
     this.lockScroll();
 
     const layer = document.createElement("div");
@@ -379,21 +375,12 @@ export class SelectionOverlay {
 
   close(): void {
     this.unlockScroll();
-    const wasActive = this._isActive;
     this._isActive = false;
     if (this.escapeListener)
       window.removeEventListener("keydown", this.escapeListener, true);
     this.escapeListener = undefined;
     this.layer?.remove();
     this.layer = undefined;
-    if (wasActive) {
-      const session = this.deps.getSession();
-      if (session) {
-        void chrome.runtime.sendMessage(
-          message("issue-scene/cancel-selection", {}, session.sessionId)
-        );
-      }
-    }
   }
 
   // ─── Private ───

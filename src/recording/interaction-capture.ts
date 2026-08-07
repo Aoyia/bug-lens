@@ -9,6 +9,7 @@ import {
 import type { EvidenceRepository } from "../storage/db.ts";
 import {
   message,
+  RECORDING_STATUSES,
   type CaptureIssue,
   type InteractionRecord,
   type RecordingSession,
@@ -166,7 +167,7 @@ export class InteractionCapture {
     return Boolean(
       session &&
       !this.isStopping(session.id) &&
-      ["PREPARING", "RECORDING", "DEGRADED"].includes(session.status) &&
+      RECORDING_STATUSES.includes(session.status) &&
       session.target.tabId === sender.tab?.id &&
       session.nonce === nonce
     );

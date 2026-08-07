@@ -16,6 +16,7 @@ import {
 } from "../domain/privacy-policy.ts";
 import type { RecordingSessionEvent } from "../domain/recording-session.ts";
 import type { EvidenceRepository } from "../storage/db.ts";
+import { RECORDING_STATUSES } from "../shared/protocol.ts";
 import type { CaptureIssue, RecordingSession } from "../shared/protocol.ts";
 
 type SessionEventWriter = (
@@ -434,7 +435,7 @@ export class CdpEvidenceCollector {
     const session = await this.repository.getActiveSession();
     if (
       !session ||
-      !["PREPARING", "RECORDING", "DEGRADED"].includes(session.status) ||
+      !RECORDING_STATUSES.includes(session.status) ||
       this.isStopping(session.id) ||
       session.target.tabId !== tabId
     )

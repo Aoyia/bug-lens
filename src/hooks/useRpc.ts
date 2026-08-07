@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "preact/hooks";
+import { useCallback } from "preact/hooks";
 import {
   message,
   type RuntimeMessage,
@@ -26,15 +26,12 @@ export type RpcResult<T> = RpcOk<T> | RpcErr;
  *   if (!result.ok) setErrorText(result.error);
  */
 export function useRpc() {
-  const inflightRef = useRef(0);
-
   const send = useCallback(
     async <T extends RuntimeMessage["type"]>(
       type: T,
       payload: MessageOf<T>["payload"],
       sessionId?: string
     ): Promise<RpcResult<RuntimeMessageResponseMap[T]>> => {
-      inflightRef.current++;
       try {
         const response: unknown = await chrome.runtime.sendMessage(
           message(type, payload, sessionId, "background")
@@ -54,12 +51,10 @@ export function useRpc() {
         return { ok: true, data: response as RuntimeMessageResponseMap[T] };
       } catch (err) {
         return { ok: false, error: String(err) };
-      } finally {
-        inflightRef.current--;
       }
     },
     []
   );
 
-  return { send, inflightRef };
+  return { send };
 }

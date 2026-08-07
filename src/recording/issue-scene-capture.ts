@@ -10,6 +10,7 @@ import { db } from "../storage/db.ts";
 import { ensureOffscreenDocument } from "../shared/offscreen.ts";
 import {
   message,
+  RECORDING_STATUSES,
   type CaptureIssue,
   type IssueScene,
   type RecordingSession,
@@ -128,7 +129,7 @@ export class IssueSceneCapture {
     if (
       !session ||
       this.isStopping(session.id) ||
-      !["PREPARING", "RECORDING", "DEGRADED"].includes(session.status) ||
+      !RECORDING_STATUSES.includes(session.status) ||
       session.target.tabId !== sender.tab?.id ||
       session.nonce !== nonce
     ) {

@@ -1,12 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "preact/hooks";
+import { ACTIVE_STATUSES } from "../shared/protocol.ts";
 import type { RecordingSession } from "../shared/protocol.ts";
 
-const ACTIVE_STATUSES: readonly string[] = [
-  "PREPARING",
-  "RECORDING",
-  "DEGRADED",
-  "STOPPING",
-];
 const PREVIEW_STATUSES: readonly string[] = ["PREVIEW_READY", "EXPORTED"];
 
 function formatDuration(ms: number): string {

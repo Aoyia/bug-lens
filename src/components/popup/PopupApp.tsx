@@ -7,7 +7,10 @@ import {
   type StorageOverview,
 } from "../../shared/protocol.ts";
 import { applyI18n, t } from "../../shared/i18n.ts";
-import { VIDEO_BITRATE_BY_COMPRESSION } from "../../domain/storage-policy.ts";
+import {
+  DEFAULT_RECORDING_OPTIONS,
+  VIDEO_BITRATE_BY_COMPRESSION,
+} from "../../domain/storage-policy.ts";
 import { useRpc } from "../../hooks/useRpc.ts";
 import { copyTextToClipboard } from "../../preview/clipboard";
 import { useSessionState } from "../../hooks/useSessionState.ts";
@@ -282,10 +285,10 @@ export function PopupApp() {
       captureNetworkBodies: captureNetwork ? captureNetworkBodies : false,
       captureFrameworkState,
       privacyMode,
-      mediaTimesliceMs: 1000,
+      mediaTimesliceMs: DEFAULT_RECORDING_OPTIONS.mediaTimesliceMs,
       videoBitsPerSecond: VIDEO_BITRATE_BY_COMPRESSION[videoQuality],
-      maxSessionBytes: 512 * 1024 * 1024,
-      maxResponseBodyBytes: 2 * 1024 * 1024,
+      maxSessionBytes: DEFAULT_RECORDING_OPTIONS.maxSessionBytes,
+      maxResponseBodyBytes: DEFAULT_RECORDING_OPTIONS.maxResponseBodyBytes,
     };
 
     // 持久化最近一次选项，供全局快捷键一键录制复用
