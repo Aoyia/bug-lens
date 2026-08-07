@@ -338,23 +338,33 @@ function buildSessionPayloadWithBodySplitting(
     }
   );
 
+  const issueAssets = snapshot.issueAssets ?? [];
+  const originalSceneIds = new Set(
+    issueAssets
+      .filter((asset) => asset.kind === "issue-original")
+      .map((asset) => asset.sceneId)
+  );
+  const annotatedSceneIds = new Set(
+    issueAssets
+      .filter((asset) => asset.kind === "issue-annotated")
+      .map((asset) => asset.sceneId)
+  );
+  const interactionAssets = snapshot.interactionAssets ?? [];
+  const capturedInteractionIds = new Set(
+    interactionAssets.map((asset) => asset.interactionId)
+  );
+
   const issueScenes = (snapshot.issueScenes ?? []).map((scene) => ({
     scene,
-    originalSource: (snapshot.issueAssets ?? []).some(
-      (asset) => asset.sceneId === scene.id && asset.kind === "issue-original"
-    )
+    originalSource: originalSceneIds.has(scene.id)
       ? `issues/${scene.id}/screenshot-original.png`
       : undefined,
-    annotatedSource: (snapshot.issueAssets ?? []).some(
-      (asset) => asset.sceneId === scene.id && asset.kind === "issue-annotated"
-    )
+    annotatedSource: annotatedSceneIds.has(scene.id)
       ? `issues/${scene.id}/screenshot-annotated.png`
       : undefined,
   }));
   const interactions = snapshot.interactions.map((interaction, index) => {
-    const hasBinaryAsset = (snapshot.interactionAssets ?? []).some(
-      (asset) => asset.interactionId === interaction.id
-    );
+    const hasBinaryAsset = capturedInteractionIds.has(interaction.id);
     const hasDataUrl = Boolean(interaction.screenshot.dataUrl);
     const dataUrl =
       (hasBinaryAsset || hasDataUrl) &&

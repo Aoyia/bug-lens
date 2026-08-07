@@ -1,6 +1,18 @@
 export const PROTOCOL_VERSION = 3 as const;
 export const EXPORT_FORMAT_VERSION = "3.0" as const;
 
+/** 录制进行中的会话状态（可继续采集证据）。 */
+export const RECORDING_STATUSES: readonly SessionStatus[] = [
+  "PREPARING",
+  "RECORDING",
+  "DEGRADED",
+];
+/** 活跃会话状态（录制中 + 停止中）。 */
+export const ACTIVE_STATUSES: readonly SessionStatus[] = [
+  ...RECORDING_STATUSES,
+  "STOPPING",
+];
+
 export type SessionStatus =
   | "IDLE"
   | "PREPARING"
@@ -747,8 +759,6 @@ export type RuntimeMessage =
       }
     >
   | Envelope<"issue-scene/cancel", { issueSceneId: string; nonce: string }>
-  | Envelope<"issue-scene/start-selection", Record<string, never>>
-  | Envelope<"issue-scene/cancel-selection", Record<string, never>>
   | Envelope<
       "content/hello",
       { url: string; title: string; environment?: EnvironmentInfo }
@@ -875,8 +885,6 @@ export type RuntimeMessageResponseMap = {
   "issue-scene/capture": { ok: true; scene: IssueScene; dataUrl?: string };
   "issue-scene/commit": { ok: true; scene: IssueScene };
   "issue-scene/cancel": { ok: true };
-  "issue-scene/start-selection": { ok: true };
-  "issue-scene/cancel-selection": { ok: true };
   "content/hello": {
     ok: true;
     active: boolean;

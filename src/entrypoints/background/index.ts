@@ -1,7 +1,9 @@
 import { db } from "../../storage/db";
 import {
+  ACTIVE_STATUSES,
   isEnvelope,
   message,
+  RECORDING_STATUSES,
   type CaptureIssue,
   type FrameworkProbeEntry,
   type NetworkEntry,
@@ -696,9 +698,7 @@ async function bootstrapRuntimeState(): Promise<void> {
   const session = await db.getActiveSession();
   if (!session) return;
 
-  if (
-    !["PREPARING", "RECORDING", "DEGRADED", "STOPPING"].includes(session.status)
-  ) {
+  if (!ACTIVE_STATUSES.includes(session.status)) {
     if (session.previewPending) await openPendingPreview(session);
     else await db.clearActive(session.id);
     return;
@@ -983,7 +983,7 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender) => {
           const session = await db.getActiveSession();
           const allowed = Boolean(
             session &&
-            ["PREPARING", "RECORDING", "DEGRADED"].includes(session.status) &&
+            RECORDING_STATUSES.includes(session.status) &&
             session.target.tabId === sender.tab?.id
           );
           // 环境信息由页面主帧自动附带，无需用户手动填写
@@ -1026,7 +1026,7 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender) => {
           const valid =
             session &&
             state.sessionId === session.id &&
-            ["PREPARING", "RECORDING", "DEGRADED"].includes(session.status) &&
+            RECORDING_STATUSES.includes(session.status) &&
             session.target.tabId === sender.tab?.id;
           if (!valid) return { ok: true, stored: false };
           const result = await db.saveFrameworkStateWithinBudget(state);
@@ -1049,10 +1049,6 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender) => {
             incoming.payload.interactionId,
             incoming.payload.kind
           );
-          return { ok: true };
-        case "issue-scene/start-selection":
-          return { ok: true };
-        case "issue-scene/cancel-selection":
           return { ok: true };
         case "issue-scene/capture": {
           const result = await issueSceneCapture.capture(
@@ -1197,7 +1193,7 @@ async function restoreSessionAfterNavigation(tabId: number): Promise<void> {
   const session = await db.getActiveSession();
   if (
     !session ||
-    !["PREPARING", "RECORDING", "DEGRADED"].includes(session.status) ||
+    !RECORDING_STATUSES.includes(session.status) ||
     session.target.tabId !== tabId
   )
     return;
@@ -1270,10 +1266,7 @@ async function startRecordingViaShortcut(): Promise<void> {
     return;
   }
   const active = await db.getActiveSession();
-  if (
-    active &&
-    ["PREPARING", "RECORDING", "DEGRADED", "STOPPING"].includes(active.status)
-  ) {
+  if (active && ACTIVE_STATUSES.includes(active.status)) {
     return;
   }
   const [tab] = await chrome.tabs.query({
@@ -1309,10 +1302,7 @@ export async function triggerScreenshotInTab(
   await bootstrapPromise;
   // 截图与视频录制互斥：录制进行中拒绝触发独立截图
   const active = await db.getActiveSession();
-  if (
-    active &&
-    ["PREPARING", "RECORDING", "DEGRADED", "STOPPING"].includes(active.status)
-  ) {
+  if (active && ACTIVE_STATUSES.includes(active.status)) {
     console.warn("[Bug Lens] 录制进行中，拒绝触发独立截图（两者互斥）");
     return;
   }

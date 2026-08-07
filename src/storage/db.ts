@@ -12,6 +12,7 @@ import type {
   StorageOverview,
   StoragePolicy,
 } from "../shared/protocol";
+import { ACTIVE_STATUSES } from "../shared/protocol";
 import {
   DEFAULT_STORAGE_POLICY,
   estimateBytes,
@@ -26,7 +27,6 @@ import {
 } from "./indexed-db-schema.ts";
 import { deleteSessionAndEvidence } from "./session-deletion.ts";
 import {
-  flushStorageBatchQueue,
   putWithinSessionBudget,
   type BudgetWriteResult,
 } from "./storage-budget.ts";
@@ -442,12 +442,7 @@ export const db = {
             existingReq.onsuccess = () => {
               const existing = existingReq.result as
                 RecordingSession | undefined;
-              if (
-                existing &&
-                ["PREPARING", "RECORDING", "DEGRADED", "STOPPING"].includes(
-                  existing.status
-                )
-              ) {
+              if (existing && ACTIVE_STATUSES.includes(existing.status)) {
                 result = { session: existing, claimed: false };
               } else {
                 claim();
