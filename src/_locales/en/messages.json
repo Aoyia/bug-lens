@@ -1130,6 +1130,9 @@
   "shotConfirm": {
     "message": "Confirm & export (Enter)"
   },
+  "shotStyleAdjust": {
+    "message": "Toggle Style Adjustment Mode (extract CSS Cascade Snapshot)"
+  },
   "screenshotToastWithPath": {
     "message": "ZIP downloaded and AI prompt copied (with absolute path)!"
   },

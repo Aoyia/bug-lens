@@ -67,6 +67,93 @@ export interface RecentFailedNetworkRequest {
  * 替代原全量相交 DOM 树，压缩体积的同时提升信息密度。
  */
 
+/** CascadeIndex 级联快照数据模型 */
+export interface CascadeSheetSource {
+  id: string;
+  href?: string;
+  ownerNodeTag?: string;
+  rulesCount: number;
+  isInline?: boolean;
+}
+
+export interface CascadeRuleSource {
+  id: string;
+  sheetId: string;
+  selectorText: string;
+  cssText: string;
+  styleProps: Record<string, string>;
+}
+
+export interface CascadeInheritedRuleRef {
+  ancestorSelector: string;
+  ancestorTagName: string;
+  ruleId: string;
+  inheritedProps: Record<string, string>;
+}
+
+export interface CascadeElementRef {
+  id: string;
+  selector: string;
+  tagName: string;
+  matchedRuleIds: string[];
+  inheritedRules?: CascadeInheritedRuleRef[];
+}
+
+export interface CascadePropertySource {
+  property: string;
+  value: string;
+  sourceRuleId?: string;
+  isInline?: boolean;
+  isImportant?: boolean;
+  inheritedFromSelector?: string;
+}
+
+export interface CascadeIndex {
+  sheets: CascadeSheetSource[];
+  rules: CascadeRuleSource[];
+  elements: CascadeElementRef[];
+  perProperty: Record<string, CascadePropertySource[]>;
+  meta: {
+    sheetCount: number;
+    ruleCount: number;
+    elementCount: number;
+    capturedAtEpochMs: number;
+  };
+}
+
+export interface DirectionalFourMetrics {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+
+export interface BoxModelGeometry {
+  boxSizing: "border-box" | "content-box" | string;
+  margin: DirectionalFourMetrics;
+  padding: DirectionalFourMetrics;
+  border: DirectionalFourMetrics;
+  contentSize: { width: number; height: number };
+  renderedRect: RectBounds;
+}
+
+export interface LayoutContextInfo {
+  isFlexOrGridItem: boolean;
+  flexSelf?: {
+    flexGrow: number;
+    flexShrink: number;
+    flexBasis: string;
+    alignSelf: string;
+  };
+  parentContainer?: {
+    display: string;
+    flexDirection?: string;
+    justifyContent?: string;
+    alignItems?: string;
+    gap?: string;
+  };
+}
+
 /** DOM 嵌套树节点（支持结构化层级与组件路径链） */
 export interface DomTreeNode {
   selector: string;
@@ -76,6 +163,8 @@ export interface DomTreeNode {
   innerText?: string;
   relativeRect?: RectBounds;
   computedStyles?: Record<string, string>;
+  boxModel?: BoxModelGeometry;
+  layoutContext?: LayoutContextInfo;
   componentName?: string;
   componentPath?: string[];
   props?: Record<string, unknown>;
@@ -110,6 +199,8 @@ export interface DomAnchorNode {
   innerText?: string;
   relativeRect: RectBounds;
   computedStyles: Record<string, string>;
+  boxModel?: BoxModelGeometry;
+  layoutContext?: LayoutContextInfo;
   componentName?: string;
   /** 框架组件链（最近组件到根，已处理为正向或标准继承链） */
   componentPath?: string[];
@@ -129,8 +220,11 @@ export interface DomLeafNode {
   innerText?: string;
   relativeRect: RectBounds;
   componentName?: string;
+  computedStyles?: Record<string, string>;
   /** 仅布局差异样式（display/position/flex/zIndex/overflow） */
   layoutStyle?: Record<string, string>;
+  boxModel?: BoxModelGeometry;
+  layoutContext?: LayoutContextInfo;
 }
 
 /** 祖先节点：锚点/叶子的去重祖先链（最轻量） */
@@ -173,6 +267,7 @@ export interface AIScreenshotPayload {
   annotations: AnnotationItem[];
   annotationGroups: AnnotationGroup[];
   domContextTree: DomContextTreeV2;
+  cascadeIndex?: CascadeIndex;
   environment: {
     url: string;
     title: string;
@@ -204,6 +299,11 @@ function buildPromptBody(
   const h = Math.round(payload.cropBounds.height);
   const dpr = (payload.image.devicePixelRatio || 1).toFixed(2);
 
+  const hasCascade = Boolean(payload.cascadeIndex);
+  const cascadeHint = hasCascade
+    ? `\n- 级联快照 (Cascade Index)：已开启样式微调模式，解压包含 \`cascade.json\`，可通过 \`elements -> perProperty -> winnerRuleId -> rules -> source\` 正向查询 CSS 规则覆盖关系及源码位置 (CDP 行号)。`
+    : "";
+
   return `请作为高级 Frontend/Fullstack 调试专家，分析以下本地 Bug Lens 截图证据包：
 
 ${pathLine}
@@ -211,7 +311,7 @@ ${pathLine}
 元数据摘要：
 - 页面 & URL：${title} (${url})
 - 选区尺寸：${w}x${h} (dpr: ${dpr})
-- 异常日志：${errCount} 条 Console 报错 | ${reqCount} 个失败网络请求
+- 异常日志：${errCount} 条 Console 报错 | ${reqCount} 个失败网络请求${cascadeHint}
 
 请按双轨意图分析框架展开排查（解压 ZIP 至临时目录）：
 1. 意图分轨识别 (Intent Identification)：

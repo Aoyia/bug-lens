@@ -1142,6 +1142,17 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender) => {
           }
           return { ok: true, results };
         }
+        case "screenshot/style-source": {
+          const tabId = sender.tab?.id;
+          const { selectors } = incoming.payload || {};
+          if (!tabId) {
+            return { ok: true, sources: [] };
+          }
+          const { fetchStyleSourceInfoWithCDP } =
+            await import("../../screenshot/cdp-style-source.ts");
+          const sources = await fetchStyleSourceInfoWithCDP(tabId, selectors);
+          return { ok: true, sources };
+        }
         default:
           return { ok: false, error: "UNSUPPORTED_MESSAGE" };
       }

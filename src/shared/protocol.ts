@@ -1,3 +1,5 @@
+import type { CascadeIndex } from "../domain/screenshot-payload.ts";
+
 export const PROTOCOL_VERSION = 3 as const;
 export const EXPORT_FORMAT_VERSION = "3.0" as const;
 
@@ -831,6 +833,12 @@ export type RuntimeMessage =
     >
   | Envelope<"screenshot/framework-probe", { probeIds: string[] }>
   | Envelope<
+      "screenshot/style-source",
+      {
+        selectors?: string[];
+      }
+    >
+  | Envelope<
       "offscreen/export-pack",
       {
         sessionId: string;
@@ -919,6 +927,10 @@ export type RuntimeMessageResponseMap = {
   "screenshot/framework-probe": {
     ok: true;
     results: Record<string, FrameworkProbeEntry | null>;
+  };
+  "screenshot/style-source": {
+    ok: true;
+    cascadeIndex?: CascadeIndex;
   };
   "offscreen/export-pack": {
     ok: true;

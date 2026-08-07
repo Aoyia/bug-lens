@@ -1130,6 +1130,9 @@
   "shotConfirm": {
     "message": "确认打包导出 (Enter)"
   },
+  "shotStyleAdjust": {
+    "message": "开启/关闭 样式微调模式（提取详细 CSS 级联快照）"
+  },
   "screenshotToastWithPath": {
     "message": "已下载 ZIP 并复制 AI 提示词（含本地绝对路径）！"
   },

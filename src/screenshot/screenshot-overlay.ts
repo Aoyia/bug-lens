@@ -35,6 +35,7 @@ export class ScreenshotOverlay {
   private resizeStartPoint: { x: number; y: number } | null = null;
   private initialSelection: RectBounds | null = null;
   private isSelectionLocked = false;
+  private styleAdjustmentMode = false;
 
   private snappedElement: Element | null = null;
   private viewportImage: HTMLImageElement | null = null;
@@ -343,6 +344,11 @@ export class ScreenshotOverlay {
               <line x1="9" y1="20" x2="15" y2="20"/>
             </svg>
           </button>
+          <button data-tool="style-adjust" title="${t("shotStyleAdjust")}">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
+            </svg>
+          </button>
           <div class="divider"></div>
           <button data-action="cancel" class="cancel-btn" title="${t("shotCancel")}">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -385,11 +391,18 @@ export class ScreenshotOverlay {
         const tool = btn.dataset.tool;
         const action = btn.dataset.action;
 
-        if (tool) {
+        if (tool === "style-adjust") {
+          this.styleAdjustmentMode = !this.styleAdjustmentMode;
+          btn.classList.toggle("active", this.styleAdjustmentMode);
+        } else if (tool) {
           this.currentTool = tool as any;
           toolbar
-            .querySelectorAll("button")
-            .forEach((b) => b.classList.remove("active"));
+            .querySelectorAll<HTMLButtonElement>("button[data-tool]")
+            .forEach((b) => {
+              if (b.dataset.tool !== "style-adjust") {
+                b.classList.remove("active");
+              }
+            });
           btn.classList.add("active");
         } else if (action === "cancel") {
           this.cancel();
@@ -1050,6 +1063,7 @@ export class ScreenshotOverlay {
         viewportDataUrl,
         cropBounds: this.selection,
         annotations: this.annotations,
+        styleAdjustmentMode: this.styleAdjustmentMode,
       });
 
       this.showToast(buildScreenshotToastMessage(promptInjectedWithPath));

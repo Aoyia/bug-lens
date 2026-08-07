@@ -1,10 +1,12 @@
 import type {
   AnnotationItem,
+  BoxModelGeometry,
   DomAnchorNode,
   DomAncestorNode,
   DomContextTreeV2,
   DomLeafNode,
   DomTreeNode,
+  LayoutContextInfo,
   RectBounds,
 } from "../domain/screenshot-payload.ts";
 import type { FrameworkProbeEntry } from "../shared/protocol.ts";
@@ -20,6 +22,8 @@ export interface DomSpatialCollectOptions {
   rootElement?: HTMLElement;
   /** 可选：对已选定的候选元素执行主世界组件探针（无则回退为隔离世界内的同步检测） */
   probeFramework?: FrameworkProbeFn;
+  /** 开启样式微调模式：无损收集全量盒模型尺寸与弹性布局上下文 */
+  styleAdjustmentMode?: boolean;
 }
 
 /** 红框/马赛克标注覆盖元素面积 ≥ 该比例才算"命中"（避免祖先级误标） */
@@ -224,7 +228,10 @@ export function shouldDropComputedStyle(key: string, value: string): boolean {
 }
 
 /** 提取关键的布局与外观 Computed Styles（过滤默认值，锚点专用） */
-export function extractKeyComputedStyles(el: Element): Record<string, string> {
+export function extractKeyComputedStyles(
+  el: Element,
+  styleAdjustmentMode = false
+): Record<string, string> {
   if (typeof window === "undefined") return {};
   try {
     const style = window.getComputedStyle(el);
@@ -233,6 +240,10 @@ export function extractKeyComputedStyles(el: Element): Record<string, string> {
       "backgroundColor",
       "fontSize",
       "fontWeight",
+      "lineHeight",
+      "boxSizing",
+      "letterSpacing",
+      "textAlign",
       "display",
       "position",
       "flexDirection",
@@ -248,13 +259,131 @@ export function extractKeyComputedStyles(el: Element): Record<string, string> {
       const val = style.getPropertyValue(
         k.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`)
       );
-      if (val && !shouldDropComputedStyle(k, val)) {
-        res[k] = val;
+      if (val) {
+        if (styleAdjustmentMode || !shouldDropComputedStyle(k, val)) {
+          res[k] = val;
+        }
       }
     }
     return res;
   } catch {
     return {};
+  }
+}
+
+/** 提取无损盒模型几何体 (Box-Model Geometry) */
+export function extractBoxModelGeometry(
+  el: Element
+): BoxModelGeometry | undefined {
+  if (
+    typeof window === "undefined" ||
+    !el ||
+    typeof el.getBoundingClientRect !== "function"
+  )
+    return undefined;
+  try {
+    const style = window.getComputedStyle(el);
+    const parsePx = (val: string) => parseFloat(val) || 0;
+
+    const margin = {
+      top: parsePx(style.marginTop),
+      right: parsePx(style.marginRight),
+      bottom: parsePx(style.marginBottom),
+      left: parsePx(style.marginLeft),
+    };
+    const padding = {
+      top: parsePx(style.paddingTop),
+      right: parsePx(style.paddingRight),
+      bottom: parsePx(style.paddingBottom),
+      left: parsePx(style.paddingLeft),
+    };
+    const border = {
+      top: parsePx(style.borderTopWidth),
+      right: parsePx(style.borderRightWidth),
+      bottom: parsePx(style.borderBottomWidth),
+      left: parsePx(style.borderLeftWidth),
+    };
+
+    const rect = el.getBoundingClientRect();
+    const renderedRect: RectBounds = {
+      x: Math.round(rect.left),
+      y: Math.round(rect.top),
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
+    };
+
+    const contentWidth = Math.max(
+      0,
+      renderedRect.width -
+        (padding.left + padding.right + border.left + border.right)
+    );
+    const contentHeight = Math.max(
+      0,
+      renderedRect.height -
+        (padding.top + padding.bottom + border.top + border.bottom)
+    );
+
+    return {
+      boxSizing: style.boxSizing || "content-box",
+      margin,
+      padding,
+      border,
+      contentSize: {
+        width: Math.round(contentWidth * 100) / 100,
+        height: Math.round(contentHeight * 100) / 100,
+      },
+      renderedRect,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+/** 提取弹性/网格布局上下文 (Layout Context) */
+export function extractLayoutContext(
+  el: Element
+): LayoutContextInfo | undefined {
+  if (typeof window === "undefined" || !el) return undefined;
+  try {
+    const style = window.getComputedStyle(el);
+    const parent = el.parentElement;
+    let parentStyle: CSSStyleDeclaration | null = null;
+    if (parent) {
+      parentStyle = window.getComputedStyle(parent);
+    }
+
+    const parentDisplay = parentStyle ? parentStyle.display : "";
+    const isFlexParent = parentDisplay.includes("flex");
+    const isGridParent = parentDisplay.includes("grid");
+
+    const isFlexOrGridItem = isFlexParent || isGridParent;
+
+    const flexSelf = isFlexParent
+      ? {
+          flexGrow: parseFloat(style.flexGrow) || 0,
+          flexShrink: parseFloat(style.flexShrink) || 1,
+          flexBasis: style.flexBasis || "auto",
+          alignSelf: style.alignSelf || "auto",
+        }
+      : undefined;
+
+    const parentContainer = parentStyle
+      ? {
+          display: parentStyle.display,
+          flexDirection: parentStyle.flexDirection,
+          justifyContent: parentStyle.justifyContent,
+          alignItems: parentStyle.alignItems,
+          gap: parentStyle.gap,
+        }
+      : undefined;
+
+    return {
+      isFlexOrGridItem,
+      flexSelf,
+      parentContainer,
+    };
+  } catch {
+    return undefined;
   }
 }
 
@@ -526,6 +655,8 @@ export async function collectSpatialDomTree(
     return path ? { componentName: path[0], componentPath: path } : undefined;
   };
 
+  const styleAdjustmentMode = options.styleAdjustmentMode || false;
+
   const ancestors: DomAncestorNode[] = Array.from(ancestorSet)
     .map((el) => ({ el, depth: domDepthRelativeTo(el, sca) }))
     .sort((a, b) => a.depth - b.depth)
@@ -533,6 +664,7 @@ export async function collectSpatialDomTree(
       ...formatDomNodeSelectorFields(el),
       depth,
       componentName: componentOf(el)?.componentName,
+      computedStyles: extractKeyComputedStyles(el, styleAdjustmentMode),
       layoutStyle: extractLayoutStyles(el),
     }));
 
@@ -552,7 +684,11 @@ export async function collectSpatialDomTree(
           width: bounds.width,
           height: bounds.height,
         },
-        computedStyles: extractKeyComputedStyles(el),
+        computedStyles: extractKeyComputedStyles(el, styleAdjustmentMode),
+        boxModel: styleAdjustmentMode ? extractBoxModelGeometry(el) : undefined,
+        layoutContext: styleAdjustmentMode
+          ? extractLayoutContext(el)
+          : undefined,
         componentName: comp?.componentName,
         componentPath: comp?.componentPath,
         intentFlags: {
@@ -580,7 +716,10 @@ export async function collectSpatialDomTree(
         height: bounds.height,
       },
       componentName: componentOf(el)?.componentName,
+      computedStyles: extractKeyComputedStyles(el, styleAdjustmentMode),
       layoutStyle: extractLayoutStyles(el),
+      boxModel: styleAdjustmentMode ? extractBoxModelGeometry(el) : undefined,
+      layoutContext: styleAdjustmentMode ? extractLayoutContext(el) : undefined,
     };
   });
 

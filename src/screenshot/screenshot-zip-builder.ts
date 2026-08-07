@@ -53,6 +53,12 @@ export function buildScreenshotZipPackage(
     ),
   };
 
+  if (payload.cascadeIndex) {
+    zipFiles["cascade.json"] = stringToUint8Array(
+      JSON.stringify(payload.cascadeIndex, null, 2)
+    );
+  }
+
   // 使用 fflate 高性能 zipSync 快速打包
   const zippedUint8 = zipSync(zipFiles, { level: 6 });
   const blob = new Blob([zippedUint8], { type: "application/zip" });

@@ -6,6 +6,7 @@ import {
 } from "../domain/screenshot-payload.ts";
 import { message } from "../shared/protocol.ts";
 import { collectSpatialDomTree } from "./dom-spatial-collector.ts";
+import { collectCascadeIndex } from "./cascade-snapshot-collector.ts";
 import { probeFrameworkComponents } from "./framework-probe.ts";
 import { recentErrorsTracker } from "./recent-errors-tracker.ts";
 import {
@@ -18,6 +19,7 @@ export interface ProcessScreenshotOptions {
   cropBounds: RectBounds;
   annotations: AnnotationItem[];
   devicePixelRatio?: number;
+  styleAdjustmentMode?: boolean;
 }
 
 /** 辅助将 Base64 数据转为 Image 对象 */
@@ -311,6 +313,7 @@ export async function processScreenshot(
     cropBounds,
     annotations,
     probeFramework: probeFrameworkComponents,
+    styleAdjustmentMode: options.styleAdjustmentMode,
   });
 
   // 4. 收集 Vue/React 组件的状态（Props / Data），存储到 environment.vueComponentStates 中
@@ -343,6 +346,45 @@ export async function processScreenshot(
     collectStateFromTree(spatialDom.tree);
   }
 
+  // 4.5 如果开启了样式微调模式，收集 CSS 级联快照，并通过 CDP 补全代码行号
+  let cascadeIndex: any = undefined;
+  if (options.styleAdjustmentMode) {
+    try {
+      cascadeIndex = collectCascadeIndex({
+        bounds: cropBounds,
+        domTree: spatialDom,
+      });
+
+      // 提取选区元素选择器发往 Background 调用 CDP
+      const selectors = cascadeIndex.elements
+        .map((el: any) => el.selector)
+        .filter(Boolean);
+
+      if (selectors.length > 0) {
+        const res = (await message("screenshot/style-source", {
+          selectors,
+        })) as unknown as {
+          ok: boolean;
+          sources?: Array<{ selector: string; source: any }>;
+        };
+        if (res && res.ok && res.sources && res.sources.length > 0) {
+          const sourceMap = new Map(
+            res.sources.map((s: any) => [s.selector, s])
+          );
+          for (const rule of cascadeIndex.rules) {
+            const match = sourceMap.get(rule.selectorText);
+            if (match && match.source) {
+              rule.source = match.source;
+              cascadeIndex.meta.cdpLineInfo = true;
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("Bug Lens: 级联快照收集发生非阻断异常", err);
+    }
+  }
+
   // 5. 组装完整 AIScreenshotPayload
   const payload: AIScreenshotPayload = {
     version: "1.0",
@@ -357,6 +399,7 @@ export async function processScreenshot(
     annotations,
     annotationGroups: [],
     domContextTree: spatialDom,
+    cascadeIndex,
     environment: {
       url: typeof window !== "undefined" ? window.location.href : "",
       title: typeof document !== "undefined" ? document.title : "",
