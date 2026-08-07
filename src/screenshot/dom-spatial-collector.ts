@@ -4,6 +4,7 @@ import type {
   DomAncestorNode,
   DomContextTreeV2,
   DomLeafNode,
+  DomTreeNode,
   RectBounds,
 } from "../domain/screenshot-payload.ts";
 import type { FrameworkProbeEntry } from "../shared/protocol.ts";
@@ -286,6 +287,7 @@ export function extractLayoutStyles(el: Element): Record<string, string> {
 }
 
 /** 生成唯一的 cssSelector */
+/** 导出辅助计算 CSS 选择器和去除冗余的工具函数 */
 export function buildCssSelector(el: Element): string {
   if (el.id) return `#${el.id}`;
   let path = el.tagName.toLowerCase();
@@ -299,6 +301,33 @@ export function buildCssSelector(el: Element): string {
     }
   }
   return path;
+}
+
+export function formatDomNodeSelectorFields(el: Element): {
+  selector: string;
+  tagName?: string;
+  className?: string;
+  id?: string;
+} {
+  const tagName = el.tagName.toLowerCase();
+  const id = el.id || undefined;
+  const rawClass =
+    el.className && typeof el.className === "string"
+      ? el.className.trim()
+      : undefined;
+  const selector = buildCssSelector(el);
+
+  // 方案 B：当 selector（如 "#submit-btn" 或 "span.field-title"）已包含 tagName 与 className 信息时，
+  // 动态省略重复的 tagName 与 className 字段。
+  const selectorCoversTagAndClass =
+    selector.startsWith(`${tagName}.`) || selector === `#${id}`;
+
+  return {
+    selector,
+    id,
+    tagName: selectorCoversTagAndClass ? undefined : tagName,
+    className: selectorCoversTagAndClass ? undefined : rawClass,
+  };
 }
 
 /** 从 SCA 到 el 的完整 selector 路径（保留最近 N 层，更早用 … 省略） */
@@ -317,11 +346,29 @@ export function buildSelectorPath(el: Element, sca: Element): string {
   return parts.join(" > ");
 }
 
-/** 归一化文本：去空白、截断 */
-function cleanText(el: Element, limit = TEXT_LIMIT): string | undefined {
+/** 提取元素的直属文本内容（仅包含 Direct Text Nodes，不递归包含子元素的文本，避免父子节点重复） */
+export function getDirectInnerText(
+  el: Element,
+  maxLen = 60
+): string | undefined {
+  let text = "";
+  for (let i = 0; i < el.childNodes.length; i++) {
+    const node = el.childNodes[i];
+    if (node.nodeType === 3 /* Node.TEXT_NODE */) {
+      text += node.textContent || "";
+    }
+  }
+  const cleaned = text.replace(/\s+/g, " ").trim();
+  if (!cleaned) return undefined;
+  return cleaned.length > maxLen ? `${cleaned.slice(0, maxLen)}...` : cleaned;
+}
+
+/** 提取干净的 DOM 文本内容 (单行，限制长度) */
+export function cleanText(el: Element, maxLen = 60): string | undefined {
   const raw = (el as HTMLElement).innerText || el.textContent || "";
-  const cleaned = raw.trim().replace(/\s+/g, " ").slice(0, limit);
-  return cleaned || undefined;
+  const cleaned = raw.replace(/\s+/g, " ").trim();
+  if (!cleaned) return undefined;
+  return cleaned.length > maxLen ? `${cleaned.slice(0, maxLen)}...` : cleaned;
 }
 
 /** 是否含非空文本 */
@@ -483,13 +530,7 @@ export async function collectSpatialDomTree(
     .map((el) => ({ el, depth: domDepthRelativeTo(el, sca) }))
     .sort((a, b) => a.depth - b.depth)
     .map(({ el, depth }) => ({
-      tagName: el.tagName.toLowerCase(),
-      id: el.id || undefined,
-      className:
-        el.className && typeof el.className === "string"
-          ? el.className.trim()
-          : undefined,
-      selector: buildCssSelector(el),
+      ...formatDomNodeSelectorFields(el),
       depth,
       componentName: componentOf(el)?.componentName,
       layoutStyle: extractLayoutStyles(el),
@@ -502,13 +543,7 @@ export async function collectSpatialDomTree(
       const text = cleanText(el);
       const comp = componentOf(el);
       return {
-        tagName: el.tagName.toLowerCase(),
-        id: el.id || undefined,
-        className:
-          el.className && typeof el.className === "string"
-            ? el.className.trim()
-            : undefined,
-        selector: buildCssSelector(el),
+        ...formatDomNodeSelectorFields(el),
         selectorPath: buildSelectorPath(el, sca),
         innerText: intentFlags.isPrivacyRedacted ? "[REDACTED]" : text,
         relativeRect: {
@@ -518,7 +553,7 @@ export async function collectSpatialDomTree(
           height: bounds.height,
         },
         computedStyles: extractKeyComputedStyles(el),
-        componentName: comp?.componentName ?? comp?.componentPath?.[0],
+        componentName: comp?.componentName,
         componentPath: comp?.componentPath,
         intentFlags: {
           isArrowTarget: intentFlags.isArrowTarget || undefined,
@@ -549,6 +584,95 @@ export async function collectSpatialDomTree(
     };
   });
 
+  // 5.9 构造嵌套 Tree 结构（支持父子节点 componentPath 继承压缩）
+  const isSamePath = (pathA?: string[], pathB?: string[]): boolean => {
+    if (pathA === pathB) return true;
+    if (!pathA || !pathB) return false;
+    if (pathA.length !== pathB.length) return false;
+    return pathA.every((val, idx) => val === pathB[idx]);
+  };
+
+  const buildDomTree = (
+    nodeEl: Element,
+    parentPath?: string[]
+  ): DomTreeNode => {
+    const isAnchor = anchorSet.has(nodeEl);
+    const isLeaf = leafEls.includes(nodeEl);
+    const comp = componentOf(nodeEl);
+    const bounds = boundsOf(nodeEl);
+    const intentFlags = isAnchor ? anchorSet.get(nodeEl) : undefined;
+    const rawText = isAnchor
+      ? cleanText(nodeEl, 60)
+      : getDirectInnerText(nodeEl, 60);
+
+    const childrenEls: Element[] = [];
+    for (let i = 0; i < nodeEl.children.length; i++) {
+      const child = nodeEl.children[i];
+      if (focusEls.includes(child) || Array.from(ancestorSet).includes(child)) {
+        childrenEls.push(child);
+      }
+    }
+
+    const currentPath = comp?.componentPath;
+    // 如果子节点的 componentPath 与父节点完全一致，则省去子节点上的 componentPath 字段以压减体积
+    const shouldKeepPath = currentPath && !isSamePath(currentPath, parentPath);
+
+    // 单子节点折叠逻辑 (Wrapper Node Collapse):
+    // 如果当前节点不是 SCA (顶层根)、不是 Anchor、在此节点处没有产生新组件身份切换且只有一个保留的子节点，
+    // 并且本身没有直属文本节点，则将其包装层信息透传给子节点折叠。
+    const isSca = nodeEl === sca;
+    const isWrapperCandidate =
+      !isSca &&
+      !isAnchor &&
+      !shouldKeepPath &&
+      !rawText &&
+      childrenEls.length === 1;
+
+    if (isWrapperCandidate) {
+      const wrapperSelector = buildCssSelector(nodeEl);
+      const childNode = buildDomTree(childrenEls[0], parentPath);
+      childNode.collapsedWrappers = [
+        wrapperSelector,
+        ...(childNode.collapsedWrappers || []),
+      ];
+      return childNode;
+    }
+
+    const node: DomTreeNode = {
+      ...formatDomNodeSelectorFields(nodeEl),
+      innerText:
+        isAnchor && intentFlags?.isPrivacyRedacted ? "[REDACTED]" : rawText,
+      relativeRect: {
+        x: Math.round(bounds.x - cropBounds.x),
+        y: Math.round(bounds.y - cropBounds.y),
+        width: bounds.width,
+        height: bounds.height,
+      },
+      computedStyles: isAnchor ? extractKeyComputedStyles(nodeEl) : undefined,
+      componentName:
+        comp?.componentName ??
+        comp?.componentPath?.[comp?.componentPath.length - 1],
+      componentPath: shouldKeepPath ? currentPath : undefined,
+      intentFlags: intentFlags
+        ? {
+            isArrowTarget: intentFlags.isArrowTarget || undefined,
+            isHighlightedFocus: intentFlags.isHighlightedFocus || undefined,
+            isPrivacyRedacted: intentFlags.isPrivacyRedacted || undefined,
+            textComment: intentFlags.textComment || undefined,
+          }
+        : undefined,
+    };
+
+    if (childrenEls.length > 0) {
+      node.children = childrenEls.map((child) =>
+        buildDomTree(child, currentPath)
+      );
+    }
+    return node;
+  };
+
+  const domTree = buildDomTree(sca);
+
   return {
     smallestCommonAncestorSelector: scaSelector,
     meta: {
@@ -557,6 +681,7 @@ export async function collectSpatialDomTree(
       ancestorCount: ancestors.length,
       truncated,
     },
+    tree: domTree,
     anchors,
     leaves,
     ancestors,

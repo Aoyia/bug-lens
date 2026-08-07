@@ -25,14 +25,9 @@ describe("Screenshot ZIP Builder - 资源包压缩与解压验证", () => {
     domContextTree: {
       smallestCommonAncestorSelector: "body",
       meta: {
-        anchorCount: 0,
         leafCount: 0,
-        ancestorCount: 0,
-        truncated: false,
+        maxDepth: 0,
       },
-      anchors: [],
-      leaves: [],
-      ancestors: [],
     },
     environment: {
       url: "https://example.com",
@@ -96,10 +91,10 @@ describe("Screenshot ZIP Builder - 资源包压缩与解压验证", () => {
       "ai-prompt.md 应包含剪贴板路径引导文案"
     );
 
-    // JSON 使用紧凑序列化：与紧凑 JSON.stringify 输出完全一致（无缩进空白，压缩体积）
+    // JSON 采用标准美化格式化（2 空格缩进，便于阅读）
     const domText = new TextDecoder().decode(unzipped["dom-context.json"]);
-    assert.equal(domText, JSON.stringify(dummyPayload.domContextTree));
+    assert.equal(domText, JSON.stringify(dummyPayload.domContextTree, null, 2));
     const envText = new TextDecoder().decode(unzipped["environment.json"]);
-    assert.equal(envText, JSON.stringify(dummyPayload.environment));
+    assert.equal(envText, JSON.stringify(dummyPayload.environment, null, 2));
   });
 });

@@ -313,7 +313,37 @@ export async function processScreenshot(
     probeFramework: probeFrameworkComponents,
   });
 
-  // 4. 组装完整 AIScreenshotPayload
+  // 4. 收集 Vue/React 组件的状态（Props / Data），存储到 environment.vueComponentStates 中
+  const vueComponentStates: Array<{
+    componentName: string;
+    componentPath?: string[];
+    props?: Record<string, unknown>;
+    data?: Record<string, unknown>;
+  }> = [];
+
+  const collectedStateComponents = new Set<string>();
+  const collectStateFromTree = (node: NonNullable<typeof spatialDom.tree>) => {
+    if (node.componentName && (node.props || node.data)) {
+      const key = `${node.componentName}_${node.componentPath?.join(">")}`;
+      if (!collectedStateComponents.has(key)) {
+        collectedStateComponents.add(key);
+        vueComponentStates.push({
+          componentName: node.componentName,
+          componentPath: node.componentPath,
+          props: node.props,
+          data: node.data,
+        });
+      }
+    }
+    if (node.children) {
+      for (const child of node.children) collectStateFromTree(child);
+    }
+  };
+  if (spatialDom.tree) {
+    collectStateFromTree(spatialDom.tree);
+  }
+
+  // 5. 组装完整 AIScreenshotPayload
   const payload: AIScreenshotPayload = {
     version: "1.0",
     timestamp: Date.now(),
@@ -322,7 +352,7 @@ export async function processScreenshot(
       base64Data: croppedBase64,
       width: cropBounds.width,
       height: cropBounds.height,
-      devicePixelRatio: dpr,
+      devicePixelRatio: Math.round(dpr * 100) / 100,
     },
     annotations,
     annotationGroups: [],
@@ -341,6 +371,8 @@ export async function processScreenshot(
           : "desktop",
       recentConsoleErrors: recentErrorsTracker.getRecentConsoleErrors(5000),
       recentFailedRequests: recentErrorsTracker.getRecentFailedRequests(5000),
+      vueComponentStates:
+        vueComponentStates.length > 0 ? vueComponentStates : undefined,
     },
   };
 

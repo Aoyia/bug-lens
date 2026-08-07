@@ -34,10 +34,12 @@ describe("runMainWorldFrameworkProbe", () => {
     withDocument([el], () => {
       const results = runMainWorldFrameworkProbe(["blp-0"]);
       assert.deepEqual(results["blp-0"], {
-        componentName: "<ElCard>",
-        componentPath: ["<ElCard>", "<App>"],
+        componentName: "ElCard",
+        componentPath: ["App", "ElCard"],
         framework: "vue",
         version: 2,
+        props: undefined,
+        data: undefined,
       });
     });
   });
@@ -52,10 +54,7 @@ describe("runMainWorldFrameworkProbe", () => {
     const child = fakeEl("blp-1", { parentElement: root });
     withDocument([child], () => {
       const results = runMainWorldFrameworkProbe(["blp-1"]);
-      assert.deepEqual(results["blp-1"]?.componentPath, [
-        "<ElFormItem>",
-        "<App>",
-      ]);
+      assert.deepEqual(results["blp-1"]?.componentPath, ["App", "ElFormItem"]);
       assert.equal(results["blp-1"]?.framework, "vue");
     });
   });
@@ -70,10 +69,12 @@ describe("runMainWorldFrameworkProbe", () => {
     withDocument([el], () => {
       const results = runMainWorldFrameworkProbe(["blp-2"]);
       assert.deepEqual(results["blp-2"], {
-        componentName: "<UserCard>",
-        componentPath: ["<UserCard>", "<App>"],
+        componentName: "UserCard",
+        componentPath: ["App", "UserCard"],
         framework: "vue",
         version: 3,
+        props: undefined,
+        data: undefined,
       });
     });
   });
@@ -88,8 +89,8 @@ describe("runMainWorldFrameworkProbe", () => {
     withDocument([el], () => {
       const results = runMainWorldFrameworkProbe(["blp-3"]);
       assert.deepEqual(results["blp-3"], {
-        componentName: "<OrderButton>",
-        componentPath: ["<OrderButton>", "<App>"],
+        componentName: "OrderButton",
+        componentPath: ["App", "OrderButton"],
         framework: "react",
         version: 18,
       });
@@ -113,7 +114,7 @@ describe("runMainWorldFrameworkProbe", () => {
     });
     withDocument([el, other], () => {
       const results = runMainWorldFrameworkProbe(["blp-5"]);
-      assert.equal(results["blp-5"]?.componentName, "<App>");
+      assert.equal(results["blp-5"]?.componentName, "App");
       assert.equal(results["other-id"], undefined);
     });
   });

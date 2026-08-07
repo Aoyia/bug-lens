@@ -172,6 +172,8 @@ export type FrameworkProbeEntry = {
   version?: number;
   componentName?: string;
   componentPath?: string[];
+  props?: Record<string, unknown>;
+  data?: Record<string, unknown>;
 };
 
 export type FrameworkStateTrigger =

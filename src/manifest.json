@@ -65,7 +65,14 @@
     "webNavigation"
   ],
   "optional_host_permissions": ["http://*/*", "https://*/*"],
-  "content_scripts": [],
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["vue-devtools-hook-inject.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    }
+  ],
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'none'"
   },

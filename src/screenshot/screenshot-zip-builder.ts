@@ -46,9 +46,11 @@ export function buildScreenshotZipPackage(
     "screenshot.png": imageU8,
     "ai-prompt.md": stringToUint8Array(markdownPrompt),
     "dom-context.json": stringToUint8Array(
-      JSON.stringify(payload.domContextTree)
+      JSON.stringify(payload.domContextTree, null, 2)
     ),
-    "environment.json": stringToUint8Array(JSON.stringify(payload.environment)),
+    "environment.json": stringToUint8Array(
+      JSON.stringify(payload.environment, null, 2)
+    ),
   };
 
   // 使用 fflate 高性能 zipSync 快速打包

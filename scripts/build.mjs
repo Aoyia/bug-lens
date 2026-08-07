@@ -27,6 +27,8 @@ const entries = {
   permission: "src/entrypoints/permission/index.ts",
   offscreen: "src/entrypoints/offscreen/index.ts",
   content: "src/entrypoints/content/interaction-collector.ts",
+  "vue-devtools-hook-inject":
+    "src/entrypoints/content/vue-devtools-hook-inject.ts",
   preview: "src/entrypoints/preview/index.ts",
   "report-template": "src/entrypoints/report/index.ts",
 };

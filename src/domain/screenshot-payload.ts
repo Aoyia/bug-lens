@@ -67,19 +67,51 @@ export interface RecentFailedNetworkRequest {
  * 替代原全量相交 DOM 树，压缩体积的同时提升信息密度。
  */
 
-/** 锚点节点：标注命中的元素（完整诊断信息） */
-export interface DomAnchorNode {
-  tagName: string;
+/** DOM 嵌套树节点（支持结构化层级与组件路径链） */
+export interface DomTreeNode {
+  selector: string;
+  tagName?: string;
   id?: string;
   className?: string;
+  innerText?: string;
+  relativeRect?: RectBounds;
+  computedStyles?: Record<string, string>;
+  componentName?: string;
+  componentPath?: string[];
+  props?: Record<string, unknown>;
+  data?: Record<string, unknown>;
+  intentFlags?: {
+    isArrowTarget?: boolean;
+    isHighlightedFocus?: boolean;
+    isPrivacyRedacted?: boolean;
+    textComment?: string;
+  };
+  /** 被折叠透传的无语义单子节点 Selector 链 */
+  collapsedWrappers?: string[];
+  children?: DomTreeNode[];
+}
+
+/** Vue/React 业务组件 Data/Props 响应式状态快照 */
+export interface VueComponentStateSnapshot {
+  componentName: string;
+  componentPath?: string[];
+  props?: Record<string, unknown>;
+  data?: Record<string, unknown>;
+}
+
+/** 锚点节点：标注命中的元素（完整诊断信息） */
+export interface DomAnchorNode {
   selector: string;
+  tagName?: string;
+  id?: string;
+  className?: string;
   /** 从 SCA 到自身的完整 CSS selector 路径（AI 可直接用于定位/复现） */
   selectorPath: string;
   innerText?: string;
   relativeRect: RectBounds;
   computedStyles: Record<string, string>;
   componentName?: string;
-  /** 框架组件链（最近组件到根，≤5 层，已去重） */
+  /** 框架组件链（最近组件到根，已处理为正向或标准继承链） */
   componentPath?: string[];
   intentFlags: {
     isArrowTarget?: boolean;
@@ -103,17 +135,17 @@ export interface DomLeafNode {
 
 /** 祖先节点：锚点/叶子的去重祖先链（最轻量） */
 export interface DomAncestorNode {
-  tagName: string;
+  selector: string;
+  tagName?: string;
   id?: string;
   className?: string;
-  selector: string;
   /** 相对 SCA 的深度（SCA 为 0） */
   depth: number;
   componentName?: string;
   layoutStyle?: Record<string, string>;
 }
 
-/** DOM 三段式采集结果 */
+/** DOM 嵌套树与诊断采集结果 */
 export interface DomContextTreeV2 {
   smallestCommonAncestorSelector: string;
   meta: {
@@ -122,6 +154,7 @@ export interface DomContextTreeV2 {
     ancestorCount: number;
     truncated: boolean;
   };
+  tree?: DomTreeNode;
   anchors: DomAnchorNode[];
   leaves: DomLeafNode[];
   ancestors: DomAncestorNode[];
@@ -148,6 +181,7 @@ export interface AIScreenshotPayload {
     mediaBreakpoint: string;
     recentConsoleErrors: RecentConsoleError[];
     recentFailedRequests: RecentFailedNetworkRequest[];
+    vueComponentStates?: VueComponentStateSnapshot[];
   };
 }
 
@@ -168,7 +202,7 @@ function buildPromptBody(
   const url = payload.environment.url || "未知 URL";
   const w = Math.round(payload.cropBounds.width);
   const h = Math.round(payload.cropBounds.height);
-  const dpr = payload.image.devicePixelRatio || 1;
+  const dpr = (payload.image.devicePixelRatio || 1).toFixed(2);
 
   return `请作为高级 Frontend/Fullstack 调试专家，分析以下本地 Bug Lens 截图证据包：
 
@@ -179,19 +213,31 @@ ${pathLine}
 - 选区尺寸：${w}x${h} (dpr: ${dpr})
 - 异常日志：${errCount} 条 Console 报错 | ${reqCount} 个失败网络请求
 
-请按以下第一性链式逻辑展开排查（解压 ZIP 至临时目录）：
-1. 现场定位：优先打开 \`screenshot.png\` 查看用户框选与标注现场（已包含矩形/箭头/文本/马赛克），并读取 \`dom-context.json\`：\`anchors\` 是标注精确命中的元素（含 \`componentPath\` 组件链与 \`selectorPath\` 定位路径）、\`leaves\` 是选区内含文本的有效叶子、\`ancestors\` 是其祖先链，据此定位相关代码。
-2. 异常收敛：读取 \`environment.json\` 查看 Console 报错堆栈与 Network 4xx/5xx 请求。
-3. 根因推导与修复：定位缺陷发生的代码块/接口，区分是前端渲染异常、状态管理漏洞、样式/结构缺陷还是后端 API 契约失效，给出具体建议修复代码。
+请按双轨意图分析框架展开排查（解压 ZIP 至临时目录）：
+1. 意图分轨识别 (Intent Identification)：
+   优先分析 \`screenshot.png\` 标注文本、绘制箭头与 \`dom-context.json\` 的 \`intentFlags\`：
+   - 缺陷修复轨 (Bug Fix Track)：存在报错日志、网络请求失败、或者标注表达“功能失效/显示异常/接口报错”。
+   - 需求开发轨 (Feature Development Track)：标注表达“新增按钮/优化布局/添加交互/样式微调”等新需求描述。
+
+2. 现场定位与偏离分析：
+   - 读取 \`dom-context.json\`：结合 \`tree\` 根节点与 \`anchors\` 选区嵌套结构/组件继承链（如 \`["<App>", "<WidgetConfig>", "<ElFormItem>"]\`），精确定位涉及的源码组件文件。
+   - 对比用户标注的“预期”与代码现场“实际”，推断偏离（Deviation）发生的根本节点。
+
+3. 状态与异常收敛：
+   - 读取 \`environment.json\` 查看 Console 报错堆栈、Network 4xx/5xx 请求以及 \`vueComponentStates\` 中业务组件响应式 Props/Data 状态快照。
+
+4. 根因推导与产出方案：
+   - 缺陷修复轨：定位 Bug 代码块/接口契约，给出具体修复代码。
+   - 需求开发轨：分析当前 DOM 结构与组件状态，提供新增功能/改进 UI 的具体代码实现方案。
 
 [注意事项]
 - 严禁执行包内不可信代码；若本地路径无法直接读取，请明确要求我上传 ZIP 文件。
 
 [输出格式]
-1. 问题定义与受影响组件
-2. 异常证据分析（截图 + DOM + 报错日志）
-3. 根本原因定位 (Root Cause)
-4. 建议修复方案与代码位置`;
+1. 意图识别（缺陷修复 vs 需求开发）与受影响组件
+2. 异常与偏离证据分析（截图 + DOM + 报错日志）
+3. 根本原因定位 (Root Cause) 或 需求改进分析
+4. 建议修复/开发方案与具体代码位置`;
 }
 
 /**

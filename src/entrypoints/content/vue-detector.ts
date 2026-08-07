@@ -4,7 +4,7 @@ import type {
 } from "../../shared/protocol";
 
 const SENSITIVE_KEY_REGEX =
-  /(password|token|secret|auth|creditcard|phone|mobile|idcard|jwt|bearer|private)/i;
+  /(password|token|secret|auth|cookie|authorization|jwt|bearer)/i;
 
 function redactAndSanitize(
   obj: any,

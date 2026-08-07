@@ -126,12 +126,13 @@ describe("Vue Detector", () => {
       // Props redaction
       const props = result.targetComponent.props as any;
       assert.equal(props.secretKey, "[REDACTED:sensitive-store-key]");
-      assert.equal(props.userPhone, "[REDACTED:sensitive-store-key]");
+      assert.equal(props.userPhone, "13800138000");
       assert.equal(props.circular.self, "[CIRCULAR]");
 
       // Parent chain
       assert.equal(result.parentChain.length, 1);
       assert.equal(result.parentChain[0].componentName, "ParentVue3");
+      assert.equal(result.parentChain[0].isTarget, false);
       assert.equal(
         (result.parentChain[0].props as any).jwtToken,
         "[REDACTED:sensitive-store-key]"
@@ -195,7 +196,7 @@ describe("Vue Detector", () => {
       assert.equal(props.authCode, "[REDACTED:sensitive-store-key]");
 
       const state = result.targetComponent.state as any;
-      assert.equal(state.mobileNum, "[REDACTED:sensitive-store-key]");
+      assert.equal(state.mobileNum, "10086");
 
       assert.equal(result.parentChain.length, 1);
       assert.equal(result.parentChain[0].componentName, "ParentVue2");

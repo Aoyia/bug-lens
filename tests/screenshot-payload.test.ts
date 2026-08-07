@@ -49,56 +49,27 @@ describe("Screenshot Payload Formatter", () => {
     domContextTree: {
       smallestCommonAncestorSelector: "div#app > form.login-form",
       meta: {
-        anchorCount: 1,
         leafCount: 1,
-        ancestorCount: 2,
-        truncated: false,
+        maxDepth: 2,
       },
-      anchors: [
-        {
-          tagName: "button",
-          id: "submit-btn",
-          className: "btn btn-primary",
-          selector: "button#submit-btn",
-          selectorPath: "… > form.login-form > button#submit-btn",
-          innerText: "提交订单",
-          relativeRect: { x: 50, y: 20, width: 100, height: 40 },
-          computedStyles: {
-            color: "rgb(255, 255, 255)",
-            backgroundColor: "rgb(0, 122, 255)",
+      tree: {
+        tagName: "form",
+        className: "login-form",
+        selector: "form.login-form",
+        componentName: "<LoginForm>",
+        children: [
+          {
+            tagName: "button",
+            id: "submit-btn",
+            className: "btn btn-primary",
+            selector: "button#submit-btn",
+            innerText: "提交订单",
+            relativeRect: { x: 50, y: 20, width: 100, height: 40 },
+            componentName: "<OrderSubmitButton>",
+            componentPath: ["<App>", "<OrderSubmitButton>"],
           },
-          componentName: "<OrderSubmitButton>",
-          componentPath: ["<OrderSubmitButton>", "<App>"],
-          intentFlags: {
-            isArrowTarget: true,
-            textComment: "按钮点击失效",
-          },
-        },
-      ],
-      leaves: [
-        {
-          tagName: "span",
-          selector: "span.price",
-          innerText: "¥99.00",
-          relativeRect: { x: 50, y: 60, width: 60, height: 20 },
-          componentName: "<PriceTag>",
-        },
-      ],
-      ancestors: [
-        {
-          tagName: "form",
-          className: "login-form",
-          selector: "form.login-form",
-          depth: 0,
-          componentName: "<LoginForm>",
-        },
-        {
-          tagName: "div",
-          id: "app",
-          selector: "#app",
-          depth: 1,
-        },
-      ],
+        ],
+      },
     },
     environment: {
       url: "https://example.com/checkout",
@@ -132,6 +103,7 @@ describe("Screenshot Payload Formatter", () => {
     assert.match(md, /请作为高级 Frontend\/Fullstack 调试专家/);
     assert.match(md, /https:\/\/example\.com\/checkout/);
     assert.match(md, /1 条 Console 报错 \| 1 个失败网络请求/);
+    assert.match(md, /\(dpr: \d+\.\d{2}\)/);
     // 未提供路径时保留占位符，等待用户手动替换
     assert.match(md, /请将这里替换为导出的 ZIP 绝对路径/);
   });
