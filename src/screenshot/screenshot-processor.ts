@@ -143,17 +143,51 @@ export function drawAnnotationsOnCanvas(
         }
       }
     } else if (ann.type === "text") {
-      // 绘制高档 Inline 文本气泡
+      // 绘制高档 Inline 多行文本气泡
       const px = ann.position.x * dpr;
       const py = ann.position.y * dpr;
       const text = ann.text;
 
       ctx.font = `bold ${13 * dpr}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
-      const metrics = ctx.measureText(text);
+
+      const boundsRight = ctx.canvas?.width || 800;
+      const maxTextWidth = Math.max(
+        100 * dpr,
+        Math.min(300 * dpr, boundsRight - px - 24 * dpr)
+      );
+
+      // 按换行符与 maxTextWidth 自动拆分多行
+      const lines: string[] = [];
+      const paragraphs = text.split("\n");
+      for (const p of paragraphs) {
+        if (!p) {
+          lines.push("");
+          continue;
+        }
+        let cur = "";
+        for (const ch of p) {
+          const test = cur + ch;
+          if (ctx.measureText(test).width > maxTextWidth && cur !== "") {
+            lines.push(cur);
+            cur = ch;
+          } else {
+            cur = test;
+          }
+        }
+        if (cur) lines.push(cur);
+      }
+
       const paddingX = 10 * dpr;
       const paddingY = 6 * dpr;
-      const bgWidth = metrics.width + paddingX * 2;
-      const bgHeight = 26 * dpr;
+      const lineHeight = 18 * dpr;
+      let maxW = 0;
+      for (const l of lines) {
+        const w = ctx.measureText(l).width;
+        if (w > maxW) maxW = w;
+      }
+
+      const bgWidth = maxW + paddingX * 2;
+      const bgHeight = paddingY * 2 + lines.length * lineHeight;
 
       ctx.fillStyle = "rgba(15, 23, 42, 0.92)";
       ctx.strokeStyle = "#0284c7";
@@ -170,8 +204,14 @@ export function drawAnnotationsOnCanvas(
 
       ctx.fillStyle = "#f8fafc";
       ctx.textAlign = "left";
-      ctx.textBaseline = "middle";
-      ctx.fillText(text, px + paddingX, py + bgHeight / 2);
+      ctx.textBaseline = "top";
+      for (let i = 0; i < lines.length; i++) {
+        ctx.fillText(
+          lines[i],
+          px + paddingX,
+          py + paddingY + i * lineHeight + 1 * dpr
+        );
+      }
     }
     ctx.restore();
   }

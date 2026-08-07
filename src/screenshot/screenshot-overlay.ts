@@ -930,10 +930,47 @@ export class ScreenshotOverlay {
 
         ctx.font =
           'bold 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-        const metrics = ctx.measureText(text);
+
+        const boundsRight = this.selection
+          ? this.selection.x + this.selection.width
+          : window.innerWidth;
+        const maxTextWidth = Math.max(
+          100,
+          Math.min(300, boundsRight - px - 24)
+        );
+
+        // 按换行符与 maxTextWidth 自动拆分多行
+        const lines: string[] = [];
+        const paragraphs = text.split("\n");
+        for (const p of paragraphs) {
+          if (!p) {
+            lines.push("");
+            continue;
+          }
+          let cur = "";
+          for (const ch of p) {
+            const test = cur + ch;
+            if (ctx.measureText(test).width > maxTextWidth && cur !== "") {
+              lines.push(cur);
+              cur = ch;
+            } else {
+              cur = test;
+            }
+          }
+          if (cur) lines.push(cur);
+        }
+
         const paddingX = 10;
-        const bgWidth = metrics.width + paddingX * 2;
-        const bgHeight = 26;
+        const paddingY = 6;
+        const lineHeight = 18;
+        let maxW = 0;
+        for (const l of lines) {
+          const w = ctx.measureText(l).width;
+          if (w > maxW) maxW = w;
+        }
+
+        const bgWidth = maxW + paddingX * 2;
+        const bgHeight = paddingY * 2 + lines.length * lineHeight;
 
         ctx.fillStyle = "rgba(15, 23, 42, 0.92)";
         ctx.strokeStyle = "#0284c7";
@@ -950,8 +987,14 @@ export class ScreenshotOverlay {
 
         ctx.fillStyle = "#f8fafc";
         ctx.textAlign = "left";
-        ctx.textBaseline = "middle";
-        ctx.fillText(text, px + paddingX, py + bgHeight / 2);
+        ctx.textBaseline = "top";
+        for (let i = 0; i < lines.length; i++) {
+          ctx.fillText(
+            lines[i],
+            px + paddingX,
+            py + paddingY + i * lineHeight + 1
+          );
+        }
       }
       ctx.restore();
     }
@@ -966,27 +1009,60 @@ export class ScreenshotOverlay {
     const existing = wrapper.querySelector(".inline-text-input");
     if (existing) existing.remove();
 
-    const input = document.createElement("input");
-    input.type = "text";
+    // 边界 Clamp 矫正：防止靠边缘产生抖动与超出选区/屏幕
+    const boundsRight = this.selection
+      ? this.selection.x + this.selection.width
+      : window.innerWidth;
+    const boundsBottom = this.selection
+      ? this.selection.y + this.selection.height
+      : window.innerHeight;
+
+    const availableWidth = Math.max(120, boundsRight - x - 10);
+    const availableHeight = Math.max(40, boundsBottom - y - 10);
+    const maxWidth = Math.min(320, availableWidth);
+
+    // 如果非常靠近右边界，智能往左靠齐
+    let renderX = x;
+    if (boundsRight - x < 130 && x - 200 >= (this.selection?.x || 0)) {
+      renderX = Math.max(this.selection?.x || 0, x - 180);
+    }
+
+    const input = document.createElement("textarea");
+    input.rows = 1;
     input.className = "inline-text-input";
     input.placeholder = t("shotTextPlaceholder");
     input.style.cssText = `
       position: absolute;
-      left: ${x}px;
+      left: ${renderX}px;
       top: ${y}px;
+      max-width: ${maxWidth}px;
+      max-height: ${availableHeight}px;
+      min-width: 120px;
       background: rgba(15, 23, 42, 0.92);
       color: #f8fafc;
       border: 1.5px solid #007aff;
       border-radius: 6px;
-      padding: 4px 8px;
+      padding: 6px 8px;
       font-size: 13px;
       font-weight: 600;
+      line-height: 1.4;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
       outline: none;
       z-index: 100;
-      min-width: 120px;
+      resize: none;
+      overflow: hidden;
+      white-space: pre-wrap;
+      word-break: break-word;
+      box-sizing: border-box;
     `;
+
+    // 监听输入自动调整高度
+    const autoResize = () => {
+      input.style.height = "auto";
+      input.style.height = `${Math.min(input.scrollHeight, availableHeight)}px`;
+    };
+    input.addEventListener("input", autoResize);
 
     const commitText = () => {
       const text = input.value.trim();
@@ -994,7 +1070,7 @@ export class ScreenshotOverlay {
         this.annotations.push({
           id: `ann_${Date.now()}`,
           type: "text",
-          position: { x, y },
+          position: { x: renderX, y },
           text,
         });
         this.renderAnnotationsOnCanvas();
@@ -1003,7 +1079,7 @@ export class ScreenshotOverlay {
     };
 
     input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
+      if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         commitText();
       } else if (e.key === "Escape") {
@@ -1016,7 +1092,10 @@ export class ScreenshotOverlay {
     });
 
     wrapper.appendChild(input);
-    setTimeout(() => input.focus(), 20);
+    setTimeout(() => {
+      input.focus();
+      autoResize();
+    }, 20);
   }
 
   private showToast(msg: string): void {
