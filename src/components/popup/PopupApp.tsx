@@ -19,6 +19,8 @@ import { OptionsGrid, type VideoQuality } from "./OptionsGrid.tsx";
 import { HistoryList } from "./HistoryList.tsx";
 import { PopupGuide } from "./PopupGuide.tsx";
 
+const HISTORY_SEARCH_DEBOUNCE_MS = 300;
+
 export function PopupApp() {
   const { send } = useRpc();
   const {
@@ -54,6 +56,7 @@ export function PopupApp() {
 
   // History state
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>("");
   const [sessions, setSessions] = useState<SessionOverview[]>([]);
   const [storage, setStorage] = useState<StorageOverview | undefined>(
     undefined
@@ -249,10 +252,10 @@ export function PopupApp() {
     }
   };
 
-  const refreshHistory = async () => {
+  const refreshHistory = async (query = searchQuery) => {
     try {
       const [sessionsResult, storageResult] = await Promise.all([
-        send("session/list", { query: searchQuery }),
+        send("session/list", { query }),
         send("storage/get", {}),
       ]);
       if (sessionsResult.ok)
@@ -265,11 +268,20 @@ export function PopupApp() {
     }
   };
 
+  // 历史搜索只在用户暂停输入后查询，首次打开历史页仍立即加载。
+  useEffect(() => {
+    const timer = window.setTimeout(
+      () => setDebouncedSearchQuery(searchQuery),
+      HISTORY_SEARCH_DEBOUNCE_MS
+    );
+    return () => window.clearTimeout(timer);
+  }, [searchQuery]);
+
   useEffect(() => {
     if (currentView === "history") {
-      refreshHistory();
+      void refreshHistory(debouncedSearchQuery);
     }
-  }, [currentView, searchQuery]);
+  }, [currentView, debouncedSearchQuery]);
 
   // Modal state for custom in-extension confirmation (replacing browser native window.confirm)
   const [confirmModal, setConfirmModal] = useState<{
@@ -498,7 +510,7 @@ export function PopupApp() {
           <button
             id="refresh-history"
             className="icon-action-btn"
-            onClick={refreshHistory}
+            onClick={() => void refreshHistory()}
             title={t("refreshList")}
           >
             <svg

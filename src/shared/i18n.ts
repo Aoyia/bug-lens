@@ -83,7 +83,7 @@ export function t(
       // 按命名占位符在消息中首次出现的顺序，依次映射替换参数（先出现者用第一个参数，依此类推）
       let namedIndex = 0;
       msg = msg.replace(
-        /\$(COUNT|BYTES|DAYS|MAX|CURRENT|TOTAL|SIZE|ERROR)\$/g,
+        /\$(COUNT|BYTES|DAYS|MAX|CURRENT|TOTAL|SIZE|ERROR|SECONDS)\$/g,
         () => {
           const value = subs[namedIndex] ?? "";
           namedIndex += 1;

@@ -17,6 +17,13 @@ const CHIP_KEYS = [
 /** 速记卡自动超时（D1：15s），超时未操作按"跳过"收起并标记 missing。 */
 const AUTO_SKIP_TIMEOUT_MS = 15_000;
 
+export function getAutoSkipRemainingSeconds(
+  deadlineEpochMs: number,
+  nowEpochMs = Date.now()
+): number {
+  return Math.max(0, Math.ceil((deadlineEpochMs - nowEpochMs) / 1000));
+}
+
 /**
  * 期望速记卡（Trigger-to-express）。
  * 用户点击"标记问题"后、进入元素选择前弹出，在记忆峰值捕获"预期应该发生什么"。
@@ -28,6 +35,9 @@ export class ExpectedCaptureCard {
   private chipButtons: HTMLButtonElement[] = [];
   private selectedChips = new Set<string>();
   private autoSkipTimer: number | undefined;
+  private autoSkipDeadlineEpochMs: number | undefined;
+  private countdownInterval: number | undefined;
+  private countdownElement: HTMLDivElement | undefined;
   private keydownListener: ((e: KeyboardEvent) => void) | undefined;
   private submitted = false;
 
@@ -75,6 +85,14 @@ export class ExpectedCaptureCard {
       fontSize: "13px",
       fontWeight: "600",
       color: "#1d2129",
+    });
+
+    const countdown = document.createElement("div");
+    countdown.setAttribute("data-expected-countdown", "true");
+    Object.assign(countdown.style, {
+      color: "#86909c",
+      fontSize: "11px",
+      lineHeight: "1.2",
     });
 
     const chipsRow = document.createElement("div");
@@ -173,10 +191,11 @@ export class ExpectedCaptureCard {
     });
 
     actionsRow.append(skipBtn, confirmBtn);
-    root.append(title, chipsRow, input, actionsRow);
+    root.append(title, countdown, chipsRow, input, actionsRow);
     document.documentElement.appendChild(root);
     this.cardElement = root;
     this.inputElement = input;
+    this.countdownElement = countdown;
     this.positionCard(anchor);
 
     setTimeout(() => input.focus(), 30);
@@ -196,10 +215,7 @@ export class ExpectedCaptureCard {
   }
 
   close(): void {
-    if (this.autoSkipTimer !== undefined) {
-      window.clearTimeout(this.autoSkipTimer);
-      this.autoSkipTimer = undefined;
-    }
+    this.clearAutoSkipTimer();
     if (this.keydownListener) {
       window.removeEventListener("keydown", this.keydownListener, true);
       this.keydownListener = undefined;
@@ -207,6 +223,7 @@ export class ExpectedCaptureCard {
     this.cardElement?.remove();
     this.cardElement = undefined;
     this.inputElement = undefined;
+    this.countdownElement = undefined;
   }
 
   // ─── Private ───
@@ -298,14 +315,37 @@ export class ExpectedCaptureCard {
    */
   private resetAutoSkipTimer(): void {
     if (this.cardElement == null || this.submitted) return;
-    if (this.autoSkipTimer !== undefined) {
-      window.clearTimeout(this.autoSkipTimer);
-      this.autoSkipTimer = undefined;
-    }
+    this.clearAutoSkipTimer();
+    this.autoSkipDeadlineEpochMs = Date.now() + AUTO_SKIP_TIMEOUT_MS;
+    this.updateAutoSkipCountdown();
+    this.countdownInterval = window.setInterval(
+      () => this.updateAutoSkipCountdown(),
+      250
+    );
     this.autoSkipTimer = window.setTimeout(() => {
       this.autoSkipTimer = undefined;
       this.submit();
     }, AUTO_SKIP_TIMEOUT_MS);
+  }
+
+  private clearAutoSkipTimer(): void {
+    if (this.autoSkipTimer !== undefined) {
+      window.clearTimeout(this.autoSkipTimer);
+      this.autoSkipTimer = undefined;
+    }
+    if (this.countdownInterval !== undefined) {
+      window.clearInterval(this.countdownInterval);
+      this.countdownInterval = undefined;
+    }
+    this.autoSkipDeadlineEpochMs = undefined;
+  }
+
+  private updateAutoSkipCountdown(): void {
+    if (this.countdownElement == null || this.autoSkipDeadlineEpochMs == null)
+      return;
+    this.countdownElement.textContent = t("expectedAutoSkipCountdown", [
+      String(getAutoSkipRemainingSeconds(this.autoSkipDeadlineEpochMs)),
+    ]);
   }
 
   private skip(): void {

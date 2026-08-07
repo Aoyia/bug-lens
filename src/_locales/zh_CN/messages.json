@@ -192,6 +192,14 @@
   "expectedConfirm": {
     "message": "确认"
   },
+  "expectedAutoSkipCountdown": {
+    "message": "将在 $SECONDS$ 秒后自动跳过",
+    "placeholders": {
+      "seconds": {
+        "content": "$1"
+      }
+    }
+  },
   "shortcut": {
     "message": "快捷键"
   },

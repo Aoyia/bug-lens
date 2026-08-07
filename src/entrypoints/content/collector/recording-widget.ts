@@ -10,6 +10,8 @@ export type WidgetCallbacks = {
   getPausedDurationMs?(): number;
 };
 
+type ToastTone = "success" | "error";
+
 export class RecordingWidget {
   private container: HTMLDivElement | undefined;
   private timerInterval: number | undefined;
@@ -38,7 +40,11 @@ export class RecordingWidget {
     this.shortcutKeyText = this.isMac ? "Option+S" : "Alt+S";
   }
 
-  showToast(message: string, durationMs = 2800): void {
+  showToast(
+    message: string,
+    durationMs = 2800,
+    tone: ToastTone = "success"
+  ): void {
     const existing = document.querySelector("#__wbr_toast__");
     if (existing) existing.remove();
 
@@ -70,7 +76,9 @@ export class RecordingWidget {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
     `;
 
-    toast.innerHTML = `<span style="color:#00b42a;font-size:16px;">✓</span> <span>${message}</span>`;
+    const icon = tone === "error" ? "!" : "✓";
+    const iconColor = tone === "error" ? "#d5484c" : "#00b42a";
+    toast.innerHTML = `<span style="color:${iconColor};font-size:16px;">${icon}</span> <span>${message}</span>`;
     document.body.appendChild(toast);
 
     const rAF =

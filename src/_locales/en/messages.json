@@ -192,6 +192,14 @@
   "expectedConfirm": {
     "message": "Confirm"
   },
+  "expectedAutoSkipCountdown": {
+    "message": "Automatically continues in $SECONDS$s",
+    "placeholders": {
+      "seconds": {
+        "content": "$1"
+      }
+    }
+  },
   "shortcut": {
     "message": "Shortcut"
   },

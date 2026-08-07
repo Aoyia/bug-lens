@@ -1,4 +1,4 @@
-import type { CaptureIssue } from "../shared/protocol";
+import type { CaptureIssue, RecordingSession } from "../shared/protocol";
 import { sanitizeText } from "./privacy-policy";
 import type { RecordingSessionEvent } from "./recording-session";
 
@@ -12,6 +12,27 @@ export type SilentExportPackResult = {
   filename?: string;
   error?: string;
 };
+
+export type SilentExportResponse = {
+  ok?: boolean;
+  error?: string;
+  session?: Pick<RecordingSession, "silentExportResult">;
+};
+
+/**
+ * 只有后台明确确认静默导出成功，页面端才可以展示成功提示。
+ * 消息协议失败、缺失会话或缺少结果均应视为失败，避免错误地提示用户“已下载”。
+ */
+export function getSilentExportFailure(
+  response: SilentExportResponse | undefined,
+  fallbackError: string
+): string | undefined {
+  if (!response?.ok) return response?.error || fallbackError;
+  if (!response.session) return fallbackError;
+  if (!response.session.silentExportResult?.ok)
+    return response.session.silentExportResult?.error || fallbackError;
+  return undefined;
+}
 
 /**
  * 判定一次静默导出的最终结果。

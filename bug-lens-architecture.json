@@ -1,0 +1,316 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Bug Lens 运行时架构",
+    "subtitle": "Chrome MV3 扩展：本地优先的 Bug 录制与证据打包",
+    "output": "bug-lens-architecture.html",
+    "quality_profile": "showcase",
+    "visual_preset": "blueprint",
+    "repository": {
+      "url": "https://github.com/Aoyia/bug-lens.git",
+      "revision": "848466991072b5ed41eb7ffaab0915807d628893"
+    },
+    "views": [
+      {
+        "id": "recording-path",
+        "label": "录制主路径",
+        "focus": ["user", "popup", "background", "content"],
+        "note": "从用户操作到页面采集器注入与握手的完整链路。"
+      },
+      {
+        "id": "evidence-collection",
+        "label": "证据采集",
+        "focus": ["background", "cdp", "media", "offscreen", "db"],
+        "note": "CDP 控制台/网络、标签页媒体流与媒体分块落库。"
+      },
+      {
+        "id": "review-export",
+        "label": "审阅与导出",
+        "focus": ["preview", "db", "downloads", "report"],
+        "note": "预览审阅、ZIP 导出与离线报告。"
+      }
+    ],
+    "viewBox": [1260, 820]
+  },
+  "components": [
+    {
+      "id": "user",
+      "type": "external",
+      "label": "用户",
+      "sublabel": "浏览器操作",
+      "pos": [40, 130],
+      "size": [130, 60]
+    },
+    {
+      "id": "popup",
+      "type": "frontend",
+      "label": "Popup 弹窗",
+      "sublabel": "React / 配置启动",
+      "pos": [260, 130],
+      "size": [150, 64],
+      "sources": [
+        { "path": "src/entrypoints/popup/index.tsx" },
+        { "path": "src/components/popup/PopupApp.tsx" }
+      ]
+    },
+    {
+      "id": "background",
+      "type": "backend",
+      "label": "Background SW",
+      "sublabel": "录制协调中枢",
+      "pos": [520, 120],
+      "size": [200, 88],
+      "tag": "MV3 Service Worker",
+      "sources": [
+        { "path": "src/entrypoints/background/index.ts", "line": 848 }
+      ]
+    },
+    {
+      "id": "content",
+      "type": "frontend",
+      "label": "Content 采集器",
+      "sublabel": "注入目标页面",
+      "pos": [850, 120],
+      "size": [190, 88],
+      "sources": [
+        { "path": "src/entrypoints/content/interaction-collector.ts" },
+        { "path": "src/entrypoints/content/collector/recording-widget.ts" }
+      ]
+    },
+    {
+      "id": "offscreen",
+      "type": "backend",
+      "label": "Offscreen 文档",
+      "sublabel": "媒体录制 / 打包",
+      "pos": [520, 340],
+      "size": [200, 72],
+      "sources": [{ "path": "src/entrypoints/offscreen/index.ts", "line": 57 }]
+    },
+    {
+      "id": "preview",
+      "type": "frontend",
+      "label": "Preview 预览页",
+      "sublabel": "证据审阅 / 导出",
+      "pos": [260, 650],
+      "size": [150, 68],
+      "sources": [{ "path": "src/entrypoints/preview/index.ts" }]
+    },
+    {
+      "id": "report",
+      "type": "frontend",
+      "label": "Report 离线报告",
+      "sublabel": "导出包内只读",
+      "pos": [520, 720],
+      "size": [200, 60],
+      "sources": [{ "path": "src/entrypoints/report/index.ts" }]
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "IndexedDB",
+      "sublabel": "本地证据存储",
+      "pos": [520, 540],
+      "size": [200, 72],
+      "sources": [{ "path": "src/storage/db.ts" }]
+    },
+    {
+      "id": "cdp",
+      "type": "external",
+      "label": "Chrome Debugger",
+      "sublabel": "Console / Network",
+      "pos": [850, 300],
+      "size": [190, 60],
+      "sources": [{ "path": "src/evidence/cdp-evidence-collector.ts" }]
+    },
+    {
+      "id": "media",
+      "type": "external",
+      "label": "chrome.tabCapture",
+      "sublabel": "标签页媒体流",
+      "pos": [850, 440],
+      "size": [190, 60],
+      "sources": [
+        { "path": "src/entrypoints/background/index.ts", "line": 241 }
+      ]
+    },
+    {
+      "id": "downloads",
+      "type": "external",
+      "label": "chrome.downloads",
+      "sublabel": "导出下载",
+      "pos": [850, 690],
+      "size": [190, 60],
+      "sources": [
+        { "path": "src/preview/preview-export-controller.ts", "line": 149 }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Chrome 扩展（MV3 扩展上下文）",
+      "wraps": ["popup", "background", "offscreen", "preview", "db"]
+    },
+    {
+      "kind": "region",
+      "label": "目标网页（页面上下文）",
+      "wraps": ["content"]
+    },
+    {
+      "kind": "region",
+      "label": "Chrome 浏览器原生能力",
+      "wraps": ["cdp", "media", "downloads"]
+    },
+    { "kind": "region", "label": "离线导出包", "wraps": ["report"] }
+  ],
+  "connections": [
+    {
+      "id": "user-popup",
+      "from": "user",
+      "to": "popup",
+      "label": "打开弹窗",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "popup-background",
+      "from": "popup",
+      "to": "background",
+      "label": "启动/停止 RPC",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "left",
+      "labelAt": [434, 126]
+    },
+    {
+      "id": "background-content",
+      "from": "background",
+      "to": "content",
+      "label": "动态注入采集器",
+      "fromSide": "right",
+      "toSide": "left",
+      "labelAt": [744, 118]
+    },
+    {
+      "id": "content-background",
+      "from": "content",
+      "to": "background",
+      "label": "证据上报",
+      "variant": "emphasis",
+      "fromSide": "left",
+      "toSide": "right",
+      "labelAt": [820, 200]
+    },
+    {
+      "id": "cdp-background",
+      "from": "cdp",
+      "to": "background",
+      "label": "Console/Network 事件",
+      "variant": "security",
+      "fromSide": "left",
+      "toSide": "right"
+    },
+    {
+      "id": "media-offscreen",
+      "from": "media",
+      "to": "offscreen",
+      "label": "标签页媒体流",
+      "fromSide": "left",
+      "toSide": "right"
+    },
+    {
+      "id": "background-offscreen",
+      "from": "background",
+      "to": "offscreen",
+      "label": "start/stop-media",
+      "labelAt": [560, 282]
+    },
+    {
+      "id": "background-db",
+      "from": "background",
+      "to": "db",
+      "label": "证据落库",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "via": [
+        [620, 260],
+        [500, 260],
+        [500, 500],
+        [620, 500]
+      ],
+      "labelAt": [530, 445]
+    },
+    {
+      "id": "offscreen-db",
+      "from": "offscreen",
+      "to": "db",
+      "label": "媒体分块",
+      "labelAt": [585, 430]
+    },
+    {
+      "id": "preview-db",
+      "from": "preview",
+      "to": "db",
+      "label": "读取证据",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "labelAt": [330, 640]
+    },
+    {
+      "id": "background-preview",
+      "from": "background",
+      "to": "preview",
+      "label": "打开预览页",
+      "fromSide": "left",
+      "toSide": "right"
+    },
+    {
+      "id": "preview-downloads",
+      "from": "preview",
+      "to": "downloads",
+      "label": "导出 ZIP",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "preview-report",
+      "from": "preview",
+      "to": "report",
+      "label": "内嵌报告页",
+      "variant": "dashed",
+      "fromSide": "right",
+      "toSide": "left"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "录制主路径",
+      "items": [
+        "用户经 Popup 或全局快捷键发起录制",
+        "Background 动态注入采集器并握手 (content/hello)",
+        "停止后自动打开 Preview 预览页"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "证据采集",
+      "items": [
+        "CDP (debugger) 捕获 Console / Network 事件",
+        "tabCapture 媒体流在 Offscreen 中 MediaRecorder 录制",
+        "交互、问题现场、框架状态由 Content 上报后落库"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "数据与隐私",
+      "items": [
+        "全部证据写入 IndexedDB 并受存储预算约束",
+        "safe 模式对 URL / 值 / 正文统一脱敏",
+        "存储健康由 StreamHealthMonitor 实时监控"
+      ]
+    }
+  ]
+}

@@ -3,10 +3,32 @@ import test from "node:test";
 
 import {
   buildSilentExportFailureEvent,
+  getSilentExportFailure,
   injectAbsolutePathToPrompt,
   resolveSilentExportResult,
   type SilentExportPackResult,
 } from "../src/domain/silent-export.ts";
+
+test("静默导出只有后台明确成功时才允许展示成功提示", () => {
+  assert.equal(
+    getSilentExportFailure(
+      { ok: true, session: { silentExportResult: { ok: true } } },
+      "导出失败"
+    ),
+    undefined
+  );
+  assert.equal(
+    getSilentExportFailure(
+      {
+        ok: true,
+        session: { silentExportResult: { ok: false, error: "下载被拒绝" } },
+      },
+      "导出失败"
+    ),
+    "下载被拒绝"
+  );
+  assert.equal(getSilentExportFailure({ ok: true }, "导出失败"), "导出失败");
+});
 
 test("resolveSilentExportResult 打包成功且可下载时返回 ok=true", () => {
   const packResult: SilentExportPackResult = {

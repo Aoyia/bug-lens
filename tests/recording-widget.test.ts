@@ -376,4 +376,14 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
       /border:\s*1px solid rgba\(0,\s*0,\s*0,\s*0\.08\)/
     );
   });
+
+  test("shows an error toast with a red icon", () => {
+    widget = new RecordingWidget(callbacks);
+    widget.showToast("导出失败", 2800, "error");
+
+    const toast = document.querySelector("#__wbr_toast__") as HTMLElement;
+    assert.ok(toast, "Toast element should exist in DOM");
+    assert.match(toast.textContent || "", /导出失败/);
+    assert.match(toast.innerHTML, /color:#d5484c/);
+  });
 });

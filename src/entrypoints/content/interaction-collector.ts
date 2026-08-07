@@ -6,6 +6,7 @@ import {
   isMeaningfulFrameworkState,
 } from "../../domain/framework-state-capture";
 import { captureEnvironment } from "../../domain/environment-capture";
+import { getSilentExportFailure } from "../../domain/silent-export";
 import type {
   ExpectedStatement,
   FrameworkStateTrigger,
@@ -125,8 +126,9 @@ if (existingController) {
             silentExport: true,
           })
         );
-        if (!res?.ok) {
-          widget.showToast(t("exportFailed", res?.error || t("stopFailed")));
+        const exportFailure = getSilentExportFailure(res, t("stopFailed"));
+        if (exportFailure) {
+          widget.showToast(t("exportFailed", exportFailure), 5_500, "error");
           return;
         }
         const prompt = res?.session?.silentPrompt;
@@ -139,7 +141,7 @@ if (existingController) {
         }
         widget.showToast(t("exportSuccessCopied"));
       } catch (error) {
-        widget.showToast(t("exportFailed", String(error)));
+        widget.showToast(t("exportFailed", String(error)), 5_500, "error");
       }
     },
     onMarkIssue(anchor) {
