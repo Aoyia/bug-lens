@@ -1,5 +1,7 @@
 import {
+  buildIssueSequenceContext,
   defaultAnnotation,
+  ISSUE_SEQUENCE_WINDOW_MS,
   markIssueSceneResult,
   normalizeAnnotation,
   normalizeExpected,
@@ -11,7 +13,9 @@ import { ensureOffscreenDocument } from "../shared/offscreen.ts";
 import {
   message,
   type CaptureIssue,
+  type ConsoleEntry,
   type IssueScene,
+  type IssueSequenceContext,
   type RecordingSession,
   type RuntimeMessage,
 } from "../shared/protocol.ts";
@@ -154,6 +158,28 @@ export class IssueSceneCapture {
       throw new Error("TARGET_TAB_NOT_ACTIVE: 当前激活标签页不是录制目标");
   }
 
+  /**
+   * 以"标记当下"为锚点，冻结窗口内已入库的交互与 Console 报错为时序切片。
+   * 数据在入库时已按 privacyMode 脱敏，此处仅做紧凑投影（P1 Sequence 维度）。
+   */
+  private async buildSequenceContext(
+    session: RecordingSession,
+    anchorEpochMs: number
+  ): Promise<IssueSequenceContext | undefined> {
+    const [interactions, consoleEntries] = await Promise.all([
+      db.getInteractions(session.id),
+      session.options.captureConsole
+        ? db.getConsole(session.id)
+        : Promise.resolve([] as ConsoleEntry[]),
+    ]);
+    return buildIssueSequenceContext({
+      anchorEpochMs,
+      windowMs: ISSUE_SEQUENCE_WINDOW_MS,
+      interactions,
+      consoleEntries,
+    });
+  }
+
   private async captureImpl(
     payload: CapturePayload,
     sender: Sender
@@ -170,6 +196,10 @@ export class IssueSceneCapture {
       status: "capturing",
       observedAtEpochMs: payload.observedAtEpochMs,
       selectionStartedAtEpochMs: payload.selectionStartedAtEpochMs,
+      sequenceContext: await this.buildSequenceContext(
+        session,
+        payload.selectionStartedAtEpochMs ?? payload.observedAtEpochMs
+      ),
       page: payload.page,
       target: payload.target,
       targets: payload.targets,

@@ -186,19 +186,19 @@ test("image viewer opens issue scene screenshots and selects the requested mode"
     viewer.openScenes(scenes, "scene-1", "annotated");
     assert.equal(modal.hidden, false);
     assert.equal(modalImage.src, "data:image/png;base64,AA==");
-    assert.match(modalTitle.textContent, /问题现场 1/);
+    assert.match(modalTitle.textContent, /issueSceneTitle/);
     assert.equal(counter.textContent, "1 / 3");
 
     // original 模式定位
     viewer.openScenes(scenes, "scene-1", "original");
     assert.equal(modalImage.src, "data:image/png;base64,BB==");
-    assert.match(modalTitle.textContent, /问题现场 1/);
+    assert.match(modalTitle.textContent, /issueSceneTitle/);
     assert.equal(counter.textContent, "2 / 3");
 
     // 场景缺少 annotated 时回退到其第一张可用图
     viewer.openScenes(scenes, "scene-2", "annotated");
     assert.equal(modalImage.src, "data:image/png;base64,CC==");
-    assert.match(modalTitle.textContent, /问题现场 2/);
+    assert.match(modalTitle.textContent, /issueSceneTitle/);
 
     // 无截图场景不打开 modal
     modal.hidden = true;

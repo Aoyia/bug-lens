@@ -64,11 +64,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, _sendResponse) => {
     reportOverlayState(true);
     screenshotOverlayInstance.show({
       viewportDataUrl: msg.viewportDataUrl,
-      onComplete: (payload) => {
-        console.log(
-          "Bug Lens: Screenshot Payload captured & copied to clipboard",
-          payload
-        );
+      onComplete: () => {
         screenshotOverlayInstance = null;
         reportOverlayState(false);
       },
@@ -129,6 +125,10 @@ if (existingController) {
             silentExport: true,
           })
         );
+        if (!res?.ok) {
+          widget.showToast(t("exportFailed", res?.error || t("stopFailed")));
+          return;
+        }
         const prompt = res?.session?.silentPrompt;
         if (prompt) {
           try {
@@ -138,18 +138,9 @@ if (existingController) {
           }
         }
         widget.showToast(t("exportSuccessCopied"));
-      } catch {
-        // ignore
+      } catch (error) {
+        widget.showToast(t("exportFailed", String(error)));
       }
-    },
-    onStopAndDiscard() {
-      void chrome.runtime.sendMessage(
-        message("session/stop", {
-          commandId: crypto.randomUUID(),
-          discard: true,
-        })
-      );
-      widget.unmount();
     },
     onMarkIssue(anchor) {
       beginIssueSelection(anchor);

@@ -29,6 +29,8 @@ interface RecordPanelProps {
   onStart: () => void;
   onStop: () => void;
   onOpenPreview: () => void;
+  onStartNew: () => void;
+  onError: (message: string) => void;
 }
 
 export const RecordPanel = memo(function RecordPanel({
@@ -44,15 +46,21 @@ export const RecordPanel = memo(function RecordPanel({
   onStart,
   onStop,
   onOpenPreview,
+  onStartNew,
+  onError,
 }: RecordPanelProps) {
   const handleTakeScreenshot = () => {
-    if (!activeTab?.id) return;
+    if (!activeTab?.id) {
+      onError(t("failedToReadTab"));
+      return;
+    }
     chrome.runtime
       .sendMessage(message("screenshot/trigger", { tabId: activeTab.id }))
+      .then(() => window.close())
       .catch((err) => {
         console.warn("Bug Lens: Failed trigger screenshot message", err);
+        onError(t("screenshotFailed"));
       });
-    window.close();
   };
 
   return (
@@ -125,8 +133,8 @@ export const RecordPanel = memo(function RecordPanel({
               data-testid="take-screenshot-btn"
               className="action-btn secondary"
               onClick={handleTakeScreenshot}
-              aria-label="一键截图并收集 DOM 上下文"
-              title={`截图 (${screenshotShortcut})`}
+              aria-label={t("takeScreenshot")}
+              title={`${t("takeScreenshot")} (${screenshotShortcut})`}
             >
               <svg
                 width="14"
@@ -142,7 +150,7 @@ export const RecordPanel = memo(function RecordPanel({
                 <path d="M6 2v14a2 2 0 0 0 2 2h14"></path>
                 <path d="M18 22V8a2 2 0 0 0-2-2H2"></path>
               </svg>
-              <span>截图</span>
+              <span>{t("takeScreenshot")}</span>
             </button>
           </>
         )}
@@ -168,14 +176,35 @@ export const RecordPanel = memo(function RecordPanel({
           </button>
         )}
         {ready && (
-          <button
-            id="preview"
-            data-testid="preview-btn"
-            className="action-btn secondary"
-            onClick={onOpenPreview}
-          >
-            {t("reopenPreview")}
-          </button>
+          <>
+            <button
+              id="start-new"
+              data-testid="start-new-btn"
+              className="action-btn secondary"
+              onClick={onStartNew}
+              aria-label={t("startNewRecording")}
+              title={t("startNewRecording")}
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="12" r="8"></circle>
+              </svg>
+              <span>{t("startNewRecording")}</span>
+            </button>
+            <button
+              id="preview"
+              data-testid="preview-btn"
+              className="action-btn secondary"
+              onClick={onOpenPreview}
+            >
+              {t("reopenPreview")}
+            </button>
+          </>
         )}
       </div>
     </div>

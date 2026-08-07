@@ -1,8 +1,11 @@
 import type {
   AnnotationModel,
   CaptureIssue,
+  ConsoleEntry,
   ExpectedStatement,
+  InteractionRecord,
   IssueScene,
+  IssueSequenceContext,
   TargetDomSnapshot,
 } from "../shared/protocol.ts";
 
@@ -177,6 +180,94 @@ export function buildTargetSnapshot(
     computedStyle: Object.fromEntries(
       Object.entries(element.computedStyle).slice(0, 20)
     ),
+  };
+}
+
+/** 时序切片默认回看窗口：标记当下前 60s */
+export const ISSUE_SEQUENCE_WINDOW_MS = 60_000;
+/** 时序切片默认上限，防止场景元数据膨胀挤占存储预算 */
+export const ISSUE_SEQUENCE_MAX_INTERACTIONS = 30;
+export const ISSUE_SEQUENCE_MAX_CONSOLE_ENTRIES = 30;
+
+const SEQUENCE_INTERACTION_TEXT_MAX = 80;
+const SEQUENCE_CONSOLE_TEXT_MAX = 500;
+
+/**
+ * 以"标记当下"为锚点，冻结一段时间窗口内的交互与 Console 报错，
+ * 生成问题现场的时序上下文切片（P1 的 Sequence 维度）。
+ *
+ * - 仅投影已脱敏的交互字段，复用入库时 privacy-policy 的清洗结果；
+ * - 按时间升序排列，只保留窗口内最近的部分条目，控制体积；
+ * - 排除已取消交互；值已脱敏的输入仅保留 valueRedacted 标记；
+ * - 返回 undefined 表示窗口内没有任何时序上下文（场景不携带空切片）。
+ */
+export function buildIssueSequenceContext(input: {
+  anchorEpochMs: number;
+  windowMs?: number;
+  maxInteractions?: number;
+  maxConsoleEntries?: number;
+  interactions: InteractionRecord[];
+  consoleEntries?: ConsoleEntry[];
+}): IssueSequenceContext | undefined {
+  const anchorEpochMs = input.anchorEpochMs;
+  const windowMs = input.windowMs ?? ISSUE_SEQUENCE_WINDOW_MS;
+  const start = anchorEpochMs - windowMs;
+  const end = anchorEpochMs;
+
+  const interactions = input.interactions
+    .filter(
+      (item) =>
+        item.status !== "cancelled" &&
+        item.createdAt >= start &&
+        item.createdAt <= end
+    )
+    .sort((a, b) => a.createdAt - b.createdAt)
+    .slice(-(input.maxInteractions ?? ISSUE_SEQUENCE_MAX_INTERACTIONS))
+    .map((item) => ({
+      id: item.id,
+      kind: item.kind,
+      createdAt: item.createdAt,
+      offsetMs: item.createdAt - anchorEpochMs,
+      tagName: item.element.tagName,
+      text: item.element.text?.slice(0, SEQUENCE_INTERACTION_TEXT_MAX),
+      role: item.element.role,
+      toUrl: item.kind === "navigation" ? item.metadata?.toUrl : undefined,
+      scrollX: item.kind === "scroll" ? item.metadata?.scrollX : undefined,
+      scrollY: item.kind === "scroll" ? item.metadata?.scrollY : undefined,
+      key: item.metadata?.key,
+      shortcut: item.metadata?.shortcut,
+      value: item.metadata?.valueRedacted
+        ? undefined
+        : item.metadata?.value?.slice(0, SEQUENCE_INTERACTION_TEXT_MAX),
+      valueRedacted: item.metadata?.valueRedacted,
+      fileCount: item.metadata?.fileCount,
+    }));
+
+  const consoleEntries = (input.consoleEntries ?? [])
+    .filter(
+      (entry) =>
+        (entry.level === "error" ||
+          entry.level === "warning" ||
+          entry.level === "warn") &&
+        entry.createdAt >= start &&
+        entry.createdAt <= end
+    )
+    .sort((a, b) => a.createdAt - b.createdAt)
+    .slice(-(input.maxConsoleEntries ?? ISSUE_SEQUENCE_MAX_CONSOLE_ENTRIES))
+    .map((entry) => ({
+      createdAt: entry.createdAt,
+      offsetMs: entry.createdAt - anchorEpochMs,
+      level: entry.level,
+      text: entry.text.slice(0, SEQUENCE_CONSOLE_TEXT_MAX),
+    }));
+
+  if (interactions.length === 0 && consoleEntries.length === 0)
+    return undefined;
+  return {
+    anchorEpochMs,
+    windowMs,
+    interactions,
+    consoleEntries,
   };
 }
 

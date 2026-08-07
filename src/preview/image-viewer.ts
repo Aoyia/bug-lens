@@ -1,5 +1,6 @@
 import type { InteractionRecord } from "../shared/protocol";
 import type { IssueScenePreview } from "./issue-scene-view";
+import { t } from "../shared/i18n.ts";
 
 type ViewerImageItem = {
   id: string;
@@ -48,7 +49,10 @@ export class ImageViewer {
         return [
           {
             id: interaction.id,
-            title: `步骤 ${stepIndex + 1}. ${interaction.element.text || interaction.element.tagName}`,
+            title: t("stepScreenshotTitle", [
+              String(stepIndex + 1),
+              interaction.element.text || interaction.element.tagName,
+            ]),
             downloadName: `step-${stepIndex + 1}-screenshot.png`,
             dataUrl,
           },
@@ -80,7 +84,13 @@ export class ImageViewer {
         const id = `${scene.id}:${candidate.mode}`;
         items.push({
           id,
-          title: `问题现场 ${sceneIndex + 1} · ${new Date(scene.observedAtEpochMs).toLocaleTimeString()}（${candidate.mode === "annotated" ? "批注图" : "原图"}）`,
+          title: t("issueSceneTitle", [
+            String(sceneIndex + 1),
+            new Date(scene.observedAtEpochMs).toLocaleTimeString(),
+            candidate.mode === "annotated"
+              ? t("imageModeAnnotated")
+              : t("imageModeOriginal"),
+          ]),
           downloadName: `issue-scene-${sceneIndex + 1}-${candidate.mode}.png`,
           dataUrl: candidate.url,
         });
@@ -148,7 +158,7 @@ export class ImageViewer {
     this.element<HTMLButtonElement>("#modal-next-btn").disabled =
       this.currentIndex === this.items.length - 1;
     const copyText = this.root.querySelector<HTMLElement>("#modal-copy-text");
-    if (copyText) copyText.textContent = "复制";
+    if (copyText) copyText.textContent = t("copyShort");
     this.element("#modal-copy-btn").classList.remove("copied");
     this.resetTransform();
   }
@@ -181,11 +191,11 @@ export class ImageViewer {
         new ClipboardItem({ [blob.type || "image/png"]: blob }),
       ]);
       const copyText = this.root.querySelector<HTMLElement>("#modal-copy-text");
-      if (copyText) copyText.textContent = "已复制 ✓";
+      if (copyText) copyText.textContent = t("copiedShort");
       this.element("#modal-copy-btn").classList.add("copied");
-      this.notify("已成功复制图片到剪贴板");
+      this.notify(t("copiedImageToast"));
     } catch (error) {
-      this.notify(`复制失败：${String(error)}`);
+      this.notify(t("copyFailed", String(error)));
     }
   }
 
@@ -199,7 +209,7 @@ export class ImageViewer {
     this.root.body.appendChild(link);
     link.click();
     link.remove();
-    this.notify("已开始下载图片截图");
+    this.notify(t("imageDownloadStarted"));
   }
 
   private bindEvents(): void {

@@ -1,6 +1,6 @@
 import { zipSync } from "fflate";
 import {
-  formatPayloadToMarkdown,
+  formatPayloadToMarkdownForZip,
   type AIScreenshotPayload,
 } from "../domain/screenshot-payload.ts";
 
@@ -33,22 +33,22 @@ export function stringToUint8Array(str: string): Uint8Array {
 export function buildScreenshotZipPackage(
   payload: AIScreenshotPayload
 ): ScreenshotZipResult {
-  const markdownPrompt = formatPayloadToMarkdown(payload);
+  // zip 内 ai-prompt.md 使用引导文案（打包先于下载，无法预知真实绝对路径）
+  const markdownPrompt = formatPayloadToMarkdownForZip(payload);
   const imageU8 = base64ToUint8Array(payload.image.base64Data);
 
   const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
   const filename = `bug-lens-screenshot-${timestamp}.zip`;
 
   // 组装 ZIP 压缩包包含的文件列表（标注已嵌入 screenshot.png 内部，保持文件包干练）
+  // JSON 采用紧凑序列化：缩进空白占体积 70%+，而 AI/机器读取 JSON 无需缩进
   const zipFiles: Record<string, Uint8Array> = {
     "screenshot.png": imageU8,
     "ai-prompt.md": stringToUint8Array(markdownPrompt),
     "dom-context.json": stringToUint8Array(
-      JSON.stringify(payload.domContextTree, null, 2)
+      JSON.stringify(payload.domContextTree)
     ),
-    "environment.json": stringToUint8Array(
-      JSON.stringify(payload.environment, null, 2)
-    ),
+    "environment.json": stringToUint8Array(JSON.stringify(payload.environment)),
   };
 
   // 使用 fflate 高性能 zipSync 快速打包

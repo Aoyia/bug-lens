@@ -128,7 +128,7 @@ export class SelectionOverlay {
     });
 
     const statusText = document.createElement("span");
-    statusText.textContent = `标记模式 (${this.deps.shortcutKeyText}) · 点击选择网页元素`;
+    statusText.textContent = t("markModeHint", this.deps.shortcutKeyText);
 
     const btnGroup = document.createElement("div");
     Object.assign(btnGroup.style, {
@@ -138,7 +138,7 @@ export class SelectionOverlay {
     });
 
     const finishBtn = document.createElement("button");
-    finishBtn.textContent = "进入截图 (0)";
+    finishBtn.textContent = t("enterScreenshot", "0");
     Object.assign(finishBtn.style, {
       background: "#ef233c",
       color: "#fff",
@@ -149,10 +149,10 @@ export class SelectionOverlay {
       fontWeight: "600",
       cursor: "pointer",
     });
-    finishBtn.title = "回车快捷进入截图";
+    finishBtn.title = t("enterScreenshotByEnter");
 
     const clearBtn = document.createElement("button");
-    clearBtn.textContent = "清空";
+    clearBtn.textContent = t("clearShort");
     Object.assign(clearBtn.style, {
       background: "rgba(255,255,255,0.15)",
       color: "#fff",
@@ -165,7 +165,7 @@ export class SelectionOverlay {
     });
 
     const cancelBtn = document.createElement("button");
-    cancelBtn.textContent = "取消";
+    cancelBtn.textContent = t("cancelShort");
     Object.assign(cancelBtn.style, {
       background: "transparent",
       color: "rgba(255,255,255,0.7)",
@@ -188,11 +188,17 @@ export class SelectionOverlay {
       { element: Element; clientX: number; clientY: number } | undefined;
 
     const updateUI = () => {
-      finishBtn.textContent = `进入截图 (${selectedItems.length})`;
+      finishBtn.textContent = t(
+        "enterScreenshot",
+        String(selectedItems.length)
+      );
       if (selectedItems.length > 0) {
-        statusText.textContent = `已选中 ${selectedItems.length} 个元素 · 单击继续添加 · 回车进入截图`;
+        statusText.textContent = t(
+          "selectedCountHint",
+          String(selectedItems.length)
+        );
       } else {
-        statusText.textContent = `标记模式 (${this.deps.shortcutKeyText}) · 点击选择网页元素 · 回车进入截图`;
+        statusText.textContent = t("markModeHint", this.deps.shortcutKeyText);
       }
     };
 

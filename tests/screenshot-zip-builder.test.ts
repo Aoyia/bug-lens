@@ -24,13 +24,15 @@ describe("Screenshot ZIP Builder - 资源包压缩与解压验证", () => {
     annotationGroups: [],
     domContextTree: {
       smallestCommonAncestorSelector: "body",
-      tree: {
-        tagName: "div",
-        bounds: { x: 0, y: 0, width: 100, height: 100 },
-        attributes: {},
-        computedStyles: {},
-        children: [],
+      meta: {
+        anchorCount: 0,
+        leafCount: 0,
+        ancestorCount: 0,
+        truncated: false,
       },
+      anchors: [],
+      leaves: [],
+      ancestors: [],
     },
     environment: {
       url: "https://example.com",
@@ -84,5 +86,20 @@ describe("Screenshot ZIP Builder - 资源包压缩与解压验证", () => {
 
     const promptText = new TextDecoder().decode(unzipped["ai-prompt.md"]);
     assert.ok(promptText.includes("https://example.com"));
+    // zip 内 ai-prompt.md 使用引导文案而非路径占位符（打包先于下载，无法预知真实路径）
+    assert.ok(
+      !promptText.includes("请将这里替换为导出的 ZIP 绝对路径"),
+      "ai-prompt.md 不应包含路径占位符"
+    );
+    assert.ok(
+      promptText.includes("真实绝对路径已写入剪贴板提示词"),
+      "ai-prompt.md 应包含剪贴板路径引导文案"
+    );
+
+    // JSON 使用紧凑序列化：与紧凑 JSON.stringify 输出完全一致（无缩进空白，压缩体积）
+    const domText = new TextDecoder().decode(unzipped["dom-context.json"]);
+    assert.equal(domText, JSON.stringify(dummyPayload.domContextTree));
+    const envText = new TextDecoder().decode(unzipped["environment.json"]);
+    assert.equal(envText, JSON.stringify(dummyPayload.environment));
   });
 });

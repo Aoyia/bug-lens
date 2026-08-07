@@ -80,16 +80,20 @@ export function t(
       const subs = Array.isArray(substitutions)
         ? substitutions
         : [substitutions];
-      subs.forEach((sub, i) => {
-        msg = msg.replace(new RegExp(`\\$${i + 1}`, "g"), sub);
-        msg = msg.replace(/\$COUNT\$/g, sub);
-        msg = msg.replace(/\$BYTES\$/g, sub);
-        msg = msg.replace(/\$DAYS\$/g, sub);
-        msg = msg.replace(/\$MAX\$/g, sub);
-        msg = msg.replace(/\$CURRENT\$/g, sub);
-        msg = msg.replace(/\$TOTAL\$/g, sub);
-        msg = msg.replace(/\$SIZE\$/g, sub);
-        msg = msg.replace(/\$ERROR\$/g, sub);
+      // 按命名占位符在消息中首次出现的顺序，依次映射替换参数（先出现者用第一个参数，依此类推）
+      let namedIndex = 0;
+      msg = msg.replace(
+        /\$(COUNT|BYTES|DAYS|MAX|CURRENT|TOTAL|SIZE|ERROR)\$/g,
+        () => {
+          const value = subs[namedIndex] ?? "";
+          namedIndex += 1;
+          return value;
+        }
+      );
+      // 兼容数字占位符 $1$ / $2$ …
+      msg = msg.replace(/\$(\d+)\$/g, (_match, index: string) => {
+        const value = subs[Number(index) - 1];
+        return value ?? "";
       });
     }
     return msg;

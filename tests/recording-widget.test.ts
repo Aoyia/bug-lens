@@ -9,7 +9,6 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
 
   const callbacks = {
     onStop: () => {},
-    onStopAndDiscard: () => {},
     onMarkIssue: () => {},
     getStartedAtEpochMs: () => Date.now(),
     isIdlePaused: () => false,

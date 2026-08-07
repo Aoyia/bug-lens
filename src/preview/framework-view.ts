@@ -1,4 +1,8 @@
-import type { FrameworkComponentNode, FrameworkSnapshot } from "../shared/protocol";
+import type {
+  FrameworkComponentNode,
+  FrameworkSnapshot,
+} from "../shared/protocol";
+import { t } from "../shared/i18n.ts";
 
 function escapeStr(str: any): string {
   if (typeof str !== "string") str = String(str);
@@ -22,10 +26,7 @@ function frameworkLabel(framework: "vue" | "react", version: number): string {
   return `${label} ${version}`;
 }
 
-function renderTreeNode(
-  node: FrameworkComponentNode,
-  depth: number
-): string {
+function renderTreeNode(node: FrameworkComponentNode, depth: number): string {
   const indent = depth * 18;
   const isTarget = node.isTarget;
   const color = componentColor(node.framework);
@@ -44,7 +45,7 @@ function renderTreeNode(
   html += nameHtml;
 
   if (isTarget) {
-    html += ` <span style="font-size:9px;color:#a0aec0;background:#f7fafc;padding:0 4px;border-radius:2px">目标</span>`;
+    html += ` <span style="font-size:9px;color:#a0aec0;background:#f7fafc;padding:0 4px;border-radius:2px">${t("frameworkTargetLabel")}</span>`;
   }
 
   if (node.props) {
@@ -88,9 +89,7 @@ function renderTargetDetails(node: FrameworkComponentNode): string {
   return html;
 }
 
-export function renderFrameworkSnapshot(
-  framework?: FrameworkSnapshot
-): string {
+export function renderFrameworkSnapshot(framework?: FrameworkSnapshot): string {
   if (!framework) return "";
 
   const target = framework.targetComponent;

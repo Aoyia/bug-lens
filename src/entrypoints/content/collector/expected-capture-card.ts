@@ -120,7 +120,10 @@ export class ExpectedCaptureCard {
         this.selectedChips.clear();
         this.chipButtons.forEach((chip) => this.applyChipStyle(chip, false));
       }
+      // 输入即视为活跃操作，重新武装超时，避免组织语言时卡片静默收起
+      this.resetAutoSkipTimer();
     });
+    input.addEventListener("focus", () => this.resetAutoSkipTimer());
 
     const actionsRow = document.createElement("div");
     Object.assign(actionsRow.style, {
@@ -177,10 +180,7 @@ export class ExpectedCaptureCard {
     this.positionCard(anchor);
 
     setTimeout(() => input.focus(), 30);
-    this.autoSkipTimer = window.setTimeout(
-      () => this.skip(),
-      AUTO_SKIP_TIMEOUT_MS
-    );
+    this.resetAutoSkipTimer();
     this.keydownListener = (e: KeyboardEvent) => {
       if (e.key === "Enter") {
         e.preventDefault();
@@ -266,6 +266,7 @@ export class ExpectedCaptureCard {
     if (this.inputElement) {
       this.inputElement.value = [...this.selectedChips].join("；");
     }
+    this.resetAutoSkipTimer();
   }
 
   private buildExpected(): ExpectedStatement | undefined {
@@ -288,6 +289,23 @@ export class ExpectedCaptureCard {
     } else {
       this.deps.onSkip();
     }
+  }
+
+  /**
+   * 重新武装自动跳过计时器：用户在卡片上输入、聚焦或切换速记标签时调用，
+   * 防止长时间停顿组织语言时卡片静默收起而丢失已输入内容。
+   * 超时兜底：输入框已有内容则自动提交保留（不静默丢弃），为空才跳过。
+   */
+  private resetAutoSkipTimer(): void {
+    if (this.cardElement == null || this.submitted) return;
+    if (this.autoSkipTimer !== undefined) {
+      window.clearTimeout(this.autoSkipTimer);
+      this.autoSkipTimer = undefined;
+    }
+    this.autoSkipTimer = window.setTimeout(() => {
+      this.autoSkipTimer = undefined;
+      this.submit();
+    }, AUTO_SKIP_TIMEOUT_MS);
   }
 
   private skip(): void {

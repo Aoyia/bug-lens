@@ -2,6 +2,7 @@ import { memo } from "preact/compat";
 import type { FrameworkStateEvidence } from "../../shared/protocol";
 import { renderFrameworkSnapshot } from "../../preview/framework-view";
 import { formatElapsedEpochTime } from "../../domain/evidence-clock";
+import { t } from "../../shared/i18n.ts";
 
 export interface FrameworkStateTabProps {
   states: FrameworkStateEvidence[];
@@ -9,10 +10,10 @@ export interface FrameworkStateTabProps {
 }
 
 const TRIGGER_LABEL: Record<FrameworkStateEvidence["trigger"], string> = {
-  start: "会话开始",
-  interaction: "交互确认",
-  "issue-scene": "标记问题",
-  resume: "继续录制",
+  start: t("fwTriggerStart"),
+  interaction: t("fwTriggerInteraction"),
+  "issue-scene": t("fwTriggerIssueScene"),
+  resume: t("fwTriggerResume"),
 };
 
 function renderJsonValue(value: unknown): string {
@@ -38,12 +39,7 @@ export const FrameworkStateTab = memo(function FrameworkStateTab({
   startedAtEpochMs,
 }: FrameworkStateTabProps) {
   if (!states || states.length === 0) {
-    return (
-      <div className="framework-state-empty">
-        未采集到 React/Vue
-        组件状态快照。录制时页面未识别到框架，或未开启框架状态采集。
-      </div>
-    );
+    return <div className="framework-state-empty">{t("fwEmpty")}</div>;
   }
 
   return (
@@ -83,7 +79,7 @@ export const FrameworkStateTab = memo(function FrameworkStateTab({
 
             {state.globalState ? (
               <StateSection
-                title="全局状态 (globalState)"
+                title={t("fwGlobalState")}
                 value={state.globalState}
               />
             ) : null}
@@ -93,7 +89,7 @@ export const FrameworkStateTab = memo(function FrameworkStateTab({
                 <div className="framework-state-section-title">
                   Web Storage
                   {state.webStorage.redactedValues
-                    ? "（安全模式，值已脱敏）"
+                    ? t("fwWebStorageRedacted")
                     : ""}
                 </div>
                 {state.webStorage.localStorage ? (
@@ -120,9 +116,7 @@ export const FrameworkStateTab = memo(function FrameworkStateTab({
             ) : null}
 
             {!snapshotHtml && !state.globalState && !state.webStorage ? (
-              <div className="framework-state-empty">
-                该帧未包含可展示的状态。
-              </div>
+              <div className="framework-state-empty">{t("fwNoState")}</div>
             ) : null}
           </article>
         );

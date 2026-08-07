@@ -115,6 +115,13 @@ export function PopupApp() {
     })();
   }, []);
 
+  // 错误提示自动消失：出现后 6 秒自动清除，避免残留阻塞弹窗空间
+  useEffect(() => {
+    if (!errorText) return;
+    const timer = window.setTimeout(() => setErrorText(""), 6000);
+    return () => window.clearTimeout(timer);
+  }, [errorText]);
+
   const formatBytes = useCallback((bytes: number): string => {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KiB`;
@@ -375,6 +382,12 @@ export function PopupApp() {
     [activeSession]
   );
 
+  const handleStartNew = useCallback(() => {
+    // 重置客户端会话状态回到闲置态：已完成的会话仍保留在历史中，
+    // 用户可重新调整选项并点击「开始录制」开启下一次录制。
+    updateSessionState(undefined);
+  }, [updateSessionState]);
+
   const handleDeleteSession = useCallback(
     async (sessionId: string) => {
       const result = await send("session/delete", { sessionId });
@@ -540,6 +553,8 @@ export function PopupApp() {
           onStart={handleStart}
           onStop={handleStop}
           onOpenPreview={() => handleOpenPreview()}
+          onStartNew={handleStartNew}
+          onError={setErrorText}
         />
 
         <OptionsGrid
@@ -587,8 +602,17 @@ export function PopupApp() {
       </section>
 
       {errorText && (
-        <div id="error" className="error">
-          {errorText}
+        <div id="error" className="error" role="alert">
+          <span className="error-text">{errorText}</span>
+          <button
+            id="error-close"
+            className="error-close"
+            aria-label={t("dismissError")}
+            title={t("dismissError")}
+            onClick={() => setErrorText("")}
+          >
+            ×
+          </button>
         </div>
       )}
 

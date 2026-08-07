@@ -25,7 +25,11 @@ describe("Screenshot Overlay - 微信截图4大核心优化卡口", () => {
   });
 
   test("截图完成 toast 文案随 promptInjectedWithPath 分支", () => {
-    assert.match(buildScreenshotToastMessage(true), /含本地绝对路径/);
-    assert.match(buildScreenshotToastMessage(false), /手动填入 ZIP 路径/);
+    // 非扩展环境（无 chrome.i18n / 离线字典）下 t() 回退返回 key
+    assert.equal(buildScreenshotToastMessage(true), "screenshotToastWithPath");
+    assert.equal(
+      buildScreenshotToastMessage(false),
+      "screenshotToastWithoutPath"
+    );
   });
 });

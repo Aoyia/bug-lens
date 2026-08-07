@@ -79,6 +79,18 @@
   "startRecording": {
     "message": "开始录制"
   },
+  "startNewRecording": {
+    "message": "开始新录制"
+  },
+  "takeScreenshot": {
+    "message": "截图"
+  },
+  "screenshotFailed": {
+    "message": "截图触发失败，请重试"
+  },
+  "dismissError": {
+    "message": "关闭"
+  },
   "stopRecording": {
     "message": "结束并导出"
   },
@@ -497,5 +509,743 @@
   },
   "skipAnnotationVideo": {
     "message": "跳过批注视频"
+  },
+  "matchingCount": {
+    "message": "匹配 $CURRENT$ / $TOTAL$ 条",
+    "placeholders": {
+      "current": { "content": "$1" },
+      "total": { "content": "$2" }
+    }
+  },
+  "deleteFromExport": {
+    "message": "从预览和导出中删除此日志"
+  },
+  "noMatchingConsole": {
+    "message": "未找到匹配的 Console 日志"
+  },
+  "allConsoleDeleted": {
+    "message": "所有 Console 日志均已删除，可从右上角恢复。"
+  },
+  "noConsoleRecords": {
+    "message": "没有 Console 记录"
+  },
+  "clickToViewDetail": {
+    "message": "点击上方网络请求查看详情"
+  },
+  "requestHeadersCount": {
+    "message": "请求头 ($COUNT$)",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "initiatorContent": {
+    "message": "类型: $CURRENT$\n触发位置: $TOTAL$",
+    "placeholders": {
+      "current": { "content": "$1" },
+      "total": { "content": "$2" }
+    }
+  },
+  "initiatorSection": {
+    "message": "发起方 / 调用栈 (Initiator)"
+  },
+  "responseHeadersCount": {
+    "message": "响应头 ($COUNT$)",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "noResponseHeaders": {
+    "message": "无响应头"
+  },
+  "noResponseMeta": {
+    "message": "未收到响应元数据"
+  },
+  "responseBodyPending": {
+    "message": "响应正文正在读取…"
+  },
+  "responseNoBody": {
+    "message": "该响应按协议无正文"
+  },
+  "responseBodyRedacted": {
+    "message": "响应正文已按隐私策略省略：$CURRENT$",
+    "placeholders": {
+      "current": { "content": "$1" }
+    }
+  },
+  "responseBodyUnavailable": {
+    "message": "响应正文不可用：$CURRENT$",
+    "placeholders": {
+      "current": { "content": "$1" }
+    }
+  },
+  "browserNotProvided": {
+    "message": "浏览器未提供"
+  },
+  "binaryResponseSaved": {
+    "message": "二进制响应以 Base64 保存于导出数据中。长度：$SIZE$",
+    "placeholders": {
+      "size": { "content": "$1" }
+    }
+  },
+  "previewTruncated": {
+    "message": "[预览截断；完整正文保存在 ZIP 中]"
+  },
+  "emptyResponseBody": {
+    "message": "[空响应正文]"
+  },
+  "requestDetails": {
+    "message": "请求详情"
+  },
+  "copyAsCurl": {
+    "message": "复制为 cURL 命令"
+  },
+  "copyCurl": {
+    "message": "复制 cURL"
+  },
+  "curlCopied": {
+    "message": "已复制 cURL"
+  },
+  "curlCopiedNotify": {
+    "message": "已复制 cURL 命令到剪贴板"
+  },
+  "copyFailed": {
+    "message": "复制失败：$ERROR$",
+    "placeholders": {
+      "error": { "content": "$1" }
+    }
+  },
+  "responseBodyHeader": {
+    "message": "响应正文 · $CURRENT$",
+    "placeholders": {
+      "current": { "content": "$1" }
+    }
+  },
+  "unknownMime": {
+    "message": "未知类型"
+  },
+  "absoluteTime": {
+    "message": "绝对时间: $CURRENT$",
+    "placeholders": {
+      "current": { "content": "$1" }
+    }
+  },
+  "deleteRequest": {
+    "message": "从预览和导出中删除此请求"
+  },
+  "noMatchingNetwork": {
+    "message": "未找到匹配的网络请求"
+  },
+  "allNetworkDeleted": {
+    "message": "所有 Network 请求均已删除，可从右上角恢复。"
+  },
+  "noNetworkRecords": {
+    "message": "没有 Network 记录"
+  },
+  "aiStepValue": {
+    "message": "值: \"$CURRENT$\"",
+    "placeholders": {
+      "current": { "content": "$1" }
+    }
+  },
+  "aiStepText": {
+    "message": "文本: \"$CURRENT$\"",
+    "placeholders": {
+      "current": { "content": "$1" }
+    }
+  },
+  "aiStepTitle": {
+    "message": "【步骤 $CURRENT$】$TOTAL$",
+    "placeholders": {
+      "current": { "content": "$1" },
+      "total": { "content": "$2" }
+    }
+  },
+  "aiStepUrl": {
+    "message": "- 页面 URL: $CURRENT$",
+    "placeholders": {
+      "current": { "content": "$1" }
+    }
+  },
+  "aiStepComponent": {
+    "message": "- $CURRENT$ 组件: <$TOTAL$> ($CURRENT$ $SIZE$)",
+    "placeholders": {
+      "current": { "content": "$1" },
+      "total": { "content": "$2" },
+      "size": { "content": "$3" }
+    }
+  },
+  "aiStepTarget": {
+    "message": "- 目标元素: $CURRENT$",
+    "placeholders": {
+      "current": { "content": "$1" }
+    }
+  },
+  "aiStepLocator": {
+    "message": "- 核心定位器: $CURRENT$",
+    "placeholders": {
+      "current": { "content": "$1" }
+    }
+  },
+  "allInteractionsDeleted": {
+    "message": "所有交互步骤均已删除，可从右上角恢复。"
+  },
+  "noInteractions": {
+    "message": "没有捕获到点击"
+  },
+  "topLevelPage": {
+    "message": "顶层页面"
+  },
+  "inputCharsRedacted": {
+    "message": "已写入 $COUNT$ 字符 (脱敏)",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "inputCharsTitle": {
+    "message": "包含写入文本内容 $COUNT$ 字符",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "enterKeyTitle": {
+    "message": "包含回车提交"
+  },
+  "aggregatedEvents": {
+    "message": "由 $COUNT$ 个物理事件聚合",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "copyStepText": {
+    "message": "复制步骤描述文本"
+  },
+  "stepCopied": {
+    "message": "已复制步骤 $COUNT$ 描述",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "copyStepFailed": {
+    "message": "复制失败: $ERROR$",
+    "placeholders": {
+      "error": { "content": "$1" }
+    }
+  },
+  "deleteStep": {
+    "message": "从预览和导出中删除此聚合步骤"
+  },
+  "collapseDetails": {
+    "message": "收起明细 ▲"
+  },
+  "expandDetails": {
+    "message": "展开微步骤 明细 ▼"
+  },
+  "writeContent": {
+    "message": "✍️ 写入内容: \"$CURRENT$\"",
+    "placeholders": {
+      "current": { "content": "$1" }
+    }
+  },
+  "writeRedacted": {
+    "message": "✍️ 写入 $COUNT$ 字符 (脱敏)",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "writeText": {
+    "message": "✍️ 写入文本"
+  },
+  "keystrokeCount": {
+    "message": " ($COUNT$ 次打字)",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "stepScreenshotAlt": {
+    "message": "点击/操作截图"
+  },
+  "writeCharsShort": {
+    "message": "✍️ 写入 $COUNT$ 字符",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "stepCountShort": {
+    "message": "$COUNT$ 步骤",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "microEventsTitle": {
+    "message": "微观物理事件列表"
+  },
+  "keyPressLabel": {
+    "message": "按键: $CURRENT$",
+    "placeholders": {
+      "current": { "content": "$1" }
+    }
+  },
+  "labelTag": {
+    "message": "标签"
+  },
+  "labelClassName": {
+    "message": "类名"
+  },
+  "labelTextInput": {
+    "message": "文本/输入"
+  },
+  "labelSectionContext": {
+    "message": "上下文"
+  },
+  "labelSize": {
+    "message": "尺寸"
+  },
+  "labelCoordinates": {
+    "message": "坐标"
+  },
+  "labelViewport": {
+    "message": "视口"
+  },
+  "labelLocatorCandidates": {
+    "message": "定位器候选"
+  },
+  "locatorMeta": {
+    "message": "$CURRENT$ · 匹配 $TOTAL$ · 稳定性 $SIZE$%",
+    "placeholders": {
+      "current": { "content": "$1" },
+      "total": { "content": "$2" },
+      "size": { "content": "$3" }
+    }
+  },
+  "copyShort": {
+    "message": "复制"
+  },
+  "clickToZoom": {
+    "message": "点击放大查看大图"
+  },
+  "allIssuesExcluded": {
+    "message": "所有问题现场均已排除"
+  },
+  "noIssuesMarked": {
+    "message": "尚未标记问题现场"
+  },
+  "restoreIssuesHint": {
+    "message": "可点击右上角“恢复问题现场”按钮恢复已被排除的现场记录"
+  },
+  "markIssuesHint": {
+    "message": "录制过程中可对关键界面进行标注截取，标记的现场将在此直观呈报"
+  },
+  "sceneStatusComplete": {
+    "message": "完成"
+  },
+  "sceneStatusPartial": {
+    "message": "部分完成"
+  },
+  "sceneStatusDraft": {
+    "message": "草稿"
+  },
+  "viewAnnotatedImage": {
+    "message": "查看批注图"
+  },
+  "viewOriginalImage": {
+    "message": "查看原图"
+  },
+  "jumpToVideo": {
+    "message": "跳转录像"
+  },
+  "excludeScene": {
+    "message": "从预览和导出中排除"
+  },
+  "excludeSceneShort": {
+    "message": "排除"
+  },
+  "sceneScreenshotAlt": {
+    "message": "问题现场批注截图"
+  },
+  "screenshotUnavailable": {
+    "message": "截图不可用"
+  },
+  "labelActual": {
+    "message": "实际表现"
+  },
+  "labelExpected": {
+    "message": "预期表现"
+  },
+  "notFilled": {
+    "message": "未填写"
+  },
+  "expectedInferredTitle": {
+    "message": "用户未显式表达期望，此内容可能为推断"
+  },
+  "inferredMark": {
+    "message": "(推断)"
+  },
+  "labelNote": {
+    "message": "补充说明"
+  },
+  "labelTargetElement": {
+    "message": "目标元素"
+  },
+  "locatorStats": {
+    "message": "匹配: $CURRENT$ | 稳定: $TOTAL$",
+    "placeholders": {
+      "current": { "content": "$1" },
+      "total": { "content": "$2" }
+    }
+  },
+  "labelPath": {
+    "message": "路径:"
+  },
+  "sceneKicker": {
+    "message": "问题现场"
+  },
+  "labelContext": {
+    "message": "同时刻上下文"
+  },
+  "contextHint": {
+    "message": "标记前 $CURRENT$s 内交互与报错 · 原始上下文，非因果断言",
+    "placeholders": {
+      "current": { "content": "$1" }
+    }
+  },
+  "kindClick": {
+    "message": "点击"
+  },
+  "kindInput": {
+    "message": "输入"
+  },
+  "kindChange": {
+    "message": "变更"
+  },
+  "kindSubmit": {
+    "message": "提交"
+  },
+  "kindKeydown": {
+    "message": "按键"
+  },
+  "kindNavigation": {
+    "message": "跳转"
+  },
+  "kindScroll": {
+    "message": "滚动"
+  },
+  "kindContextmenu": {
+    "message": "右键"
+  },
+  "kindDblclick": {
+    "message": "双击"
+  },
+  "kindFile": {
+    "message": "上传"
+  },
+  "seqScrollTo": {
+    "message": "滚动到 ($CURRENT$, $TOTAL$)",
+    "placeholders": {
+      "current": { "content": "$1" },
+      "total": { "content": "$2" }
+    }
+  },
+  "seqShortcut": {
+    "message": "快捷键 $CURRENT$",
+    "placeholders": {
+      "current": { "content": "$1" }
+    }
+  },
+  "seqKey": {
+    "message": "按键 $CURRENT$",
+    "placeholders": {
+      "current": { "content": "$1" }
+    }
+  },
+  "seqValueRedacted": {
+    "message": "(值已脱敏)"
+  },
+  "seqFileCount": {
+    "message": "$COUNT$ 个文件",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "seqError": {
+    "message": "报错"
+  },
+  "seqWarn": {
+    "message": "警告"
+  },
+  "fwTriggerStart": {
+    "message": "会话开始"
+  },
+  "fwTriggerInteraction": {
+    "message": "交互确认"
+  },
+  "fwTriggerIssueScene": {
+    "message": "标记问题"
+  },
+  "fwTriggerResume": {
+    "message": "继续录制"
+  },
+  "fwEmpty": {
+    "message": "未采集到 React/Vue 组件状态快照。录制时页面未识别到框架，或未开启框架状态采集。"
+  },
+  "fwGlobalState": {
+    "message": "全局状态 (globalState)"
+  },
+  "fwWebStorageRedacted": {
+    "message": "（安全模式，值已脱敏）"
+  },
+  "fwNoState": {
+    "message": "该帧未包含可展示的状态。"
+  },
+  "filterInteractions": {
+    "message": "交互步骤"
+  },
+  "errorOnlyFilter": {
+    "message": "仅看错误与异常"
+  },
+  "noStreamEvents": {
+    "message": "没有匹配的全景事件记录"
+  },
+  "streamKindInteraction": {
+    "message": "交互"
+  },
+  "clipExportTitle": {
+    "message": "导出前后 5 秒 1080p 原画视频片段"
+  },
+  "clipShortLabel": {
+    "message": "剪辑 5s"
+  },
+  "stepScreenshotTitle": {
+    "message": "步骤 $CURRENT$. $TOTAL$",
+    "placeholders": {
+      "current": { "content": "$1" },
+      "total": { "content": "$2" }
+    }
+  },
+  "issueSceneTitle": {
+    "message": "问题现场 $CURRENT$ · $TOTAL$（$SIZE$）",
+    "placeholders": {
+      "current": { "content": "$1" },
+      "total": { "content": "$2" },
+      "size": { "content": "$3" }
+    }
+  },
+  "imageModeAnnotated": {
+    "message": "批注图"
+  },
+  "imageModeOriginal": {
+    "message": "原图"
+  },
+  "copiedShort": {
+    "message": "已复制 ✓"
+  },
+  "imageDownloadStarted": {
+    "message": "已开始下载图片截图"
+  },
+  "issueToolBrowse": {
+    "message": "浏览模式"
+  },
+  "issueToolRect": {
+    "message": "绘制矩形框"
+  },
+  "issueToolArrow": {
+    "message": "绘制箭头"
+  },
+  "issueToolText": {
+    "message": "添加文字批注"
+  },
+  "issueReselect": {
+    "message": "重新选择元素"
+  },
+  "issueCancelClose": {
+    "message": "取消关闭"
+  },
+  "issueActualPlaceholder": {
+    "message": "实际表现 (例如：点击无反应)"
+  },
+  "issueExpectedPlaceholder": {
+    "message": "预期：例如应显示成功提示"
+  },
+  "issueNoteLabel": {
+    "message": "补充说明 (可选) · 前因、复现步骤、影响范围"
+  },
+  "issueNotePlaceholder": {
+    "message": "补充上下文"
+  },
+  "issueSaveContinue": {
+    "message": "保存并继续"
+  },
+  "issueSaveStop": {
+    "message": "保存并结束"
+  },
+  "issueSaveStopTitle": {
+    "message": "保存并停止录制"
+  },
+  "issueDragHandleTitle": {
+    "message": "按住拖拽拖动面板"
+  },
+  "issueEmptyActualWarning": {
+    "message": "实际表现为空：请补充问题现象；再次点击保存将按空记录"
+  },
+  "issueSaveFailed": {
+    "message": "保存失败：$ERROR$",
+    "placeholders": {
+      "error": { "content": "$1" }
+    }
+  },
+  "issueTextAnnotationPlaceholder": {
+    "message": "输入批注文字..."
+  },
+  "issueOriginalImageAlt": {
+    "message": "问题现场原图"
+  },
+  "unknownError": {
+    "message": "未知错误"
+  },
+  "shotRect": {
+    "message": "矩形框"
+  },
+  "shotArrow": {
+    "message": "箭头"
+  },
+  "shotPrivacy": {
+    "message": "马赛克打码"
+  },
+  "shotText": {
+    "message": "文本批注"
+  },
+  "shotTextPlaceholder": {
+    "message": "输入批注..."
+  },
+  "shotCancel": {
+    "message": "取消 (ESC)"
+  },
+  "shotConfirm": {
+    "message": "确认打包导出 (Enter)"
+  },
+  "screenshotToastWithPath": {
+    "message": "已下载 ZIP 并复制 AI 提示词（含本地绝对路径）！"
+  },
+  "screenshotToastWithoutPath": {
+    "message": "已下载 ZIP 并复制 AI 提示词，请在提示词中手动填入 ZIP 路径"
+  },
+  "waitForEvidenceLoad": {
+    "message": "请先等待证据预览加载完成。"
+  },
+  "playwrightScriptCopied": {
+    "message": "Playwright 脚本已复制"
+  },
+  "videoDecodeFailedHint": {
+    "message": "录像文件无法解码。若它来自修复前的录制，请重新录制一小段。"
+  },
+  "videoLoadFailed": {
+    "message": "录像加载失败：$ERROR$",
+    "placeholders": {
+      "error": { "content": "$1" }
+    }
+  },
+  "videoUnreadable": {
+    "message": "录像文件无法读取；交互和调试证据仍可查看。"
+  },
+  "noMediaChunks": {
+    "message": "没有可播放的媒体分片；交互和调试证据仍可查看。"
+  },
+  "missingSessionId": {
+    "message": "缺少会话 ID"
+  },
+  "sessionNotFound": {
+    "message": "找不到会话"
+  },
+  "loadingVideoChunks": {
+    "message": "正在加载录像（$COUNT$ 个分片）…",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "previewLoadFailed": {
+    "message": "预览加载失败：$ERROR$",
+    "placeholders": {
+      "error": { "content": "$1" }
+    }
+  },
+  "seekbarSegmentTitle": {
+    "message": "截图批注 #$CURRENT$ ($TOTAL$s - $SIZE$s)",
+    "placeholders": {
+      "current": { "content": "$1" },
+      "total": { "content": "$2" },
+      "size": { "content": "$3" }
+    }
+  },
+  "hudPlay": {
+    "message": "播放"
+  },
+  "hudPause": {
+    "message": "暂停"
+  },
+  "hudFullscreen": {
+    "message": "全屏"
+  },
+  "hudExitFullscreen": {
+    "message": "退出全屏"
+  },
+  "exitFullscreenEsc": {
+    "message": "退出全屏 (Esc)"
+  },
+  "enterFullscreenDblclick": {
+    "message": "全屏 (双击视频)"
+  },
+  "aiPromptCopied": {
+    "message": "AI 提示词已复制"
+  },
+  "zipPathCopied": {
+    "message": "ZIP 绝对路径已复制"
+  },
+  "copiedTitle": {
+    "message": "已复制"
+  },
+  "copyContentTitle": {
+    "message": "复制内容"
+  },
+  "frameworkTargetLabel": {
+    "message": "目标"
+  },
+  "dragToMove": {
+    "message": "拖拽移动位置"
+  },
+  "enterScreenshot": {
+    "message": "进入截图 ($COUNT$)",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "enterScreenshotByEnter": {
+    "message": "回车快捷进入截图"
+  },
+  "selectedCountHint": {
+    "message": "已选中 $COUNT$ 个元素 · 单击继续添加 · 回车进入截图",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "markModeHint": {
+    "message": "标记模式 ($CURRENT$) · 点击选择网页元素 · 回车进入截图",
+    "placeholders": {
+      "current": { "content": "$1" }
+    }
+  },
+  "cancelShort": {
+    "message": "取消"
+  },
+  "clearShort": {
+    "message": "清空"
+  },
+  "dragHint": {
+    "message": "🎯 拖拽鼠标框选异常区域 (Esc 取消)"
+  },
+  "restoreWithCount": {
+    "message": "恢复$CURRENT$（$TOTAL$）",
+    "placeholders": {
+      "current": { "content": "$1" },
+      "total": { "content": "$2" }
+    }
   }
 }

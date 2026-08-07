@@ -150,6 +150,18 @@ export type FrameworkSnapshot = {
   parentChain: FrameworkComponentNode[];
 };
 
+/**
+ * 主世界框架探针的单元素结果：从页面主世界读取的 Vue/React 组件链。
+ * content script 处于隔离世界读不到 __vue__/__reactFiber$ 等 expando 属性，
+ * 必须由 background 以 executeScript({ world: "MAIN" }) 注入探针读取。
+ */
+export type FrameworkProbeEntry = {
+  framework?: "vue" | "react";
+  version?: number;
+  componentName?: string;
+  componentPath?: string[];
+};
+
 export type FrameworkStateTrigger =
   "start" | "interaction" | "issue-scene" | "resume";
 
@@ -526,6 +538,47 @@ export type ExpectedStatement = {
   confidence: "explicit" | "missing";
 };
 
+/**
+ * 时序切片中的单条交互（紧凑投影，复用已脱敏的 InteractionRecord 字段）。
+ * 仅作为"标记时刻同时刻的原始上下文"，不构成任何因果断言。
+ */
+export type IssueSequenceInteraction = {
+  id: string;
+  kind: InteractionRecord["kind"];
+  createdAt: number;
+  offsetMs: number;
+  tagName?: string;
+  text?: string;
+  role?: string;
+  toUrl?: string;
+  scrollX?: number;
+  scrollY?: number;
+  key?: string;
+  shortcut?: string;
+  value?: string;
+  valueRedacted?: boolean;
+  fileCount?: number;
+};
+
+export type IssueSequenceConsoleEntry = {
+  createdAt: number;
+  offsetMs: number;
+  level: string;
+  text: string;
+};
+
+/**
+ * 问题现场的时序上下文切片：标记当下锚定，向前取一段窗口内的
+ * 交互与 Console 报错，冻结在 capture 时刻落库。
+ * 消费者应将其视为"同时刻上下文"，禁止当作已证实的因果链。
+ */
+export type IssueSequenceContext = {
+  anchorEpochMs: number;
+  windowMs: number;
+  interactions: IssueSequenceInteraction[];
+  consoleEntries: IssueSequenceConsoleEntry[];
+};
+
 export type IssueScene = {
   id: string;
   sessionId: string;
@@ -533,6 +586,7 @@ export type IssueScene = {
   observedAtEpochMs: number;
   selectionStartedAtEpochMs?: number;
   committedAtEpochMs?: number;
+  sequenceContext?: IssueSequenceContext;
   page: {
     url: string;
     title: string;
@@ -763,6 +817,7 @@ export type RuntimeMessage =
         filename: string;
       }
     >
+  | Envelope<"screenshot/framework-probe", { probeIds: string[] }>
   | Envelope<
       "offscreen/export-pack",
       {
@@ -850,6 +905,10 @@ export type RuntimeMessageResponseMap = {
     ok: true;
     downloadId?: number;
     absolutePath?: string;
+  };
+  "screenshot/framework-probe": {
+    ok: true;
+    results: Record<string, FrameworkProbeEntry | null>;
   };
   "offscreen/export-pack": {
     ok: true;

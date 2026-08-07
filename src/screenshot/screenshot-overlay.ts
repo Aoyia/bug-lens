@@ -3,6 +3,7 @@ import type {
   RectBounds,
 } from "../domain/screenshot-payload.ts";
 import { processScreenshot } from "./screenshot-processor.ts";
+import { t } from "../shared/i18n.ts";
 
 /**
  * 截图完成后的 toast 文案：根据 ZIP 是否已注入本地绝对路径区分提示。
@@ -11,8 +12,8 @@ export function buildScreenshotToastMessage(
   promptInjectedWithPath: boolean
 ): string {
   return promptInjectedWithPath
-    ? "已下载 ZIP 并复制 AI 提示词（含本地绝对路径）！"
-    : "已下载 ZIP 并复制 AI 提示词，请在提示词中手动填入 ZIP 路径";
+    ? t("screenshotToastWithPath")
+    : t("screenshotToastWithoutPath");
 }
 
 export class ScreenshotOverlay {
@@ -324,18 +325,18 @@ export class ScreenshotOverlay {
         <div class="handle sw" data-handle="sw"></div>
         <div class="handle w" data-handle="w"></div>
         <div class="toolbar">
-          <button data-tool="rect" title="矩形框 (R)">
+          <button data-tool="rect" title="${t("shotRect")}">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
           </button>
-          <button data-tool="arrow" title="箭头 (A)">
+          <button data-tool="arrow" title="${t("shotArrow")}">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="5" y1="19" x2="19" y2="5"/><polyline points="12 5 19 5 19 12"/></svg>
           </button>
-          <button data-tool="privacy" title="马赛克打码 (M)">
+          <button data-tool="privacy" title="${t("shotPrivacy")}">
             <svg width="15" height="15" viewBox="0 0 1024 1024" fill="currentColor">
               <path d="M7.13007408 512v252.43496297h252.43496295V512H7.13007408z m252.43496295 504.86992592H512v-252.43496295H259.56503703v252.43496295z m757.30488889 0v-252.43496295h-252.43496295v252.43496295h252.43496295zM7.13007408 7.13007408v252.43496295h252.43496295V7.13007408H7.13007408zM512 512v252.43496297h252.43496297V512H512z m0-252.43496297H259.56503703V512H512V259.56503703z m252.43496297-252.43496295H512v252.43496295h252.43496297V7.13007408zM1016.86992592 512V259.56503703h-252.43496295V512h252.43496295z"></path>
             </svg>
           </button>
-          <button data-tool="text" title="文本批注 (T)">
+          <button data-tool="text" title="${t("shotText")}">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="4 7 4 4 20 4 20 7"/>
               <line x1="12" y1="4" x2="12" y2="20"/>
@@ -343,10 +344,10 @@ export class ScreenshotOverlay {
             </svg>
           </button>
           <div class="divider"></div>
-          <button data-action="cancel" class="cancel-btn" title="取消 (ESC)">
+          <button data-action="cancel" class="cancel-btn" title="${t("shotCancel")}">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
-          <button data-action="confirm" class="confirm-btn" title="确认打包导出 (Enter)">
+          <button data-action="confirm" class="confirm-btn" title="${t("shotConfirm")}">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
           </button>
         </div>
@@ -955,7 +956,7 @@ export class ScreenshotOverlay {
     const input = document.createElement("input");
     input.type = "text";
     input.className = "inline-text-input";
-    input.placeholder = "输入批注...";
+    input.placeholder = t("shotTextPlaceholder");
     input.style.cssText = `
       position: absolute;
       left: ${x}px;

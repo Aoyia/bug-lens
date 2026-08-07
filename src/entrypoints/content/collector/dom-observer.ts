@@ -544,18 +544,20 @@ export class DomObserver {
     if (!session || this.deps.isIssueActive()) return;
     const target = event.target instanceof Element ? event.target : undefined;
     if (target && isWidgetElement(target)) return;
-    const dx = Math.abs(window.scrollX - this.lastScrollX);
-    const dy = Math.abs(window.scrollY - this.lastScrollY);
+    const prevX = this.lastScrollX;
+    const prevY = this.lastScrollY;
+    const dx = Math.abs(window.scrollX - prevX);
+    const dy = Math.abs(window.scrollY - prevY);
     this.lastScrollX = window.scrollX;
     this.lastScrollY = window.scrollY;
     if (dx < 50 && dy < 50) return;
 
     const direction =
       dy > dx
-        ? window.scrollY > this.lastScrollY
+        ? window.scrollY > prevY
           ? "down"
           : "up"
-        : window.scrollX > this.lastScrollX
+        : window.scrollX > prevX
           ? "right"
           : "left";
 

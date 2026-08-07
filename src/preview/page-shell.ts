@@ -1,4 +1,5 @@
 import { copyTextToClipboard } from "./clipboard.ts";
+import { t } from "../shared/i18n.ts";
 
 export type PreviewTab = "steps" | "console" | "network" | "issues";
 
@@ -117,12 +118,12 @@ export class PreviewPageShell {
             .then(() => {
               const originalHtml = codeButton.innerHTML;
               codeButton.classList.add("copied");
-              codeButton.title = "已复制";
+              codeButton.title = t("copiedTitle");
               codeButton.innerHTML =
                 '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>';
               window.setTimeout(() => {
                 codeButton.classList.remove("copied");
-                codeButton.title = "复制内容";
+                codeButton.title = t("copyContentTitle");
                 codeButton.innerHTML = originalHtml;
               }, 1500);
             })
@@ -137,7 +138,7 @@ export class PreviewPageShell {
           .then(() => {
             const originalText = locatorButton.textContent;
             locatorButton.classList.add("copied");
-            locatorButton.textContent = "已复制";
+            locatorButton.textContent = t("copiedTitle");
             window.setTimeout(() => {
               locatorButton.classList.remove("copied");
               locatorButton.textContent = originalText;

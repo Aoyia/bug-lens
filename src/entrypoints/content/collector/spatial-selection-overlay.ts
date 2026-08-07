@@ -3,6 +3,7 @@ import {
   type SpatialTemporalCutResult,
 } from "./spatial-temporal-builder";
 import { type BoundingBox } from "./spatial-pruner";
+import { t } from "../../../shared/i18n.ts";
 
 export type SpatialSelectionOverlayCallbacks = {
   onComplete(result: SpatialTemporalCutResult, markdown: string): void;
@@ -46,7 +47,7 @@ export class SpatialSelectionOverlay {
 
     // 提示条
     const hint = document.createElement("div");
-    hint.textContent = "🎯 拖拽鼠标框选异常区域 (Esc 取消)";
+    hint.textContent = t("dragHint");
     Object.assign(hint.style, {
       position: "fixed",
       top: "20px",

@@ -2,6 +2,90 @@ import { memo } from "preact/compat";
 import { useState } from "preact/hooks";
 import type { IssueScenePreview } from "../../preview/issue-scene-view";
 import { renderFrameworkSnapshot } from "../../preview/framework-view";
+import type {
+  IssueSequenceConsoleEntry,
+  IssueSequenceInteraction,
+} from "../../shared/protocol";
+import { t } from "../../shared/i18n.ts";
+
+const SEQUENCE_KIND_LABELS: Record<IssueSequenceInteraction["kind"], string> = {
+  click: t("kindClick"),
+  input: t("kindInput"),
+  change: t("kindChange"),
+  submit: t("kindSubmit"),
+  keydown: t("kindKeydown"),
+  navigation: t("kindNavigation"),
+  scroll: t("kindScroll"),
+  contextmenu: t("kindContextmenu"),
+  dblclick: t("kindDblclick"),
+  file: t("kindFile"),
+};
+
+function formatSequenceOffset(offsetMs: number): string {
+  const seconds = offsetMs / 1000;
+  return `${seconds >= 0 ? "+" : ""}${seconds.toFixed(1)}s`;
+}
+
+function describeSequenceInteraction(item: IssueSequenceInteraction): string {
+  if (item.kind === "navigation") return item.toUrl ?? item.tagName ?? "";
+  if (item.kind === "scroll")
+    return t("seqScrollTo", [
+      String(item.scrollX ?? 0),
+      String(item.scrollY ?? 0),
+    ]);
+  if (item.kind === "keydown")
+    return item.shortcut
+      ? t("seqShortcut", item.shortcut)
+      : item.key
+        ? t("seqKey", item.key)
+        : (item.tagName ?? "");
+  const parts: string[] = [item.tagName ?? ""];
+  const detail =
+    item.kind === "input"
+      ? item.valueRedacted
+        ? t("seqValueRedacted")
+        : item.value
+          ? `"${item.value}"`
+          : undefined
+      : item.text?.trim() || item.role || undefined;
+  if (detail) parts.push(detail);
+  if (item.kind === "file")
+    parts.push(t("seqFileCount", String(item.fileCount ?? 1)));
+  return parts.filter(Boolean).join(" ");
+}
+
+function SequenceRow({ item }: { item: IssueSequenceInteraction }) {
+  const label = SEQUENCE_KIND_LABELS[item.kind] ?? item.kind;
+  return (
+    <li className="issue-scene-sequence-row">
+      <span className="issue-scene-sequence-offset">
+        {formatSequenceOffset(item.offsetMs)}
+      </span>
+      <span className="issue-scene-sequence-kind">{label}</span>
+      <span className="issue-scene-sequence-detail">
+        {describeSequenceInteraction(item)}
+      </span>
+    </li>
+  );
+}
+
+function SequenceConsoleRow({ entry }: { entry: IssueSequenceConsoleEntry }) {
+  return (
+    <li className="issue-scene-sequence-row">
+      <span className="issue-scene-sequence-offset">
+        {formatSequenceOffset(entry.offsetMs)}
+      </span>
+      <span
+        className={`issue-scene-sequence-level ${
+          entry.level === "error" ? "error" : "warn"
+        }`}
+      >
+        {entry.level === "error" ? t("seqError") : t("seqWarn")}
+      </span>
+      <span className="issue-scene-sequence-detail">{entry.text}</span>
+    </li>
+  );
+}
 
 export interface IssueSceneTabProps {
   collection: { all: IssueScenePreview[]; included: IssueScenePreview[] };
@@ -27,10 +111,8 @@ export const IssueSceneTab = memo(function IssueSceneTab({
 
   if (collection.included.length === 0) {
     const isExcludedAll = collection.all.length > 0 && editable;
-    const title = isExcludedAll ? "所有问题现场均已排除" : "尚未标记问题现场";
-    const desc = isExcludedAll
-      ? "可点击右上角“恢复问题现场”按钮恢复已被排除的现场记录"
-      : "录制过程中可对关键界面进行标注截取，标记的现场将在此直观呈报";
+    const title = isExcludedAll ? t("allIssuesExcluded") : t("noIssuesMarked");
+    const desc = isExcludedAll ? t("restoreIssuesHint") : t("markIssuesHint");
 
     return (
       <div className="issue-scenes-empty">
@@ -82,12 +164,12 @@ export const IssueSceneTab = memo(function IssueSceneTab({
         const description = scene.narrative;
         const status =
           scene.status === "complete"
-            ? "完成"
+            ? t("sceneStatusComplete")
             : scene.status === "partial"
-              ? "部分完成"
+              ? t("sceneStatusPartial")
               : scene.status === "failed"
-                ? "失败"
-                : "草稿";
+                ? t("statusFailed")
+                : t("sceneStatusDraft");
         const dom =
           scene.target.sanitizedHtml || `<${scene.target.element.tagName}>`;
 
@@ -129,7 +211,7 @@ export const IssueSceneTab = memo(function IssueSceneTab({
           >
             <div className="issue-scene-card-header">
               <div>
-                <span className="issue-scene-kicker">问题现场</span>
+                <span className="issue-scene-kicker">{t("sceneKicker")}</span>
                 <strong>
                   {new Date(scene.observedAtEpochMs).toLocaleTimeString()}
                 </strong>
@@ -149,7 +231,9 @@ export const IssueSceneTab = memo(function IssueSceneTab({
                       }));
                     }}
                   >
-                    {currentMode === "original" ? "查看批注图" : "查看原图"}
+                    {currentMode === "original"
+                      ? t("viewAnnotatedImage")
+                      : t("viewOriginalImage")}
                   </button>
                 )}
                 {startedAtEpochMs != null && (
@@ -159,19 +243,19 @@ export const IssueSceneTab = memo(function IssueSceneTab({
                       onSeekVideo?.(scene.observedAtEpochMs);
                     }}
                   >
-                    跳转录像
+                    {t("jumpToVideo")}
                   </button>
                 )}
                 {editable && (
                   <button
                     className="item-delete-btn delete"
-                    title="从预览和导出中排除"
+                    title={t("excludeScene")}
                     onClick={(e) => {
                       e.stopPropagation();
                       onExclude?.(scene.id);
                     }}
                   >
-                    排除
+                    {t("excludeSceneShort")}
                   </button>
                 )}
               </div>
@@ -183,33 +267,35 @@ export const IssueSceneTab = memo(function IssueSceneTab({
                     data-issue-image
                     className="issue-scene-image"
                     src={image}
-                    alt="问题现场批注截图"
-                    title="点击放大查看大图"
+                    alt={t("sceneScreenshotAlt")}
+                    title={t("clickToZoom")}
                     onClick={() => onOpenImage?.(scene.id, currentMode)}
                   />
                 ) : (
-                  <div className="issue-scene-image-missing">截图不可用</div>
+                  <div className="issue-scene-image-missing">
+                    {t("screenshotUnavailable")}
+                  </div>
                 )}
               </div>
               <div className="issue-scene-details">
                 <div className="scene-grid-row">
                   <div>
-                    <span className="scene-label">实际表现</span>
+                    <span className="scene-label">{t("labelActual")}</span>
                     <p className="scene-text-actual">
-                      {description?.actual || "未填写"}
+                      {description?.actual || t("notFilled")}
                     </p>
                   </div>
                   <div>
-                    <span className="scene-label">预期表现</span>
+                    <span className="scene-label">{t("labelExpected")}</span>
                     <p className="scene-text-expected">
-                      {description?.expected?.text || "未填写"}
+                      {description?.expected?.text || t("notFilled")}
                       {description?.expected?.confidence === "missing" && (
                         <span
                           className="scene-expected-missing"
-                          title="用户未显式表达期望，此内容可能为推断"
+                          title={t("expectedInferredTitle")}
                         >
                           {" "}
-                          (推断)
+                          {t("inferredMark")}
                         </span>
                       )}
                     </p>
@@ -217,13 +303,15 @@ export const IssueSceneTab = memo(function IssueSceneTab({
                 </div>
                 {description?.note && (
                   <div className="scene-note-wrap">
-                    <span className="scene-label">补充说明</span>
+                    <span className="scene-label">{t("labelNote")}</span>
                     <p className="scene-note-text">{description.note}</p>
                   </div>
                 )}
                 <div className="scene-flex-column">
                   <div className="scene-flex-space-between">
-                    <span className="scene-label">目标元素</span>
+                    <span className="scene-label">
+                      {t("labelTargetElement")}
+                    </span>
                     <span className="issue-scene-target-meta">
                       {scene.target.element.tagName}
                       {scene.target.element.role
@@ -244,15 +332,17 @@ export const IssueSceneTab = memo(function IssueSceneTab({
                         {bestLocator.expression}
                       </code>
                       <span className="locator-stats">
-                        匹配: {bestLocator.matchCount} | 稳定:{" "}
-                        {bestLocator.stabilityScore}
+                        {t("locatorStats", [
+                          String(bestLocator.matchCount),
+                          String(bestLocator.stabilityScore),
+                        ])}
                       </span>
                     </div>
                   )}
 
                   {ancestorItems.length > 0 && (
                     <div className="scene-path-bar">
-                      <span className="scene-path-label">路径:</span>{" "}
+                      <span className="scene-path-label">{t("labelPath")}</span>{" "}
                       {ancestorItems.map((item, idx) => (
                         <span key={idx}>
                           {idx === ancestorItems.length - 1 ? (
@@ -280,6 +370,47 @@ export const IssueSceneTab = memo(function IssueSceneTab({
                 </div>
               </div>
             </div>
+            {scene.sequenceContext &&
+              (scene.sequenceContext.interactions.length > 0 ||
+                scene.sequenceContext.consoleEntries.length > 0) && (
+                <div className="issue-scene-sequence">
+                  <div className="issue-scene-sequence-head">
+                    <span className="scene-label">{t("labelContext")}</span>
+                    <span className="issue-scene-sequence-hint">
+                      {t(
+                        "contextHint",
+                        String(
+                          Math.round(scene.sequenceContext.windowMs / 1000)
+                        )
+                      )}
+                    </span>
+                  </div>
+                  <ol className="issue-scene-sequence-list">
+                    {[
+                      ...scene.sequenceContext.interactions.map((item) => ({
+                        ts: item.createdAt,
+                        row: (
+                          <SequenceRow
+                            key={`i-${item.createdAt}-${item.offsetMs}`}
+                            item={item}
+                          />
+                        ),
+                      })),
+                      ...scene.sequenceContext.consoleEntries.map((entry) => ({
+                        ts: entry.createdAt,
+                        row: (
+                          <SequenceConsoleRow
+                            key={`c-${entry.createdAt}-${entry.level}`}
+                            entry={entry}
+                          />
+                        ),
+                      })),
+                    ]
+                      .sort((a, b) => a.ts - b.ts)
+                      .map((item) => item.row)}
+                  </ol>
+                </div>
+              )}
           </article>
         );
       })}

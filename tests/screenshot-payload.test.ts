@@ -2,6 +2,7 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import {
   formatPayloadToMarkdown,
+  formatPayloadToMarkdownForZip,
   formatPayloadToHtml,
   type AIScreenshotPayload,
 } from "../src/domain/screenshot-payload.ts";
@@ -47,27 +48,57 @@ describe("Screenshot Payload Formatter", () => {
     ],
     domContextTree: {
       smallestCommonAncestorSelector: "div#app > form.login-form",
-      tree: {
-        tagName: "button",
-        id: "submit-btn",
-        className: "btn btn-primary",
-        innerText: "提交订单",
-        selector: "button#submit-btn",
-        rect: { x: 150, y: 220, width: 100, height: 40 },
-        relativeRect: { x: 50, y: 20, width: 100, height: 40 },
-        computedStyles: {
-          color: "rgb(255, 255, 255)",
-          backgroundColor: "rgb(0, 122, 255)",
-        },
-        frameworkMetadata: {
-          componentName: "<OrderSubmitButton>",
-          eventListeners: ["click"],
-        },
-        intentFlags: {
-          isArrowTarget: true,
-          textComment: "按钮点击失效",
-        },
+      meta: {
+        anchorCount: 1,
+        leafCount: 1,
+        ancestorCount: 2,
+        truncated: false,
       },
+      anchors: [
+        {
+          tagName: "button",
+          id: "submit-btn",
+          className: "btn btn-primary",
+          selector: "button#submit-btn",
+          selectorPath: "… > form.login-form > button#submit-btn",
+          innerText: "提交订单",
+          relativeRect: { x: 50, y: 20, width: 100, height: 40 },
+          computedStyles: {
+            color: "rgb(255, 255, 255)",
+            backgroundColor: "rgb(0, 122, 255)",
+          },
+          componentName: "<OrderSubmitButton>",
+          componentPath: ["<OrderSubmitButton>", "<App>"],
+          intentFlags: {
+            isArrowTarget: true,
+            textComment: "按钮点击失效",
+          },
+        },
+      ],
+      leaves: [
+        {
+          tagName: "span",
+          selector: "span.price",
+          innerText: "¥99.00",
+          relativeRect: { x: 50, y: 60, width: 60, height: 20 },
+          componentName: "<PriceTag>",
+        },
+      ],
+      ancestors: [
+        {
+          tagName: "form",
+          className: "login-form",
+          selector: "form.login-form",
+          depth: 0,
+          componentName: "<LoginForm>",
+        },
+        {
+          tagName: "div",
+          id: "app",
+          selector: "#app",
+          depth: 1,
+        },
+      ],
     },
     environment: {
       url: "https://example.com/checkout",
@@ -115,6 +146,16 @@ describe("Screenshot Payload Formatter", () => {
       /文件路径：\n\/Users\/tester\/Downloads\/bug-lens-screenshot-2026-08-06\.zip/
     );
     assert.doesNotMatch(md, /请将这里替换为导出的 ZIP 绝对路径/);
+  });
+
+  test("formatPayloadToMarkdownForZip 使用引导文案而非占位符，避免误导 AI", () => {
+    const md = formatPayloadToMarkdownForZip(mockPayload);
+    // 保留提示词主体
+    assert.match(md, /请作为高级 Frontend\/Fullstack 调试专家/);
+    // 不包含占位符
+    assert.doesNotMatch(md, /请将这里替换为导出的 ZIP 绝对路径/);
+    // 包含引导文案与剪贴板路径提示
+    assert.match(md, /真实绝对路径已写入剪贴板提示词/);
   });
 
   test("formatPayloadToHtml generates HTML with embedded image and markdown pre tag", () => {

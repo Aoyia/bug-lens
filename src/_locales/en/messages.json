@@ -79,6 +79,18 @@
   "startRecording": {
     "message": "Start Recording"
   },
+  "startNewRecording": {
+    "message": "Start New Recording"
+  },
+  "takeScreenshot": {
+    "message": "Screenshot"
+  },
+  "screenshotFailed": {
+    "message": "Failed to start screenshot, please retry"
+  },
+  "dismissError": {
+    "message": "Dismiss"
+  },
   "stopRecording": {
     "message": "Stop & Export"
   },
@@ -497,5 +509,743 @@
   },
   "skipAnnotationVideo": {
     "message": "Skip annotations"
+  },
+  "matchingCount": {
+    "message": "Matching $CURRENT$ / $TOTAL$ entries",
+    "placeholders": {
+      "current": { "content": "$1" },
+      "total": { "content": "$2" }
+    }
+  },
+  "deleteFromExport": {
+    "message": "Remove this log from preview and export"
+  },
+  "noMatchingConsole": {
+    "message": "No matching Console logs"
+  },
+  "allConsoleDeleted": {
+    "message": "All Console logs were removed; restore from the top right."
+  },
+  "noConsoleRecords": {
+    "message": "No Console records"
+  },
+  "clickToViewDetail": {
+    "message": "Click a network request above to view details"
+  },
+  "requestHeadersCount": {
+    "message": "Request headers ($COUNT$)",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "initiatorContent": {
+    "message": "Type: $CURRENT$\nTrigger location: $TOTAL$",
+    "placeholders": {
+      "current": { "content": "$1" },
+      "total": { "content": "$2" }
+    }
+  },
+  "initiatorSection": {
+    "message": "Initiator / Call stack"
+  },
+  "responseHeadersCount": {
+    "message": "Response headers ($COUNT$)",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "noResponseHeaders": {
+    "message": "No response headers"
+  },
+  "noResponseMeta": {
+    "message": "No response metadata"
+  },
+  "responseBodyPending": {
+    "message": "Reading response body…"
+  },
+  "responseNoBody": {
+    "message": "This response has no body per protocol"
+  },
+  "responseBodyRedacted": {
+    "message": "Response body omitted by privacy policy: $CURRENT$",
+    "placeholders": {
+      "current": { "content": "$1" }
+    }
+  },
+  "responseBodyUnavailable": {
+    "message": "Response body unavailable: $CURRENT$",
+    "placeholders": {
+      "current": { "content": "$1" }
+    }
+  },
+  "browserNotProvided": {
+    "message": "Not provided by browser"
+  },
+  "binaryResponseSaved": {
+    "message": "Binary response saved as Base64 in the export. Length: $SIZE$",
+    "placeholders": {
+      "size": { "content": "$1" }
+    }
+  },
+  "previewTruncated": {
+    "message": "[Preview truncated; full body is in the ZIP]"
+  },
+  "emptyResponseBody": {
+    "message": "[Empty response body]"
+  },
+  "requestDetails": {
+    "message": "Request details"
+  },
+  "copyAsCurl": {
+    "message": "Copy as cURL command"
+  },
+  "copyCurl": {
+    "message": "Copy cURL"
+  },
+  "curlCopied": {
+    "message": "cURL copied"
+  },
+  "curlCopiedNotify": {
+    "message": "cURL command copied to clipboard"
+  },
+  "copyFailed": {
+    "message": "Copy failed: $ERROR$",
+    "placeholders": {
+      "error": { "content": "$1" }
+    }
+  },
+  "responseBodyHeader": {
+    "message": "Response body · $CURRENT$",
+    "placeholders": {
+      "current": { "content": "$1" }
+    }
+  },
+  "unknownMime": {
+    "message": "Unknown type"
+  },
+  "absoluteTime": {
+    "message": "Absolute time: $CURRENT$",
+    "placeholders": {
+      "current": { "content": "$1" }
+    }
+  },
+  "deleteRequest": {
+    "message": "Remove this request from preview and export"
+  },
+  "noMatchingNetwork": {
+    "message": "No matching network requests"
+  },
+  "allNetworkDeleted": {
+    "message": "All Network requests were removed; restore from the top right."
+  },
+  "noNetworkRecords": {
+    "message": "No Network records"
+  },
+  "aiStepValue": {
+    "message": "Value: \"$CURRENT$\"",
+    "placeholders": {
+      "current": { "content": "$1" }
+    }
+  },
+  "aiStepText": {
+    "message": "Text: \"$CURRENT$\"",
+    "placeholders": {
+      "current": { "content": "$1" }
+    }
+  },
+  "aiStepTitle": {
+    "message": "[Step $CURRENT$] $TOTAL$",
+    "placeholders": {
+      "current": { "content": "$1" },
+      "total": { "content": "$2" }
+    }
+  },
+  "aiStepUrl": {
+    "message": "- Page URL: $CURRENT$",
+    "placeholders": {
+      "current": { "content": "$1" }
+    }
+  },
+  "aiStepComponent": {
+    "message": "- $CURRENT$ component: <$TOTAL$> ($CURRENT$ $SIZE$)",
+    "placeholders": {
+      "current": { "content": "$1" },
+      "total": { "content": "$2" },
+      "size": { "content": "$3" }
+    }
+  },
+  "aiStepTarget": {
+    "message": "- Target element: $CURRENT$",
+    "placeholders": {
+      "current": { "content": "$1" }
+    }
+  },
+  "aiStepLocator": {
+    "message": "- Core locator: $CURRENT$",
+    "placeholders": {
+      "current": { "content": "$1" }
+    }
+  },
+  "allInteractionsDeleted": {
+    "message": "All interaction steps were removed; restore from the top right."
+  },
+  "noInteractions": {
+    "message": "No clicks captured"
+  },
+  "topLevelPage": {
+    "message": "Top-level page"
+  },
+  "inputCharsRedacted": {
+    "message": "Written $COUNT$ characters (redacted)",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "inputCharsTitle": {
+    "message": "Contains $COUNT$ written characters",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "enterKeyTitle": {
+    "message": "Contains Enter submission"
+  },
+  "aggregatedEvents": {
+    "message": "Aggregated from $COUNT$ physical events",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "copyStepText": {
+    "message": "Copy step description"
+  },
+  "stepCopied": {
+    "message": "Copied step $COUNT$ description",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "copyStepFailed": {
+    "message": "Copy failed: $ERROR$",
+    "placeholders": {
+      "error": { "content": "$1" }
+    }
+  },
+  "deleteStep": {
+    "message": "Remove this grouped step from preview and export"
+  },
+  "collapseDetails": {
+    "message": "Collapse details ▲"
+  },
+  "expandDetails": {
+    "message": "Expand micro-steps ▼"
+  },
+  "writeContent": {
+    "message": "✍️ Written content: \"$CURRENT$\"",
+    "placeholders": {
+      "current": { "content": "$1" }
+    }
+  },
+  "writeRedacted": {
+    "message": "✍️ Written $COUNT$ characters (redacted)",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "writeText": {
+    "message": "✍️ Written text"
+  },
+  "keystrokeCount": {
+    "message": " ($COUNT$ keystrokes)",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "stepScreenshotAlt": {
+    "message": "Click/action screenshot"
+  },
+  "writeCharsShort": {
+    "message": "✍️ Written $COUNT$ chars",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "stepCountShort": {
+    "message": "$COUNT$ steps",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "microEventsTitle": {
+    "message": "Micro physical events"
+  },
+  "keyPressLabel": {
+    "message": "Key: $CURRENT$",
+    "placeholders": {
+      "current": { "content": "$1" }
+    }
+  },
+  "labelTag": {
+    "message": "Tag"
+  },
+  "labelClassName": {
+    "message": "Class"
+  },
+  "labelTextInput": {
+    "message": "Text/Input"
+  },
+  "labelSectionContext": {
+    "message": "Context"
+  },
+  "labelSize": {
+    "message": "Size"
+  },
+  "labelCoordinates": {
+    "message": "Coordinates"
+  },
+  "labelViewport": {
+    "message": "Viewport"
+  },
+  "labelLocatorCandidates": {
+    "message": "Locator candidates"
+  },
+  "locatorMeta": {
+    "message": "$CURRENT$ · matches $TOTAL$ · stability $SIZE$%",
+    "placeholders": {
+      "current": { "content": "$1" },
+      "total": { "content": "$2" },
+      "size": { "content": "$3" }
+    }
+  },
+  "copyShort": {
+    "message": "Copy"
+  },
+  "clickToZoom": {
+    "message": "Click to enlarge"
+  },
+  "allIssuesExcluded": {
+    "message": "All issue scenes have been excluded"
+  },
+  "noIssuesMarked": {
+    "message": "No issue scenes marked yet"
+  },
+  "restoreIssuesHint": {
+    "message": "Click “Restore issue scenes” in the top right to bring back excluded scenes"
+  },
+  "markIssuesHint": {
+    "message": "Annotate key screens during recording; marked scenes appear here"
+  },
+  "sceneStatusComplete": {
+    "message": "Complete"
+  },
+  "sceneStatusPartial": {
+    "message": "Partial"
+  },
+  "sceneStatusDraft": {
+    "message": "Draft"
+  },
+  "viewAnnotatedImage": {
+    "message": "View annotated image"
+  },
+  "viewOriginalImage": {
+    "message": "View original image"
+  },
+  "jumpToVideo": {
+    "message": "Jump to video"
+  },
+  "excludeScene": {
+    "message": "Exclude from preview and export"
+  },
+  "excludeSceneShort": {
+    "message": "Exclude"
+  },
+  "sceneScreenshotAlt": {
+    "message": "Issue scene annotated screenshot"
+  },
+  "screenshotUnavailable": {
+    "message": "Screenshot unavailable"
+  },
+  "labelActual": {
+    "message": "Actual behavior"
+  },
+  "labelExpected": {
+    "message": "Expected behavior"
+  },
+  "notFilled": {
+    "message": "Not filled in"
+  },
+  "expectedInferredTitle": {
+    "message": "User did not explicitly state expectation; this may be inferred"
+  },
+  "inferredMark": {
+    "message": "(inferred)"
+  },
+  "labelNote": {
+    "message": "Additional notes"
+  },
+  "labelTargetElement": {
+    "message": "Target element"
+  },
+  "locatorStats": {
+    "message": "Matches: $CURRENT$ | Stability: $TOTAL$",
+    "placeholders": {
+      "current": { "content": "$1" },
+      "total": { "content": "$2" }
+    }
+  },
+  "labelPath": {
+    "message": "Path:"
+  },
+  "sceneKicker": {
+    "message": "Issue scene"
+  },
+  "labelContext": {
+    "message": "Concurrent context"
+  },
+  "contextHint": {
+    "message": "Interactions & errors within $CURRENT$s before marking · raw context, not causal",
+    "placeholders": {
+      "current": { "content": "$1" }
+    }
+  },
+  "kindClick": {
+    "message": "Click"
+  },
+  "kindInput": {
+    "message": "Input"
+  },
+  "kindChange": {
+    "message": "Change"
+  },
+  "kindSubmit": {
+    "message": "Submit"
+  },
+  "kindKeydown": {
+    "message": "Key"
+  },
+  "kindNavigation": {
+    "message": "Navigation"
+  },
+  "kindScroll": {
+    "message": "Scroll"
+  },
+  "kindContextmenu": {
+    "message": "Right-click"
+  },
+  "kindDblclick": {
+    "message": "Double-click"
+  },
+  "kindFile": {
+    "message": "Upload"
+  },
+  "seqScrollTo": {
+    "message": "Scroll to ($CURRENT$, $TOTAL$)",
+    "placeholders": {
+      "current": { "content": "$1" },
+      "total": { "content": "$2" }
+    }
+  },
+  "seqShortcut": {
+    "message": "Shortcut $CURRENT$",
+    "placeholders": {
+      "current": { "content": "$1" }
+    }
+  },
+  "seqKey": {
+    "message": "Key $CURRENT$",
+    "placeholders": {
+      "current": { "content": "$1" }
+    }
+  },
+  "seqValueRedacted": {
+    "message": "(value redacted)"
+  },
+  "seqFileCount": {
+    "message": "$COUNT$ files",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "seqError": {
+    "message": "Error"
+  },
+  "seqWarn": {
+    "message": "Warning"
+  },
+  "fwTriggerStart": {
+    "message": "Session start"
+  },
+  "fwTriggerInteraction": {
+    "message": "Interaction"
+  },
+  "fwTriggerIssueScene": {
+    "message": "Issue marked"
+  },
+  "fwTriggerResume": {
+    "message": "Resumed"
+  },
+  "fwEmpty": {
+    "message": "No React/Vue component state captured. No framework detected during recording, or framework state capture was disabled."
+  },
+  "fwGlobalState": {
+    "message": "Global state (globalState)"
+  },
+  "fwWebStorageRedacted": {
+    "message": " (safe mode, values redacted)"
+  },
+  "fwNoState": {
+    "message": "This frame has no displayable state."
+  },
+  "filterInteractions": {
+    "message": "Interactions"
+  },
+  "errorOnlyFilter": {
+    "message": "Errors & warnings only"
+  },
+  "noStreamEvents": {
+    "message": "No matching timeline events"
+  },
+  "streamKindInteraction": {
+    "message": "Interaction"
+  },
+  "clipExportTitle": {
+    "message": "Export a 5s 1080p video clip around this moment"
+  },
+  "clipShortLabel": {
+    "message": "Clip 5s"
+  },
+  "stepScreenshotTitle": {
+    "message": "Step $CURRENT$. $TOTAL$",
+    "placeholders": {
+      "current": { "content": "$1" },
+      "total": { "content": "$2" }
+    }
+  },
+  "issueSceneTitle": {
+    "message": "Issue scene $CURRENT$ · $TOTAL$ ($SIZE$)",
+    "placeholders": {
+      "current": { "content": "$1" },
+      "total": { "content": "$2" },
+      "size": { "content": "$3" }
+    }
+  },
+  "imageModeAnnotated": {
+    "message": "annotated"
+  },
+  "imageModeOriginal": {
+    "message": "original"
+  },
+  "copiedShort": {
+    "message": "Copied ✓"
+  },
+  "imageDownloadStarted": {
+    "message": "Image download started"
+  },
+  "issueToolBrowse": {
+    "message": "Browse mode"
+  },
+  "issueToolRect": {
+    "message": "Draw rectangle"
+  },
+  "issueToolArrow": {
+    "message": "Draw arrow"
+  },
+  "issueToolText": {
+    "message": "Add text annotation"
+  },
+  "issueReselect": {
+    "message": "Re-select element"
+  },
+  "issueCancelClose": {
+    "message": "Cancel and close"
+  },
+  "issueActualPlaceholder": {
+    "message": "Actual behavior (e.g., clicking does nothing)"
+  },
+  "issueExpectedPlaceholder": {
+    "message": "Expected: e.g., a success message appears"
+  },
+  "issueNoteLabel": {
+    "message": "Additional notes (optional) · cause, repro steps, impact"
+  },
+  "issueNotePlaceholder": {
+    "message": "Additional context"
+  },
+  "issueSaveContinue": {
+    "message": "Save & continue"
+  },
+  "issueSaveStop": {
+    "message": "Save & stop"
+  },
+  "issueSaveStopTitle": {
+    "message": "Save and stop recording"
+  },
+  "issueDragHandleTitle": {
+    "message": "Drag to move panel"
+  },
+  "issueEmptyActualWarning": {
+    "message": "Actual behavior is empty: please describe the issue; clicking save again will record it as empty"
+  },
+  "issueSaveFailed": {
+    "message": "Save failed: $ERROR$",
+    "placeholders": {
+      "error": { "content": "$1" }
+    }
+  },
+  "issueTextAnnotationPlaceholder": {
+    "message": "Type annotation text..."
+  },
+  "issueOriginalImageAlt": {
+    "message": "Issue scene original image"
+  },
+  "unknownError": {
+    "message": "Unknown error"
+  },
+  "shotRect": {
+    "message": "Rectangle"
+  },
+  "shotArrow": {
+    "message": "Arrow"
+  },
+  "shotPrivacy": {
+    "message": "Mosaic blur"
+  },
+  "shotText": {
+    "message": "Text annotation"
+  },
+  "shotTextPlaceholder": {
+    "message": "Type annotation..."
+  },
+  "shotCancel": {
+    "message": "Cancel (ESC)"
+  },
+  "shotConfirm": {
+    "message": "Confirm & export (Enter)"
+  },
+  "screenshotToastWithPath": {
+    "message": "ZIP downloaded and AI prompt copied (with absolute path)!"
+  },
+  "screenshotToastWithoutPath": {
+    "message": "ZIP downloaded and AI prompt copied; fill in the ZIP path manually in the prompt"
+  },
+  "waitForEvidenceLoad": {
+    "message": "Please wait for the evidence preview to finish loading."
+  },
+  "playwrightScriptCopied": {
+    "message": "Playwright script copied"
+  },
+  "videoDecodeFailedHint": {
+    "message": "Video cannot be decoded. If it's from a pre-fix recording, record a short segment again."
+  },
+  "videoLoadFailed": {
+    "message": "Video load failed: $ERROR$",
+    "placeholders": {
+      "error": { "content": "$1" }
+    }
+  },
+  "videoUnreadable": {
+    "message": "Video could not be read; interaction and debug evidence are still available."
+  },
+  "noMediaChunks": {
+    "message": "No playable media chunks; interaction and debug evidence are still available."
+  },
+  "missingSessionId": {
+    "message": "Missing session ID"
+  },
+  "sessionNotFound": {
+    "message": "Session not found"
+  },
+  "loadingVideoChunks": {
+    "message": "Loading video ($COUNT$ chunks)…",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "previewLoadFailed": {
+    "message": "Preview load failed: $ERROR$",
+    "placeholders": {
+      "error": { "content": "$1" }
+    }
+  },
+  "seekbarSegmentTitle": {
+    "message": "Annotation #$CURRENT$ ($TOTAL$s - $SIZE$s)",
+    "placeholders": {
+      "current": { "content": "$1" },
+      "total": { "content": "$2" },
+      "size": { "content": "$3" }
+    }
+  },
+  "hudPlay": {
+    "message": "Play"
+  },
+  "hudPause": {
+    "message": "Pause"
+  },
+  "hudFullscreen": {
+    "message": "Fullscreen"
+  },
+  "hudExitFullscreen": {
+    "message": "Exit fullscreen"
+  },
+  "exitFullscreenEsc": {
+    "message": "Exit fullscreen (Esc)"
+  },
+  "enterFullscreenDblclick": {
+    "message": "Fullscreen (double-click video)"
+  },
+  "aiPromptCopied": {
+    "message": "AI prompt copied"
+  },
+  "zipPathCopied": {
+    "message": "ZIP absolute path copied"
+  },
+  "copiedTitle": {
+    "message": "Copied"
+  },
+  "copyContentTitle": {
+    "message": "Copy content"
+  },
+  "frameworkTargetLabel": {
+    "message": "Target"
+  },
+  "dragToMove": {
+    "message": "Drag to move"
+  },
+  "enterScreenshot": {
+    "message": "Enter screenshot ($COUNT$)",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "enterScreenshotByEnter": {
+    "message": "Press Enter to capture screenshot"
+  },
+  "selectedCountHint": {
+    "message": "Selected $COUNT$ elements · click to add more · Enter to capture",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "markModeHint": {
+    "message": "Mark mode ($CURRENT$) · click to select elements · Enter to capture",
+    "placeholders": {
+      "current": { "content": "$1" }
+    }
+  },
+  "cancelShort": {
+    "message": "Cancel"
+  },
+  "clearShort": {
+    "message": "Clear"
+  },
+  "dragHint": {
+    "message": "🎯 Drag to select the abnormal region (Esc to cancel)"
+  },
+  "restoreWithCount": {
+    "message": "Restore $CURRENT$ ($TOTAL$)",
+    "placeholders": {
+      "current": { "content": "$1" },
+      "total": { "content": "$2" }
+    }
   }
 }

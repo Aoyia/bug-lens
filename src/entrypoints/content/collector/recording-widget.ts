@@ -2,7 +2,6 @@ import { t } from "../../../shared/i18n.ts";
 
 export type WidgetCallbacks = {
   onStop(): void;
-  onStopAndDiscard(): void;
   /** 点击"标记问题"时触发；anchor 为鼠标点击坐标（用于速记卡就近定位）。 */
   onMarkIssue(anchor?: { x: number; y: number }): void;
   isPaused?(): boolean;
@@ -200,11 +199,20 @@ export class RecordingWidget {
           transform-origin: left center !important;
         }
         #__wbr_recording_widget__.__wbr_collapsed__ .__wbr_btn_group {
-          max-width: 0px !important;
-          opacity: 0 !important;
+          max-width: none !important;
+          opacity: 1 !important;
           gap: 0px !important;
-          transform: scale(0.9) !important;
-          pointer-events: none !important;
+          transform: none !important;
+          pointer-events: auto !important;
+        }
+        #__wbr_recording_widget__.__wbr_collapsed__ #__wbr_issue_btn__,
+        #__wbr_recording_widget__.__wbr_collapsed__ #__wbr_health_msg__ {
+          display: none !important;
+        }
+        #__wbr_recording_widget__.__wbr_collapsed__ #__wbr_stop_btn__ {
+          padding: 3px 8px !important;
+          font-size: 10.5px !important;
+          border-radius: 3px !important;
         }
         .__wbr_drag_handle {
           cursor: grab !important;
@@ -250,11 +258,9 @@ export class RecordingWidget {
         }
         .__wbr_btn:hover { background: #f76565 !important; }
         .__wbr_btn:active { background: #cb2727 !important; }
-        .__wbr_btn_discard:hover { background: #606d7d !important; }
-        .__wbr_btn_discard:active { background: #3c4652 !important; }
         .__wbr_timer { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important; font-size: 12px !important; color: #e5e6eb !important; font-weight: 600 !important; flex-shrink: 0 !important; }
       </style>
-      <span class="__wbr_drag_handle" title="拖拽移动位置">⋮⋮</span>
+      <span class="__wbr_drag_handle" title="${t("dragToMove")}">⋮⋮</span>
       <span class="__wbr_dot"></span>
       <span data-wbr-rec-tag style="font-weight:600;letter-spacing:0.5px;color:#fff;flex-shrink:0;">REC</span>
       <span id="__wbr_timer_display__" class="__wbr_timer">00:00</span>
@@ -262,7 +268,6 @@ export class RecordingWidget {
         <span id="__wbr_health_msg__" style="font-size:11px;color:#ffc107;display:none;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title=""></span>
         <button id="__wbr_issue_btn__" class="__wbr_btn" style="background:#b42318;" title="${t("shortcut")}: ${this.shortcutKeyText}">${t("markIssue")} (${this.shortcutKeyText})</button>
         <button id="__wbr_stop_btn__" class="__wbr_btn">${t("stopRecording")}</button>
-        <button id="__wbr_discard_btn__" class="__wbr_btn __wbr_btn_discard" style="background:#4e5969;">${t("stopAndDiscard")}</button>
       </div>
     `;
 
@@ -301,18 +306,6 @@ export class RecordingWidget {
           },
           true
         );
-        const discardBtn = root.querySelector("#__wbr_discard_btn__");
-        if (discardBtn) {
-          discardBtn.addEventListener(
-            "click",
-            (e) => {
-              e.stopPropagation();
-              e.preventDefault();
-              this.callbacks.onStopAndDiscard();
-            },
-            true
-          );
-        }
 
         // Setup Drag Handle Logic
         const dragHandle =

@@ -46,6 +46,8 @@ export function PopupGuide({
   const [spot, setSpot] = useState<Spotlight | null>(null);
   const [bubbleBelow, setBubbleBelow] = useState(true);
   const tickRef = useRef<number | undefined>(undefined);
+  const stepIndexRef = useRef(0);
+  stepIndexRef.current = stepIndex;
 
   const step = STEPS[stepIndex];
 
@@ -68,8 +70,9 @@ export function PopupGuide({
     if (!visible) return;
     setStepIndex(0);
     const position = () => {
-      const el = document.querySelector<HTMLElement>(STEPS[0].selector);
-      if (el) applySpot(el, STEPS[0]);
+      const current = STEPS[stepIndexRef.current] ?? STEPS[0];
+      const el = document.querySelector<HTMLElement>(current.selector);
+      if (el) applySpot(el, current);
     };
     position();
     tickRef.current = window.setInterval(position, 400);

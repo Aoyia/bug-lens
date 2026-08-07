@@ -8,7 +8,7 @@ import { generatePlaywrightScript } from "../../preview/playwright-generator";
 import { highlightJs } from "../../preview/rendering";
 import { copyTextToClipboard } from "../../preview/clipboard";
 import { applyPrivacyBadge } from "../../preview/privacy-badge";
-import { applyI18n } from "../../shared/i18n";
+import { applyI18n, t } from "../../shared/i18n";
 import "../../shared/components/truncated-text";
 
 applyI18n();
@@ -38,7 +38,7 @@ const aiHandoff = new PreviewAiHandoff({
     const snapshot = runtime.getPackageSnapshot();
     return snapshot
       ? buildAiPrompt(snapshot, zipPath)
-      : "请先等待证据预览加载完成。";
+      : t("waitForEvidenceLoad");
   },
   notify: (message) => reportView.notify(message),
 });
@@ -85,7 +85,7 @@ const playwrightCopy = document.getElementById(
 function generatePlaywright(): void {
   const snapshot = runtime.getReportSnapshot();
   if (!snapshot) {
-    reportView.notify("请先等待证据预览加载完成");
+    reportView.notify(t("waitForEvidenceLoad"));
     return;
   }
   const script = generatePlaywrightScript({
@@ -119,9 +119,9 @@ playwrightCopy.addEventListener("click", async () => {
   if (text) {
     try {
       await copyTextToClipboard(text, document);
-      reportView.notify("Playwright 脚本已复制");
+      reportView.notify(t("playwrightScriptCopied"));
     } catch (error) {
-      reportView.notify(`复制失败：${String(error)}`);
+      reportView.notify(t("copyFailed", String(error)));
     }
   }
 });
@@ -139,8 +139,7 @@ async function loadMediaPreview(): Promise<void> {
       () => {
         video.hidden = true;
         empty.hidden = false;
-        empty.textContent =
-          "录像文件无法解码。若它来自修复前的录制，请重新录制一小段。";
+        empty.textContent = t("videoDecodeFailedHint");
       },
       { once: true }
     );
@@ -149,27 +148,29 @@ async function loadMediaPreview(): Promise<void> {
   }
   empty.hidden = false;
   empty.textContent = result.error
-    ? `录像加载失败：${result.error}`
+    ? t("videoLoadFailed", String(result.error))
     : runtime.mediaChunks
-      ? "录像文件无法读取；交互和调试证据仍可查看。"
-      : "没有可播放的媒体分片；交互和调试证据仍可查看。";
+      ? t("videoUnreadable")
+      : t("noMediaChunks");
 }
 
 async function load(): Promise<void> {
   if (!sessionId) {
-    $("#meta").textContent = "缺少会话 ID";
+    $("#meta").textContent = t("missingSessionId");
     return;
   }
   await runtime.load(sessionId);
   if (!runtime.currentSession) {
-    $("#meta").textContent = "找不到会话";
+    $("#meta").textContent = t("sessionNotFound");
     return;
   }
   applyPrivacyBadge(document, runtime.currentSession);
   await exportController.load();
   if (runtime.mediaChunks) {
-    $("#video-empty").textContent =
-      `正在加载录像（${runtime.mediaChunks} 个分片）…`;
+    $("#video-empty").textContent = t(
+      "loadingVideoChunks",
+      String(runtime.mediaChunks)
+    );
     await loadMediaPreview();
   } else {
     await loadMediaPreview();
@@ -190,8 +191,9 @@ async function load(): Promise<void> {
 }
 
 void load().catch((error) => {
-  $("#meta").textContent = `预览加载失败：${String(error)}`;
-  reportView.notify(`预览加载失败：${String(error)}`);
+  const messageText = t("previewLoadFailed", String(error));
+  $("#meta").textContent = messageText;
+  reportView.notify(messageText);
 });
 
 function formatTime(seconds: number): string {
@@ -299,7 +301,11 @@ function bindSingleSeekbarPlayer(): void {
         segment.className = "seekbar-yellow-segment";
         segment.style.left = `${leftPercent}%`;
         segment.style.width = `${widthPercent}%`;
-        segment.title = `截图批注 #${index + 1} (${startSec.toFixed(1)}s - ${endSec.toFixed(1)}s)`;
+        segment.title = t("seekbarSegmentTitle", [
+          String(index + 1),
+          startSec.toFixed(1),
+          endSec.toFixed(1),
+        ]);
         seekbarTrack.appendChild(segment);
       }
     }
@@ -502,10 +508,10 @@ function bindSingleSeekbarPlayer(): void {
   const togglePlay = () => {
     if (video.paused) {
       void video.play();
-      showHud("播放");
+      showHud(t("hudPlay"));
     } else {
       video.pause();
-      showHud("暂停");
+      showHud(t("hudPause"));
     }
   };
 
@@ -517,10 +523,10 @@ function bindSingleSeekbarPlayer(): void {
   video.addEventListener("dblclick", () => {
     if (!document.fullscreenElement) {
       void videoContainer?.requestFullscreen().catch(() => undefined);
-      showHud("全屏");
+      showHud(t("hudFullscreen"));
     } else {
       void document.exitFullscreen().catch(() => undefined);
-      showHud("退出全屏");
+      showHud(t("hudExitFullscreen"));
     }
   });
 
@@ -542,7 +548,7 @@ function bindSingleSeekbarPlayer(): void {
     fullscreenBtn?.classList.toggle("active", isFullscreen);
     fullscreenBtn?.setAttribute(
       "title",
-      isFullscreen ? "退出全屏 (Esc)" : "全屏 (双击视频)"
+      isFullscreen ? t("exitFullscreenEsc") : t("enterFullscreenDblclick")
     );
   };
 

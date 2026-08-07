@@ -3,6 +3,7 @@ import { useState, useCallback } from "preact/hooks";
 import type { ConsoleEntry, RecordingSession } from "../../shared/protocol.ts";
 import { useFilteredList } from "../../hooks/useFilteredList.ts";
 import { filterConsoleEntries } from "../../preview/console-filter.ts";
+import { t } from "../../shared/i18n.ts";
 
 export interface ConsoleTabProps {
   snapshot: {
@@ -42,7 +43,10 @@ export const ConsoleTab = memo(function ConsoleTab({
   // Override countText when level filter is active
   const displayCountText =
     levelFilter !== "all" || searchQuery.trim()
-      ? `匹配 ${entries.length} / ${snapshot.included.length} 条`
+      ? t("matchingCount", [
+          String(entries.length),
+          String(snapshot.included.length),
+        ])
       : countText;
 
   const handleExclude = useCallback(
@@ -74,7 +78,7 @@ export const ConsoleTab = memo(function ConsoleTab({
             setLevelFilter((e.target as HTMLSelectElement).value)
           }
         >
-          <option value="all">全部级别</option>
+          <option value="all">{t("allLevels")}</option>
           <option value="error">error</option>
           <option value="warning">warning</option>
           <option value="info">info</option>
@@ -83,7 +87,7 @@ export const ConsoleTab = memo(function ConsoleTab({
         <input
           type="text"
           className="panel-search-input"
-          placeholder="搜索日志文本"
+          placeholder={t("searchLogText")}
           value={searchQuery}
           onInput={(e) => setSearchQuery((e.target as HTMLInputElement).value)}
         />
@@ -176,7 +180,7 @@ export const ConsoleTab = memo(function ConsoleTab({
                       {editable ? (
                         <button
                           className="item-delete-btn delete"
-                          title="从预览和导出中删除此日志"
+                          title={t("deleteFromExport")}
                           onClick={(e) => handleExclude(e, entry.id)}
                         >
                           <svg
@@ -202,10 +206,10 @@ export const ConsoleTab = memo(function ConsoleTab({
         ) : (
           <div className="empty">
             {snapshot.included.length
-              ? "未找到匹配的 Console 日志"
+              ? t("noMatchingConsole")
               : snapshot.all.length && editable
-                ? "所有 Console 日志均已删除，可从右上角恢复。"
-                : "没有 Console 记录"}
+                ? t("allConsoleDeleted")
+                : t("noConsoleRecords")}
           </div>
         )}
       </div>

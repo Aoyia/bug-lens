@@ -3,6 +3,7 @@ import {
   isEnvelope,
   message,
   type CaptureIssue,
+  type FrameworkProbeEntry,
   type NetworkEntry,
   type RecordingSession,
   type RuntimeMessage,
@@ -31,8 +32,9 @@ import { StreamHealthMonitor } from "../../recording/stream-health-monitor";
 import { setStorageBudgetListener } from "../../storage/storage-budget";
 import { validateStorageHealthUpdate } from "../../storage/storage-health-coordinator";
 import { ensureOffscreenDocument } from "../../shared/offscreen";
+import { runMainWorldFrameworkProbe } from "../../screenshot/main-world-probe";
 
-const EXTENSION_VERSION = "0.4.0";
+const EXTENSION_VERSION = chrome.runtime.getManifest().version;
 const STOPPING_IDS_KEY = "bug-lens-stopping-ids";
 const streamHealthMonitor = new StreamHealthMonitor();
 /** 独立截图 overlay 是否打开（content script 上报）。用于与视频录制互斥。 */
@@ -1120,6 +1122,29 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender) => {
           });
           const absolutePath = await resolveDownloadedFilePath(downloadId);
           return { ok: true, downloadId, absolutePath };
+        }
+        case "screenshot/framework-probe": {
+          // content script 处于隔离世界，读不到页面框架挂在 DOM 元素上的
+          // __vue__/__reactFiber$ 等 expando 属性：由 background 以
+          // world: "MAIN" 注入自包含探针到页面主世界读取组件链。
+          const { probeIds } = incoming.payload;
+          const tabId = sender.tab?.id;
+          if (!tabId || !Array.isArray(probeIds) || probeIds.length === 0) {
+            return { ok: true, results: {} };
+          }
+          const injected = await chrome.scripting.executeScript({
+            target: { tabId, frameIds: [sender.frameId ?? 0] },
+            world: "MAIN",
+            func: runMainWorldFrameworkProbe,
+            args: [probeIds],
+          });
+          const results: Record<string, FrameworkProbeEntry | null> = {};
+          for (const frame of injected) {
+            if (frame.result && typeof frame.result === "object") {
+              Object.assign(results, frame.result);
+            }
+          }
+          return { ok: true, results };
         }
         default:
           return { ok: false, error: "UNSUPPORTED_MESSAGE" };

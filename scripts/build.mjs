@@ -165,7 +165,7 @@ if (isWatch) {
       target: ["chrome125"],
       outfile: resolve(outdir, `${name}.js`),
       sourcemap: false,
-      minify: name === "report-template",
+      minify: true,
       jsx: "automatic",
       jsxImportSource: "preact",
     });

@@ -6,6 +6,7 @@ import { generateCurlCommand } from "../../domain/curl-generator.ts";
 import { copyTextToClipboard } from "../../preview/clipboard.ts";
 import { escapeHtml, renderCodeBlockHtml } from "../../preview/rendering.ts";
 import { useFilteredList } from "../../hooks/useFilteredList.ts";
+import { t } from "../../shared/i18n.ts";
 
 export interface NetworkTabProps {
   snapshot: {
@@ -34,7 +35,7 @@ function networkTime(entry: NetworkEntry, session?: RecordingSession): string {
 
 function renderNetworkDetailHtml(entry?: NetworkEntry): string {
   if (!entry)
-    return '<div class="network-detail-empty">点击上方网络请求查看详情</div>';
+    return `<div class="network-detail-empty">${t("clickToViewDetail")}</div>`;
   const response = entry.response;
   const extraDetail =
     typeof window !== "undefined" && window.__BUG_LENS_NETWORK_DETAILS__
@@ -48,7 +49,7 @@ function renderNetworkDetailHtml(entry?: NetworkEntry): string {
   const headerNames = Object.keys(headers);
 
   const reqHeaderBlock = reqHeaderNames.length
-    ? `<div class="network-detail-section"><details><summary>请求头 (${reqHeaderNames.length})</summary><div class="network-detail-content"><table class="headers-table">${reqHeaderNames.map((name) => `<tr><td class="header-name">${escapeHtml(name)}:</td><td class="header-value">${escapeHtml(reqHeaderNames.length ? reqHeaders[name] : "")}</td></tr>`).join("")}</table></div></details></div>`
+    ? `<div class="network-detail-section"><details><summary>${t("requestHeadersCount", String(reqHeaderNames.length))}</summary><div class="network-detail-content"><table class="headers-table">${reqHeaderNames.map((name) => `<tr><td class="header-name">${escapeHtml(name)}:</td><td class="header-value">${escapeHtml(reqHeaders[name])}</td></tr>`).join("")}</table></div></details></div>`
     : "";
 
   let initiatorBlock = "";
@@ -58,52 +59,55 @@ function renderNetworkDetailHtml(entry?: NetworkEntry): string {
       initiatorContent = escapeHtml(initiator);
     } else if (initiator.concise?.topFrame) {
       const top = initiator.concise.topFrame;
-      initiatorContent = `类型: ${escapeHtml(initiator.type || "script")}\n触发位置: ${escapeHtml(top.url)}:${top.lineNumber}:${top.columnNumber}`;
+      initiatorContent = t("initiatorContent", [
+        escapeHtml(initiator.type || "script"),
+        `${escapeHtml(top.url)}:${top.lineNumber}:${top.columnNumber}`,
+      ]);
     } else {
       initiatorContent = escapeHtml(JSON.stringify(initiator, null, 2));
     }
-    initiatorBlock = `<div class="network-detail-section"><details><summary>发起方 / 调用栈 (Initiator)</summary><div class="network-detail-content"><pre class="code" style="white-space: pre-wrap; font-size: 11px;">${initiatorContent}</pre></div></details></div>`;
+    initiatorBlock = `<div class="network-detail-section"><details><summary>${t("initiatorSection")}</summary><div class="network-detail-content"><pre class="code" style="white-space: pre-wrap; font-size: 11px;">${initiatorContent}</pre></div></details></div>`;
   }
 
   const headerBlock = `
     ${reqHeaderBlock}
-    <div class="network-detail-section"><details><summary>响应头 (${headerNames.length})</summary><div class="network-detail-content">
-      ${headerNames.length ? `<table class="headers-table">${headerNames.map((name) => `<tr><td class="header-name">${escapeHtml(name)}:</td><td class="header-value">${escapeHtml(headers[name])}</td></tr>`).join("")}</table>` : '<div class="muted">无响应头</div>'}
+    <div class="network-detail-section"><details><summary>${t("responseHeadersCount", String(headerNames.length))}</summary><div class="network-detail-content">
+      ${headerNames.length ? `<table class="headers-table">${headerNames.map((name) => `<tr><td class="header-name">${escapeHtml(name)}:</td><td class="header-value">${escapeHtml(headers[name])}</td></tr>`).join("")}</table>` : `<div class="muted">${t("noResponseHeaders")}</div>`}
     </div></details></div>
     ${initiatorBlock}`;
 
   let body = "";
-  if (!response) body = '<div class="muted">未收到响应元数据</div>';
+  if (!response) body = `<div class="muted">${t("noResponseMeta")}</div>`;
   else if (response.bodyStatus === "pending")
-    body = '<div class="muted">响应正文正在读取…</div>';
+    body = `<div class="muted">${t("responseBodyPending")}</div>`;
   else if (response.bodyStatus === "not-present")
-    body = '<div class="muted">该响应按协议无正文</div>';
+    body = `<div class="muted">${t("responseNoBody")}</div>`;
   else if (response.bodyStatus === "redacted")
-    body = `<div class="muted">响应正文已按隐私策略省略：${escapeHtml(response.redactionReason || "policy")}</div>`;
+    body = `<div class="muted">${t("responseBodyRedacted", escapeHtml(response.redactionReason || "policy"))}</div>`;
   else if (response.bodyStatus === "unavailable")
-    body = `<div class="muted">响应正文不可用：${escapeHtml(response.error || "浏览器未提供")}</div>`;
+    body = `<div class="muted">${t("responseBodyUnavailable", escapeHtml(response.error || t("browserNotProvided")))}</div>`;
   else if (response.base64Encoded)
-    body = `<div class="code-wrapper"><div class="code">二进制响应以 Base64 保存于导出数据中。长度：${response.body?.length ?? 0}</div></div>`;
+    body = `<div class="code-wrapper"><div class="code">${t("binaryResponseSaved", String(response.body?.length ?? 0))}</div></div>`;
   else {
     const source = response.body ?? "";
     const limited =
       source.length > 200_000
-        ? `${source.slice(0, 200_000)}\n\n[预览截断；完整正文保存在 ZIP 中]`
+        ? `${source.slice(0, 200_000)}\n\n${t("previewTruncated")}`
         : source;
     const isJson = Boolean(
       response.mimeType?.includes("json") || /^[\s]*[\[{]/.test(limited)
     );
     body = limited
       ? renderCodeBlockHtml(limited, isJson)
-      : '<div class="code-wrapper"><div class="code">[空响应正文]</div></div>';
+      : `<div class="code-wrapper"><div class="code">${t("emptyResponseBody")}</div></div>`;
   }
 
   return `
     <div class="network-detail-view">
-      <div class="network-detail-header"><span>请求详情</span><button id="btn-copy-curl" class="btn-copy-curl" title="复制为 cURL 命令"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span class="btn-copy-curl-text">复制 cURL</span></button></div>
+      <div class="network-detail-header"><span>${t("requestDetails")}</span><button id="btn-copy-curl" class="btn-copy-curl" title="${t("copyAsCurl")}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span class="btn-copy-curl-text">${t("copyCurl")}</span></button></div>
       <div class="network-detail-url"><strong>${escapeHtml((entry.method || "GET").toUpperCase())}</strong> ${escapeHtml(entry.url)}</div>
       ${headerBlock}
-      <div class="network-detail-section"><details open><summary>响应正文 · ${escapeHtml(response?.mimeType || "未知类型")} ${response?.byteLength != null ? `(${response.byteLength} B)` : ""}</summary><div class="network-detail-content">${body}</div></details></div>
+      <div class="network-detail-section"><details open><summary>${t("responseBodyHeader", escapeHtml(response?.mimeType || t("unknownMime")))} ${response?.byteLength != null ? `(${response.byteLength} B)` : ""}</summary><div class="network-detail-content">${body}</div></details></div>
     </div>
   `;
 }
@@ -180,14 +184,14 @@ export const NetworkTab = memo(function NetworkTab({
           const label = copyButton.querySelector<HTMLElement>(
             ".btn-copy-curl-text"
           );
-          if (label) label.textContent = "已复制 cURL";
-          onNotify?.("已复制 cURL 命令到剪贴板");
+          if (label) label.textContent = t("curlCopied");
+          onNotify?.(t("curlCopiedNotify"));
           window.setTimeout(() => {
             copyButton.classList.remove("copied");
-            if (label) label.textContent = "复制 cURL";
+            if (label) label.textContent = t("copyCurl");
           }, 1800);
         })
-        .catch((error) => onNotify?.(`复制失败：${String(error)}`));
+        .catch((error) => onNotify?.(t("copyFailed", String(error))));
     };
 
     copyButton.addEventListener("click", handleCopy);
@@ -202,7 +206,7 @@ export const NetworkTab = memo(function NetworkTab({
         <input
           id="network-search-input"
           type="text"
-          placeholder="按 URL 过滤"
+          placeholder={t("filterByUrl")}
           className="panel-search-input"
           value={searchQuery}
           onInput={(e) => setSearchQuery((e.target as HTMLInputElement).value)}
@@ -239,7 +243,10 @@ export const NetworkTab = memo(function NetworkTab({
                   >
                     <span
                       className="col-time"
-                      title={`绝对时间: ${new Date(entry.createdAt).toLocaleString()}`}
+                      title={t(
+                        "absoluteTime",
+                        new Date(entry.createdAt).toLocaleString()
+                      )}
                     >
                       {networkTime(entry, snapshot.session)}
                     </span>
@@ -257,7 +264,7 @@ export const NetworkTab = memo(function NetworkTab({
                       <span className="col-actions">
                         <button
                           className="item-delete-btn delete"
-                          title="从预览和导出中删除此请求"
+                          title={t("deleteRequest")}
                           onClick={(e) => handleExclude(e, entry.id)}
                         >
                           <svg
@@ -281,18 +288,18 @@ export const NetworkTab = memo(function NetworkTab({
             <div className="empty">
               {snapshot.all.length
                 ? snapshot.included.length
-                  ? "未找到匹配的网络请求"
+                  ? t("noMatchingNetwork")
                   : editable
-                    ? "所有 Network 请求均已删除，可从右上角恢复。"
-                    : "没有 Network 记录"
-                : "没有 Network 记录"}
+                    ? t("allNetworkDeleted")
+                    : t("noNetworkRecords")
+                : t("noNetworkRecords")}
             </div>
           )}
         </div>
         <div
           id="network-resizer"
           className="network-resizer"
-          title="拖拽调整列表与详情区域高度"
+          title={t("resizerTitle")}
         ></div>
         <div
           className="network-detail-panel"

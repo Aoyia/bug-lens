@@ -175,6 +175,14 @@ export const HistoryList = memo(function HistoryList({
             ? t("sessionsCount", String(storage.sessionCount))
             : "0 个会话"}
         </span>
+        {storage && (
+          <div id="storage-policy" className="storage-policy">
+            {t("storagePolicy", [
+              String(storage.policy.retentionDays),
+              formatBytes(storage.policy.maxSessionBytes),
+            ])}
+          </div>
+        )}
       </div>
     </div>
   );

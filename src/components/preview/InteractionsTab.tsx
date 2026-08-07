@@ -10,6 +10,7 @@ import {
 } from "../../domain/interaction-grouping";
 
 import { copyTextToClipboard } from "../../preview/clipboard";
+import { t } from "../../shared/i18n.ts";
 
 function formatPlaywrightLocator(
   locator: { kind: string; expression: string },
@@ -52,26 +53,28 @@ function formatStepForAi(
     : "";
   const tagWithClass = `${element.tagName.toLowerCase()}${classNames}`;
   const textVal = card.aggregatedMeta.finalValue
-    ? `值: "${card.aggregatedMeta.finalValue}"`
+    ? t("aiStepValue", card.aggregatedMeta.finalValue)
     : element.text
-      ? `文本: "${element.text}"`
+      ? t("aiStepText", element.text)
       : "";
   const elementSnippet = `<${tagWithClass}${textVal ? ` ${textVal}` : ""}>`;
 
   const lines = [
-    `【步骤 ${stepIndex}】${card.aggregatedMeta.title}`,
-    `- 页面 URL: ${primary.page.url}`,
+    t("aiStepTitle", [String(stepIndex), card.aggregatedMeta.title]),
+    t("aiStepUrl", primary.page.url),
   ];
 
   if (element.framework?.targetComponent) {
     const fw = element.framework.targetComponent;
     const label = fw.framework === "vue" ? "Vue" : "React";
-    lines.push(`- ${label} 组件: <${fw.componentName}> (${label} ${fw.version})`);
+    lines.push(
+      t("aiStepComponent", [label, fw.componentName, label, String(fw.version)])
+    );
   }
 
-  lines.push(`- 目标元素: ${elementSnippet}`);
+  lines.push(t("aiStepTarget", elementSnippet));
   if (primaryLocator) {
-    lines.push(`- 核心定位器: ${primaryLocator}`);
+    lines.push(t("aiStepLocator", primaryLocator));
   }
 
   return lines.join("\n");
@@ -120,8 +123,8 @@ export const InteractionsTab = memo(function InteractionsTab({
     return (
       <div className="empty">
         {snapshot.all.length > 0 && editable
-          ? "所有交互步骤均已删除，可从右上角恢复。"
-          : "没有捕获到点击"}
+          ? t("allInteractionsDeleted")
+          : t("noInteractions")}
       </div>
     );
   }
@@ -160,7 +163,7 @@ export const InteractionsTab = memo(function InteractionsTab({
           : "-";
         const frame =
           primary.page.frameId === 0
-            ? "顶层页面"
+            ? t("topLevelPage")
             : `Frame #${primary.page.frameId}`;
         const locators = element.locators || [];
 
@@ -171,9 +174,9 @@ export const InteractionsTab = memo(function InteractionsTab({
             ? card.aggregatedMeta.finalValue.length
             : undefined);
         const textDisplay = card.aggregatedMeta.finalValue
-          ? `值: "${card.aggregatedMeta.finalValue}"`
+          ? t("aiStepValue", card.aggregatedMeta.finalValue)
           : inputLength !== undefined
-            ? `已写入 ${inputLength} 字符 (脱敏)`
+            ? t("inputCharsRedacted", String(inputLength))
             : element.text || "-";
 
         return (
@@ -205,22 +208,25 @@ export const InteractionsTab = memo(function InteractionsTab({
                 {inputLength !== undefined && (
                   <span
                     className="badge badge-input-len"
-                    title={`包含写入文本内容 ${inputLength} 字符`}
+                    title={t("inputCharsTitle", String(inputLength))}
                   >
-                    ✍️ 写入 {inputLength} 字符
+                    {t("writeCharsShort", String(inputLength))}
                   </span>
                 )}
                 {card.aggregatedMeta.hasEnterSubmit && (
-                  <span className="badge badge-enter" title="包含回车提交">
+                  <span
+                    className="badge badge-enter"
+                    title={t("enterKeyTitle")}
+                  >
                     Enter
                   </span>
                 )}
                 {card.children.length > 1 && (
                   <span
                     className="badge badge-count"
-                    title={`由 ${card.children.length} 个物理事件聚合`}
+                    title={t("aggregatedEvents", String(card.children.length))}
                   >
-                    {card.children.length} 步骤
+                    {t("stepCountShort", String(card.children.length))}
                   </span>
                 )}
                 <span
@@ -230,16 +236,16 @@ export const InteractionsTab = memo(function InteractionsTab({
                 </span>
                 <button
                   className="item-copy-btn copy-step-btn"
-                  title="复制步骤描述文本"
+                  title={t("copyStepText")}
                   onClick={(e) => {
                     e.stopPropagation();
                     const text = formatStepForAi(card, cardIndex + 1);
                     void copyTextToClipboard(text)
                       .then(() => {
-                        onNotify?.(`已复制步骤 ${cardIndex + 1} 描述`);
+                        onNotify?.(t("stepCopied", String(cardIndex + 1)));
                       })
                       .catch((err) => {
-                        onNotify?.(`复制失败: ${String(err)}`);
+                        onNotify?.(t("copyStepFailed", String(err)));
                       });
                   }}
                 >
@@ -267,7 +273,7 @@ export const InteractionsTab = memo(function InteractionsTab({
                 {editable && (
                   <button
                     className="item-delete-btn delete"
-                    title="从预览和导出中删除此聚合步骤"
+                    title={t("deleteStep")}
                     onClick={(e) => {
                       e.stopPropagation();
                       card.children.forEach((child) => onExclude?.(child.id));
@@ -309,7 +315,7 @@ export const InteractionsTab = memo(function InteractionsTab({
                   type="button"
                   onClick={(e) => toggleExpand(card.id, e)}
                 >
-                  {isExpanded ? "收起明细 ▲" : "展开微步骤 明细 ▼"}
+                  {isExpanded ? t("collapseDetails") : t("expandDetails")}
                 </button>
               )}
             </div>
@@ -317,7 +323,7 @@ export const InteractionsTab = memo(function InteractionsTab({
             {/* 当多步骤且展开时，渲染子时间线 */}
             {card.children.length > 1 && isExpanded && (
               <div className="sub-steps-container">
-                <div className="sub-steps-header">微观物理事件列表</div>
+                <div className="sub-steps-header">{t("microEventsTitle")}</div>
                 <div className="sub-steps-timeline">
                   {card.children.map((child, subIdx) => (
                     <div className="sub-step-item" key={child.id}>
@@ -332,13 +338,19 @@ export const InteractionsTab = memo(function InteractionsTab({
                       {child.kind === "input" && (
                         <span className="sub-step-detail highlight-input-detail">
                           {child.metadata?.value !== undefined
-                            ? `✍️ 写入内容: "${child.metadata.value}"`
+                            ? t("writeContent", child.metadata.value)
                             : child.metadata?.valueLength !== undefined
-                              ? `✍️ 写入 ${child.metadata.valueLength} 字符 (脱敏)`
-                              : "✍️ 写入文本"}
+                              ? t(
+                                  "writeRedacted",
+                                  String(child.metadata.valueLength)
+                                )
+                              : t("writeText")}
                           {child.metadata?.inputEventCount &&
                           child.metadata.inputEventCount > 1
-                            ? ` (${child.metadata.inputEventCount} 次打字)`
+                            ? t(
+                                "keystrokeCount",
+                                String(child.metadata.inputEventCount)
+                              )
                             : ""}
                         </span>
                       )}
@@ -346,13 +358,13 @@ export const InteractionsTab = memo(function InteractionsTab({
                       {child.kind !== "input" &&
                         child.metadata?.value !== undefined && (
                           <span className="sub-step-detail">
-                            值: "{child.metadata.value}"
+                            {t("aiStepValue", child.metadata.value)}
                           </span>
                         )}
 
                       {child.metadata?.key && (
                         <span className="sub-step-detail">
-                          按键: {child.metadata.key}
+                          {t("keyPressLabel", child.metadata.key)}
                         </span>
                       )}
                     </div>
@@ -367,31 +379,33 @@ export const InteractionsTab = memo(function InteractionsTab({
                   <img
                     className="shot step-shot"
                     src={screenshotDataUrl}
-                    alt="点击/操作截图"
+                    alt={t("stepScreenshotAlt")}
                     data-img-id={screenshotRecord.id}
-                    title="点击放大查看大图"
+                    title={t("clickToZoom")}
                   />
                 </div>
               )}
               <div className="step-details-panel">
                 <div className="step-section">
-                  <div className="step-section-title">目标元素</div>
+                  <div className="step-section-title">
+                    {t("labelTargetElement")}
+                  </div>
                   <table className="target-element-table">
                     <tbody>
                       <tr>
-                        <td className="td-label">标签</td>
+                        <td className="td-label">{t("labelTag")}</td>
                         <td className="td-value">
                           {element.tagName.toLowerCase()}
                         </td>
                       </tr>
                       <tr>
-                        <td className="td-label">类名</td>
+                        <td className="td-label">{t("labelClassName")}</td>
                         <td className="td-value" data-tooltip={classNames}>
                           {classNames}
                         </td>
                       </tr>
                       <tr>
-                        <td className="td-label">文本/输入</td>
+                        <td className="td-label">{t("labelTextInput")}</td>
                         <td
                           className={`td-value ${inputLength !== undefined ? "highlight-value-text" : ""}`}
                           data-tooltip={textDisplay}
@@ -407,19 +421,21 @@ export const InteractionsTab = memo(function InteractionsTab({
                   </table>
                 </div>
                 <div className="step-section">
-                  <div className="step-section-title">上下文</div>
+                  <div className="step-section-title">
+                    {t("labelSectionContext")}
+                  </div>
                   <table className="target-element-table">
                     <tbody>
                       <tr>
-                        <td className="td-label">尺寸</td>
+                        <td className="td-label">{t("labelSize")}</td>
                         <td className="td-value">{size}</td>
                       </tr>
                       <tr>
-                        <td className="td-label">坐标</td>
+                        <td className="td-label">{t("labelCoordinates")}</td>
                         <td className="td-value">{coordinateText}</td>
                       </tr>
                       <tr>
-                        <td className="td-label">视口</td>
+                        <td className="td-label">{t("labelViewport")}</td>
                         <td className="td-value">{viewport}</td>
                       </tr>
                       <tr>
@@ -431,7 +447,9 @@ export const InteractionsTab = memo(function InteractionsTab({
                 </div>
                 {locators.length > 0 && (
                   <div className="step-section">
-                    <div className="step-section-title">定位器候选</div>
+                    <div className="step-section-title">
+                      {t("labelLocatorCandidates")}
+                    </div>
                     <ol className="locator-list">
                       {locators.map((locator, locatorIndex) => {
                         const formatted = formatPlaywrightLocator(
@@ -445,19 +463,22 @@ export const InteractionsTab = memo(function InteractionsTab({
                             </span>
                             <code className="locator-code">{formatted}</code>
                             <span className="locator-meta">
-                              {locator.kind} · 匹配{" "}
-                              {locator.matchCount > 0
-                                ? locator.matchCount
-                                : "?"}{" "}
-                              · 稳定性{" "}
-                              {Math.round(locator.stabilityScore * 100)}%
+                              {t("locatorMeta", [
+                                locator.kind,
+                                locator.matchCount > 0
+                                  ? String(locator.matchCount)
+                                  : "?",
+                                String(
+                                  Math.round(locator.stabilityScore * 100)
+                                ),
+                              ])}
                             </span>
                             <button
                               className="copy-locator-btn"
                               type="button"
                               data-copy-locator={formatted}
                             >
-                              复制
+                              {t("copyShort")}
                             </button>
                           </li>
                         );

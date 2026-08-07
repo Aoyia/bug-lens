@@ -6,6 +6,7 @@ import {
 } from "../domain/screenshot-payload.ts";
 import { message } from "../shared/protocol.ts";
 import { collectSpatialDomTree } from "./dom-spatial-collector.ts";
+import { probeFrameworkComponents } from "./framework-probe.ts";
 import { recentErrorsTracker } from "./recent-errors-tracker.ts";
 import {
   buildScreenshotZipPackage,
@@ -305,10 +306,11 @@ export async function processScreenshot(
   const croppedBase64 = canvas.toDataURL("image/png");
   const imageBlob = await canvasToBlob(canvas, "image/png");
 
-  // 3. 收集空间 DOM 结构树
-  const spatialDom = collectSpatialDomTree({
+  // 3. 收集空间 DOM 结构树（经主世界探针读取 Vue/React 组件链）
+  const spatialDom = await collectSpatialDomTree({
     cropBounds,
     annotations,
+    probeFramework: probeFrameworkComponents,
   });
 
   // 4. 组装完整 AIScreenshotPayload

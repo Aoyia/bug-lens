@@ -9,6 +9,7 @@ import type {
 import { ImageViewer } from "./image-viewer";
 import { PreviewPageShell } from "./page-shell";
 import type { IssueScenePreview } from "./issue-scene-view";
+import { t } from "../shared/i18n.ts";
 import { ConsoleTab } from "../components/preview/ConsoleTab";
 import { NetworkTab } from "../components/preview/NetworkTab";
 import { InteractionsTab } from "../components/preview/InteractionsTab";
@@ -433,7 +434,7 @@ export class EvidenceReportView {
       if (!button) continue;
       const count = this.excludedCount(item.kind);
       button.hidden = count === 0 || this.shell.activeTab !== item.tab;
-      button.textContent = `恢复${item.label}（${count}）`;
+      button.textContent = t("restoreWithCount", [item.label, String(count)]);
     }
   }
 

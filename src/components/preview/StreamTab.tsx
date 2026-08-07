@@ -7,6 +7,7 @@ import type {
   RecordingSession,
 } from "../../shared/protocol";
 import { formatElapsedEpochTime } from "../../domain/evidence-clock";
+import { t } from "../../shared/i18n.ts";
 
 interface StreamTabProps {
   snapshot: {
@@ -126,7 +127,7 @@ export const StreamTab = memo(function StreamTab({
             >
               <path d="M3 3l7 18 3-7 7-3L3 3z"></path>
             </svg>
-            交互步骤
+            {t("filterInteractions")}
           </label>
           <label className="stream-filter-label">
             <input
@@ -147,7 +148,7 @@ export const StreamTab = memo(function StreamTab({
               <polyline points="4 17 10 11 4 5"></polyline>
               <line x1="12" y1="19" x2="20" y2="19"></line>
             </svg>
-            Console 日志
+            {t("consoleLogs")}
           </label>
           <label className="stream-filter-label">
             <input
@@ -169,7 +170,7 @@ export const StreamTab = memo(function StreamTab({
               <line x1="2" y1="12" x2="22" y2="12"></line>
               <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
             </svg>
-            Network 请求
+            {t("networkRequests")}
           </label>
           <label className="stream-filter-label error-chip">
             <input
@@ -191,13 +192,13 @@ export const StreamTab = memo(function StreamTab({
               <line x1="12" y1="8" x2="12" y2="12"></line>
               <line x1="12" y1="16" x2="12.01" y2="16"></line>
             </svg>
-            仅看错误与异常
+            {t("errorOnlyFilter")}
           </label>
         </div>
       </div>
       <div className="stream-timeline">
         {nodes.length === 0 ? (
-          <div className="stream-empty-text">没有匹配的全景事件记录</div>
+          <div className="stream-empty-text">{t("noStreamEvents")}</div>
         ) : (
           nodes.map((node) => {
             const relTime =
@@ -224,7 +225,7 @@ export const StreamTab = memo(function StreamTab({
                   >
                     <path d="M3 3l7 18 3-7 7-3L3 3z"></path>
                   </svg>
-                  交互
+                  {t("streamKindInteraction")}
                 </span>
               );
               contentHtml = (
@@ -313,7 +314,7 @@ export const StreamTab = memo(function StreamTab({
                 <button
                   className="stream-clip-btn"
                   data-clip-timestamp={node.timestamp}
-                  title="导出前后 5 秒 1080p 原画视频片段"
+                  title={t("clipExportTitle")}
                   onClick={(e) => handleClipClick(e, node.timestamp)}
                 >
                   <svg
@@ -336,7 +337,7 @@ export const StreamTab = memo(function StreamTab({
                       ry="2"
                     ></rect>
                   </svg>
-                  <span>剪辑 5s</span>
+                  <span>{t("clipShortLabel")}</span>
                 </button>
               </div>
             );

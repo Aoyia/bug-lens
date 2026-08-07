@@ -50,6 +50,8 @@ export type StaticReportAssets = {
   script: string;
   styles: string;
   icon: Uint8Array;
+  /** 离线报告用 i18n 字典（按导出时的界面语言注入 report.html） */
+  localeMessages?: Record<string, { message: string }>;
 };
 
 const oneLine = (value: unknown) =>
@@ -81,7 +83,7 @@ Metadata Summary:
 ${environmentLine}
 
 Please follow this first-principles chain of diagnosis (extract ZIP to a temporary directory):
-1. Scene Alignment: Prioritize reading \`issueScenes[].scene.narrative.actual\` in \`data/session-data.js\` (to capture the user's explicit problem description), combined with \`issues/\` screenshots and selected DOM element styles. Note that \`data/session-data.js\` sets \`window.__BUG_LENS_DATA__ = {...}\` — start with the \`summary\` field and \`screenshotSummaries\`. Full request headers and initiator/call stack details are stored in \`data/network-details.js\`.
+1. Scene Alignment: Prioritize reading \`issueScenes[].scene.narrative.actual\` in \`data/session-data.js\` (to capture the user's explicit problem description), combined with \`issues/\` screenshots and selected DOM element styles. Note that \`data/session-data.js\` sets \`window.__BUG_LENS_DATA__ = {...}\` — start with the \`summary\` field and \`screenshotSummaries\`. Full request headers and initiator/call stack details are stored in \`data/network-details.js\`. Each scene also carries \`issueScenes[].scene.sequenceContext\` — the interactions and console errors in the seconds before the mark moment, frozen at capture time. Treat it as raw same-time context, never as a causal assertion.
 2. Expected Anchor: Read \`issueScenes[].scene.narrative.expected\`. If \`confidence: "explicit"\`, treat the user's stated expectation as the diagnostic anchor — the bug is the deviation between \`actual\` and that expectation. If \`confidence: "missing"\` (or the field is absent), the expectation was NOT captured: you MUST explicitly state "expectation not captured; the following is an inferred assumption" and label any inferred expectation as a hypothesis, never as fact.
 3. Anomaly Convergence: Align timeline to find correlated Console errors and failed Network requests (e.g. 4xx/5xx/CORS/Timeout) around issue timestamps.
 4. Root Cause & Remediation: Pinpoint the failing code block/API, distinguishing UI rendering bugs, state management flaws, style/structural defects, or backend API contract failures. Use \`frameworkStates[]\` in \`data/session-data.js\` to inspect React/Vue component props/state before and at the failing interaction, and \`reproduce.spec.ts\` to run a Playwright reproduction (fix-then-replay loop).
@@ -116,7 +118,7 @@ ${path}
 ${environmentLine}
 
 请按以下第一性链式逻辑展开排查（解压 ZIP 至临时目录）：
-1. 现场定位：优先读取 \`data/session-data.js\` 中的 \`issueScenes[].scene.narrative.actual\`（获取用户填写的真实主观问题描述），并结合 \`issues/\` 截图与选中的 DOM 元素样式分析现场。注意：该文件设置 \`window.__BUG_LENS_DATA__ = {...}\`，请先读取 \`summary\` 字段和 \`screenshotSummaries\`。完整请求头、响应头和调用栈详情已独立保存至 \`data/network-details.js\`。
+1. 现场定位：优先读取 \`data/session-data.js\` 中的 \`issueScenes[].scene.narrative.actual\`（获取用户填写的真实主观问题描述），并结合 \`issues/\` 截图与选中的 DOM 元素样式分析现场。注意：该文件设置 \`window.__BUG_LENS_DATA__ = {...}\`，请先读取 \`summary\` 字段和 \`screenshotSummaries\`。完整请求头、响应头和调用栈详情已独立保存至 \`data/network-details.js\`。每个现场还携带 \`issueScenes[].scene.sequenceContext\`——标记当下前数秒内的交互与 Console 报错，在捕获时刻冻结。请仅将其视为"同时刻原始上下文"，禁止当作已证实的因果链。
 2. 期望锚点：读取 \`issueScenes[].scene.narrative.expected\`。若 \`confidence: "explicit"\`，以用户明示的期望作为诊断锚点——缺陷即 \`actual\` 与该期望之间的偏差。若 \`confidence: "missing"\` 或字段缺失，说明期望未被捕获：你必须显式声明“未捕获期望，以下为推断假设”，并将任何推断出的期望标注为假设，禁止当作用户已知事实。
 3. 异常收敛：对齐时间轴，检索交叉点附近的 Console 报错与 Network 失败请求（如 4xx/5xx/CORS/Timeout）。
 4. 根因推导与修复：定位缺陷发生的代码块/接口，区分是前端渲染异常、状态管理漏洞、样式/结构缺陷还是后端 API 契约失效。可用 \`data/session-data.js\` 中的 \`frameworkStates[]\` 检查失败交互前后的 React/Vue 组件 props/state，并用 \`reproduce.spec.ts\` 运行 Playwright 复现（修复-回放闭环验证）。
@@ -209,7 +211,7 @@ Click screenshots are saved as Data URLs in \`interactions[].screenshot.dataUrl\
 - \`interactions[]\`: Chronological valid click steps with coordinates, semantics, locators, and screenshots.
 - \`consoleEntries[]\`: Captured Console logs, exceptions, and browser logs during recording.
 - \`networkEntries[]\`: Captured raw request URLs, methods, status, response headers, and bodies (large bodies stored in \`bodyPath\`). Network headers are trimmed to essentials; full headers, request headers, and initiator/call stack details are stored separately in \`data/network-details.js\`; each entry only has \`initiatorType\` (e.g. "script", "parser").
-- \`issueScenes[]\`: User-marked issue screenshots, annotations, DOM, description, and timestamps.
+- \`issueScenes[]\`: User-marked issue screenshots, annotations, DOM, description, timestamps, and a frozen sequence context (interactions and console errors before the mark moment).
 - \`frameworkStates[]\`: Captured React/Vue component tree snapshots (with global state and web storage where available) at key moments — session start, confirmed interactions, and issue-scene marking. Use them to reconstruct component props/state before the bug occurred.
 
 ## Quality Issues
@@ -293,7 +295,7 @@ ${mediaDescription}
 - \`interactions[]\`：按时间排序的有效点击步骤，包含坐标、元素语义、定位器和截图。
 - \`consoleEntries[]\`：录制期间捕获的 Console、异常及浏览器日志摘要。
 - \`networkEntries[]\`：录制期间捕获的原始请求 URL、方法、状态、响应头和响应正文。正文状态位于 \`response.bodyStatus\`；较大的正文通过 \`response.bodyPath\` 引用独立文件。Network 头信息已精简为关键字段；完整请求头、响应头和调用栈详情已独立保存至 \`data/network-details.js\`，每条记录仅保留 \`initiatorType\`（如 "script"、"parser"）。
-- \`issueScenes[]\`：用户主动标记的问题截图、批注、DOM、描述和 \`observedAtEpochMs\`。
+- \`issueScenes[]\`：用户主动标记的问题截图、批注、DOM、描述、\`observedAtEpochMs\`，以及标记当下冻结的时序上下文（前 60 秒内的交互与 Console 报错）。
 - \`frameworkStates[]\`：在会话开始、交互确认与标记问题等关键节点捕获的 React/Vue 组件树快照（含可用的全局状态与 web storage）。可用于还原 Bug 发生前的组件 props/state。
 
 交互和 Network 之间只表示时间相关性，不能仅凭时间接近断言某个请求必然由某次点击触发。
@@ -369,7 +371,7 @@ function buildSessionPayloadWithBodySplitting(
   });
 
   const consoleEntries = snapshot.consoleEntries.map((entry) => {
-    const { sessionId, ...rest } = entry as any;
+    const { sessionId: _sessionId, ...rest } = entry;
     return rest;
   });
 
@@ -440,7 +442,7 @@ function splitAiAndReportPayloads(
 
   const networkDetails: Record<string, unknown> = {};
   const aiNetworkEntries = payload.networkEntries.map((entry) => {
-    const { initiator, response, requestHeaders, ...rest } = entry as any;
+    const { initiator, response, requestHeaders, ...rest } = entry;
 
     const strippedInitiator = initiator
       ? (() => {
@@ -631,7 +633,10 @@ export function buildEvidencePackage(
   const { aiPayload, reportPayload, networkDetails } =
     splitAiAndReportPayloads(payload);
 
-  const reportScriptTag = `<script src="data/session-data.js"></script>\n<script src="data/network-details.js"></script>`;
+  const i18nScript = assets.localeMessages
+    ? `<script>window.__WEB_BUG_REPORT_I18N__ = ${JSON.stringify({ locale: currentLocale, dict: assets.localeMessages })};</script>\n`
+    : "";
+  const reportScriptTag = `${i18nScript}<script src="data/session-data.js"></script>\n<script src="data/network-details.js"></script>`;
   let htmlContent = assets.html.replace(
     '<html lang="zh-CN">',
     `<html lang="${currentLocale}">`

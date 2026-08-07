@@ -58,15 +58,13 @@ test.describe("Bug Lens Recording Widget Compact Controls E2E", () => {
     await expect(stopButton).toBeVisible();
     await expect(timerDisplay).toBeVisible();
 
-    // 按钮文案：标记截图（含快捷键），停止并预览，停止并丢弃
+    // 按钮文案：标记截图（含快捷键），停止并导出（仅保留一个停止按钮）
     await expect(issueButton).toContainText("标记截图");
     await expect(issueButton).toContainText("Alt+S");
-    await expect(stopButton).toHaveText("停止并预览");
-    await expect(targetPage.locator("#__wbr_discard_btn__")).toHaveText(
-      "停止并丢弃"
-    );
+    await expect(stopButton).toHaveText("结束并导出");
 
     // 已移除的按钮不应存在
+    await expect(targetPage.locator("#__wbr_discard_btn__")).toHaveCount(0);
     await expect(targetPage.locator("#__wbr_pause_btn__")).toHaveCount(0);
     await expect(targetPage.locator("#__wbr_stop_export_btn__")).toHaveCount(0);
 

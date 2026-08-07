@@ -1,5 +1,6 @@
 import type { ExportArtifact } from "../shared/protocol";
 import { copyTextToClipboard } from "./clipboard";
+import { t } from "../shared/i18n.ts";
 
 export type PreviewAiHandoffOptions = {
   root: Document;
@@ -57,7 +58,7 @@ export class PreviewAiHandoff {
   async copyPrompt(): Promise<void> {
     await this.copy(
       this.options.getPrompt(this.options.getArtifact()?.filename),
-      "AI 提示词已复制"
+      t("aiPromptCopied")
     );
   }
 
@@ -75,7 +76,7 @@ export class PreviewAiHandoff {
 
   private async copyPath(): Promise<void> {
     const path = this.options.getArtifact()?.filename;
-    if (path) await this.copy(path, "ZIP 绝对路径已复制");
+    if (path) await this.copy(path, t("zipPathCopied"));
   }
 
   private showFile(): void {

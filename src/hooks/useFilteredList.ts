@@ -1,4 +1,5 @@
 import { useState, useMemo } from "preact/hooks";
+import { t } from "../shared/i18n.ts";
 
 /**
  * Reusable search-filter + count text pattern extracted from
@@ -28,8 +29,8 @@ export function useFilteredList<T>(
 
   const countText = useMemo(() => {
     return searchQuery.trim()
-      ? `匹配 ${filtered.length} / ${list.length} 条`
-      : `共 ${list.length} 条`;
+      ? t("matchingCount", [String(filtered.length), String(list.length)])
+      : t("totalCount", String(list.length));
   }, [filtered.length, list.length, searchQuery]);
 
   return { searchQuery, setSearchQuery, filtered, countText };
