@@ -138,8 +138,35 @@ export function drawAnnotationsOnCanvas(
             ctx.save();
             ctx.imageSmoothingEnabled = false;
             ctx.drawImage(offCanvas, 0, 0, sampleW, sampleH, x, y, w, h);
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
+            ctx.lineWidth = 1 * dpr;
+            ctx.strokeRect(x, y, w, h);
             ctx.restore();
           }
+        } else if (w > 0 && h > 0) {
+          ctx.save();
+          const blockSize = 8 * dpr;
+          for (let bx = x; bx < x + w; bx += blockSize) {
+            for (let by = y; by < y + h; by += blockSize) {
+              const isEven =
+                (Math.floor(bx / blockSize) + Math.floor(by / blockSize)) %
+                  2 ===
+                0;
+              ctx.fillStyle = isEven
+                ? "rgba(71, 85, 105, 0.9)"
+                : "rgba(30, 41, 59, 0.95)";
+              ctx.fillRect(
+                bx,
+                by,
+                Math.min(blockSize, x + w - bx),
+                Math.min(blockSize, y + h - by)
+              );
+            }
+          }
+          ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
+          ctx.lineWidth = 1 * dpr;
+          ctx.strokeRect(x, y, w, h);
+          ctx.restore();
         }
       }
     } else if (ann.type === "text") {

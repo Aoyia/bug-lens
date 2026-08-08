@@ -44,6 +44,11 @@ export class ScreenshotOverlay {
   private onCompleteCallback?: (payload: any) => void;
   private onCancelCallback?: () => void;
 
+  private undoStack: AnnotationItem[][] = [];
+  private draggedAnnotation: AnnotationItem | null = null;
+  private isDraggingAnnotation = false;
+  private dragStartPoint: { x: number; y: number } | null = null;
+
   constructor() {
     this.handleKeyDown = this.handleKeyDown.bind(this);
     this.handlePreventScroll = this.handlePreventScroll.bind(this);
@@ -997,7 +1002,11 @@ export class ScreenshotOverlay {
     }
   }
 
-  private spawnInlineTextInput(x: number, y: number): void {
+  private spawnInlineTextInput(
+    x: number,
+    y: number,
+    initialText?: string
+  ): void {
     if (!this.shadowRoot) return;
     const wrapper =
       this.shadowRoot.querySelector<HTMLDivElement>(".overlay-wrapper");
@@ -1151,6 +1160,84 @@ export class ScreenshotOverlay {
     }
   }
 
+  private saveUndoState(): void {
+    this.undoStack.push(JSON.parse(JSON.stringify(this.annotations)));
+    if (this.undoStack.length > 30) {
+      this.undoStack.shift();
+    }
+  }
+
+  public undo(): void {
+    if (this.annotations.length > 0) {
+      this.saveUndoState();
+      this.annotations.pop();
+      this.renderAnnotationsOnCanvas();
+    } else if (this.undoStack.length > 0) {
+      const prev = this.undoStack.pop();
+      if (prev) {
+        this.annotations = prev;
+        this.renderAnnotationsOnCanvas();
+      }
+    }
+  }
+
+  private handleDoubleClick(e: MouseEvent): void {
+    const hit = this.hitTestAnnotation(e.clientX, e.clientY);
+    if (hit && hit.type === "text") {
+      e.stopPropagation();
+      e.preventDefault();
+      this.saveUndoState();
+      this.annotations = this.annotations.filter((a) => a.id !== hit.id);
+      this.renderAnnotationsOnCanvas();
+      this.spawnInlineTextInput(hit.position.x, hit.position.y, hit.text);
+    }
+  }
+
+  private hitTestAnnotation(x: number, y: number): AnnotationItem | null {
+    for (let i = this.annotations.length - 1; i >= 0; i--) {
+      const ann = this.annotations[i];
+      if (ann.type === "rect" || ann.type === "privacy") {
+        const b = ann.bounds;
+        if (
+          x >= b.x - 5 &&
+          x <= b.x + b.width + 5 &&
+          y >= b.y - 5 &&
+          y <= b.y + b.height + 5
+        ) {
+          return ann;
+        }
+      } else if (ann.type === "text") {
+        const px = ann.position.x;
+        const py = ann.position.y;
+        const lines = ann.text.split("\n");
+        let maxW = 80;
+        for (const line of lines) {
+          if (line.length * 12 > maxW) maxW = line.length * 12;
+        }
+        const bgW = Math.min(320, maxW + 20);
+        const bgH = lines.length * 20 + 12;
+        if (
+          x >= px - 4 &&
+          x <= px + bgW + 4 &&
+          y >= py - 4 &&
+          y <= py + bgH + 4
+        ) {
+          return ann;
+        }
+      } else if (ann.type === "arrow") {
+        const dist = pointToSegmentDistance(
+          { x, y },
+          ann.startPoint,
+          ann.endPoint
+        );
+        if (dist <= 10) {
+          return ann;
+        }
+      }
+    }
+    return null;
+  }
+
   cancel(): void {
     if (this.onCancelCallback) {
       this.onCancelCallback();
@@ -1179,4 +1266,19 @@ export class ScreenshotOverlay {
     this.isSelectionLocked = false;
     this.annotations = [];
   }
+}
+
+function pointToSegmentDistance(
+  p: { x: number; y: number },
+  v: { x: number; y: number },
+  w: { x: number; y: number }
+): number {
+  const l2 = (w.x - v.x) ** 2 + (w.y - v.y) ** 2;
+  if (l2 === 0) return Math.hypot(p.x - v.x, p.y - v.y);
+  let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(
+    p.x - (v.x + t * (w.x - v.x)),
+    p.y - (v.y + t * (w.y - v.y))
+  );
 }
