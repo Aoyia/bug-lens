@@ -58,6 +58,7 @@ export class ScreenshotOverlay {
     this.handleMouseDown = this.handleMouseDown.bind(this);
     this.handleMouseMove = this.handleMouseMove.bind(this);
     this.handleMouseUp = this.handleMouseUp.bind(this);
+    this.handleDoubleClick = this.handleDoubleClick.bind(this);
   }
 
   private handlePreventScroll(e: Event): void {

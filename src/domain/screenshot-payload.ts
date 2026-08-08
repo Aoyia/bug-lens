@@ -137,6 +137,23 @@ export interface BoxModelGeometry {
   renderedRect: RectBounds;
 }
 
+export interface FlexSqueezeRiskInfo {
+  /** 是否存在弹性挤压变形风险 */
+  isSqueezed: boolean;
+  /** 期望/固有内容宽度 (px) */
+  intrinsicWidth: number;
+  /** 实际渲染宽度 (px) */
+  renderedWidth: number;
+  /** 被挤压损耗的宽度 (px): intrinsicWidth - renderedWidth */
+  squeezedWidthDelta: number;
+  /** 挤压比例 */
+  squeezeRatio: number;
+  /** 当前 flex-shrink 规则值 */
+  flexShrink: number;
+  /** 诊断说明 */
+  reason: string;
+}
+
 export interface LayoutContextInfo {
   isFlexOrGridItem: boolean;
   flexSelf?: {
@@ -152,6 +169,8 @@ export interface LayoutContextInfo {
     alignItems?: string;
     gap?: string;
   };
+  /** 弹性挤压变形风险分析 */
+  flexSqueezeRisk?: FlexSqueezeRiskInfo;
 }
 
 /** DOM 嵌套树节点（支持结构化层级与组件路径链） */
@@ -304,6 +323,46 @@ function buildPromptBody(
     ? `\n- 级联快照 (Cascade Index)：已开启样式微调模式，解压包含 \`cascade.json\`，可通过 \`elements -> perProperty -> winnerRuleId -> rules -> source\` 正向查询 CSS 规则覆盖关系及源码位置 (CDP 行号)。`
     : "";
 
+  const squeezedNodes: Array<{ selector: string; risk: FlexSqueezeRiskInfo }> =
+    [];
+  const checkSqueezeNode = (node: any) => {
+    if (!node) return;
+    const risk = node.layoutContext?.flexSqueezeRisk || node.flexSqueezeRisk;
+    if (risk && risk.isSqueezed) {
+      squeezedNodes.push({
+        selector: node.selector || node.tagName || "element",
+        risk,
+      });
+    }
+    if (node.children && Array.isArray(node.children)) {
+      for (const child of node.children) {
+        checkSqueezeNode(child);
+      }
+    }
+  };
+
+  if (payload.domContextTree) {
+    if (Array.isArray(payload.domContextTree.anchors)) {
+      for (const anchor of payload.domContextTree.anchors) {
+        checkSqueezeNode(anchor);
+      }
+    }
+    if (payload.domContextTree.tree) {
+      checkSqueezeNode(payload.domContextTree.tree);
+    }
+  }
+
+  let squeezeWarning = "";
+  if (squeezedNodes.length > 0) {
+    const listStr = squeezedNodes
+      .map(
+        (item) =>
+          `  - 节点 \`${item.selector}\`：固有宽度 ${item.risk.intrinsicWidth}px，实际被压缩至 ${item.risk.renderedWidth}px (挤压损耗 ${item.risk.squeezedWidthDelta}px / ${(item.risk.squeezeRatio * 100).toFixed(1)}%)，当前 \`flex-shrink: ${item.risk.flexShrink}\`。`
+      )
+      .join("\n");
+    squeezeWarning = `\n- ⚠️ [布局诊断] 检测到 ${squeezedNodes.length} 个 DOM 元素因父级 Flex 布局限制存在挤压变形风险：\n${listStr}\n  💡 提示：此异常通常因缺少 \`flex-shrink: 0;\` 或未限制折行引起，请优先排查上述元素的 Flex 缩放规则。`;
+  }
+
   return `请作为高级 Frontend/Fullstack 调试专家，分析以下本地 Bug Lens 截图证据包：
 
 ${pathLine}
@@ -311,7 +370,7 @@ ${pathLine}
 元数据摘要：
 - 页面 & URL：${title} (${url})
 - 选区尺寸：${w}x${h} (dpr: ${dpr})
-- 异常日志：${errCount} 条 Console 报错 | ${reqCount} 个失败网络请求${cascadeHint}
+- 异常日志：${errCount} 条 Console 报错 | ${reqCount} 个失败网络请求${cascadeHint}${squeezeWarning}
 
 请按双轨意图分析框架展开排查（解压 ZIP 至临时目录）：
 1. 意图分轨识别 (Intent Identification)：

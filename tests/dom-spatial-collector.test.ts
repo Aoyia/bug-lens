@@ -10,6 +10,7 @@ import {
   coverageRatio,
   buildSelectorPath,
   domDepthRelativeTo,
+  detectFlexSqueezeRisk,
 } from "../src/screenshot/dom-spatial-collector.ts";
 import type { RectBounds } from "../src/domain/screenshot-payload.ts";
 
@@ -139,48 +140,72 @@ describe("DOM Spatial Collector", () => {
     assert.ok(path.includes("… > "), `应包含省略标记，实际: ${path}`);
   });
 
-  test("domDepthRelativeTo 计算相对 SCA 的层级距离", () => {
-    const sca = createMockElement("div");
-    const level1 = createMockElement("div", sca);
-    const level2 = createMockElement("div", level1);
-    const leaf = createMockElement("button", level2);
+  test("detectFlexSqueezeRisk 准确识别 Flex 容器内的被挤压变形节点", () => {
+    const mockElement: any = {
+      getBoundingClientRect: () => ({ width: 80, height: 30 }),
+      scrollWidth: 150,
+    };
+    const flexStyle: any = { flexShrink: "1" };
 
-    // SCA 自身 → 0
-    assert.equal(domDepthRelativeTo(sca, sca), 0);
-    // 直接子 → 1
-    assert.equal(domDepthRelativeTo(level1, sca), 1);
-    // 隔两层 → 2
-    assert.equal(domDepthRelativeTo(level2, sca), 2);
-    // 隔三层 → 3
-    assert.equal(domDepthRelativeTo(leaf, sca), 3);
-    // 不在链上 → -1
-    const other = createMockElement("div");
-    assert.equal(domDepthRelativeTo(other, sca), -1);
+    const risk = detectFlexSqueezeRisk(mockElement, flexStyle, true);
+    assert.ok(risk);
+    assert.equal(risk?.isSqueezed, true);
+    assert.equal(risk?.intrinsicWidth, 150);
+    assert.equal(risk?.renderedWidth, 80);
+    assert.equal(risk?.squeezedWidthDelta, 70);
+
+    // 当设置 flexShrink 为 0 时，不判定为挤压变形
+    const noShrinkStyle: any = { flexShrink: "0" };
+    const noRisk = detectFlexSqueezeRisk(mockElement, noShrinkStyle, true);
+    assert.equal(noRisk, undefined);
+
+    // 当父元素不是 Flex 时，不触发 Flex 判定
+    const notFlex = detectFlexSqueezeRisk(mockElement, flexStyle, false);
+    assert.equal(notFlex, undefined);
   });
+});
 
-  test("shouldDropComputedStyle 过滤浏览器默认值以压缩体积", () => {
-    // 默认值/无信息值 → 丢弃
-    assert.equal(shouldDropComputedStyle("display", "block"), true);
-    assert.equal(shouldDropComputedStyle("display", "inline"), true);
-    assert.equal(shouldDropComputedStyle("position", "static"), true);
-    assert.equal(shouldDropComputedStyle("opacity", "1"), true);
-    assert.equal(shouldDropComputedStyle("visibility", "visible"), true);
-    assert.equal(shouldDropComputedStyle("zIndex", "auto"), true);
-    assert.equal(shouldDropComputedStyle("overflow", "visible"), true);
-    assert.equal(shouldDropComputedStyle("fontWeight", "400"), true);
-    assert.equal(
-      shouldDropComputedStyle("backgroundColor", "rgba(0, 0, 0, 0)"),
-      true
-    );
-    assert.equal(shouldDropComputedStyle("color", ""), true);
+test("domDepthRelativeTo 计算相对 SCA 的层级距离", () => {
+  const sca = createMockElement("div");
+  const level1 = createMockElement("div", sca);
+  const level2 = createMockElement("div", level1);
+  const leaf = createMockElement("button", level2);
 
-    // 有诊断差异的值 → 保留
-    assert.equal(shouldDropComputedStyle("display", "flex"), false);
-    assert.equal(shouldDropComputedStyle("color", "rgb(245, 249, 254)"), false);
-    assert.equal(shouldDropComputedStyle("fontSize", "16px"), false);
-    assert.equal(
-      shouldDropComputedStyle("backgroundColor", "rgb(255, 0, 0)"),
-      false
-    );
-  });
+  // SCA 自身 → 0
+  assert.equal(domDepthRelativeTo(sca, sca), 0);
+  // 直接子 → 1
+  assert.equal(domDepthRelativeTo(level1, sca), 1);
+  // 隔两层 → 2
+  assert.equal(domDepthRelativeTo(level2, sca), 2);
+  // 隔三层 → 3
+  assert.equal(domDepthRelativeTo(leaf, sca), 3);
+  // 不在链上 → -1
+  const other = createMockElement("div");
+  assert.equal(domDepthRelativeTo(other, sca), -1);
+});
+
+test("shouldDropComputedStyle 过滤浏览器默认值以压缩体积", () => {
+  // 默认值/无信息值 → 丢弃
+  assert.equal(shouldDropComputedStyle("display", "block"), true);
+  assert.equal(shouldDropComputedStyle("display", "inline"), true);
+  assert.equal(shouldDropComputedStyle("position", "static"), true);
+  assert.equal(shouldDropComputedStyle("opacity", "1"), true);
+  assert.equal(shouldDropComputedStyle("visibility", "visible"), true);
+  assert.equal(shouldDropComputedStyle("zIndex", "auto"), true);
+  assert.equal(shouldDropComputedStyle("overflow", "visible"), true);
+  assert.equal(shouldDropComputedStyle("fontWeight", "400"), true);
+  assert.equal(
+    shouldDropComputedStyle("backgroundColor", "rgba(0, 0, 0, 0)"),
+    true
+  );
+  assert.equal(shouldDropComputedStyle("color", ""), true);
+
+  // 有诊断差异的值 → 保留
+  assert.equal(shouldDropComputedStyle("display", "flex"), false);
+  assert.equal(shouldDropComputedStyle("color", "rgb(245, 249, 254)"), false);
+  assert.equal(shouldDropComputedStyle("fontSize", "16px"), false);
+  assert.equal(
+    shouldDropComputedStyle("backgroundColor", "rgb(255, 0, 0)"),
+    false
+  );
 });

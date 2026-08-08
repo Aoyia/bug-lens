@@ -21,7 +21,7 @@ describe("Screenshot Overlay - 微信截图4大核心优化卡口", () => {
     assert.equal(typeof (overlay as any).showToast, "function");
     assert.equal(typeof (overlay as any).spawnInlineTextInput, "function");
     assert.equal((overlay as any).isSelectionLocked, false);
-    assert.equal((overlay as any).handleDblClick, undefined);
+    assert.equal(typeof (overlay as any).handleDoubleClick, "function");
   });
 
   test("截图完成 toast 文案随 promptInjectedWithPath 分支", () => {

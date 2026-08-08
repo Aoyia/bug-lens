@@ -106,31 +106,66 @@ describe("Screenshot Payload Formatter", () => {
     assert.match(md, /\(dpr: \d+\.\d{2}\)/);
     // 未提供路径时保留占位符，等待用户手动替换
     assert.match(md, /请将这里替换为导出的 ZIP 绝对路径/);
-    test("包含 cascadeIndex 时在 Markdown Prompt 中追加级联快照说明", () => {
-      const payloadWithCascade: AIScreenshotPayload = {
-        ...mockPayload,
-        cascadeIndex: {
-          version: "1.0",
-          timestamp: 1700000000000,
-          cropBounds: { x: 0, y: 0, width: 100, height: 100 },
-          sheets: [],
-          rules: [],
-          elements: [],
-          perProperty: {},
-          meta: {
-            sheetCount: 0,
-            ruleCount: 0,
-            elementCount: 0,
-            truncatedRules: 0,
-            truncatedSheets: 0,
-            cdpLineInfo: true,
-          },
+  });
+
+  test("包含 cascadeIndex 时在 Markdown Prompt 中追加级联快照说明", () => {
+    const payloadWithCascade: AIScreenshotPayload = {
+      ...mockPayload,
+      cascadeIndex: {
+        version: "1.0",
+        timestamp: 1700000000000,
+        cropBounds: { x: 0, y: 0, width: 100, height: 100 },
+        sheets: [],
+        rules: [],
+        elements: [],
+        perProperty: {},
+        meta: {
+          sheetCount: 0,
+          ruleCount: 0,
+          elementCount: 0,
+          truncatedRules: 0,
+          truncatedSheets: 0,
+          cdpLineInfo: true,
         },
-      };
-      const md = formatPayloadToMarkdown(payloadWithCascade, "/tmp/test.zip");
-      assert.strictEqual(md.includes("Cascade Index"), true);
-      assert.strictEqual(md.includes("cascade.json"), true);
-    });
+      },
+    };
+    const md = formatPayloadToMarkdown(payloadWithCascade, "/tmp/test.zip");
+    assert.strictEqual(md.includes("Cascade Index"), true);
+    assert.strictEqual(md.includes("cascade.json"), true);
+  });
+
+  test("当存在 Flex 弹性挤压风险节点时在 Prompt 中自动注入诊断提示", () => {
+    const payloadWithSqueeze: AIScreenshotPayload = {
+      ...mockPayload,
+      domContextTree: {
+        ...mockPayload.domContextTree,
+        anchors: [
+          {
+            selector: ".user-tag-badge",
+            selectorPath: "body > div > .user-tag-badge",
+            relativeRect: { x: 0, y: 0, width: 80, height: 20 },
+            computedStyles: {},
+            intentFlags: {},
+            layoutContext: {
+              isFlexOrGridItem: true,
+              flexSqueezeRisk: {
+                isSqueezed: true,
+                intrinsicWidth: 120,
+                renderedWidth: 80,
+                squeezedWidthDelta: 40,
+                squeezeRatio: 0.33,
+                flexShrink: 1,
+                reason: "Flex 被强制挤压",
+              },
+            },
+          },
+        ],
+      },
+    };
+    const md = formatPayloadToMarkdown(payloadWithSqueeze);
+    assert.strictEqual(md.includes("Flex 布局限制存在挤压变形风险"), true);
+    assert.strictEqual(md.includes(".user-tag-badge"), true);
+    assert.strictEqual(md.includes("flex-shrink: 1"), true);
   });
 
   test("formatPayloadToMarkdown injects the real ZIP absolute path when zipPath is provided", () => {

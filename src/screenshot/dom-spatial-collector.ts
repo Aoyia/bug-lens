@@ -6,6 +6,7 @@ import type {
   DomContextTreeV2,
   DomLeafNode,
   DomTreeNode,
+  FlexSqueezeRiskInfo,
   LayoutContextInfo,
   RectBounds,
 } from "../domain/screenshot-payload.ts";
@@ -339,6 +340,49 @@ export function extractBoxModelGeometry(
   }
 }
 
+/** 检测 DOM 节点在 Flex 父级下的弹性挤压风险 */
+export function detectFlexSqueezeRisk(
+  el: Element,
+  style: CSSStyleDeclaration,
+  isFlexParent: boolean
+): FlexSqueezeRiskInfo | undefined {
+  if (!isFlexParent) return undefined;
+
+  const flexShrink = parseFloat(style.flexShrink) ?? 1;
+  if (flexShrink <= 0) return undefined;
+
+  const htmlEl = el as HTMLElement;
+  const rect = htmlEl.getBoundingClientRect
+    ? htmlEl.getBoundingClientRect()
+    : null;
+  if (!rect || rect.width <= 0) return undefined;
+
+  const renderedWidth = rect.width;
+  // 固有内容宽度：使用 scrollWidth 与 offsetWidth/renderedWidth 的最大值
+  const intrinsicWidth = Math.max(
+    htmlEl.scrollWidth || 0,
+    Math.ceil(renderedWidth)
+  );
+
+  const squeezedWidthDelta = Math.max(0, intrinsicWidth - renderedWidth);
+  const squeezeRatio =
+    intrinsicWidth > 0 ? squeezedWidthDelta / intrinsicWidth : 0;
+
+  // 挤压成立条件：损耗宽度 > 4px 且 挤压百分比 > 5%
+  const isSqueezed = squeezedWidthDelta > 4 && squeezeRatio > 0.05;
+  if (!isSqueezed) return undefined;
+
+  return {
+    isSqueezed: true,
+    intrinsicWidth: Math.round(intrinsicWidth),
+    renderedWidth: Math.round(renderedWidth),
+    squeezedWidthDelta: Math.round(squeezedWidthDelta),
+    squeezeRatio: Math.round(squeezeRatio * 100) / 100,
+    flexShrink,
+    reason: `固有内容宽为 ${Math.round(intrinsicWidth)}px，但因父元素 Flex 限制且 flex-shrink=${flexShrink}，被强制挤压损耗了 ${Math.round(squeezedWidthDelta)}px (${Math.round(squeezeRatio * 100)}%)`,
+  };
+}
+
 /** 提取弹性/网格布局上下文 (Layout Context) */
 export function extractLayoutContext(
   el: Element
@@ -367,6 +411,8 @@ export function extractLayoutContext(
         }
       : undefined;
 
+    const flexSqueezeRisk = detectFlexSqueezeRisk(el, style, isFlexParent);
+
     const parentContainer = parentStyle
       ? {
           display: parentStyle.display,
@@ -380,6 +426,7 @@ export function extractLayoutContext(
     return {
       isFlexOrGridItem,
       flexSelf,
+      flexSqueezeRisk,
       parentContainer,
     };
   } catch {
