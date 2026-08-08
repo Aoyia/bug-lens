@@ -48,6 +48,9 @@ export class ScreenshotOverlay {
   private draggedAnnotation: AnnotationItem | null = null;
   private isDraggingAnnotation = false;
   private dragStartPoint: { x: number; y: number } | null = null;
+  private selectedAnnotation: AnnotationItem | null = null;
+  private activeResizeHandle: string | null = null;
+  private isResizingAnnotationHandle = false;
 
   constructor() {
     this.handleKeyDown = this.handleKeyDown.bind(this);
@@ -451,9 +454,10 @@ export class ScreenshotOverlay {
 
   private handleMouseDown(e: MouseEvent): void {
     const target = e.target as HTMLElement;
-    if (target.closest(".toolbar")) return;
+    if (target && target.closest(".inline-text-input")) {
+      return;
+    }
 
-    // 检查是否点击在 8 点 Resize 手柄上
     const handleEl = target.closest<HTMLElement>(".handle");
     if (handleEl && this.selection) {
       this.isResizing = true;
@@ -463,8 +467,35 @@ export class ScreenshotOverlay {
       return;
     }
 
+    // 1. 优先检测是否击中了当前选中批注框的 Resize 控制点
+    const handleHit = this.hitTestAnnotationHandle(e.clientX, e.clientY);
+    if (handleHit) {
+      this.saveUndoState();
+      this.isResizingAnnotationHandle = true;
+      this.activeResizeHandle = handleHit.handle;
+      this.selectedAnnotation = handleHit.ann;
+      this.dragStartPoint = { x: e.clientX, y: e.clientY };
+      return;
+    }
+
+    // 2. 次之检测是否点击了已有批注元素整体（选中并准备平移）
+    const hit = this.hitTestAnnotation(e.clientX, e.clientY);
+    if (hit) {
+      this.selectedAnnotation = hit;
+      this.renderAnnotationsOnCanvas();
+      if (this.currentTool !== "text") {
+        this.saveUndoState();
+        this.isDraggingAnnotation = true;
+        this.draggedAnnotation = hit;
+        this.dragStartPoint = { x: e.clientX, y: e.clientY };
+        return;
+      }
+    } else if (this.selectedAnnotation) {
+      this.selectedAnnotation = null;
+      this.renderAnnotationsOnCanvas();
+    }
+
     if (this.currentTool === "select") {
-      // 只有在选区未锁定之前，才允许按住鼠标重新划选局部选区
       if (!this.isSelectionLocked) {
         this.isSelecting = true;
         this.startPoint = { x: e.clientX, y: e.clientY };
@@ -519,6 +550,55 @@ export class ScreenshotOverlay {
       return;
     }
 
+    if (
+      this.isResizingAnnotationHandle &&
+      this.selectedAnnotation &&
+      this.dragStartPoint &&
+      this.activeResizeHandle
+    ) {
+      const dx = e.clientX - this.dragStartPoint.x;
+      const dy = e.clientY - this.dragStartPoint.y;
+      this.dragStartPoint = { x: e.clientX, y: e.clientY };
+
+      const ann = this.selectedAnnotation;
+      const handle = this.activeResizeHandle;
+
+      if (ann.type === "rect" || ann.type === "privacy") {
+        let { x, y, width, height } = ann.bounds;
+        if (handle === "nw") {
+          x += dx;
+          width -= dx;
+          y += dy;
+          height -= dy;
+        } else if (handle === "ne") {
+          width += dx;
+          y += dy;
+          height -= dy;
+        } else if (handle === "se") {
+          width += dx;
+          height += dy;
+        } else if (handle === "sw") {
+          x += dx;
+          width -= dx;
+          height += dy;
+        }
+        if (width > 10 && height > 10) {
+          ann.bounds = { x, y, width, height };
+        }
+      } else if (ann.type === "arrow") {
+        if (handle === "start") {
+          ann.startPoint.x += dx;
+          ann.startPoint.y += dy;
+        } else if (handle === "end") {
+          ann.endPoint.x += dx;
+          ann.endPoint.y += dy;
+        }
+      }
+
+      this.renderAnnotationsOnCanvas();
+      return;
+    }
+
     if (this.isSelecting && this.startPoint) {
       const x = Math.min(this.startPoint.x, e.clientX);
       const y = Math.min(this.startPoint.y, e.clientY);
@@ -567,6 +647,13 @@ export class ScreenshotOverlay {
   }
 
   private handleMouseUp(e: MouseEvent): void {
+    if (this.isResizingAnnotationHandle) {
+      this.isResizingAnnotationHandle = false;
+      this.activeResizeHandle = null;
+      this.dragStartPoint = null;
+      return;
+    }
+
     if (this.isResizing) {
       this.isResizing = false;
       this.activeHandle = null;
@@ -1000,6 +1087,10 @@ export class ScreenshotOverlay {
       }
       ctx.restore();
     }
+
+    if (this.selectedAnnotation) {
+      this.renderSelectionHandles(ctx, this.selectedAnnotation);
+    }
   }
 
   private spawnInlineTextInput(
@@ -1212,6 +1303,75 @@ export class ScreenshotOverlay {
       this.renderAnnotationsOnCanvas();
       this.spawnInlineTextInput(hit.position.x, hit.position.y, hit.text);
     }
+  }
+
+  private renderSelectionHandles(
+    ctx: CanvasRenderingContext2D,
+    ann: AnnotationItem
+  ): void {
+    const handleRadius = 4;
+    ctx.save();
+    ctx.fillStyle = "#ffffff";
+    ctx.strokeStyle = "#007aff";
+    ctx.lineWidth = 1.5;
+
+    const drawPoint = (hx: number, hy: number) => {
+      ctx.beginPath();
+      ctx.arc(hx, hy, handleRadius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    };
+
+    if (ann.type === "rect" || ann.type === "privacy") {
+      const { x, y, width, height } = ann.bounds;
+      ctx.setLineDash([3, 3]);
+      ctx.strokeStyle = "rgba(0, 122, 255, 0.85)";
+      ctx.strokeRect(x - 2, y - 2, width + 4, height + 4);
+      ctx.setLineDash([]);
+      ctx.strokeStyle = "#007aff";
+
+      drawPoint(x, y);
+      drawPoint(x + width, y);
+      drawPoint(x + width, y + height);
+      drawPoint(x, y + height);
+    } else if (ann.type === "arrow") {
+      ctx.strokeStyle = "#007aff";
+      drawPoint(ann.startPoint.x, ann.startPoint.y);
+      drawPoint(ann.endPoint.x, ann.endPoint.y);
+    }
+    ctx.restore();
+  }
+
+  private hitTestAnnotationHandle(
+    x: number,
+    y: number
+  ): { ann: AnnotationItem; handle: string } | null {
+    if (!this.selectedAnnotation) return null;
+    const ann = this.selectedAnnotation;
+    const radius = 8;
+
+    if (ann.type === "rect" || ann.type === "privacy") {
+      const { x: bx, y: by, width: bw, height: bh } = ann.bounds;
+      const handles = [
+        { name: "nw", x: bx, y: by },
+        { name: "ne", x: bx + bw, y: by },
+        { name: "se", x: bx + bw, y: by + bh },
+        { name: "sw", x: bx, y: by + bh },
+      ];
+      for (const h of handles) {
+        if (Math.hypot(x - h.x, y - h.y) <= radius) {
+          return { ann, handle: h.name };
+        }
+      }
+    } else if (ann.type === "arrow") {
+      if (Math.hypot(x - ann.startPoint.x, y - ann.startPoint.y) <= radius) {
+        return { ann, handle: "start" };
+      }
+      if (Math.hypot(x - ann.endPoint.x, y - ann.endPoint.y) <= radius) {
+        return { ann, handle: "end" };
+      }
+    }
+    return null;
   }
 
   private hitTestAnnotation(x: number, y: number): AnnotationItem | null {
