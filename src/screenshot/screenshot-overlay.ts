@@ -1070,7 +1070,10 @@ export class ScreenshotOverlay {
     };
     input.addEventListener("input", autoResize);
 
+    let isHandled = false;
     const commitText = () => {
+      if (isHandled) return;
+      isHandled = true;
       const text = input.value.trim();
       if (text) {
         this.annotations.push({
@@ -1080,12 +1083,27 @@ export class ScreenshotOverlay {
           text,
         });
         this.renderAnnotationsOnCanvas();
+      } else if (initialText) {
+        // 如果原本有字但清空确认了，则重新绘制 Canvas 清除原文字
+        this.renderAnnotationsOnCanvas();
       }
       input.remove();
     };
 
     input.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
+        if (isHandled) return;
+        isHandled = true;
+        if (initialText) {
+          // 按 Escape 取消时，还原原本的文字批注
+          this.annotations.push({
+            id: `ann_${Date.now()}`,
+            type: "text",
+            position: { x: renderX, y },
+            text: initialText,
+          });
+          this.renderAnnotationsOnCanvas();
+        }
         input.remove();
       }
     });
@@ -1097,6 +1115,9 @@ export class ScreenshotOverlay {
     wrapper.appendChild(input);
     setTimeout(() => {
       input.focus();
+      if (input.value) {
+        input.setSelectionRange(input.value.length, input.value.length);
+      }
       autoResize();
     }, 20);
   }
