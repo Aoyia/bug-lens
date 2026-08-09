@@ -420,6 +420,13 @@ function buildPromptBody(
   }
 
   let squeezeWarning = "";
+  const hasTextAnnotation = payload.annotations.some(
+    (a) => a.type === "text" && a.text.trim().length > 0
+  );
+  if (!hasTextAnnotation) {
+    squeezeWarning += `\n- ⚠️ [用户期望说明] 未捕获用户显式文本期望，以下排查与修复分析基于代码与图像偏离的推断假设。`;
+  }
+
   if (squeezedNodes.length > 0) {
     const listStr = squeezedNodes
       .map(

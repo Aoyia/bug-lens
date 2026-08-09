@@ -133,7 +133,7 @@ export function detectComponentPath(el: Element): string[] | undefined {
       }
     }
     if (reactKey) {
-      let fiber = (el as any)[reactKey];
+      let fiber = (el as unknown as Record<string, unknown>)[reactKey] as any;
       let hops = 0;
       while (fiber && hops < 12) {
         const type = fiber.type;

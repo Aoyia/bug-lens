@@ -1,4 +1,5 @@
 import type {
+  AIScreenshotPayload,
   AnnotationItem,
   RectBounds,
 } from "../domain/screenshot-payload.ts";
@@ -41,7 +42,7 @@ export class ScreenshotOverlay {
   private viewportImage: HTMLImageElement | null = null;
   private cachedViewportDataUrl = "";
 
-  private onCompleteCallback?: (payload: any) => void;
+  private onCompleteCallback?: (payload: AIScreenshotPayload) => void;
   private onCancelCallback?: () => void;
 
   private undoStack: AnnotationItem[][] = [];
