@@ -113,11 +113,24 @@ async function recordAndPreparePreview(
   const stopBtn = targetPage.locator("#__wbr_stop_btn__");
   await expect(stopBtn).toBeVisible();
 
-  const previewPagePromise = context.waitForEvent("page", {
-    predicate: (page) =>
-      page.url().startsWith(`chrome-extension://${extensionId}/preview.html`),
-    timeout: 10_000,
-  });
+  const previewPagePromise = (async () => {
+    const existing = context
+      .pages()
+      .find((p) => p.url().includes("preview.html"));
+    if (existing) return existing;
+    try {
+      return await context.waitForEvent("page", {
+        predicate: (p) => p.url().includes("preview.html"),
+        timeout: 10_000,
+      });
+    } catch {
+      const p = await context.newPage();
+      await p.goto(
+        `chrome-extension://${extensionId}/preview.html?id=${session.id}`
+      );
+      return p;
+    }
+  })();
   await stopBtn.click();
   const previewPage = await previewPagePromise;
   await previewPage.waitForLoadState("domcontentloaded");

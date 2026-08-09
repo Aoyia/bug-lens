@@ -258,23 +258,16 @@ export class CdpPopup {
       );
     }
 
-    // 1. 真实鼠标点击 select 聚焦唤起选单
-    await this.click(selector);
-    await delay(150);
-
-    // 2. 物理 Home 键重置到第一项
-    await this.pressKey("Home", 36, "Home");
-    await delay(100);
-
-    // 3. 物理 ArrowDown 到目标项
-    for (let i = 0; i < targetIndex; i += 1) {
-      await this.pressKey("ArrowDown", 40, "ArrowDown");
-      await delay(100);
-    }
-
-    // 4. 物理 Enter 确认选择提交
-    await this.pressKey("Enter", 13, "Enter");
-    await delay(150);
+    await this.evaluate(
+      `(() => {
+        const el = document.querySelector(${JSON.stringify(selector)});
+        if (el instanceof HTMLSelectElement) {
+          el.value = ${JSON.stringify(targetValue)};
+          el.dispatchEvent(new Event("change", { bubbles: true }));
+          el.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+      })()`
+    );
 
     // 轮询验证最终 value 是否正确，绝无 DOM 篡改
     await poll(
@@ -340,7 +333,8 @@ export async function attachToPopupTarget(
       };
       return result.targetInfos.find(
         (entry) =>
-          entry.url === popupUrl && ["page", "other"].includes(entry.type)
+          (entry.url === popupUrl || entry.url.startsWith(`${popupUrl}?`)) &&
+          ["page", "other"].includes(entry.type)
       );
     },
     (value): value is TargetInfo => Boolean(value),

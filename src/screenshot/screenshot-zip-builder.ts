@@ -40,10 +40,13 @@ export function buildScreenshotZipPackage(
   const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
   const filename = `bug-lens-screenshot-${timestamp}.zip`;
 
-  // 组装 ZIP 压缩包包含的文件列表（标注已嵌入 screenshot.png 内部，保持文件包干练）
-  // JSON 采用紧凑序列化：缩进空白占体积 70%+，而 AI/机器读取 JSON 无需缩进
+  // 根据 Base64 header 自动判断扩展名 (png / webp)
+  const isWebP = payload.image.base64Data.startsWith("data:image/webp");
+  const imageFilename = isWebP ? "screenshot.webp" : "screenshot.png";
+
+  // 组装 ZIP 压缩包包含的文件列表
   const zipFiles: Record<string, Uint8Array> = {
-    "screenshot.png": imageU8,
+    [imageFilename]: imageU8,
     "ai-prompt.md": stringToUint8Array(markdownPrompt),
     "dom-context.json": stringToUint8Array(
       JSON.stringify(payload.domContextTree, null, 2)

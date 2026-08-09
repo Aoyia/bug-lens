@@ -7,8 +7,10 @@ import type {
   DomLeafNode,
   DomTreeNode,
   FlexSqueezeRiskInfo,
+  GridItemContextInfo,
   LayoutContextInfo,
   RectBounds,
+  TextOverflowInfo,
 } from "../domain/screenshot-payload.ts";
 import type { FrameworkProbeEntry } from "../shared/protocol.ts";
 
@@ -81,26 +83,28 @@ export function findSmallestCommonAncestor(
   if (elements.length === 0) return null;
   if (elements.length === 1) return elements[0].parentElement || elements[0];
 
-  const getAncestors = (el: Element): Element[] => {
-    const list: Element[] = [];
-    let curr: Element | null = el;
-    while (curr) {
-      list.unshift(curr);
-      curr = curr.parentElement;
-    }
-    return list;
-  };
+  const ancestorSet = new Set<Element>();
+  let curr: Element | null = elements[0];
+  while (curr) {
+    ancestorSet.add(curr);
+    curr = curr.parentElement;
+  }
 
-  const ancestorChains = elements.map(getAncestors);
-  let commonAncestor = ancestorChains[0][0];
-  const minLength = Math.min(...ancestorChains.map((c) => c.length));
+  let commonAncestor: Element | null = elements[1];
+  while (commonAncestor && !ancestorSet.has(commonAncestor)) {
+    commonAncestor = commonAncestor.parentElement;
+  }
 
-  for (let i = 0; i < minLength; i++) {
-    const target = ancestorChains[0][i];
-    if (ancestorChains.every((chain) => chain[i] === target)) {
-      commonAncestor = target;
-    } else {
-      break;
+  if (!commonAncestor) return null;
+
+  for (let i = 2; i < elements.length; i++) {
+    const target = elements[i];
+    while (
+      commonAncestor &&
+      typeof commonAncestor.contains === "function" &&
+      !commonAncestor.contains(target)
+    ) {
+      commonAncestor = commonAncestor.parentElement;
     }
   }
 
@@ -383,6 +387,115 @@ export function detectFlexSqueezeRisk(
   };
 }
 
+/** 检测 DOM 节点发生的 CSS Overflow 文本截断及溢出 */
+export function detectTextOverflow(
+  el: Element,
+  style: CSSStyleDeclaration
+): TextOverflowInfo | undefined {
+  const htmlEl = el as HTMLElement;
+  if (
+    !htmlEl ||
+    typeof htmlEl.scrollWidth !== "number" ||
+    typeof htmlEl.clientWidth !== "number"
+  ) {
+    return undefined;
+  }
+
+  const overflowX = style.overflowX;
+  const overflowY = style.overflowY;
+  const textOverflow = style.textOverflow;
+  const webkitLineClamp = style.webkitLineClamp;
+
+  const isOverflowHidden =
+    overflowX === "hidden" ||
+    overflowY === "hidden" ||
+    style.overflow === "hidden" ||
+    overflowX === "clip" ||
+    overflowY === "clip";
+
+  if (!isOverflowHidden) return undefined;
+
+  const scrollW = htmlEl.scrollWidth;
+  const clientW = htmlEl.clientWidth;
+  const scrollH = htmlEl.scrollHeight;
+  const clientH = htmlEl.clientHeight;
+
+  const widthOverflowDelta = Math.max(0, scrollW - clientW);
+  const heightOverflowDelta = Math.max(0, scrollH - clientH);
+
+  const hasWidthTruncation =
+    widthOverflowDelta > 2 && textOverflow === "ellipsis";
+  const hasMultiLineClamp =
+    heightOverflowDelta > 2 &&
+    webkitLineClamp !== "none" &&
+    Boolean(webkitLineClamp);
+  const hasHiddenClipping =
+    (widthOverflowDelta > 2 || heightOverflowDelta > 2) && isOverflowHidden;
+
+  if (!hasWidthTruncation && !hasMultiLineClamp && !hasHiddenClipping) {
+    return undefined;
+  }
+
+  let truncationType: "single_line" | "multi_line" | "overflow_hidden" =
+    "overflow_hidden";
+  if (hasWidthTruncation) {
+    truncationType = "single_line";
+  } else if (hasMultiLineClamp) {
+    truncationType = "multi_line";
+  }
+
+  return {
+    isTruncated: true,
+    truncationType,
+    scrollDimension: { width: scrollW, height: scrollH },
+    clientDimension: { width: clientW, height: clientH },
+    overflowDelta: { width: widthOverflowDelta, height: heightOverflowDelta },
+    reason: `元素发生 ${truncationType} 文本截断/溢出，实际内容尺寸 ${scrollW}x${scrollH}px，视区裁剪尺寸 ${clientW}x${clientH}px (损耗截断: ${widthOverflowDelta}px 宽 / ${heightOverflowDelta}px 高)`,
+  };
+}
+
+/** 检测 CSS Grid 网格轨道溢出及撑爆风险 */
+export function detectGridOverflow(
+  el: Element,
+  style: CSSStyleDeclaration,
+  parentStyle: CSSStyleDeclaration | null
+): GridItemContextInfo | undefined {
+  if (!parentStyle || !parentStyle.display.includes("grid")) {
+    return undefined;
+  }
+
+  const htmlEl = el as HTMLElement;
+  const rect = htmlEl.getBoundingClientRect
+    ? htmlEl.getBoundingClientRect()
+    : null;
+  if (!rect || rect.width <= 0) {
+    return {
+      isGridItem: true,
+      gridTemplateColumns: parentStyle.gridTemplateColumns,
+      gridTemplateRows: parentStyle.gridTemplateRows,
+      gap: parentStyle.gap,
+      isGridOverflow: false,
+    };
+  }
+
+  const minWidth = style.minWidth;
+  const isMinWidthAuto =
+    minWidth === "auto" || minWidth === "" || minWidth === "0px";
+  const isOverflowingGrid =
+    htmlEl.scrollWidth > rect.width + 4 && isMinWidthAuto;
+
+  return {
+    isGridItem: true,
+    gridTemplateColumns: parentStyle.gridTemplateColumns,
+    gridTemplateRows: parentStyle.gridTemplateRows,
+    gap: parentStyle.gap,
+    isGridOverflow: isOverflowingGrid,
+    reason: isOverflowingGrid
+      ? `Grid 项因默认 min-width: auto 被固有内容尺寸 (${htmlEl.scrollWidth}px) 撑爆，超出列轨道宽度 (${Math.round(rect.width)}px)。建议添加 min-width: 0;`
+      : undefined,
+  };
+}
+
 /** 提取弹性/网格布局上下文 (Layout Context) */
 export function extractLayoutContext(
   el: Element
@@ -423,10 +536,15 @@ export function extractLayoutContext(
         }
       : undefined;
 
+    const textOverflow = detectTextOverflow(el, style);
+    const gridSelf = detectGridOverflow(el, style, parentStyle);
+
     return {
       isFlexOrGridItem,
       flexSelf,
       flexSqueezeRisk,
+      textOverflow,
+      gridSelf,
       parentContainer,
     };
   } catch {

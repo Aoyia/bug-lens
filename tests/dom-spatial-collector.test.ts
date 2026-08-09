@@ -11,6 +11,8 @@ import {
   buildSelectorPath,
   domDepthRelativeTo,
   detectFlexSqueezeRisk,
+  detectTextOverflow,
+  detectGridOverflow,
 } from "../src/screenshot/dom-spatial-collector.ts";
 import type { RectBounds } from "../src/domain/screenshot-payload.ts";
 
@@ -18,7 +20,19 @@ function createMockElement(tagName: string, parent?: any): any {
   const el: any = {
     tagName: tagName.toUpperCase(),
     parentElement: parent || null,
+    children: [] as any[],
+    contains(target: any): boolean {
+      let curr = target;
+      while (curr) {
+        if (curr === el) return true;
+        curr = curr.parentElement;
+      }
+      return false;
+    },
   };
+  if (parent) {
+    parent.children.push(el);
+  }
   return el;
 }
 
@@ -30,6 +44,59 @@ describe("DOM Spatial Collector", () => {
 
     assert.equal(isRectIntersecting(boxA, boxB), true);
     assert.equal(isRectIntersecting(boxA, boxC), false);
+  });
+
+  test("detectTextOverflow 能正确识别 overflow: hidden 下的单行文本省略截断", () => {
+    const el = createMockElement("span");
+    Object.defineProperty(el, "scrollWidth", {
+      value: 160,
+      configurable: true,
+    });
+    Object.defineProperty(el, "clientWidth", {
+      value: 100,
+      configurable: true,
+    });
+    Object.defineProperty(el, "scrollHeight", {
+      value: 20,
+      configurable: true,
+    });
+    Object.defineProperty(el, "clientHeight", {
+      value: 20,
+      configurable: true,
+    });
+
+    const style = {
+      overflow: "hidden",
+      overflowX: "hidden",
+      overflowY: "hidden",
+      textOverflow: "ellipsis",
+    } as any;
+
+    const res = detectTextOverflow(el, style);
+    assert.ok(res);
+    assert.equal(res?.isTruncated, true);
+    assert.equal(res?.truncationType, "single_line");
+    assert.equal(res?.overflowDelta.width, 60);
+  });
+
+  test("detectGridOverflow 能正确识别 Grid 子项 min-width: auto 带来的轨道撑爆风险", () => {
+    const el = createMockElement("div");
+    Object.defineProperty(el, "scrollWidth", {
+      value: 240,
+      configurable: true,
+    });
+    (el as any).getBoundingClientRect = () => ({ width: 150, height: 40 });
+
+    const style = { minWidth: "auto" } as any;
+    const parentStyle = {
+      display: "grid",
+      gridTemplateColumns: "1fr 1fr",
+    } as any;
+
+    const res = detectGridOverflow(el, style, parentStyle);
+    assert.ok(res);
+    assert.equal(res?.isGridItem, true);
+    assert.equal(res?.isGridOverflow, true);
   });
 
   test("isPointInsideRect correctly checks point containment", () => {
@@ -51,12 +118,32 @@ describe("DOM Spatial Collector", () => {
   });
 
   test("findSmallestCommonAncestor returns common ancestor for a set of elements", () => {
-    const parent = createMockElement("div");
+    const root = createMockElement("body");
+    const parent = createMockElement("div", root);
     const child1 = createMockElement("span", parent);
     const child2 = createMockElement("button", parent);
 
     const sca = findSmallestCommonAncestor([child1, child2]);
     assert.equal(sca, parent);
+  });
+
+  test("findSmallestCommonAncestor handles multi-depth & edge cases correctly", () => {
+    const root = createMockElement("html");
+    const body = createMockElement("body", root);
+    const container = createMockElement("main", body);
+    const card = createMockElement("section", container);
+    const btn1 = createMockElement("button", card);
+    const btn2 = createMockElement("a", card);
+    const sidebarBtn = createMockElement("button", body);
+
+    // 1. 空数组
+    assert.equal(findSmallestCommonAncestor([]), null);
+
+    // 2. 单节点
+    assert.equal(findSmallestCommonAncestor([btn1]), card);
+
+    // 3. 3个节点，且深浅不一
+    assert.equal(findSmallestCommonAncestor([btn1, btn2, sidebarBtn]), body);
   });
 
   test("detectComponentPath 沿 React fiber.return 收集组件链并过滤 HTML 标签", () => {

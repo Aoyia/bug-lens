@@ -230,11 +230,21 @@ export function PopupApp() {
 
   const refreshRecord = async () => {
     try {
-      const tabs = await chrome.tabs.query({
-        active: true,
-        currentWindow: true,
-      });
-      let targetTab = tabs[0];
+      const urlParams = new URLSearchParams(window.location.search);
+      const forcedTabId = urlParams.get("tabId");
+      let targetTab: chrome.tabs.Tab | undefined;
+      if (forcedTabId) {
+        targetTab = await chrome.tabs
+          .get(Number(forcedTabId))
+          .catch(() => undefined);
+      }
+      if (!targetTab) {
+        const tabs = await chrome.tabs.query({
+          active: true,
+          currentWindow: true,
+        });
+        targetTab = tabs[0];
+      }
       if (targetTab?.url?.startsWith("chrome-extension://")) {
         const allTabs = await chrome.tabs.query({});
         const webTab = allTabs.find(

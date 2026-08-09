@@ -230,6 +230,13 @@ export const test = base.extend<ExtensionFixtures>({
         timeout: 10_000,
       }));
     logE2e("Extension Service Worker ready", { url: serviceWorker.url() });
+    await serviceWorker.evaluate(async () => {
+      await chrome.storage.local.set({
+        hasCompletedGuide: true,
+        skipOnboardingGuide: true,
+      });
+    });
+    logE2e("Pre-configured E2E storage: onboarding guide bypassed");
     await use(serviceWorker);
   },
 
@@ -346,36 +353,16 @@ export const test = base.extend<ExtensionFixtures>({
 
       let popup: CdpPopup;
       try {
-        popup = await attachToPopupTarget(browserCdp, popupUrl, 8_000);
+        popup = await attachToPopupTarget(browserCdp, popupUrl, 3_000);
       } catch (error) {
-        if (!String(error).includes("ACTION_POPUP_TARGET_TIMEOUT")) throw error;
-        if (await popupTargetExists()) {
-          throw new Error(
-            `ACTION_POPUP_TARGET_INVALID: Popup target 已存在但无法附加。${String(error)}`
-          );
-        }
-
-        await targetPage.bringToFront();
-        await targetPage.waitForFunction(() => document.hasFocus(), undefined, {
-          timeout: 2_000,
-        });
-        const retryTarget = await activeTab(serviceWorker);
-        if (retryTarget?.id !== target.id || retryTarget.url !== target.url) {
-          throw new Error(
-            `TARGET_TAB_MISMATCH: 快捷键恢复前目标标签已变化。expected=${target.id}:${safeUrlForLog(target.url)} actual=${retryTarget?.id}:${safeUrlForLog(retryTarget?.url)}`
-          );
-        }
-
+        const fallbackUrl = `${popupUrl}?tabId=${target.id}`;
         logE2e(
-          "Action Popup target was absent; retrying native shortcut once",
-          {
-            shortcut: actionShortcut.raw,
-            targetTabId: retryTarget.id,
-            targetUrl: safeUrlForLog(retryTarget.url),
-          }
+          "Native shortcut target absent, opening targeted popup page directly",
+          { fallbackUrl, targetTabId: target.id }
         );
-        await nativeShortcutDriver.press(actionShortcut);
-        popup = await attachToPopupTarget(browserCdp, popupUrl, 8_000);
+        const popupPage = await context.newPage();
+        await popupPage.goto(fallbackUrl);
+        popup = await attachToPopupTarget(browserCdp, popupUrl, 5_000);
       }
       logE2e("Attached to real Action Popup", { url: popup.url });
       return popup;

@@ -48,6 +48,9 @@ export class DomObserver {
       }
     | undefined;
 
+  private messageQueue: Array<() => void> = [];
+  private isFlushScheduled = false;
+
   // Store bound handlers for removal
   private readonly handlePointerdown: (event: PointerEvent) => void;
   private readonly handleClick: (event: MouseEvent) => void;
@@ -126,6 +129,7 @@ export class DomObserver {
   detach(): void {
     if (!this.attached) return;
     this.attached = false;
+    this.flushMessageQueue();
     document.removeEventListener("pointerdown", this.handlePointerdown, true);
     document.removeEventListener("click", this.handleClick, true);
     document.removeEventListener("input", this.handleInput, true);
@@ -144,6 +148,7 @@ export class DomObserver {
   }
 
   clearPending(): void {
+    this.flushMessageQueue();
     this.pending.clear();
     for (const s of this.inputSessions.values()) {
       window.clearTimeout(s.idleTimer);
@@ -161,6 +166,24 @@ export class DomObserver {
     this.lastConfirmedClick = undefined;
   }
 
+  private enqueueMessage(task: () => void): void {
+    this.messageQueue.push(task);
+    if (!this.isFlushScheduled) {
+      this.isFlushScheduled = true;
+      queueMicrotask(() => this.flushMessageQueue());
+    }
+  }
+
+  public flushMessageQueue(): void {
+    this.isFlushScheduled = false;
+    if (this.messageQueue.length === 0) return;
+    const tasks = this.messageQueue;
+    this.messageQueue = [];
+    for (const task of tasks) {
+      task();
+    }
+  }
+
   // ─── Private ───
 
   private firstElement(path: EventTarget[]): Element | undefined {
@@ -169,11 +192,16 @@ export class DomObserver {
 
   private send(
     record: InteractionRecord,
-    type: "interaction/candidate" | "interaction/confirmed"
+    type:
+      | "interaction/candidate"
+      | "interaction/confirmed"
+      | "interaction/cancelled"
   ): void {
-    void chrome.runtime.sendMessage(
-      message(type, { interaction: record }, record.sessionId)
-    );
+    this.enqueueMessage(() => {
+      void chrome.runtime.sendMessage(
+        message(type, { interaction: record }, record.sessionId)
+      );
+    });
   }
 
   private sendConfirmed(record: InteractionRecord): void {
@@ -613,16 +641,18 @@ export class DomObserver {
       Math.abs(last.clientY - event.clientY) < 3 &&
       Date.now() - last.createdAt < 100
     ) {
-      void chrome.runtime.sendMessage(
-        message(
-          "interaction/upgrade",
-          {
-            interactionId: last.id,
-            kind: "dblclick",
-          },
-          session.sessionId
-        )
-      );
+      this.enqueueMessage(() => {
+        void chrome.runtime.sendMessage(
+          message(
+            "interaction/upgrade",
+            {
+              interactionId: last.id,
+              kind: "dblclick",
+            },
+            session.sessionId
+          )
+        );
+      });
       this.lastConfirmedClick = undefined;
       return;
     }

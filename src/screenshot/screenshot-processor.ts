@@ -35,13 +35,18 @@ function loadImage(dataUrl: string): Promise<HTMLImageElement> {
 /** 辅助 canvas.toBlob */
 function canvasToBlob(
   canvas: HTMLCanvasElement,
-  type = "image/png"
+  type = "image/png",
+  quality?: number
 ): Promise<Blob> {
   return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (blob) resolve(blob);
-      else reject(new Error("Canvas toBlob failed"));
-    }, type);
+    canvas.toBlob(
+      (blob) => {
+        if (blob) resolve(blob);
+        else reject(new Error("Canvas toBlob failed"));
+      },
+      type,
+      quality
+    );
   });
 }
 
@@ -372,8 +377,14 @@ export async function processScreenshot(
 
   drawAnnotationsOnCanvas(ctx, relativeAnnotations as AnnotationItem[], dpr);
 
-  const croppedBase64 = canvas.toDataURL("image/png");
-  const imageBlob = await canvasToBlob(canvas, "image/png");
+  // 智能编码压缩策略：大尺寸图像/高 DPR 优先选择 WebP 格式 (0.92 质量)，降低 40%~60% 体积
+  const totalPixels = canvas.width * canvas.height;
+  const useWebP = totalPixels >= 1000 * 1000;
+  const imageType = useWebP ? "image/webp" : "image/png";
+  const imageQuality = useWebP ? 0.92 : undefined;
+
+  const croppedBase64 = canvas.toDataURL(imageType, imageQuality);
+  const imageBlob = await canvasToBlob(canvas, imageType, imageQuality);
 
   // 3. 收集空间 DOM 结构树（经主世界探针读取 Vue/React 组件链）
   const spatialDom = await collectSpatialDomTree({

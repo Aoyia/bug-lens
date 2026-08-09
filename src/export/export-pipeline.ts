@@ -81,8 +81,14 @@ export async function writeEvidenceArchive(input: {
   };
 
   try {
-    for (const file of input.files) {
-      const hash = await sha256(file.data);
+    const fileHashes = await Promise.all(
+      input.files.map(async (file) => ({
+        file,
+        hash: await sha256(file.data),
+      }))
+    );
+
+    for (const { file, hash } of fileHashes) {
       const entry = isTextFile(file.name)
         ? new ZipDeflate(file.name, { level: 9 })
         : new ZipPassThrough(file.name);
@@ -153,12 +159,18 @@ export async function validateArchiveIntegrity(
 ): Promise<boolean> {
   const expectedKeys = Object.keys(expectedIntegrity);
   if (files.length !== expectedKeys.length) return false;
-  for (const file of files) {
+  const fileHashes = await Promise.all(
+    files.map(async (file) => ({
+      file,
+      hash: await sha256(file.data),
+    }))
+  );
+  return fileHashes.every(({ file, hash }) => {
     const expected = expectedIntegrity[file.name];
-    if (!expected) return false;
-    if (file.data.byteLength !== expected.byteLength) return false;
-    const actualHash = await sha256(file.data);
-    if (actualHash !== expected.sha256) return false;
-  }
-  return true;
+    return (
+      expected !== undefined &&
+      file.data.byteLength === expected.byteLength &&
+      hash === expected.sha256
+    );
+  });
 }

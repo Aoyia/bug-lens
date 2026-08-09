@@ -168,6 +168,44 @@ describe("Screenshot Payload Formatter", () => {
     assert.strictEqual(md.includes("flex-shrink: 1"), true);
   });
 
+  test("当存在文本截断或 Grid 轨道溢出节点时在 Prompt 中自动注入诊断提示", () => {
+    const payloadWithLayoutDeviations: AIScreenshotPayload = {
+      ...mockPayload,
+      domContextTree: {
+        ...mockPayload.domContextTree,
+        anchors: [
+          {
+            selector: ".product-title",
+            selectorPath: "body > div > .product-title",
+            relativeRect: { x: 0, y: 0, width: 100, height: 20 },
+            computedStyles: {},
+            intentFlags: {},
+            layoutContext: {
+              isFlexOrGridItem: true,
+              textOverflow: {
+                isTruncated: true,
+                truncationType: "single_line",
+                scrollDimension: { width: 160, height: 20 },
+                clientDimension: { width: 100, height: 20 },
+                overflowDelta: { width: 60, height: 0 },
+                reason: "单行省略",
+              },
+              gridSelf: {
+                isGridItem: true,
+                isGridOverflow: true,
+                reason: "Grid 项撑爆",
+              },
+            },
+          },
+        ],
+      },
+    };
+    const md = formatPayloadToMarkdown(payloadWithLayoutDeviations);
+    assert.strictEqual(md.includes("文本隐蔽截断与 Overflow 溢出"), true);
+    assert.strictEqual(md.includes("CSS Grid 子项因默认"), true);
+    assert.strictEqual(md.includes(".product-title"), true);
+  });
+
   test("formatPayloadToMarkdown injects the real ZIP absolute path when zipPath is provided", () => {
     const md = formatPayloadToMarkdown(
       mockPayload,

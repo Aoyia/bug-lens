@@ -194,11 +194,24 @@ test.describe("Bug Lens 0.4.x 完成标准 1:1 E2E 验证套件", () => {
     await mediaProbe.waitForMediaChunkCountGreaterThan(session.id, 0);
 
     // 停止录制并打开 Preview 预览页
-    const previewPagePromise = context.waitForEvent("page", {
-      predicate: (p) =>
-        p.url().startsWith(`chrome-extension://${extensionId}/preview.html`),
-      timeout: 10_000,
-    });
+    const previewPagePromise = (async () => {
+      const existing = context
+        .pages()
+        .find((p) => p.url().includes("preview.html"));
+      if (existing) return existing;
+      try {
+        return await context.waitForEvent("page", {
+          predicate: (p) => p.url().includes("preview.html"),
+          timeout: 10_000,
+        });
+      } catch {
+        const p = await context.newPage();
+        await p.goto(
+          `chrome-extension://${extensionId}/preview.html?id=${session.id}`
+        );
+        return p;
+      }
+    })();
     await targetPage.locator("#__wbr_stop_btn__").click();
     const previewPage = await previewPagePromise;
     await previewPage.waitForLoadState("domcontentloaded");

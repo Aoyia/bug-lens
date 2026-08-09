@@ -154,6 +154,41 @@ export interface FlexSqueezeRiskInfo {
   reason: string;
 }
 
+/** 文本截断与溢出诊断数据 */
+export interface TextOverflowInfo {
+  /** 是否发生了实质性文本截断（内容超出物理容器并被省略/裁剪） */
+  isTruncated: boolean;
+  /** 截断类型: 'single_line' (单行省略 ...) | 'multi_line' (Line Clamp 截断) | 'overflow_hidden' (无省略号裁剪) */
+  truncationType: "single_line" | "multi_line" | "overflow_hidden";
+  /** 内容真实完整物理尺寸 */
+  scrollDimension: { width: number; height: number };
+  /** 元素当前实际渲染视区尺寸 */
+  clientDimension: { width: number; height: number };
+  /** 被截断损耗的像素差值 */
+  overflowDelta: { width: number; height: number };
+  /** 诊断分析文案 */
+  reason: string;
+}
+
+/** CSS Grid 网格轨道与溢出分析 */
+export interface GridItemContextInfo {
+  isGridItem: boolean;
+  gridTemplateColumns?: string;
+  gridTemplateRows?: string;
+  gap?: string;
+  /** Grid 子项是否发生了非预期的轨道溢出 (e.g. min-width: auto 导致撑爆 1fr) */
+  isGridOverflow: boolean;
+  reason?: string;
+}
+
+/** 堆叠上下文与层级数据 */
+export interface StackingContextInfo {
+  zIndex: string;
+  position: string;
+  createsStackingContext: boolean;
+  hasOverflowHiddenAncestor: boolean;
+}
+
 export interface LayoutContextInfo {
   isFlexOrGridItem: boolean;
   flexSelf?: {
@@ -171,6 +206,12 @@ export interface LayoutContextInfo {
   };
   /** 弹性挤压变形风险分析 */
   flexSqueezeRisk?: FlexSqueezeRiskInfo;
+  /** 文本截断与溢出诊断 */
+  textOverflow?: TextOverflowInfo;
+  /** CSS Grid 轨道与溢出诊断 */
+  gridSelf?: GridItemContextInfo;
+  /** 堆叠上下文与层级数据 */
+  stackingContext?: StackingContextInfo;
 }
 
 /** DOM 嵌套树节点（支持结构化层级与组件路径链） */
@@ -325,7 +366,16 @@ function buildPromptBody(
 
   const squeezedNodes: Array<{ selector: string; risk: FlexSqueezeRiskInfo }> =
     [];
-  const checkSqueezeNode = (node: any) => {
+  const truncatedNodes: Array<{
+    selector: string;
+    textOverflow: TextOverflowInfo;
+  }> = [];
+  const gridOverflowNodes: Array<{
+    selector: string;
+    gridSelf: GridItemContextInfo;
+  }> = [];
+
+  const checkLayoutDeviations = (node: any) => {
     if (!node) return;
     const risk = node.layoutContext?.flexSqueezeRisk || node.flexSqueezeRisk;
     if (risk && risk.isSqueezed) {
@@ -334,9 +384,26 @@ function buildPromptBody(
         risk,
       });
     }
+
+    const textOv = node.layoutContext?.textOverflow || node.textOverflow;
+    if (textOv && textOv.isTruncated) {
+      truncatedNodes.push({
+        selector: node.selector || node.tagName || "element",
+        textOverflow: textOv,
+      });
+    }
+
+    const grid = node.layoutContext?.gridSelf || node.gridSelf;
+    if (grid && grid.isGridOverflow) {
+      gridOverflowNodes.push({
+        selector: node.selector || node.tagName || "element",
+        gridSelf: grid,
+      });
+    }
+
     if (node.children && Array.isArray(node.children)) {
       for (const child of node.children) {
-        checkSqueezeNode(child);
+        checkLayoutDeviations(child);
       }
     }
   };
@@ -344,11 +411,11 @@ function buildPromptBody(
   if (payload.domContextTree) {
     if (Array.isArray(payload.domContextTree.anchors)) {
       for (const anchor of payload.domContextTree.anchors) {
-        checkSqueezeNode(anchor);
+        checkLayoutDeviations(anchor);
       }
     }
     if (payload.domContextTree.tree) {
-      checkSqueezeNode(payload.domContextTree.tree);
+      checkLayoutDeviations(payload.domContextTree.tree);
     }
   }
 
@@ -360,7 +427,27 @@ function buildPromptBody(
           `  - 节点 \`${item.selector}\`：固有宽度 ${item.risk.intrinsicWidth}px，实际被压缩至 ${item.risk.renderedWidth}px (挤压损耗 ${item.risk.squeezedWidthDelta}px / ${(item.risk.squeezeRatio * 100).toFixed(1)}%)，当前 \`flex-shrink: ${item.risk.flexShrink}\`。`
       )
       .join("\n");
-    squeezeWarning = `\n- ⚠️ [布局诊断] 检测到 ${squeezedNodes.length} 个 DOM 元素因父级 Flex 布局限制存在挤压变形风险：\n${listStr}\n  💡 提示：此异常通常因缺少 \`flex-shrink: 0;\` 或未限制折行引起，请优先排查上述元素的 Flex 缩放规则。`;
+    squeezeWarning += `\n- ⚠️ [自动诊断] 检测到 ${squeezedNodes.length} 个 DOM 元素因父级 Flex 布局限制存在挤压变形风险：\n${listStr}\n  💡 提示：此异常通常因缺少 \`flex-shrink: 0;\` 或未限制无折行引起，请优先检查上述元素的 Flex 缩放规则。`;
+  }
+
+  if (truncatedNodes.length > 0) {
+    const listStr = truncatedNodes
+      .map(
+        (item) =>
+          `  - 节点 \`${item.selector}\`：发生 ${item.textOverflow.truncationType} 截断 (真实尺寸 ${item.textOverflow.scrollDimension.width}x${item.textOverflow.scrollDimension.height}px > 裁剪尺寸 ${item.textOverflow.clientDimension.width}x${item.textOverflow.clientDimension.height}px，溢出损耗 ${item.textOverflow.overflowDelta.width}px 宽 / ${item.textOverflow.overflowDelta.height}px 高)。`
+      )
+      .join("\n");
+    squeezeWarning += `\n- ⚠️ [自动诊断] 检测到 ${truncatedNodes.length} 个 DOM 元素存在文本隐蔽截断与 Overflow 溢出：\n${listStr}\n  💡 提示：请检查父容器宽度限制、\`text-overflow: ellipsis;\` 或 \`white-space: nowrap;\` 规则。`;
+  }
+
+  if (gridOverflowNodes.length > 0) {
+    const listStr = gridOverflowNodes
+      .map(
+        (item) =>
+          `  - 节点 \`${item.selector}\`：${item.gridSelf.reason || "Grid 项轨道被撑爆"}`
+      )
+      .join("\n");
+    squeezeWarning += `\n- ⚠️ [自动诊断] 检测到 ${gridOverflowNodes.length} 个 CSS Grid 子项因默认 \`min-width: auto\` 产生轨道溢出：\n${listStr}\n  💡 修复建议：在该 Grid 子项样式中添加 \`min-width: 0;\` 允许网格轨道弹性收缩。`;
   }
 
   return `请作为高级 Frontend/Fullstack 调试专家，分析以下本地 Bug Lens 截图证据包：

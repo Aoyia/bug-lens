@@ -185,6 +185,24 @@ export class MediaProbe {
     }, sessionId);
   }
 
+  async waitForSessionStatus(
+    sessionId: string,
+    expectedStatus: string,
+    timeoutMs = 10_000
+  ): Promise<RecordingSession> {
+    const started = Date.now();
+    while (Date.now() - started < timeoutMs) {
+      const session = await this.getSession(sessionId);
+      if (session?.status === expectedStatus) {
+        return session;
+      }
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    throw new Error(
+      `Session ${sessionId} status did not reach ${expectedStatus} within ${timeoutMs}ms`
+    );
+  }
+
   async sessionCount(): Promise<number> {
     return this.evaluateWorker(async () => {
       const database = await new Promise<IDBDatabase>((resolve, reject) => {
