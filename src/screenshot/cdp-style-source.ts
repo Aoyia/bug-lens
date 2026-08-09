@@ -5,14 +5,35 @@ export interface RuleSourceInfo {
   startColumn?: number;
 }
 
+export async function isTabAlreadyAttached(tabId: number): Promise<boolean> {
+  try {
+    if (
+      typeof chrome === "undefined" ||
+      !chrome.debugger ||
+      !chrome.debugger.getTargets
+    ) {
+      return false;
+    }
+    const targets = await chrome.debugger.getTargets();
+    const target = targets.find((t) => t.tabId === tabId);
+    return Boolean(target?.attached);
+  } catch {
+    return false;
+  }
+}
+
 export async function fetchStyleSourceInfoWithCDP(
   tabId: number,
   selectors: string[] = []
 ): Promise<RuleSourceInfo[]> {
+  if (!selectors.length) return [];
   const sources: RuleSourceInfo[] = [];
+  const alreadyAttached = await isTabAlreadyAttached(tabId);
 
   try {
-    await chrome.debugger.attach({ tabId }, "1.3");
+    if (!alreadyAttached) {
+      await chrome.debugger.attach({ tabId }, "1.3");
+    }
     await chrome.debugger.sendCommand({ tabId }, "DOM.enable");
     await chrome.debugger.sendCommand({ tabId }, "CSS.enable");
 
@@ -27,7 +48,7 @@ export async function fetchStyleSourceInfoWithCDP(
     const rootNodeId = docRes?.root?.nodeId;
 
     if (rootNodeId) {
-      for (const sel of selectors) {
+      const queryTasks = selectors.map(async (sel) => {
         try {
           const queryRes = (await chrome.debugger.sendCommand(
             { tabId },
@@ -38,48 +59,56 @@ export async function fetchStyleSourceInfoWithCDP(
             }
           )) as { nodeId: number };
 
-          if (queryRes?.nodeId) {
-            const stylesRes = (await chrome.debugger.sendCommand(
-              { tabId },
-              "CSS.getMatchedStylesForNode",
-              { nodeId: queryRes.nodeId }
-            )) as {
-              matchedCSSRules?: Array<{
-                rule: {
-                  selectorList: { text: string };
-                  styleSheetId?: string;
-                  origin?: string;
-                  range?: { startLine: number; startColumn: number };
-                };
-              }>;
-            };
+          if (!queryRes?.nodeId) return [];
 
-            if (stylesRes?.matchedCSSRules) {
-              for (const matched of stylesRes.matchedCSSRules) {
-                const rule = matched.rule;
-                if (rule.range) {
-                  sources.push({
-                    selectorText: rule.selectorList?.text || sel,
-                    startLine: rule.range.startLine,
-                    startColumn: rule.range.startColumn,
-                  });
-                }
+          const stylesRes = (await chrome.debugger.sendCommand(
+            { tabId },
+            "CSS.getMatchedStylesForNode",
+            { nodeId: queryRes.nodeId }
+          )) as {
+            matchedCSSRules?: Array<{
+              rule: {
+                selectorList: { text: string };
+                styleSheetId?: string;
+                origin?: string;
+                range?: { startLine: number; startColumn: number };
+              };
+            }>;
+          };
+
+          const matchedList: RuleSourceInfo[] = [];
+          if (stylesRes?.matchedCSSRules) {
+            for (const matched of stylesRes.matchedCSSRules) {
+              const rule = matched.rule;
+              if (rule.range) {
+                matchedList.push({
+                  selectorText: rule.selectorList?.text || sel,
+                  startLine: rule.range.startLine,
+                  startColumn: rule.range.startColumn,
+                });
               }
             }
           }
+          return matchedList;
         } catch {
-          // 单个 selector 定位失败静默忽略
+          return [];
         }
+      });
+
+      const results = await Promise.all(queryTasks);
+      for (const resList of results) {
+        sources.push(...resList);
       }
     }
-
-    await chrome.debugger.detach({ tabId });
   } catch {
     // CDP attach 失败或发生冲突时做静默降级处理，不抛出异常
-    try {
-      await chrome.debugger.detach({ tabId });
-    } catch {
-      // 忽略 detach 异常
+  } finally {
+    if (!alreadyAttached) {
+      try {
+        await chrome.debugger.detach({ tabId });
+      } catch {
+        // 忽略 detach 异常
+      }
     }
   }
 

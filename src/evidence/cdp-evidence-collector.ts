@@ -44,6 +44,35 @@ function withTimeout<T>(
   });
 }
 
+const TEXTUAL_MIME_PATTERNS = [
+  /^application\/json/i,
+  /^application\/.*xml/i,
+  /^application\/javascript/i,
+  /^application\/x-javascript/i,
+  /^text\//i,
+  /^application\/x-www-form-urlencoded/i,
+];
+
+export function shouldCaptureResponseBody(
+  mimeType?: string,
+  url?: string
+): boolean {
+  if (!mimeType) {
+    if (url) {
+      const lowerUrl = url.toLowerCase();
+      if (
+        /\.(png|jpe?g|gif|svg|webp|ico|woff2?|ttf|eot|mp4|webm|mp3|zip|pdf|gz)$/i.test(
+          lowerUrl
+        )
+      ) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return TEXTUAL_MIME_PATTERNS.some((pattern) => pattern.test(mimeType));
+}
+
 function captureIssue(
   code: string,
   message: string,
@@ -724,13 +753,27 @@ export class CdpEvidenceCollector {
               value.timestamp
             ),
           }));
-          if (session.options.captureNetworkBodies)
-            await this.captureResponseBody(source, session, requestId);
-          else
+          if (session.options.captureNetworkBodies) {
+            const entry = (await this.repository.getNetwork(session.id)).find(
+              (item) => item.id === id
+            );
+            if (
+              entry &&
+              !shouldCaptureResponseBody(entry.response?.mimeType, entry.url)
+            ) {
+              await this.repository.updateNetworkEntry(id, (current) => ({
+                ...current,
+                response: { ...current.response, bodyStatus: "not-present" },
+              }));
+            } else {
+              await this.captureResponseBody(source, session, requestId);
+            }
+          } else {
             await this.repository.updateNetworkEntry(id, (current) => ({
               ...current,
               response: { ...current.response, bodyStatus: "not-present" },
             }));
+          }
         })
       );
     } else if (method === "Network.loadingFailed") {
