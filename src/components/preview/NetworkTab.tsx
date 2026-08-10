@@ -3,6 +3,11 @@ import { useState, useCallback, useRef, useEffect } from "preact/hooks";
 import type { NetworkEntry, RecordingSession } from "../../shared/protocol.ts";
 import { formatElapsedEpochTime } from "../../domain/evidence-clock.ts";
 import { generateCurlCommand } from "../../domain/curl-generator.ts";
+import {
+  API_SNIPPET_TARGETS,
+  generateApiSnippet,
+  type ApiSnippetTarget,
+} from "../../domain/api-snippet-generator.ts";
 import { copyTextToClipboard } from "../../preview/clipboard.ts";
 import { escapeHtml, renderCodeBlockHtml } from "../../preview/rendering.ts";
 import { useFilteredList } from "../../hooks/useFilteredList.ts";
@@ -168,8 +173,9 @@ export const NetworkTab = memo(function NetworkTab({
   );
 
   const selectedEntry = entries.find((entry) => entry.id === activeSelectedId);
+  const [snippetTarget, setSnippetTarget] = useState<ApiSnippetTarget>("curl");
 
-  // Copy curl logic
+  // Copy multi-language snippet logic
   useEffect(() => {
     if (!detailRef.current || !selectedEntry) return;
 
@@ -178,14 +184,20 @@ export const NetworkTab = memo(function NetworkTab({
     if (!copyButton) return;
 
     const handleCopy = () => {
-      void copyTextToClipboard(generateCurlCommand(selectedEntry), document)
+      const code = generateApiSnippet(selectedEntry, snippetTarget);
+      const targetOpt = API_SNIPPET_TARGETS.find(
+        (t) => t.key === snippetTarget
+      );
+      const labelName = targetOpt?.label || "Code";
+
+      void copyTextToClipboard(code, document)
         .then(() => {
           copyButton.classList.add("copied");
           const label = copyButton.querySelector<HTMLElement>(
             ".btn-copy-curl-text"
           );
-          if (label) label.textContent = t("curlCopied");
-          onNotify?.(t("curlCopiedNotify"));
+          if (label) label.textContent = `${labelName} 已复制`;
+          onNotify?.(`${labelName} 代码片段已成功复制到剪贴板`);
           window.setTimeout(() => {
             copyButton.classList.remove("copied");
             if (label) label.textContent = t("copyCurl");
@@ -198,7 +210,7 @@ export const NetworkTab = memo(function NetworkTab({
     return () => {
       copyButton.removeEventListener("click", handleCopy);
     };
-  }, [selectedEntry, onNotify]);
+  }, [selectedEntry, snippetTarget, onNotify]);
 
   return (
     <div className="integrated-card-panel">
@@ -302,12 +314,66 @@ export const NetworkTab = memo(function NetworkTab({
           title={t("resizerTitle")}
         ></div>
         <div
-          className="network-detail-panel"
-          ref={detailRef}
-          dangerouslySetInnerHTML={{
-            __html: renderNetworkDetailHtml(selectedEntry),
-          }}
-        />
+          className="network-detail-container"
+          style={{ flex: 1, display: "flex", flexDirection: "column" }}
+        >
+          {selectedEntry ? (
+            <div
+              className="api-snippet-toolbar"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "flex-end",
+                gap: "8px",
+                padding: "6px 12px",
+                background: "var(--bg-subtle, #f8f9fa)",
+                borderBottom: "1px solid var(--border-color, #e9ecef)",
+              }}
+            >
+              <label
+                style={{
+                  fontSize: "12px",
+                  color: "var(--text-muted, #6c757d)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "4px",
+                }}
+              >
+                <span>目标格式:</span>
+                <select
+                  className="snippet-target-select"
+                  value={snippetTarget}
+                  onChange={(e) =>
+                    setSnippetTarget(
+                      (e.target as HTMLSelectElement).value as ApiSnippetTarget
+                    )
+                  }
+                  style={{
+                    padding: "2px 6px",
+                    fontSize: "12px",
+                    borderRadius: "4px",
+                    border: "1px solid var(--border-color, #ced4da)",
+                    background: "var(--bg-card, #ffffff)",
+                  }}
+                >
+                  {API_SNIPPET_TARGETS.map((opt) => (
+                    <option key={opt.key} value={opt.key}>
+                      {opt.icon} {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          ) : null}
+          <div
+            className="network-detail-panel"
+            ref={detailRef}
+            style={{ flex: 1 }}
+            dangerouslySetInnerHTML={{
+              __html: renderNetworkDetailHtml(selectedEntry),
+            }}
+          />
+        </div>
       </div>
     </div>
   );
