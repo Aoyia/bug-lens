@@ -232,11 +232,10 @@ export const test = base.extend<ExtensionFixtures>({
     logE2e("Extension Service Worker ready", { url: serviceWorker.url() });
     await serviceWorker.evaluate(async () => {
       await chrome.storage.local.set({
-        hasCompletedGuide: true,
         skipOnboardingGuide: true,
       });
     });
-    logE2e("Pre-configured E2E storage: onboarding guide bypassed");
+    logE2e("Pre-configured E2E storage: install onboarding page bypassed");
     await use(serviceWorker);
   },
 

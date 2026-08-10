@@ -32,6 +32,8 @@ export class ScreenshotOverlay {
   private activeTempAnnotation: AnnotationItem | null = null;
 
   private isResizing = false;
+  private isDraggingSelectionBox = false;
+  private dragBoxStartPoint: { x: number; y: number } | null = null;
   private activeHandle: string | null = null;
   private resizeStartPoint: { x: number; y: number } | null = null;
   private initialSelection: RectBounds | null = null;
@@ -150,7 +152,7 @@ export class ScreenshotOverlay {
         .selection-box {
           position: absolute;
           border: 2px solid #007aff;
-          cursor: move;
+          cursor: crosshair;
           pointer-events: auto;
         }
         /* 8点 Resize 手柄 */
@@ -359,6 +361,12 @@ export class ScreenshotOverlay {
               <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
             </svg>
           </button>
+          <button data-action="undo" class="undo-btn" title="撤销 (Ctrl+Z / Cmd+Z)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 7v6h6"></path>
+              <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"></path>
+            </svg>
+          </button>
           <button data-action="clear" class="clear-btn" title="一键清空标注 (Clear All)">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="3 6 5 6 21 6"></polyline>
@@ -420,6 +428,8 @@ export class ScreenshotOverlay {
               }
             });
           btn.classList.add("active");
+        } else if (action === "undo") {
+          this.undo();
         } else if (action === "clear") {
           this.saveUndoState();
           this.annotations = [];
@@ -455,14 +465,63 @@ export class ScreenshotOverlay {
     }
   }
 
+  private deleteSelectedAnnotation(): void {
+    if (!this.selectedAnnotation) return;
+    this.saveUndoState();
+    const targetId = this.selectedAnnotation.id;
+    this.annotations = this.annotations.filter((a) => a.id !== targetId);
+    this.selectedAnnotation = null;
+    this.renderAnnotationsOnCanvas();
+  }
+
   private handleKeyDown(e: KeyboardEvent): void {
+    const isEditingText = !!(
+      this.shadowRoot?.activeElement &&
+      (this.shadowRoot.activeElement.tagName === "TEXTAREA" ||
+        this.shadowRoot.activeElement.tagName === "INPUT" ||
+        this.shadowRoot.activeElement.classList.contains("inline-text-input"))
+    );
+
     if (e.key === "Escape") {
       this.cancel();
+    } else if (
+      (e.key === "z" || e.key === "Z" || e.code === "KeyZ") &&
+      (e.metaKey || e.ctrlKey)
+    ) {
+      if (!isEditingText) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.undo();
+      }
     } else if (e.key === "c" && (e.metaKey || e.ctrlKey) && this.selection) {
       e.preventDefault();
       e.stopPropagation();
       this.confirm(this.cachedViewportDataUrl);
+    } else if (
+      (e.key === "Delete" || e.key === "Backspace") &&
+      this.selectedAnnotation
+    ) {
+      if (!isEditingText) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.deleteSelectedAnnotation();
+      }
     }
+  }
+
+  private clampPointToSelection(p: { x: number; y: number }): {
+    x: number;
+    y: number;
+  } {
+    if (!this.selection) return p;
+    const minX = this.selection.x;
+    const maxX = this.selection.x + this.selection.width;
+    const minY = this.selection.y;
+    const maxY = this.selection.y + this.selection.height;
+    return {
+      x: Math.max(minX, Math.min(p.x, maxX)),
+      y: Math.max(minY, Math.min(p.y, maxY)),
+    };
   }
 
   private handleMouseDown(e: MouseEvent): void {
@@ -480,9 +539,13 @@ export class ScreenshotOverlay {
       return;
     }
 
-    // 1. 优先检测是否击中了当前选中批注框的 Resize 控制点
+    // 1. 优先检测是否击中了当前选中批注框的 Resize 控制点或删除按钮
     const handleHit = this.hitTestAnnotationHandle(e.clientX, e.clientY);
     if (handleHit) {
+      if (handleHit.handle === "delete") {
+        this.deleteSelectedAnnotation();
+        return;
+      }
       this.saveUndoState();
       this.isResizingAnnotationHandle = true;
       this.activeResizeHandle = handleHit.handle;
@@ -494,15 +557,23 @@ export class ScreenshotOverlay {
     // 2. 次之检测是否点击了已有批注元素整体（选中并准备平移）
     const hit = this.hitTestAnnotation(e.clientX, e.clientY);
     if (hit) {
-      this.selectedAnnotation = hit;
-      this.renderAnnotationsOnCanvas();
-      if (this.currentTool !== "text") {
-        this.saveUndoState();
-        this.isDraggingAnnotation = true;
-        this.draggedAnnotation = hit;
-        this.dragStartPoint = { x: e.clientX, y: e.clientY };
+      // 无论当前处于什么工具模式，只要再次点击/双击已选中的文本批注，均可触发二次编辑
+      if (hit.type === "text" && this.selectedAnnotation?.id === hit.id) {
+        this.spawnInlineTextInput(hit.position.x, hit.position.y, hit.text);
+        // 移除原有的文本批注，准备替代
+        this.annotations = this.annotations.filter((a) => a.id !== hit.id);
+        this.selectedAnnotation = null;
+        this.renderAnnotationsOnCanvas();
         return;
       }
+
+      this.selectedAnnotation = hit;
+      this.renderAnnotationsOnCanvas();
+      this.saveUndoState();
+      this.isDraggingAnnotation = true;
+      this.draggedAnnotation = hit;
+      this.dragStartPoint = { x: e.clientX, y: e.clientY };
+      return;
     } else if (this.selectedAnnotation) {
       this.selectedAnnotation = null;
       this.renderAnnotationsOnCanvas();
@@ -512,10 +583,39 @@ export class ScreenshotOverlay {
       if (!this.isSelectionLocked) {
         this.isSelecting = true;
         this.startPoint = { x: e.clientX, y: e.clientY };
+      } else if (this.selection) {
+        const borderThreshold = 10;
+        const outerHit =
+          e.clientX >= this.selection.x - borderThreshold &&
+          e.clientX <=
+            this.selection.x + this.selection.width + borderThreshold &&
+          e.clientY >= this.selection.y - borderThreshold &&
+          e.clientY <=
+            this.selection.y + this.selection.height + borderThreshold;
+        const innerHit =
+          e.clientX > this.selection.x + borderThreshold &&
+          e.clientX <
+            this.selection.x + this.selection.width - borderThreshold &&
+          e.clientY > this.selection.y + borderThreshold &&
+          e.clientY <
+            this.selection.y + this.selection.height - borderThreshold;
+
+        if (outerHit && !innerHit) {
+          this.isDraggingSelectionBox = true;
+          this.dragBoxStartPoint = { x: e.clientX, y: e.clientY };
+          this.initialSelection = { ...this.selection };
+          return;
+        }
       }
     } else if (this.selection) {
-      this.isDrawingTool = true;
-      this.startPoint = { x: e.clientX, y: e.clientY };
+      // 允许在任意工具模式下点击并拖拽选中的批注；如果未选中批注，才触发画图
+      if (!hit) {
+        this.isDrawingTool = true;
+        this.startPoint = this.clampPointToSelection({
+          x: e.clientX,
+          y: e.clientY,
+        });
+      }
     }
   }
 
@@ -563,6 +663,92 @@ export class ScreenshotOverlay {
       return;
     }
 
+    // 整体平移拖拽截图框
+    if (
+      this.currentTool === "select" &&
+      this.isSelectionLocked &&
+      this.selection
+    ) {
+      const borderThreshold = 10;
+      const outerHit =
+        e.clientX >= this.selection.x - borderThreshold &&
+        e.clientX <=
+          this.selection.x + this.selection.width + borderThreshold &&
+        e.clientY >= this.selection.y - borderThreshold &&
+        e.clientY <= this.selection.y + this.selection.height + borderThreshold;
+      const innerHit =
+        e.clientX > this.selection.x + borderThreshold &&
+        e.clientX < this.selection.x + this.selection.width - borderThreshold &&
+        e.clientY > this.selection.y + borderThreshold &&
+        e.clientY < this.selection.y + this.selection.height - borderThreshold;
+
+      if (this.shadowRoot) {
+        const box =
+          this.shadowRoot.querySelector<HTMLDivElement>(".selection-box");
+        if (box) {
+          box.style.cursor = outerHit && !innerHit ? "move" : "crosshair";
+        }
+      }
+    }
+
+    if (
+      this.isDraggingSelectionBox &&
+      this.dragBoxStartPoint &&
+      this.initialSelection
+    ) {
+      const dx = e.clientX - this.dragBoxStartPoint.x;
+      const dy = e.clientY - this.dragBoxStartPoint.y;
+
+      const maxLeft = Math.max(
+        0,
+        window.innerWidth - this.initialSelection.width
+      );
+      const maxTop = Math.max(
+        0,
+        window.innerHeight - this.initialSelection.height
+      );
+
+      const targetX = this.initialSelection.x + dx;
+      const targetY = this.initialSelection.y + dy;
+
+      const newX = Math.max(0, Math.min(targetX, maxLeft));
+      const newY = Math.max(0, Math.min(targetY, maxTop));
+
+      if (this.selection) {
+        const frameDx = newX - this.selection.x;
+        const frameDy = newY - this.selection.y;
+
+        if (frameDx !== 0 || frameDy !== 0) {
+          this.selection = {
+            x: newX,
+            y: newY,
+            width: this.initialSelection.width,
+            height: this.initialSelection.height,
+          };
+
+          // 同步平移已有的批注内容
+          for (const ann of this.annotations) {
+            if (ann.type === "rect" || ann.type === "privacy") {
+              ann.bounds.x += frameDx;
+              ann.bounds.y += frameDy;
+            } else if (ann.type === "text") {
+              ann.position.x += frameDx;
+              ann.position.y += frameDy;
+            } else if (ann.type === "arrow") {
+              ann.startPoint.x += frameDx;
+              ann.startPoint.y += frameDy;
+              ann.endPoint.x += frameDx;
+              ann.endPoint.y += frameDy;
+            }
+          }
+
+          this.renderSelectionBox();
+          this.renderAnnotationsOnCanvas();
+        }
+      }
+      return;
+    }
+
     if (
       this.isResizingAnnotationHandle &&
       this.selectedAnnotation &&
@@ -600,12 +786,44 @@ export class ScreenshotOverlay {
         }
       } else if (ann.type === "arrow") {
         if (handle === "start") {
-          ann.startPoint.x += dx;
-          ann.startPoint.y += dy;
+          ann.startPoint = this.clampPointToSelection({
+            x: ann.startPoint.x + dx,
+            y: ann.startPoint.y + dy,
+          });
         } else if (handle === "end") {
-          ann.endPoint.x += dx;
-          ann.endPoint.y += dy;
+          ann.endPoint = this.clampPointToSelection({
+            x: ann.endPoint.x + dx,
+            y: ann.endPoint.y + dy,
+          });
         }
+      }
+
+      this.renderAnnotationsOnCanvas();
+      return;
+    }
+
+    // 拖拽平移已选中的批注
+    if (
+      this.isDraggingAnnotation &&
+      this.draggedAnnotation &&
+      this.dragStartPoint
+    ) {
+      const dx = e.clientX - this.dragStartPoint.x;
+      const dy = e.clientY - this.dragStartPoint.y;
+      this.dragStartPoint = { x: e.clientX, y: e.clientY };
+
+      const ann = this.draggedAnnotation;
+      if (ann.type === "rect" || ann.type === "privacy") {
+        ann.bounds.x += dx;
+        ann.bounds.y += dy;
+      } else if (ann.type === "text") {
+        ann.position.x += dx;
+        ann.position.y += dy;
+      } else if (ann.type === "arrow") {
+        ann.startPoint.x += dx;
+        ann.startPoint.y += dy;
+        ann.endPoint.x += dx;
+        ann.endPoint.y += dy;
       }
 
       this.renderAnnotationsOnCanvas();
@@ -624,16 +842,20 @@ export class ScreenshotOverlay {
       // 未拉框状态下进行 DOM 控件智能吸附
       this.renderSnapBox(e.clientX, e.clientY);
     } else if (this.isDrawingTool && this.startPoint && this.selection) {
+      const currentPoint = this.clampPointToSelection({
+        x: e.clientX,
+        y: e.clientY,
+      });
       // 在拉框选区内绘制批注
       if (this.currentTool === "rect") {
         this.activeTempAnnotation = {
           id: `ann_${Date.now()}`,
           type: "rect",
           bounds: {
-            x: Math.min(this.startPoint.x, e.clientX),
-            y: Math.min(this.startPoint.y, e.clientY),
-            width: Math.abs(e.clientX - this.startPoint.x),
-            height: Math.abs(e.clientY - this.startPoint.y),
+            x: Math.min(this.startPoint.x, currentPoint.x),
+            y: Math.min(this.startPoint.y, currentPoint.y),
+            width: Math.abs(currentPoint.x - this.startPoint.x),
+            height: Math.abs(currentPoint.y - this.startPoint.y),
           },
         };
       } else if (this.currentTool === "arrow") {
@@ -641,17 +863,17 @@ export class ScreenshotOverlay {
           id: `ann_${Date.now()}`,
           type: "arrow",
           startPoint: this.startPoint,
-          endPoint: { x: e.clientX, y: e.clientY },
+          endPoint: currentPoint,
         };
       } else if (this.currentTool === "privacy") {
         this.activeTempAnnotation = {
           id: `ann_${Date.now()}`,
           type: "privacy",
           bounds: {
-            x: Math.min(this.startPoint.x, e.clientX),
-            y: Math.min(this.startPoint.y, e.clientY),
-            width: Math.abs(e.clientX - this.startPoint.x),
-            height: Math.abs(e.clientY - this.startPoint.y),
+            x: Math.min(this.startPoint.x, currentPoint.x),
+            y: Math.min(this.startPoint.y, currentPoint.y),
+            width: Math.abs(currentPoint.x - this.startPoint.x),
+            height: Math.abs(currentPoint.y - this.startPoint.y),
           },
         };
       }
@@ -660,6 +882,13 @@ export class ScreenshotOverlay {
   }
 
   private handleMouseUp(e: MouseEvent): void {
+    if (this.isDraggingAnnotation) {
+      this.isDraggingAnnotation = false;
+      this.draggedAnnotation = null;
+      this.dragStartPoint = null;
+      return;
+    }
+
     if (this.isResizingAnnotationHandle) {
       this.isResizingAnnotationHandle = false;
       this.activeResizeHandle = null;
@@ -671,6 +900,13 @@ export class ScreenshotOverlay {
       this.isResizing = false;
       this.activeHandle = null;
       this.resizeStartPoint = null;
+      this.initialSelection = null;
+      return;
+    }
+
+    if (this.isDraggingSelectionBox) {
+      this.isDraggingSelectionBox = false;
+      this.dragBoxStartPoint = null;
       this.initialSelection = null;
       return;
     }
@@ -715,11 +951,16 @@ export class ScreenshotOverlay {
     } else if (this.isDrawingTool) {
       this.isDrawingTool = false;
       if (this.activeTempAnnotation) {
+        this.saveUndoState();
         this.annotations.push(this.activeTempAnnotation);
         this.activeTempAnnotation = null;
       }
       if (this.currentTool === "text") {
-        this.spawnInlineTextInput(e.clientX, e.clientY);
+        const textPos = this.clampPointToSelection({
+          x: e.clientX,
+          y: e.clientY,
+        });
+        this.spawnInlineTextInput(textPos.x, textPos.y);
       }
       this.renderAnnotationsOnCanvas();
     }
@@ -946,7 +1187,8 @@ export class ScreenshotOverlay {
         const rInner = Math.max(0, rOuter - lw);
 
         ctx.save();
-        ctx.imageSmoothingEnabled = false;
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
         ctx.fillStyle = ann.color || "#FA5252";
 
         ctx.beginPath();
@@ -1167,6 +1409,10 @@ export class ScreenshotOverlay {
       box-sizing: border-box;
     `;
 
+    if (initialText) {
+      input.value = initialText;
+    }
+
     // 监听输入自动调整高度
     const autoResize = () => {
       input.style.height = "auto";
@@ -1335,6 +1581,8 @@ export class ScreenshotOverlay {
       ctx.stroke();
     };
 
+    let deleteBtnPos: { x: number; y: number } | null = null;
+
     if (ann.type === "rect" || ann.type === "privacy") {
       const { x, y, width, height } = ann.bounds;
       ctx.setLineDash([3, 3]);
@@ -1347,11 +1595,56 @@ export class ScreenshotOverlay {
       drawPoint(x + width, y);
       drawPoint(x + width, y + height);
       drawPoint(x, y + height);
+
+      deleteBtnPos = { x: x + width + 8, y: y - 8 };
     } else if (ann.type === "arrow") {
       ctx.strokeStyle = "#007aff";
       drawPoint(ann.startPoint.x, ann.startPoint.y);
       drawPoint(ann.endPoint.x, ann.endPoint.y);
+
+      const maxX = Math.max(ann.startPoint.x, ann.endPoint.x);
+      const minY = Math.min(ann.startPoint.y, ann.endPoint.y);
+      deleteBtnPos = { x: maxX + 8, y: minY - 8 };
+    } else if (ann.type === "text") {
+      const px = ann.position.x;
+      const py = ann.position.y;
+      const lines = ann.text.split("\n");
+      let maxW = 80;
+      for (const line of lines) {
+        if (line.length * 12 > maxW) maxW = line.length * 12;
+      }
+      const bgW = Math.min(320, maxW + 20);
+
+      ctx.setLineDash([3, 3]);
+      ctx.strokeStyle = "rgba(0, 122, 255, 0.85)";
+      ctx.strokeRect(px - 2, py - 2, bgW + 4, lines.length * 20 + 16);
+      ctx.setLineDash([]);
+
+      deleteBtnPos = { x: px + bgW + 8, y: py - 8 };
     }
+
+    // 绘制删除浮动图标按钮 (圆形红底 + 白色 ×)
+    if (deleteBtnPos) {
+      const btnR = 9;
+      ctx.save();
+      ctx.fillStyle = "#ff4d4f";
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 1.8;
+
+      ctx.beginPath();
+      ctx.arc(deleteBtnPos.x, deleteBtnPos.y, btnR, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(deleteBtnPos.x - 3.5, deleteBtnPos.y - 3.5);
+      ctx.lineTo(deleteBtnPos.x + 3.5, deleteBtnPos.y + 3.5);
+      ctx.moveTo(deleteBtnPos.x + 3.5, deleteBtnPos.y - 3.5);
+      ctx.lineTo(deleteBtnPos.x - 3.5, deleteBtnPos.y + 3.5);
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
     ctx.restore();
   }
 

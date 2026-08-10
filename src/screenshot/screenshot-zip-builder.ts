@@ -40,9 +40,8 @@ export function buildScreenshotZipPackage(
   const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
   const filename = `bug-lens-screenshot-${timestamp}.zip`;
 
-  // 根据 Base64 header 自动判断扩展名 (png / webp)
-  const isWebP = payload.image.base64Data.startsWith("data:image/webp");
-  const imageFilename = isWebP ? "screenshot.webp" : "screenshot.png";
+  // 统一固定图片文件名为 screenshot.png
+  const imageFilename = "screenshot.png";
 
   // 组装 ZIP 压缩包包含的文件列表
   const zipFiles: Record<string, Uint8Array> = {

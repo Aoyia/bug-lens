@@ -203,45 +203,6 @@
   "shortcut": {
     "message": "Shortcut"
   },
-  "guideStep1Title": {
-    "message": "Capture & Annotate Issue"
-  },
-  "guideStep1Desc": {
-    "message": "Click here or press shortcut to select elements for annotated screenshots."
-  },
-  "guideStep2Title": {
-    "message": "Automatic Evidence Collection"
-  },
-  "guideStep2Desc": {
-    "message": "Automatically collects Network, Console logs, and step records. Pauses after 30s of inactivity."
-  },
-  "guideStep3Title": {
-    "message": "100% Local & Safe Privacy"
-  },
-  "guideStep3Desc": {
-    "message": "All videos, screenshots, network and console logs remain safely on your browser. Zero server uploads."
-  },
-  "guideNext": {
-    "message": "Next"
-  },
-  "guideGotIt": {
-    "message": "Got it"
-  },
-  "guideSkip": {
-    "message": "Skip"
-  },
-  "guidePopupStep1Title": {
-    "message": "Start Recording in One Click"
-  },
-  "guidePopupStep1Desc": {
-    "message": "Click \"Start Recording\" and Bug Lens captures interactions, click screenshots, Console logs and Network requests from the current page."
-  },
-  "guidePopupStep2Title": {
-    "message": "Evidence Overview & Privacy"
-  },
-  "guidePopupStep2Desc": {
-    "message": "Video, screenshots, console and network evidence are collected here; review or exclude items before export. Safe mode redacts sensitive data by default."
-  },
   "popupTitle": {
     "message": "Bug Lens"
   },

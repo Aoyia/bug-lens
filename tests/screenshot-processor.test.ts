@@ -10,8 +10,10 @@ describe("Screenshot Processor", () => {
     let textDrawn = false;
 
     const mockCtx: any = {
+      canvas: { width: 800, height: 600 },
       save: () => {},
       restore: () => {},
+      clip: () => {},
       strokeRect: () => {
         rectDrawn = true;
       },

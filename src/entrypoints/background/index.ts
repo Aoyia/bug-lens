@@ -1253,6 +1253,23 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
 chrome.runtime.onStartup.addListener(() => {
   void bootstrapPromise;
 });
+
+/** 首次安装引导页：GitHub Pages 托管的产品介绍与上手引导（引导已从扩展内迁移至网页）。 */
+const ONBOARDING_PAGE_URL = "https://aoyia.github.io/bug-lens/";
+
+chrome.runtime.onInstalled.addListener((details) => {
+  if (details.reason !== "install") return;
+  void (async () => {
+    // 自动化测试（Playwright E2E）通过 skipOnboardingGuide 标记跳过，避免打断测试
+    const stored = (await chrome.storage.local
+      .get("skipOnboardingGuide")
+      .catch(() => ({}))) as { skipOnboardingGuide?: boolean };
+    if (stored?.skipOnboardingGuide) return;
+    await chrome.tabs
+      .create({ url: ONBOARDING_PAGE_URL })
+      .catch(() => undefined);
+  })();
+});
 // 免维存储：定期清理过期会话（6 小时一次，比 24 小时更及时回收空间）
 chrome.alarms.create("bug-lens-storage-cleanup", { periodInMinutes: 6 * 60 });
 chrome.alarms.onAlarm.addListener((alarm) => {

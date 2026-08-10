@@ -457,7 +457,7 @@ function buildPromptBody(
     squeezeWarning += `\n- ⚠️ [自动诊断] 检测到 ${gridOverflowNodes.length} 个 CSS Grid 子项因默认 \`min-width: auto\` 产生轨道溢出：\n${listStr}\n  💡 修复建议：在该 Grid 子项样式中添加 \`min-width: 0;\` 允许网格轨道弹性收缩。`;
   }
 
-  return `请作为高级 Frontend/Fullstack 调试专家，分析以下本地 Bug Lens 截图证据包：
+  return `请作为高级 Frontend/Fullstack 调试专家，分析以下本地 Bug Lens 截图证据包（注意：必须结合查看解压后的截图图片 \`screenshot.png\` 进行视觉画面与逻辑对比）：
 
 ${pathLine}
 
@@ -467,12 +467,13 @@ ${pathLine}
 - 异常日志：${errCount} 条 Console 报错 | ${reqCount} 个失败网络请求${cascadeHint}${squeezeWarning}
 
 请按双轨意图分析框架展开排查（解压 ZIP 至临时目录）：
-1. 意图分轨识别 (Intent Identification)：
-   优先分析 \`screenshot.png\` 标注文本、绘制箭头与 \`dom-context.json\` 的 \`intentFlags\`：
-   - 缺陷修复轨 (Bug Fix Track)：存在报错日志、网络请求失败、或者标注表达“功能失效/显示异常/接口报错”。
+1. 截图与意图分轨识别 (Visual & Intent Identification)：
+   - ⚠️ 请务必优先打开并查看 \`screenshot.png\` 视觉图片！结合图片上绘制的视觉标注（红框、箭头、高亮区、文本）与 \`dom-context.json\` 的 \`intentFlags\` 进行综合判断。
+   - 缺陷修复轨 (Bug Fix Track)：视觉图片上有异常样式/显示错位，或者存在报错日志/接口失败，或者标注表达“功能失效/显示异常/接口报错”。
    - 需求开发轨 (Feature Development Track)：标注表达“新增按钮/优化布局/添加交互/样式微调”等新需求描述。
 
 2. 现场定位与偏离分析：
+   - 仔细核对 \`screenshot.png\` 中的实际视觉呈现与 DOM 结构 (\`dom-context.json\`)。
    - 读取 \`dom-context.json\`：结合 \`tree\` 根节点与 \`anchors\` 选区嵌套结构/组件继承链（如 \`["<App>", "<WidgetConfig>", "<ElFormItem>"]\`），精确定位涉及的源码组件文件。
    - 对比用户标注的“预期”与代码现场“实际”，推断偏离（Deviation）发生的根本节点。
 
@@ -488,7 +489,7 @@ ${pathLine}
 
 [输出格式]
 1. 意图识别（缺陷修复 vs 需求开发）与受影响组件
-2. 异常与偏离证据分析（截图 + DOM + 报错日志）
+2. 异常与偏离证据分析（截图图片 + DOM + 报错日志）
 3. 根本原因定位 (Root Cause) 或 需求改进分析
 4. 建议修复/开发方案与具体代码位置`;
 }

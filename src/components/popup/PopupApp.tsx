@@ -17,7 +17,6 @@ import { useSessionState } from "../../hooks/useSessionState.ts";
 import { RecordPanel } from "./RecordPanel.tsx";
 import { OptionsGrid, type VideoQuality } from "./OptionsGrid.tsx";
 import { HistoryList } from "./HistoryList.tsx";
-import { PopupGuide } from "./PopupGuide.tsx";
 
 const HISTORY_SEARCH_DEBOUNCE_MS = 300;
 
@@ -62,33 +61,17 @@ export function PopupApp() {
     undefined
   );
 
-  // First-use guide state: 首次使用引导在 Popup 打开时展示
-  const [showGuide, setShowGuide] = useState<boolean>(false);
-
-  const finishGuide = useCallback(() => {
-    setShowGuide(false);
-    void chrome.storage.local
-      .set({ hasCompletedGuide: true })
-      .catch(() => undefined);
-  }, []);
-
   useEffect(() => {
     applyI18n();
     refreshRecord();
     void (async () => {
       try {
+        // 首次引导已迁移至 GitHub Pages 网页（安装后自动打开），扩展内不再内嵌引导
         const stored = (await chrome.storage.local.get([
-          "hasCompletedGuide",
-          "skipOnboardingGuide",
           "last-recording-options",
         ])) as {
-          hasCompletedGuide?: boolean;
-          skipOnboardingGuide?: boolean;
           "last-recording-options"?: Partial<RecordingOptions>;
         };
-        if (!stored?.hasCompletedGuide && !stored?.skipOnboardingGuide) {
-          setShowGuide(true);
-        }
         // 回填上次录制选项，保证 Popup 与全局快捷键使用一致的配置
         const last = stored?.["last-recording-options"];
         if (last) {
@@ -640,12 +623,6 @@ export function PopupApp() {
           </button>
         </div>
       )}
-
-      {/* 首次使用引导：仅在录制视图展示，完成或跳过写入 hasCompletedGuide */}
-      <PopupGuide
-        visible={showGuide && currentView === "record"}
-        onDone={finishGuide}
-      />
 
       {/* 自定义内联 Confirm 模态框 */}
       {confirmModal && (

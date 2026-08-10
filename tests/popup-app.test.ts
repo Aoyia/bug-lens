@@ -9,7 +9,6 @@ test("PopupApp component tree retains essential CSS layout classes to prevent UI
     "RecordPanel.tsx",
     "OptionsGrid.tsx",
     "HistoryList.tsx",
-    "PopupGuide.tsx",
   ]
     .map((file) =>
       readFileSync(
@@ -57,7 +56,6 @@ test("PopupApp component tree i18n keys are 100% covered in locale bundles", () 
     "RecordPanel.tsx",
     "OptionsGrid.tsx",
     "HistoryList.tsx",
-    "PopupGuide.tsx",
   ]
     .map((file) =>
       readFileSync(
@@ -97,46 +95,44 @@ test("PopupApp component tree i18n keys are 100% covered in locale bundles", () 
   }
 });
 
-test("首次使用引导移至 Popup 打开时展示（B1）", () => {
+test("首次引导已迁移至 GitHub Pages 网页，扩展内不再内嵌引导（B1 演进）", () => {
   const popupApp = readFileSync(
     resolve(process.cwd(), "src/components/popup/PopupApp.tsx"),
     "utf8"
   );
-  const guide = readFileSync(
-    resolve(process.cwd(), "src/components/popup/PopupGuide.tsx"),
+  const background = readFileSync(
+    resolve(process.cwd(), "src/entrypoints/background/index.ts"),
     "utf8"
   );
-  const widget = readFileSync(
-    resolve(
-      process.cwd(),
-      "src/entrypoints/content/collector/recording-widget.ts"
-    ),
+  const guidePage = readFileSync(
+    resolve(process.cwd(), "site/index.html"),
     "utf8"
   );
 
-  // 引导在 Popup 挂载时检查存储标记并展示
+  // 扩展内不再保留 Popup 内嵌引导（以网页引导为主）
   assert.ok(
-    popupApp.includes("hasCompletedGuide"),
-    "PopupApp 应在挂载时读取 hasCompletedGuide 标记"
+    !popupApp.includes("hasCompletedGuide"),
+    "PopupApp 不应再包含扩展内引导的完成标记逻辑"
   );
   assert.ok(
-    popupApp.includes("skipOnboardingGuide"),
-    "PopupApp 应支持 skipOnboardingGuide 跳过标记"
-  );
-  assert.ok(
-    popupApp.includes("hasCompletedGuide: true"),
-    "引导完成或跳过时应写入 hasCompletedGuide"
+    !popupApp.includes("PopupGuide"),
+    "PopupApp 不应再引用 PopupGuide 组件"
   );
 
-  // 引导组件渲染在 Popup 内（data-testid 供测试/E2E 定位）
+  // background 在首次安装时打开 GitHub Pages 引导页（自动化测试可跳过）
   assert.ok(
-    guide.includes('data-testid="popup-guide"'),
-    "PopupGuide 应提供 data-testid='popup-guide'"
+    background.includes("onInstalled"),
+    "background 应监听 onInstalled 以在安装后打开引导页"
+  );
+  assert.ok(
+    background.includes("aoyia.github.io/bug-lens"),
+    "background 应指向 GitHub Pages 引导页地址"
+  );
+  assert.ok(
+    background.includes("skipOnboardingGuide"),
+    "background 应支持 skipOnboardingGuide 跳过标记（自动化测试）"
   );
 
-  // 录制浮层不再触发网页内引导（避免打断录制并污染取证画面）
-  assert.ok(
-    !widget.includes("tryShowOnboardingGuide"),
-    "recording-widget 不应再调用网页内引导"
-  );
+  // GitHub Pages 引导页存在且包含核心内容
+  assert.ok(guidePage.includes("Bug Lens"), "docs/index.html 应包含产品名");
 });

@@ -1,0 +1,24 @@
+{
+  "url": "https://todomvc.com/examples/vue/dist/",
+  "title": "Vue.js • TodoMVC",
+  "projectInfo": {
+    "name": "tastejs/todomvc",
+    "stars": "31k★",
+    "framework": "Vue 3 / Options API"
+  },
+  "viewport": { "width": 2560, "height": 1323 },
+  "recentConsoleErrors": [
+    {
+      "message": "TypeError: Cannot read properties of undefined (reading 'completed')",
+      "source": "TodoItem.vue",
+      "line": 42
+    }
+  ],
+  "recentFailedRequests": [
+    {
+      "url": "https://todomvc.example.com/api/v1/todos/101/toggle",
+      "status": 500,
+      "method": "POST"
+    }
+  ]
+}

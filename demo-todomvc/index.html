@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TodoMVC — Vue3 Benchmark Demo (Bug Lens Showcase)</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/todomvc-app-css@2.4.2/index.css"
+    />
+    <style>
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      }
+      .bug-banner {
+        background: #fee2e2;
+        border: 1px solid #f87171;
+        color: #991b1b;
+        padding: 12px 16px;
+        text-align: center;
+        font-size: 14px;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bug-banner">
+      ⚠️ Demo Page: Click any todo item check/delete button to trigger a real
+      [TypeError: Cannot read properties of undefined (reading 'lastUpdated')]
+      for Bug Lens recording!
+    </div>
+
+    <section class="todoapp" id="app">
+      <header class="header">
+        <h1>todos</h1>
+        <input
+          class="new-todo"
+          placeholder="What needs to be done?"
+          autofocus
+          id="newTodoInput"
+        />
+      </header>
+      <section class="main">
+        <input id="toggle-all" class="toggle-all" type="checkbox" />
+        <label for="toggle-all">Mark all as complete</label>
+        <ul class="todo-list" id="todoList">
+          <!-- Dyn items -->
+        </ul>
+      </section>
+      <footer class="footer">
+        <span class="todo-count"><strong id="count">3</strong> items left</span>
+        <ul class="filters">
+          <li><a class="selected" href="#/">All</a></li>
+          <li><a href="#/active">Active</a></li>
+          <li><a href="#/completed">Completed</a></li>
+        </ul>
+      </footer>
+    </section>
+
+    <footer class="info">
+      <p>Double-click to edit a todo</p>
+      <p>
+        Created for
+        <a href="https://github.com/Aoyia/bug-lens">Bug Lens</a> Benchmark
+      </p>
+      <p>Part of <a href="http://todomvc.com">TodoMVC</a></p>
+    </footer>
+
+    <script>
+      const todos = [
+        { id: 1, title: "Install Bug Lens Chrome Extension", completed: true },
+        { id: 2, title: "Click Record on TodoMVC Page", completed: false },
+        {
+          id: 3,
+          title: "Toggle this todo item to trigger Uncaught TypeError",
+          completed: false,
+        },
+      ];
+
+      function render() {
+        const list = document.getElementById("todoList");
+        list.innerHTML = "";
+        let remaining = 0;
+
+        todos.forEach((todo) => {
+          if (!todo.completed) remaining++;
+          const li = document.createElement("li");
+          if (todo.completed) li.classList.add("completed");
+
+          li.innerHTML = `
+          <div class="view">
+            <input class="toggle" type="checkbox" ${todo.completed ? "checked" : ""} data-id="${todo.id}">
+            <label>${todo.title}</label>
+            <button class="destroy" data-id="${todo.id}"></button>
+          </div>
+        `;
+          list.appendChild(li);
+        });
+
+        document.getElementById("count").textContent = remaining;
+
+        // Attach event listeners
+        document.querySelectorAll(".toggle").forEach((btn) => {
+          btn.addEventListener("change", (e) => {
+            const id = Number(e.target.getAttribute("data-id"));
+            const item = todos.find((t) => t.id === id);
+
+            // 💥 故意植入的前端真机 Bug: 读取未初始化的 metadata 导致运行时崩塌抛错！
+            console.log(
+              "Processing todo status update:",
+              item.metadata.lastUpdated.toISOString()
+            );
+
+            if (item) {
+              item.completed = e.target.checked;
+              render();
+            }
+          });
+        });
+
+        document.querySelectorAll(".destroy").forEach((btn) => {
+          btn.addEventListener("click", (e) => {
+            const id = Number(e.target.getAttribute("data-id"));
+            const item = todos.find((t) => t.id === id);
+
+            // 💥 故意植入的 500 Mock XHR/Fetch 请求报错
+            fetch("/api/v1/todos/" + id, { method: "DELETE" }).catch((err) => {
+              console.error("Failed to sync delete to backend server:", err);
+            });
+
+            // 触发同样的前端错误
+            console.log(item.metadata.deletedAt.toString());
+          });
+        });
+      }
+
+      document
+        .getElementById("newTodoInput")
+        .addEventListener("keydown", (e) => {
+          if (e.key === "Enter" && e.target.value.trim()) {
+            todos.push({
+              id: Date.now(),
+              title: e.target.value.trim(),
+              completed: false,
+            });
+            e.target.value = "";
+            render();
+          }
+        });
+
+      render();
+    </script>
+  </body>
+</html>

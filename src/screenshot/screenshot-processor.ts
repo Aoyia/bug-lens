@@ -56,6 +56,8 @@ export function drawAnnotationsOnCanvas(
   annotations: AnnotationItem[],
   dpr: number
 ): void {
+  ctx.save();
+
   for (const ann of annotations) {
     ctx.save();
     const strokeColor = ann.color || "#FA5252";
@@ -74,7 +76,8 @@ export function drawAnnotationsOnCanvas(
       const rInner = Math.max(0, rOuter - lw);
 
       ctx.save();
-      ctx.imageSmoothingEnabled = false;
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
       ctx.fillStyle = ann.color || "#FA5252";
 
       ctx.beginPath();
@@ -247,6 +250,8 @@ export function drawAnnotationsOnCanvas(
     }
     ctx.restore();
   }
+
+  ctx.restore();
 }
 
 /**
@@ -323,6 +328,10 @@ export async function processScreenshot(
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Failed to get 2d context");
 
+  // 设置高质量图像插值平滑
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+
   // 映射裁剪坐标
   ctx.drawImage(
     img,
@@ -377,14 +386,12 @@ export async function processScreenshot(
 
   drawAnnotationsOnCanvas(ctx, relativeAnnotations as AnnotationItem[], dpr);
 
-  // 智能编码压缩策略：大尺寸图像/高 DPR 优先选择 WebP 格式 (0.92 质量)，降低 40%~60% 体积
-  const totalPixels = canvas.width * canvas.height;
-  const useWebP = totalPixels >= 1000 * 1000;
-  const imageType = useWebP ? "image/webp" : "image/png";
-  const imageQuality = useWebP ? 0.92 : undefined;
+  // 统一编码为 PNG 格式
+  const imageType = "image/png";
+  const imageQuality = undefined;
 
-  const croppedBase64 = canvas.toDataURL(imageType, imageQuality);
-  const imageBlob = await canvasToBlob(canvas, imageType, imageQuality);
+  const croppedBase64 = canvas.toDataURL(imageType);
+  const imageBlob = await canvasToBlob(canvas, imageType);
 
   // 3. 收集空间 DOM 结构树（经主世界探针读取 Vue/React 组件链）
   const spatialDom = await collectSpatialDomTree({
