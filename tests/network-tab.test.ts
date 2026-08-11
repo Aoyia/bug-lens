@@ -156,3 +156,49 @@ test("NetworkTab 复制代码片段反馈必须走 i18n（禁止硬编码中文�
     "zh snippetCopiedNotify 应包含 $LABEL$ 占位符"
   );
 });
+
+test("NetworkTab 目标格式选择器标签必须走 i18n（禁止硬编码中文）", () => {
+  const networkTabCode = readFileSync(
+    resolve(process.cwd(), "src/components/preview/NetworkTab.tsx"),
+    "utf8"
+  );
+  const zhDict = JSON.parse(
+    readFileSync(
+      resolve(process.cwd(), "src/_locales/zh_CN/messages.json"),
+      "utf8"
+    )
+  );
+  const enDict = JSON.parse(
+    readFileSync(
+      resolve(process.cwd(), "src/_locales/en/messages.json"),
+      "utf8"
+    )
+  );
+
+  // 标签不得残留硬编码中文字面量，必须走 t()
+  assert.ok(
+    !networkTabCode.includes("目标格式"),
+    "NetworkTab 不得硬编码 '目标格式'，应通过 i18n 提供"
+  );
+  assert.ok(
+    networkTabCode.includes('t("snippetTargetLabel"'),
+    "目标格式标签应使用 snippetTargetLabel key"
+  );
+
+  // key 必须在双语言 bundle 中齐全，且 en 文案不得混入中文
+  assert.ok(
+    "snippetTargetLabel" in zhDict,
+    "i18n key 'snippetTargetLabel' missing in zh_CN/messages.json"
+  );
+  assert.ok(
+    "snippetTargetLabel" in enDict,
+    "i18n key 'snippetTargetLabel' missing in en/messages.json"
+  );
+  assert.ok(
+    !/[\u4e00-\u9fff]/.test(enDict.snippetTargetLabel.message),
+    "en bundle 的 'snippetTargetLabel' 不得包含中文字符"
+  );
+
+  // zh 文案与原先硬编码字符串逐字一致，保证中文界面零视觉变化
+  assert.equal(zhDict.snippetTargetLabel.message, "目标格式:");
+});

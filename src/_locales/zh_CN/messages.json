@@ -596,6 +596,9 @@
   "curlCopiedNotify": {
     "message": "已复制 cURL 命令到剪贴板"
   },
+  "snippetTargetLabel": {
+    "message": "目标格式:"
+  },
   "copyFailed": {
     "message": "复制失败：$ERROR$",
     "placeholders": {

@@ -596,6 +596,9 @@
   "curlCopiedNotify": {
     "message": "cURL command copied to clipboard"
   },
+  "snippetTargetLabel": {
+    "message": "Target format:"
+  },
   "copyFailed": {
     "message": "Copy failed: $ERROR$",
     "placeholders": {

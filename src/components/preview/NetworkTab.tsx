@@ -341,7 +341,7 @@ export const NetworkTab = memo(function NetworkTab({
                   gap: "4px",
                 }}
               >
-                <span>目标格式:</span>
+                <span>{t("snippetTargetLabel")}</span>
                 <select
                   className="snippet-target-select"
                   value={snippetTarget}
