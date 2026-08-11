@@ -1247,5 +1247,32 @@
       "current": { "content": "$1" },
       "total": { "content": "$2" }
     }
+  },
+  "sessionStatusIdle": {
+    "message": "Idle"
+  },
+  "sessionStatusPreparing": {
+    "message": "Preparing"
+  },
+  "sessionStatusRecording": {
+    "message": "Recording"
+  },
+  "sessionStatusDegraded": {
+    "message": "Recording (degraded)"
+  },
+  "sessionStatusStopping": {
+    "message": "Stopping"
+  },
+  "sessionStatusPreviewReady": {
+    "message": "Ready"
+  },
+  "sessionStatusExporting": {
+    "message": "Exporting"
+  },
+  "sessionStatusExported": {
+    "message": "Exported"
+  },
+  "sessionStatusFailed": {
+    "message": "Failed"
   }
 }

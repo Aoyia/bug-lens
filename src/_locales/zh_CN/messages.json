@@ -1247,5 +1247,32 @@
       "current": { "content": "$1" },
       "total": { "content": "$2" }
     }
+  },
+  "sessionStatusIdle": {
+    "message": "空闲"
+  },
+  "sessionStatusPreparing": {
+    "message": "准备中"
+  },
+  "sessionStatusRecording": {
+    "message": "录制中"
+  },
+  "sessionStatusDegraded": {
+    "message": "录制中（降级）"
+  },
+  "sessionStatusStopping": {
+    "message": "正在结束"
+  },
+  "sessionStatusPreviewReady": {
+    "message": "已完成"
+  },
+  "sessionStatusExporting": {
+    "message": "导出中"
+  },
+  "sessionStatusExported": {
+    "message": "已导出"
+  },
+  "sessionStatusFailed": {
+    "message": "失败"
   }
 }

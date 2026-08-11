@@ -1,10 +1,29 @@
 import { memo } from "preact/compat";
 import {
   type EvidenceSummary,
+  type SessionStatus,
   type SessionOverview,
   type StorageOverview,
 } from "../../shared/protocol";
 import { t } from "../../shared/i18n";
+
+/** 会话状态 → i18n key：历史卡片状态标签必须走双语文案，不能把内部枚举直接展示给用户 */
+const SESSION_STATUS_KEYS: Record<SessionStatus, string> = {
+  IDLE: "sessionStatusIdle",
+  PREPARING: "sessionStatusPreparing",
+  RECORDING: "sessionStatusRecording",
+  DEGRADED: "sessionStatusDegraded",
+  STOPPING: "sessionStatusStopping",
+  PREVIEW_READY: "sessionStatusPreviewReady",
+  EXPORTING: "sessionStatusExporting",
+  EXPORTED: "sessionStatusExported",
+  FAILED: "sessionStatusFailed",
+};
+
+function sessionStatusLabel(status: SessionStatus): string {
+  const key = SESSION_STATUS_KEYS[status];
+  return key ? t(key) : status;
+}
 
 interface HistoryListProps {
   searchQuery: string;
@@ -164,8 +183,10 @@ export const HistoryList = memo(function HistoryList({
                   </div>
                 </div>
                 <div className="session-meta">
-                  <span className="session-status-tag">{session.status}</span> ·{" "}
-                  {date} · {formatBytes(item.sizeBytes)} ·{" "}
+                  <span className="session-status-tag">
+                    {sessionStatusLabel(session.status)}
+                  </span>{" "}
+                  · {date} · {formatBytes(item.sizeBytes)} ·{" "}
                   {session.target.initialUrl}
                 </div>
                 <div className="evidence">

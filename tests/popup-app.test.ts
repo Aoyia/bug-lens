@@ -266,3 +266,70 @@ test("历史视图加载期间不得渲染空状态（加载门控）", () => {
   );
   assert.match(historyList, /loading-state/, "加载中应渲染 loading-state 占位");
 });
+
+test("历史视图会话状态标签必须本地化，不能直接渲染内部枚举", () => {
+  const historyList = readFileSync(
+    resolve(process.cwd(), "src/components/popup/HistoryList.tsx"),
+    "utf8"
+  );
+  const zhDict = JSON.parse(
+    readFileSync(
+      resolve(process.cwd(), "src/_locales/zh_CN/messages.json"),
+      "utf8"
+    )
+  );
+  const enDict = JSON.parse(
+    readFileSync(
+      resolve(process.cwd(), "src/_locales/en/messages.json"),
+      "utf8"
+    )
+  );
+
+  // 状态标签必须经由本地化标签函数渲染，而非把 session.status 内部枚举
+  // （PREVIEW_READY / EXPORTED / FAILED 等）直接展示给用户
+  assert.ok(
+    historyList.includes("sessionStatusLabel(session.status)"),
+    "Status tag must render through the localized label function"
+  );
+  assert.ok(
+    !historyList.includes(">{session.status}<"),
+    "Status tag must not render the raw SessionStatus enum"
+  );
+
+  // 映射必须覆盖协议定义的全部会话状态，防止新增状态时漏配本地化文案
+  const protocolStatuses = [
+    "IDLE",
+    "PREPARING",
+    "RECORDING",
+    "DEGRADED",
+    "STOPPING",
+    "PREVIEW_READY",
+    "EXPORTING",
+    "EXPORTED",
+    "FAILED",
+  ];
+  const sessionStatusKeys = [
+    "sessionStatusIdle",
+    "sessionStatusPreparing",
+    "sessionStatusRecording",
+    "sessionStatusDegraded",
+    "sessionStatusStopping",
+    "sessionStatusPreviewReady",
+    "sessionStatusExporting",
+    "sessionStatusExported",
+    "sessionStatusFailed",
+  ];
+
+  for (const status of protocolStatuses) {
+    assert.ok(
+      historyList.includes(`${status}:`),
+      `Session status mapping must cover ${status}`
+    );
+  }
+
+  // 每个状态 key 必须同时存在于中英双语 locale 包
+  for (const key of sessionStatusKeys) {
+    assert.ok(key in zhDict, `zh_CN/messages.json must define '${key}'`);
+    assert.ok(key in enDict, `en/messages.json must define '${key}'`);
+  }
+});
