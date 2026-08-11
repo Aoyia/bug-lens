@@ -226,13 +226,13 @@ export function createOverlayMarkup(): string {
               <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
             </svg>
           </button>
-          <button data-action="undo" class="undo-btn" title="撤销 (Ctrl+Z / Cmd+Z)">
+          <button data-action="undo" class="undo-btn" title="${t("shotUndo")}">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M3 7v6h6"></path>
               <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"></path>
             </svg>
           </button>
-          <button data-action="clear" class="clear-btn" title="一键清空标注 (Clear All)">
+          <button data-action="clear" class="clear-btn" title="${t("shotClear")}">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="3 6 5 6 21 6"></polyline>
               <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>

@@ -1094,6 +1094,12 @@
   "shotStyleAdjust": {
     "message": "Toggle Style Adjustment Mode (extract CSS Cascade Snapshot)"
   },
+  "shotUndo": {
+    "message": "Undo (Ctrl+Z / Cmd+Z)"
+  },
+  "shotClear": {
+    "message": "Clear all annotations"
+  },
   "screenshotToastWithPath": {
     "message": "ZIP downloaded and AI prompt copied (with absolute path)!"
   },
