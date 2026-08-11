@@ -86,6 +86,14 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
 
     const timerDisplay = {
       textContent: "00:00",
+      _innerHTML: "",
+      get innerHTML() {
+        return this._innerHTML;
+      },
+      set innerHTML(val: string) {
+        this._innerHTML = val;
+        this.textContent = val.replace(/<[^>]*>/g, "");
+      },
     };
 
     const classSet = new Set<string>();
@@ -394,6 +402,36 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
       `${maxRight}px`,
       "Restored right should be clamped to the visible viewport"
     );
+  });
+
+  test("setSavingState(false) restores interactive state after a failed stop", () => {
+    const startMs = Date.now() - 10_000; // 已录制 10 秒
+    widget = new RecordingWidget({
+      ...callbacks,
+      getStartedAtEpochMs: () => startMs,
+    });
+    widget.mount();
+
+    const timerDisplay = mockRootElement.querySelector(
+      "#__wbr_timer_display__"
+    );
+    assert.equal(timerDisplay.textContent, "00:10");
+
+    // 进入保存中：隐藏交互（saving class）、冻结计时并显示 spinner 文案
+    widget.setSavingState(true);
+    assert.equal(mockRootElement.classList.contains("__wbr_saving__"), true);
+    assert.match(timerDisplay.innerHTML, /__wbr_spinner/);
+    assert.notEqual(timerDisplay.textContent, "00:10");
+
+    // 停止失败后恢复：saving 样式移除、计时显示回到 mm:ss、计时器重新运行
+    widget.setSavingState(false);
+    assert.equal(mockRootElement.classList.contains("__wbr_saving__"), false);
+    assert.equal(timerDisplay.textContent, "00:10");
+
+    // 计时器已重启：再次触发 interval 仍正常刷新显示（不再残留 spinner）
+    (globalThis.window as any).triggerInterval();
+    assert.equal(timerDisplay.textContent, "00:10");
+    assert.match(timerDisplay.textContent, /^\d{2}:\d{2}$/);
   });
 
   test("deducts paused duration correctly in timer display when idle paused", () => {

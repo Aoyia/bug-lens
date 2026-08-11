@@ -135,6 +135,8 @@ if (existingController) {
         );
         const exportFailure = getSilentExportFailure(res, t("stopFailed"));
         if (exportFailure) {
+          // 停止失败：会话仍存活，恢复挂件交互以便用户重试
+          widget.setSavingState(false);
           widget.showToast(t("exportFailed", exportFailure), 5_500, "error");
           return;
         }
@@ -148,6 +150,8 @@ if (existingController) {
         }
         widget.showToast(t("exportSuccessCopied"));
       } catch (error) {
+        // 通道异常：会话大概率仍存活，恢复挂件交互以便用户重试
+        widget.setSavingState(false);
         widget.showToast(t("exportFailed", String(error)), 5_500, "error");
       }
     },

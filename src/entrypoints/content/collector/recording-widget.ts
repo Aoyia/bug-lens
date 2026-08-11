@@ -482,31 +482,11 @@ export class RecordingWidget {
         // 启动初始折叠倒计时
         this.resetCollapseTimer();
 
-        const updateTimer = () => {
-          if (this._isSaving) return;
-          const display = root.querySelector("#__wbr_timer_display__");
-          const isPaused =
-            this.callbacks.isPaused?.() || this.callbacks.isIdlePaused();
-
-          this.updatePauseState(isPaused);
-
-          if (display) {
-            const startTime = this.callbacks.getStartedAtEpochMs();
-            const pausedDurationMs =
-              this.callbacks.getPausedDurationMs?.() ?? 0;
-            const sec = Math.max(
-              0,
-              Math.floor((Date.now() - startTime - pausedDurationMs) / 1000)
-            );
-            const m = String(Math.floor(sec / 60)).padStart(2, "0");
-            const s = String(sec % 60).padStart(2, "0");
-            display.textContent = this.callbacks.isIdlePaused()
-              ? `${m}:${s} (${t("idlePaused")})`
-              : `${m}:${s}`;
-          }
-        };
-        updateTimer();
-        this.timerInterval = window.setInterval(updateTimer, 1000);
+        this.refreshTimerDisplay();
+        this.timerInterval = window.setInterval(
+          () => this.refreshTimerDisplay(),
+          1000
+        );
       } else {
         window.addEventListener("DOMContentLoaded", attach, { once: true });
       }
@@ -583,6 +563,38 @@ export class RecordingWidget {
       }
     } else {
       this.container.classList.remove("__wbr_saving__");
+      this.refreshTimerDisplay();
+      if (!this.timerInterval) {
+        this.timerInterval = window.setInterval(
+          () => this.refreshTimerDisplay(),
+          1000
+        );
+      }
+    }
+  }
+
+  /**
+   * 刷新录制计时显示（mm:ss）。供 1s 计时器与 setSavingState(false) 恢复共用；
+   * 保存期间（_isSaving）不更新，避免覆盖 spinner 文案。
+   */
+  private refreshTimerDisplay(): void {
+    if (this._isSaving) return;
+    const display = this.container?.querySelector("#__wbr_timer_display__");
+    const isPaused =
+      this.callbacks.isPaused?.() || this.callbacks.isIdlePaused();
+    this.updatePauseState(isPaused);
+    if (display) {
+      const startTime = this.callbacks.getStartedAtEpochMs();
+      const pausedDurationMs = this.callbacks.getPausedDurationMs?.() ?? 0;
+      const sec = Math.max(
+        0,
+        Math.floor((Date.now() - startTime - pausedDurationMs) / 1000)
+      );
+      const m = String(Math.floor(sec / 60)).padStart(2, "0");
+      const s = String(sec % 60).padStart(2, "0");
+      display.textContent = this.callbacks.isIdlePaused()
+        ? `${m}:${s} (${t("idlePaused")})`
+        : `${m}:${s}`;
     }
   }
 
