@@ -197,8 +197,8 @@ export const NetworkTab = memo(function NetworkTab({
           const label = copyButton.querySelector<HTMLElement>(
             ".btn-copy-curl-text"
           );
-          if (label) label.textContent = `${labelName} 已复制`;
-          onNotify?.(`${labelName} 代码片段已成功复制到剪贴板`);
+          if (label) label.textContent = t("snippetCopied", labelName);
+          onNotify?.(t("snippetCopiedNotify", labelName));
           window.setTimeout(() => {
             copyButton.classList.remove("copied");
             if (label) label.textContent = t("copyCurl");

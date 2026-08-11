@@ -120,6 +120,22 @@
       }
     }
   },
+  "snippetCopied": {
+    "message": "Copied $LABEL$",
+    "placeholders": {
+      "label": {
+        "content": "$1"
+      }
+    }
+  },
+  "snippetCopiedNotify": {
+    "message": "$LABEL$ snippet copied to clipboard",
+    "placeholders": {
+      "label": {
+        "content": "$1"
+      }
+    }
+  },
   "previewTitle": {
     "message": "Bug Lens Workspace"
   },

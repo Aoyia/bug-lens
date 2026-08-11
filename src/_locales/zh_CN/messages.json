@@ -120,6 +120,22 @@
       }
     }
   },
+  "snippetCopied": {
+    "message": "已复制 $LABEL$",
+    "placeholders": {
+      "label": {
+        "content": "$1"
+      }
+    }
+  },
+  "snippetCopiedNotify": {
+    "message": "已复制 $LABEL$ 代码片段到剪贴板",
+    "placeholders": {
+      "label": {
+        "content": "$1"
+      }
+    }
+  },
   "previewTitle": {
     "message": "Bug Lens 预览分析"
   },

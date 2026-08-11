@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   filterNetworkEntries,
   selectActiveNetworkId,
@@ -90,4 +92,67 @@ test("NetworkTab - 5项搜索、大小写忽略、自动重选与空状态测试
   const postUsers = filterNetworkEntries(mockNetworkEntries, "users", "POST");
   assert.equal(postUsers.length, 1);
   assert.equal(postUsers[0].id, "n2");
+});
+
+test("NetworkTab 复制代码片段反馈必须走 i18n（禁止硬编码中文）", () => {
+  const networkTabCode = readFileSync(
+    resolve(process.cwd(), "src/components/preview/NetworkTab.tsx"),
+    "utf8"
+  );
+  const zhDict = JSON.parse(
+    readFileSync(
+      resolve(process.cwd(), "src/_locales/zh_CN/messages.json"),
+      "utf8"
+    )
+  );
+  const enDict = JSON.parse(
+    readFileSync(
+      resolve(process.cwd(), "src/_locales/en/messages.json"),
+      "utf8"
+    )
+  );
+
+  // 复制反馈（按钮文案 + toast）必须走 t()，不得残留硬编码中文字面量
+  for (const hardcoded of ["已复制", "代码片段已成功复制到剪贴板"]) {
+    assert.ok(
+      !networkTabCode.includes(hardcoded),
+      `NetworkTab 不得硬编码 '${hardcoded}'，应通过 i18n 提供`
+    );
+  }
+
+  // 反馈文案必须使用带 $LABEL$ 占位符的通用 key（snippet 目标不止 cURL）
+  assert.ok(
+    networkTabCode.includes('t("snippetCopied"'),
+    "按钮反馈应使用 snippetCopied key"
+  );
+  assert.ok(
+    networkTabCode.includes('t("snippetCopiedNotify"'),
+    "toast 反馈应使用 snippetCopiedNotify key"
+  );
+
+  // 新 key 必须在双语言 bundle 中齐全，且 en 文案不得混入中文
+  for (const key of ["snippetCopied", "snippetCopiedNotify"]) {
+    assert.ok(
+      key in zhDict,
+      `i18n key '${key}' used in NetworkTab.tsx is missing in zh_CN/messages.json`
+    );
+    assert.ok(
+      key in enDict,
+      `i18n key '${key}' used in NetworkTab.tsx is missing in en/messages.json`
+    );
+    assert.ok(
+      !/[\u4e00-\u9fff]/.test(enDict[key].message),
+      `en bundle 的 '${key}' 不得包含中文字符`
+    );
+  }
+
+  // 中文 toast 文案应保留 "已复制 $LABEL$ 代码片段" 语义（而非退化为 cURL 专用）
+  assert.ok(
+    zhDict.snippetCopied.message.includes("$LABEL$"),
+    "zh snippetCopied 应包含 $LABEL$ 占位符"
+  );
+  assert.ok(
+    zhDict.snippetCopiedNotify.message.includes("$LABEL$"),
+    "zh snippetCopiedNotify 应包含 $LABEL$ 占位符"
+  );
 });
