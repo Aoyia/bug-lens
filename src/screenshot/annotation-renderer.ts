@@ -219,6 +219,35 @@ export function renderAnnotations(
   }
 }
 
+/**
+ * 计算选中批注的删除按钮位置（与绘制逻辑完全一致，供命中检测复用）。
+ * rect/privacy 位于右上角外侧，arrow 位于最右最上外侧，text 位于右上外侧。
+ */
+export function getDeleteButtonPosition(
+  ann: AnnotationItem
+): { x: number; y: number } | null {
+  if (ann.type === "rect" || ann.type === "privacy") {
+    const { x, y, width } = ann.bounds;
+    return { x: x + width + 8, y: y - 8 };
+  }
+  if (ann.type === "arrow") {
+    const maxX = Math.max(ann.startPoint.x, ann.endPoint.x);
+    const minY = Math.min(ann.startPoint.y, ann.endPoint.y);
+    return { x: maxX + 8, y: minY - 8 };
+  }
+  if (ann.type === "text") {
+    const px = ann.position.x;
+    const py = ann.position.y;
+    let maxW = 80;
+    for (const line of ann.text.split("\n")) {
+      if (line.length * 12 > maxW) maxW = line.length * 12;
+    }
+    const bgW = Math.min(320, maxW + 20);
+    return { x: px + bgW + 8, y: py - 8 };
+  }
+  return null;
+}
+
 /** 绘制选中批注的调整手柄与删除按钮（无状态，仅依赖 ctx 与批注数据） */
 export function renderSelectionHandles(
   ctx: CanvasRenderingContext2D,
@@ -237,8 +266,6 @@ export function renderSelectionHandles(
     ctx.stroke();
   };
 
-  let deleteBtnPos: { x: number; y: number } | null = null;
-
   if (ann.type === "rect" || ann.type === "privacy") {
     const { x, y, width, height } = ann.bounds;
     ctx.setLineDash([3, 3]);
@@ -251,16 +278,10 @@ export function renderSelectionHandles(
     drawPoint(x + width, y);
     drawPoint(x + width, y + height);
     drawPoint(x, y + height);
-
-    deleteBtnPos = { x: x + width + 8, y: y - 8 };
   } else if (ann.type === "arrow") {
     ctx.strokeStyle = "#007aff";
     drawPoint(ann.startPoint.x, ann.startPoint.y);
     drawPoint(ann.endPoint.x, ann.endPoint.y);
-
-    const maxX = Math.max(ann.startPoint.x, ann.endPoint.x);
-    const minY = Math.min(ann.startPoint.y, ann.endPoint.y);
-    deleteBtnPos = { x: maxX + 8, y: minY - 8 };
   } else if (ann.type === "text") {
     const px = ann.position.x;
     const py = ann.position.y;
@@ -275,11 +296,10 @@ export function renderSelectionHandles(
     ctx.strokeStyle = "rgba(0, 122, 255, 0.85)";
     ctx.strokeRect(px - 2, py - 2, bgW + 4, lines.length * 20 + 16);
     ctx.setLineDash([]);
-
-    deleteBtnPos = { x: px + bgW + 8, y: py - 8 };
   }
 
   // 绘制删除浮动图标按钮 (圆形红底 + 白色 ×)
+  const deleteBtnPos = getDeleteButtonPosition(ann);
   if (deleteBtnPos) {
     const btnR = 9;
     ctx.save();
@@ -310,6 +330,15 @@ export function hitTestAnnotationHandle(
   x: number,
   y: number
 ): { ann: AnnotationItem; handle: string } | null {
+  // 删除按钮优先（绘制在批注外侧，半径 9 + 容差，命中区域略大于视觉尺寸便于点击）
+  const deletePos = getDeleteButtonPosition(ann);
+  if (deletePos) {
+    const deleteRadius = 12;
+    if (Math.hypot(x - deletePos.x, y - deletePos.y) <= deleteRadius) {
+      return { ann, handle: "delete" };
+    }
+  }
+
   const radius = 8;
 
   if (ann.type === "rect" || ann.type === "privacy") {

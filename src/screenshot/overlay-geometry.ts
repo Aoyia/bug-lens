@@ -101,3 +101,23 @@ export function computeDraggedPosition(
     y: Math.max(0, Math.min(targetY, maxTop)),
   };
 }
+
+/** 判断点是否落在矩形的边缘带内（仅边框 ±tolerance 环形区域，内部空心穿透） */
+export function pointInRectEdgeBand(
+  x: number,
+  y: number,
+  bounds: RectBounds,
+  tolerance = 6
+): boolean {
+  const outerHit =
+    x >= bounds.x - tolerance &&
+    x <= bounds.x + bounds.width + tolerance &&
+    y >= bounds.y - tolerance &&
+    y <= bounds.y + bounds.height + tolerance;
+  const innerHit =
+    x > bounds.x + tolerance &&
+    x < bounds.x + bounds.width - tolerance &&
+    y > bounds.y + tolerance &&
+    y < bounds.y + bounds.height - tolerance;
+  return outerHit && !innerHit;
+}
