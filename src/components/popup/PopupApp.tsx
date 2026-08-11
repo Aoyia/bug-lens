@@ -1,4 +1,10 @@
-import { useState, useEffect, useCallback, useMemo } from "preact/hooks";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from "preact/hooks";
 import {
   type EvidenceSummary,
   type RecordingOptions,
@@ -60,6 +66,11 @@ export function PopupApp() {
   const [storage, setStorage] = useState<StorageOverview | undefined>(
     undefined
   );
+  // 历史列表是否正在加载：加载期间禁止渲染"无匹配记录"空状态，
+  // 避免后台全量扫描 IndexedDB 期间向用户谎报"没有记录"。
+  const [historyLoading, setHistoryLoading] = useState<boolean>(false);
+  // 单调递增请求序号：防抖查询与视图切换可能重叠，只采纳最新一次请求的结果
+  const historyRequestIdRef = useRef(0);
 
   useEffect(() => {
     applyI18n();
@@ -246,18 +257,28 @@ export function PopupApp() {
   };
 
   const refreshHistory = async (query = searchQuery) => {
+    const requestId = ++historyRequestIdRef.current;
+    setHistoryLoading(true);
     try {
       const [sessionsResult, storageResult] = await Promise.all([
         send("session/list", { query }),
         send("storage/get", {}),
       ]);
+      // 仅采纳最新一次请求的结果，防止防抖查询与视图切换的竞态覆盖
+      if (requestId !== historyRequestIdRef.current) return;
       if (sessionsResult.ok)
         setSessions((sessionsResult.data?.sessions ?? []) as SessionOverview[]);
       if (storageResult.ok && storageResult.data?.storage) {
         setStorage(storageResult.data.storage as StorageOverview);
       }
     } catch (err) {
-      setErrorText(String(err));
+      if (requestId === historyRequestIdRef.current) {
+        setErrorText(String(err));
+      }
+    } finally {
+      if (requestId === historyRequestIdRef.current) {
+        setHistoryLoading(false);
+      }
     }
   };
 
@@ -599,6 +620,7 @@ export function PopupApp() {
           searchQuery={searchQuery}
           sessions={sessions}
           storage={storage}
+          loading={historyLoading}
           formatBytes={formatBytes}
           evidenceLabel={evidenceLabel}
           evidenceStateLabel={evidenceStateLabel}

@@ -10,6 +10,8 @@ interface HistoryListProps {
   searchQuery: string;
   sessions: SessionOverview[];
   storage?: StorageOverview;
+  /** 列表查询是否仍在进行：为 true 且无缓存列表时展示加载占位，而非"无匹配记录"空状态 */
+  loading: boolean;
   formatBytes: (bytes: number) => string;
   evidenceLabel: (evidence: EvidenceSummary) => string;
   evidenceStateLabel: (state: string) => string;
@@ -23,6 +25,7 @@ export const HistoryList = memo(function HistoryList({
   searchQuery,
   sessions,
   storage,
+  loading,
   formatBytes,
   evidenceLabel,
   evidenceStateLabel,
@@ -59,24 +62,30 @@ export const HistoryList = memo(function HistoryList({
         />
       </div>
 
-      <div id="sessions" className="sessions">
+      <div id="sessions" className="sessions" aria-busy={loading}>
         {sessions.length === 0 ? (
-          <div className="empty-state">
-            <svg
-              width="32"
-              height="32"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-            </svg>
-            <div className="empty-title">{t("noMatchingHistory")}</div>
-            <div className="empty-sub">{t("emptyHistorySub")}</div>
-          </div>
+          loading ? (
+            <div className="loading-state" role="status" aria-live="polite">
+              {t("loading")}
+            </div>
+          ) : (
+            <div className="empty-state">
+              <svg
+                width="32"
+                height="32"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+              </svg>
+              <div className="empty-title">{t("noMatchingHistory")}</div>
+              <div className="empty-sub">{t("emptyHistorySub")}</div>
+            </div>
+          )
         ) : (
           sessions.map((item) => {
             const { session } = item;

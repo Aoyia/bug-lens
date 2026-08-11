@@ -462,6 +462,15 @@ input[type="search"]:focus {
   color: var(--ink-muted);
   text-align: center;
 }
+.loading-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 12px;
+  color: var(--ink-muted);
+  font-size: 10.5px;
+  text-align: center;
+}
 .empty-state svg {
   opacity: 0.35;
   margin-bottom: 6px;

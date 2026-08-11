@@ -165,3 +165,52 @@ test("历史会话卡片整卡可点击打开预览，内嵌操作按钮必须�
     ].join(": ")
   );
 });
+
+test("历史视图加载期间不得渲染空状态（加载门控）", () => {
+  const popupApp = readFileSync(
+    resolve(process.cwd(), "src/components/popup/PopupApp.tsx"),
+    "utf8"
+  );
+  const historyList = readFileSync(
+    resolve(process.cwd(), "src/components/popup/HistoryList.tsx"),
+    "utf8"
+  );
+
+  // PopupApp 必须维护 historyLoading 状态：查询开始置位、最新请求结束复位，
+  // 并用单调递增请求序号防止防抖查询与视图切换的竞态覆盖。
+  assert.match(
+    popupApp,
+    /historyLoading/,
+    "PopupApp 应维护 historyLoading 状态"
+  );
+  assert.match(
+    popupApp,
+    /setHistoryLoading\(true\)/,
+    "refreshHistory 开始时必须置位 historyLoading"
+  );
+  assert.match(
+    popupApp,
+    /setHistoryLoading\(false\)/,
+    "refreshHistory 结束时必须复位 historyLoading"
+  );
+  assert.match(
+    popupApp,
+    /historyRequestIdRef/,
+    "refreshHistory 应使用请求序号防止竞态覆盖"
+  );
+
+  // HistoryList 必须接收 loading prop，且空状态分支必须被加载门控：
+  // 加载中且无缓存列表时渲染加载占位（t("loading")），而非"无匹配记录"空状态。
+  assert.match(
+    historyList,
+    /loading: boolean/,
+    "HistoryList 应声明 loading prop"
+  );
+  const emptyStateIndex = historyList.indexOf('className="empty-state"');
+  const loadingGateIndex = historyList.indexOf("loading ?");
+  assert.ok(
+    loadingGateIndex > 0 && loadingGateIndex < emptyStateIndex,
+    "加载门控（loading ? 分支）必须位于空状态渲染之前：加载中不得展示空状态"
+  );
+  assert.match(historyList, /loading-state/, "加载中应渲染 loading-state 占位");
+});
