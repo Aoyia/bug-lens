@@ -6,10 +6,7 @@ import {
   TEXT_MIN_WIDTH,
   TEXT_MAX_WIDTH,
 } from "../src/screenshot/text-layout.ts";
-import {
-  getDeleteButtonPosition,
-  hitTestAnnotation,
-} from "../src/screenshot/annotation-renderer.ts";
+import { hitTestAnnotation } from "../src/screenshot/annotation-renderer.ts";
 
 describe("text-layout 估算器", () => {
   test("CJK 字符宽度明显大于 ASCII（13px vs 6.7px）", () => {
@@ -120,21 +117,13 @@ describe("computeTextLayout 默认估算布局", () => {
   });
 });
 
-describe("布局统一：删除按钮 / 命中 / 绘制共用同一布局", () => {
+describe("布局统一：命中 / 绘制共用同一布局", () => {
   const textAnn = {
     id: "t1",
     type: "text" as const,
     position: { x: 100, y: 80 },
     text: "点击位置即气泡锚点",
   };
-
-  test("删除按钮锚点 = position + 气泡宽 + 8（与 computeTextLayout 一致）", () => {
-    const layout = computeTextLayout(textAnn.text);
-    const del = getDeleteButtonPosition(textAnn);
-    assert.ok(del, "text 应有删除按钮");
-    assert.equal(del!.x, textAnn.position.x + layout.bgWidth + 8);
-    assert.equal(del!.y, textAnn.position.y - 8);
-  });
 
   test("命中区 = 气泡区域 ±4px：边缘命中、外侧不命中", () => {
     const layout = computeTextLayout(textAnn.text);

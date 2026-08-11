@@ -185,6 +185,11 @@ export class ScreenshotOverlay {
         this.renderAnnotationsOnCanvas();
         this.stateMachine.transition("locked");
       },
+      // 输入框关闭且未产出有效批注（空文本 / 清空原文）：必须恢复状态机，
+      // 否则停留在 editing-text 将阻塞后续所有批注工具（editing-text 仅允许转移到 locked）
+      onClose: () => {
+        this.stateMachine.transition("locked");
+      },
       rerender: () => {
         this.renderAnnotationsOnCanvas();
       },
@@ -211,6 +216,8 @@ export class ScreenshotOverlay {
     wrapper.addEventListener("mouseup", this.handleMouseUp);
     // 拦截 click / dblclick 传播，避免截图操作触发网页的点击与双击逻辑
     wrapper.addEventListener("dblclick", this.handleOverlayDblClick);
+    // 双击文本批注进入二次编辑（单击仅选中/拖拽）
+    wrapper.addEventListener("dblclick", this.handleDoubleClick);
     wrapper.addEventListener("click", this.handleOverlayClick);
 
     // 工具栏事件委托
@@ -228,6 +235,9 @@ export class ScreenshotOverlay {
           this.styleAdjustmentMode = !this.styleAdjustmentMode;
           btn.classList.toggle("active", this.styleAdjustmentMode);
         } else if (tool) {
+          // 切换工具时主动结束文本编辑（若输入框开着）：防御性兜底，
+          // 确保不残留 editing-text 状态阻塞后续绘制
+          this.textEditor?.cancelEdit();
           this.currentTool = tool as any;
           toolbar
             .querySelectorAll<HTMLButtonElement>("button[data-tool]")
@@ -284,10 +294,27 @@ export class ScreenshotOverlay {
     const isEditingText = this.isEditingText();
 
     if (e.key === "Escape") {
-      // 取消截图，并阻止事件继续传递到网页（避免触发网页快捷键）
+      // 编辑文本时 Esc 优先取消文本输入（还原原文 / 关闭空输入并恢复状态机），
+      // 而非取消整个截图；非编辑态维持原契约：取消截图。
       e.preventDefault();
       e.stopPropagation();
-      this.cancel();
+      if (this.isEditingText()) {
+        this.textEditor?.cancelEdit();
+      } else {
+        // 取消截图前注册一次性 capture 监听，吞掉本次 Escape 按键自身的 keyup：
+        // destroy() 会移除 handleKeyUp，若不处理，该 keyup 将冒泡泄漏到页面。
+        window.addEventListener(
+          "keyup",
+          (ke: KeyboardEvent) => {
+            if (ke.key === "Escape") {
+              ke.preventDefault();
+              ke.stopPropagation();
+            }
+          },
+          { capture: true, once: true }
+        );
+        this.cancel();
+      }
     } else if (
       (e.key === "z" || e.key === "Z" || e.code === "KeyZ") &&
       (e.metaKey || e.ctrlKey)
@@ -362,6 +389,13 @@ export class ScreenshotOverlay {
       e.stopPropagation();
       return;
     }
+    // 点击工具栏 / 尺寸角标等 overlay UI 元素：不启动任何绘制 / 拖拽意图。
+    // 否则非 select 工具下点击工具按钮会被当成"开始绘制"（返回 draw 意图），
+    // 轻则误入 drawing 状态，重则（text 工具）在按钮位置误弹文本输入框。
+    if (target && target.closest(".toolbar, .size-badge")) {
+      e.stopPropagation();
+      return;
+    }
 
     // 1) 选区 8 点手柄 resize（优先于批注命中）
     if (this.selectionController.onMouseDown(e)) {
@@ -378,8 +412,6 @@ export class ScreenshotOverlay {
         this.stateMachine.transition("dragging-annotation");
       } else if (annIntent === "draw") {
         this.stateMachine.transition("drawing");
-      } else if (annIntent === "text-edit") {
-        this.stateMachine.transition("editing-text");
       }
       e.stopPropagation();
       return;
@@ -451,6 +483,10 @@ export class ScreenshotOverlay {
     e.stopPropagation();
   }
 
+  /**
+   * 双击文本批注进入二次编辑（唯一入口：单击已选中的文本批注仅选中/拖拽，
+   * 不再直接进入编辑，避免误操作）。
+   */
   private handleDoubleClick(e: MouseEvent): void {
     const hit = this.annotationController.hitTestAnnotation(
       e.clientX,
@@ -468,6 +504,7 @@ export class ScreenshotOverlay {
         hit.text,
         hit.color
       );
+      this.stateMachine.transition("editing-text");
     }
   }
 

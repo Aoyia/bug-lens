@@ -16,7 +16,7 @@ export interface AnnotationControllerOptions {
   getCurrentTool: () => string;
   /** 读取组合根状态机当前 phase */
   getPhase: () => OverlayPhase;
-  /** 文本批注的浮动输入（组合根的 spawnInlineTextInput） */
+  /** 文本批注的浮动输入（组合根的 spawnInlineTextInput；text 工具新建时调用） */
   spawnInlineTextInput: (x: number, y: number, initialText?: string) => void;
   /** 重新渲染遮罩画布（组合根的 renderAnnotationsOnCanvas） */
   rerender: () => void;
@@ -61,17 +61,12 @@ export class AnnotationController {
     this.rerender = options.rerender;
   }
 
-  /** 第 2 步：批注命中（手柄/删除按钮 → 整体 → 清空选中 → 绘制启动）；返回意图供组合根驱动转移 */
-  onMouseDown(
-    e: MouseEvent
-  ): "delete" | "resize" | "drag" | "draw" | "text-edit" | null {
-    // 1. 优先检测是否击中了当前选中批注框的 Resize 控制点或删除按钮
+  /** 第 2 步：批注命中（调整手柄 → 整体 → 清空选中 → 绘制启动）；返回意图供组合根驱动转移。
+   *  文本批注的二次编辑统一由组合根的双击（dblclick）触发，此处单击仅选中/拖拽。 */
+  onMouseDown(e: MouseEvent): "resize" | "drag" | "draw" | null {
+    // 1. 优先检测是否击中了当前选中批注框的 Resize 控制点
     const handleHit = this.hitTestAnnotationHandle(e.clientX, e.clientY);
     if (handleHit) {
-      if (handleHit.handle === "delete") {
-        this.deleteSelectedAnnotation();
-        return "delete";
-      }
       this.saveUndoState();
       this.activeResizeHandle = handleHit.handle;
       this.selectedAnnotation = handleHit.ann;
@@ -82,17 +77,6 @@ export class AnnotationController {
     // 2. 次之检测是否点击了已有批注元素整体（选中并准备平移）
     const hit = this.hitTestAnnotation(e.clientX, e.clientY);
     if (hit) {
-      // 无论当前处于什么工具模式，只要再次点击/双击已选中的文本批注，均可触发二次编辑
-      if (hit.type === "text" && this.selectedAnnotation?.id === hit.id) {
-        const pos = hit.position;
-        this.spawnInlineTextInput(pos.x, pos.y, hit.text);
-        // 移除原有的文本批注，准备替代
-        this.annotations = this.annotations.filter((a) => a.id !== hit.id);
-        this.selectedAnnotation = null;
-        this.rerender();
-        return "text-edit";
-      }
-
       this.selectedAnnotation = hit;
       this.rerender();
       this.saveUndoState();
@@ -341,7 +325,6 @@ export class AnnotationController {
     const handleHit = this.hitTestAnnotationHandle(x, y);
     if (handleHit) {
       const h = handleHit.handle;
-      if (h === "delete") return "pointer";
       if (h === "start" || h === "end") return "move";
       if (h === "nw" || h === "se") return "nwse-resize";
       if (h === "ne" || h === "sw") return "nesw-resize";

@@ -560,10 +560,165 @@ test.describe("Bug Lens Chrome Extension E2E SCREENSHOT-003: 截图批注（绘�
     await page.keyboard.press("Escape");
     await expect(host).toBeHidden({ timeout: 5_000 });
   });
+
+  test("text 空输入关闭后，切换其他批注工具绘制恢复正常（回归）", async ({
+    context,
+    serviceWorker,
+    serverUrl,
+  }) => {
+    context.on("console", (message) => {
+      logE2e(`Browser console.${message.type()}`, {
+        url:
+          safeUrlForLog(message.page()?.url()) ?? "extension-worker-or-popup",
+        text: message.text().slice(0, 200),
+      });
+    });
+
+    const { page, host, probe, leakCount } = await setupScreenshotOverlay(
+      context,
+      serviceWorker,
+      serverUrl
+    );
+
+    // 拉框建立选区 (300,300)→(800,500)
+    await page.mouse.move(300, 300);
+    await page.mouse.down();
+    await page.mouse.move(800, 500, { steps: 8 });
+    await page.mouse.up();
+    const f0 = await probe.canvasFingerprint();
+    expect(f0).toBeTruthy();
+
+    // ---- 1) rect 批注（基线）----
+    await probe.click('button[data-tool="rect"]');
+    await page.mouse.move(340, 330);
+    await page.mouse.down();
+    await page.mouse.move(420, 390, { steps: 5 });
+    await page.mouse.up();
+    const f1 = await probe.canvasFingerprint();
+    expect(f1).not.toBe(f0);
+    logE2e("baseline rect annotation drawn");
+
+    // ---- 2) text 工具点击创建（空）输入框 ----
+    await probe.click('button[data-tool="text"]');
+    await page.mouse.click(470, 460);
+    await delay(200);
+    expect(await probe.count(".inline-text-input")).toBe(1);
+    logE2e("empty inline text input spawned");
+
+    // ---- 3) 不输入文字，点击画布空白处关闭输入框（路径1：画布空白 blur）----
+    await page.mouse.click(620, 460);
+    await delay(200);
+    expect(await probe.count(".inline-text-input")).toBe(0);
+    logE2e("empty text input dismissed by canvas blank click");
+
+    // ---- 4) 切回 rect 绘制 → 必须正常提交（核心断言：修复前残留 editing-text 阻塞绘制）----
+    await probe.click('button[data-tool="rect"]');
+    await delay(200);
+    expect(await probe.toolActive("rect")).toBe(true);
+    await page.mouse.move(450, 330);
+    await page.mouse.down();
+    await page.mouse.move(560, 400, { steps: 5 });
+    await page.mouse.up();
+    await delay(200);
+    const f2 = await probe.canvasFingerprint();
+    expect(f2).not.toBe(f1);
+    expect(await probe.count(".inline-text-input")).toBe(0);
+    logE2e("rect annotation drawn after canvas-blank dismissal");
+
+    // ---- 5) 再次 text 点击创建空输入框 ----
+    await probe.click('button[data-tool="text"]');
+    await page.mouse.click(600, 460);
+    await delay(200);
+    expect(await probe.count(".inline-text-input")).toBe(1);
+
+    // ---- 6) 不输入文字，直接点击 rect 工具按钮（路径2：切换工具关闭）----
+    await probe.click('button[data-tool="rect"]');
+    await delay(300);
+    expect(await probe.count(".inline-text-input")).toBe(0);
+    expect(await probe.toolActive("rect")).toBe(true);
+    logE2e("empty text input dismissed by switching tool");
+
+    // ---- 7) 继续绘制 rect → 正常提交 ----
+    await page.mouse.move(620, 330);
+    await page.mouse.down();
+    await page.mouse.move(700, 390, { steps: 4 });
+    await page.mouse.up();
+    await delay(200);
+    const f3 = await probe.canvasFingerprint();
+    expect(f3).not.toBe(f2);
+    expect(await probe.count(".inline-text-input")).toBe(0);
+    logE2e("rect annotation drawn after tool-switch dismissal");
+
+    // ---- 8) 全流程零泄漏 + 收尾 ----
+    const leakTypes = await page.evaluate(
+      () => (window as any).__bugLensLeakTypes
+    );
+    logE2e("Page leak types before dismiss", {
+      count: leakTypes.length,
+      leakTypes,
+    });
+    expect(await leakCount()).toBe(0);
+    await page.keyboard.press("Escape");
+    await expect(host).toBeHidden({ timeout: 5_000 });
+  });
+
+  test("text 编辑态按 Esc：取消文本输入而非取消整个截图（回归）", async ({
+    context,
+    serviceWorker,
+    serverUrl,
+  }) => {
+    context.on("console", (message) => {
+      logE2e(`Browser console.${message.type()}`, {
+        url:
+          safeUrlForLog(message.page()?.url()) ?? "extension-worker-or-popup",
+        text: message.text().slice(0, 200),
+      });
+    });
+
+    const { page, host, probe, leakCount } = await setupScreenshotOverlay(
+      context,
+      serviceWorker,
+      serverUrl
+    );
+
+    // 拉框建立选区
+    await page.mouse.move(300, 300);
+    await page.mouse.down();
+    await page.mouse.move(800, 500, { steps: 8 });
+    await page.mouse.up();
+
+    // 1) text 工具点击创建输入框
+    await probe.click('button[data-tool="text"]');
+    await page.mouse.click(420, 380);
+    await delay(200);
+    expect(await probe.count(".inline-text-input")).toBe(1);
+
+    // 2) 编辑态按 Esc → 输入框关闭，overlay 保留（修复前会误取消整个截图）
+    await page.keyboard.press("Escape");
+    await delay(300);
+    expect(await probe.count(".inline-text-input")).toBe(0);
+    await expect(host).toBeVisible({ timeout: 2_000 });
+    logE2e("Esc closed text input while overlay stays active");
+
+    // 3) 切换 rect 绘制正常（编辑态退出后未阻塞后续绘制）
+    await probe.click('button[data-tool="rect"]');
+    await page.mouse.move(350, 340);
+    await page.mouse.down();
+    await page.mouse.move(480, 420, { steps: 5 });
+    await page.mouse.up();
+    await delay(200);
+    expect(await probe.count(".inline-text-input")).toBe(0);
+
+    // 4) 收尾：非编辑态 Esc 仍取消截图（既有契约）
+    await page.keyboard.press("Escape");
+    await expect(host).toBeHidden({ timeout: 5_000 });
+    // 修复点：取消瞬间的 keyup 也应被一次性 capture 监听吞掉，不泄漏到页面
+    expect(await leakCount()).toBe(0);
+  });
 });
 
 test.describe("Bug Lens Chrome Extension E2E SCREENSHOT-004: 截图文本批注（创建/提交/二次编辑）", () => {
-  test("text 批注创建、输入提交、再次点击进入二次编辑", async ({
+  test("text 批注创建、输入提交、双击进入二次编辑", async ({
     context,
     serviceWorker,
     serverUrl,
@@ -618,10 +773,12 @@ test.describe("Bug Lens Chrome Extension E2E SCREENSHOT-004: 截图文本批注�
     expect(f1).not.toBe(f0);
     logE2e("text annotation committed and rendered");
 
-    // ---- 4) 单击文本批注（选中），再次单击（进入二次编辑）----
+    // ---- 4) 单击文本批注（仅选中，不进入编辑）；双击才进入编辑 ----
     await page.mouse.click(430, 430);
-    await delay(100);
-    await page.mouse.click(430, 430);
+    await delay(150);
+    expect(await probe.count(".inline-text-input")).toBe(0);
+    logE2e("single click selects text annotation without editing");
+    await page.mouse.dblclick(430, 430);
     await delay(200);
     expect(await probe.count(".inline-text-input")).toBe(1);
     logE2e("text annotation re-edit spawned");

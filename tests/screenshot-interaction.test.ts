@@ -524,7 +524,7 @@ describe("ScreenshotOverlay 交互行为基线", () => {
     assert.equal(box.style.cursor, "nwse-resize");
     h.mouseMove(200, 170);
     assert.equal(box.style.cursor, "nwse-resize");
-    // 对角手柄 → nesw-resize（ne 角内侧，避开删除按钮命中区）
+    // 对角手柄 → nesw-resize（ne 角内侧）
     h.mouseMove(198, 152);
     assert.equal(box.style.cursor, "nesw-resize");
     // 批注边缘 → move
@@ -765,6 +765,231 @@ describe("ScreenshotOverlay 交互行为基线", () => {
     assert.equal(cancelled, 1);
     assert.equal((overlay as any).selectionController.selection, null);
   });
+
+  test("回归：文字空输入关闭后，切换其他批注工具绘制恢复正常", () => {
+    const h = createHarness();
+    const anyOv = h.overlay as any;
+    const sm = () => anyOv.stateMachine;
+    const annCtl = anyOv.annotationController;
+
+    // 模拟 shadowRoot.querySelector：真实环境中 .overlay-wrapper 指向 wrapper，
+    // 使 spawnInlineTextInput 能把 textarea 挂载到 wrapper（stub 默认不识别该选择器）
+    anyOv.shadowRoot.querySelector = (sel: string) => {
+      if (sel === ".overlay-wrapper") return h.wrapper;
+      if (sel === ".selection-box") return { style: {} };
+      return null;
+    };
+
+    // 1. 文字工具：点击产生输入框 → 进入编辑态
+    anyOv.currentTool = "text";
+    h.mouseDown(300, 300);
+    h.mouseUp(300, 300);
+    assert.equal(sm().phase, "editing-text", "text 点击后应进入编辑态");
+
+    // 2. 空文本失焦关闭 → 状态机必须恢复 locked（修复点：此前残留 editing-text 阻塞后续绘制）
+    const textarea = h.wrapper.children.find(
+      (c: any) => c.tagName === "TEXTAREA"
+    );
+    assert.ok(textarea, "textarea 应已创建");
+    textarea.value = "";
+    const blurFns = textarea.listeners["blur"];
+    assert.ok(blurFns, "blur listener should be registered");
+    blurFns[0]({ type: "blur" });
+    assert.equal(sm().phase, "locked", "空文本关闭后状态机应回到 locked");
+
+    // 3. 切回方框工具绘制 → 应正常提交
+    anyOv.currentTool = "rect";
+    h.mouseDown(300, 300);
+    h.mouseMove(400, 400);
+    h.mouseUp(400, 400);
+    assert.equal(sm().phase, "locked");
+    assert.equal(annCtl.annotations.length, 1, "rect 批注应成功提交");
+    assert.equal(annCtl.annotations[0].type, "rect");
+  });
+
+  test("编辑态按 Esc：取消文本输入而非取消整个截图", () => {
+    const h = createHarness();
+    const anyOv = h.overlay as any;
+    let cancelled = 0;
+    (anyOv.onCancelCallback as any) = () => {
+      cancelled++;
+    };
+
+    // 模拟 shadowRoot.querySelector，使 spawnInlineTextInput 能把 textarea 挂载到 wrapper
+    anyOv.shadowRoot.querySelector = (sel: string) => {
+      if (sel === ".overlay-wrapper") return h.wrapper;
+      if (sel === ".selection-box") return { style: {} };
+      return null;
+    };
+
+    // 进入文本编辑态
+    anyOv.currentTool = "text";
+    h.mouseDown(300, 300);
+    h.mouseUp(300, 300);
+    assert.equal(anyOv.stateMachine.phase, "editing-text");
+
+    // 模拟文本输入框持有焦点（isEditingText 判定依据）
+    anyOv.shadowRoot.activeElement = {
+      tagName: "TEXTAREA",
+      classList: { contains: () => true },
+    };
+
+    // 编辑态下按 Esc
+    anyOv.handleKeyDown({
+      key: "Escape",
+      type: "keydown",
+      preventDefault: () => {},
+      stopPropagation: () => {},
+    });
+
+    assert.equal(cancelled, 0, "编辑态 Esc 不应取消整个截图");
+    assert.equal(
+      anyOv.stateMachine.phase,
+      "locked",
+      "编辑态 Esc 应关闭输入框并恢复 locked"
+    );
+  });
+
+  test("点击工具栏不触发批注绘制（切换工具不误触发绘制）", () => {
+    const h = createHarness();
+    const anyOv = h.overlay as any;
+
+    // 模拟点击工具栏按钮：closest(".toolbar, .size-badge") 命中
+    const toolbarTarget = {
+      closest: (sel: string) =>
+        sel.includes(".toolbar") ? { className: "toolbar" } : null,
+    };
+
+    // 非 select 工具下点击工具栏按钮
+    anyOv.currentTool = "rect";
+    h.mouseDown(400, 400, toolbarTarget);
+
+    // 不应进入 drawing 状态，也不应设置绘制起点（修复点：此前会返回 draw 意图）
+    assert.equal(
+      anyOv.stateMachine.phase,
+      "idle",
+      "工具栏点击不应进入 drawing"
+    );
+    assert.equal(anyOv.annotationController.startPoint, null);
+  });
+
+  test("文本批注二次编辑：单击仅选中，双击才进入编辑", () => {
+    const h = createHarness();
+    const anyOv = h.overlay as any;
+    const sm = () => anyOv.stateMachine;
+
+    // 模拟 shadowRoot.querySelector，使 spawnInlineTextInput 能把 textarea 挂载到 wrapper
+    anyOv.shadowRoot.querySelector = (sel: string) => {
+      if (sel === ".overlay-wrapper") return h.wrapper;
+      if (sel === ".selection-box") return { style: {} };
+      return null;
+    };
+
+    // 1) text 工具点击创建输入框并提交一个文本批注
+    anyOv.currentTool = "text";
+    h.mouseDown(420, 380);
+    h.mouseUp(420, 380);
+    const textarea = h.wrapper.children.find(
+      (c: any) => c.tagName === "TEXTAREA"
+    );
+    assert.ok(textarea, "textarea 应已创建");
+    textarea.value = "hello";
+    textarea.listeners["blur"][0]({ type: "blur" });
+    assert.equal(sm().phase, "locked");
+    assert.equal(anyOv.annotationController.annotations.length, 1);
+
+    // 2) 单击文本批注 → 仅选中，不进入编辑（修复点：此前单击已选中文本会直接编辑）
+    anyOv.currentTool = "select";
+    h.mouseDown(420, 380);
+    h.mouseUp(420, 380);
+    assert.equal(sm().phase, "locked", "单击不应进入编辑态");
+    assert.equal(
+      anyOv.annotationController.selectedAnnotation?.type,
+      "text",
+      "单击应选中文本批注"
+    );
+    assert.ok(
+      !h.wrapper.children.some((c: any) => c.tagName === "TEXTAREA"),
+      "单击不应 spawn 输入框"
+    );
+
+    // 3) 双击文本批注 → 进入编辑（spawn 输入框 + editing-text）
+    const fireDbl = (x: number, y: number) => {
+      const fns = h.wrapper.listeners["dblclick"] || [];
+      for (const fn of fns) {
+        fn({
+          type: "dblclick",
+          clientX: x,
+          clientY: y,
+          preventDefault: () => {},
+          stopPropagation: () => {},
+          target: plainTarget,
+        });
+      }
+    };
+    fireDbl(420, 380);
+    assert.equal(sm().phase, "editing-text", "双击应进入编辑态");
+    assert.ok(
+      h.wrapper.children.some((c: any) => c.tagName === "TEXTAREA"),
+      "双击应 spawn 输入框"
+    );
+    // 原批注已移除，等待二次编辑提交
+    assert.equal(anyOv.annotationController.annotations.length, 0);
+  });
+
+  test("非编辑态 Esc 取消截图：注册一次性 capture keyup 监听吞掉取消按键自身的 keyup", () => {
+    // 增强 windowStub：只记录 once 语义的 keyup capture 监听（即 handleKeyDown 注册的那枚）
+    const keyupOnce: Array<{ listener: Function; options: any }> = [];
+    (globalThis as any).window = {
+      ...windowStub,
+      addEventListener: (type: string, listener: Function, options?: any) => {
+        if (
+          type === "keyup" &&
+          options &&
+          typeof options === "object" &&
+          options.once
+        ) {
+          keyupOnce.push({ listener, options });
+        }
+      },
+    };
+
+    const overlay = new ScreenshotOverlay();
+    overlay.show({
+      viewportDataUrl: "data:image/png;base64,",
+      onComplete: () => {},
+    });
+    const anyOv = overlay as any;
+
+    anyOv.handleKeyDown({
+      key: "Escape",
+      type: "keydown",
+      preventDefault: () => {},
+      stopPropagation: () => {},
+    });
+
+    assert.equal(keyupOnce.length, 1, "应注册一次性 capture keyup 监听");
+    assert.equal(keyupOnce[0].options.capture, true);
+    assert.equal(keyupOnce[0].options.once, true);
+
+    // 模拟取消按键自身的 keyup 到达：应 preventDefault + stopPropagation（吞掉，不泄漏到页面）
+    const calls: string[] = [];
+    keyupOnce[0].listener({
+      key: "Escape",
+      preventDefault: () => calls.push("preventDefault"),
+      stopPropagation: () => calls.push("stopPropagation"),
+    });
+    assert.deepEqual(calls, ["preventDefault", "stopPropagation"]);
+
+    // 非 Escape 按键的 keyup 不应被误吞
+    const calls2: string[] = [];
+    keyupOnce[0].listener({
+      key: "a",
+      preventDefault: () => calls2.push("preventDefault"),
+      stopPropagation: () => calls2.push("stopPropagation"),
+    });
+    assert.deepEqual(calls2, [], "非 Escape keyup 不应被吞");
+  });
 });
 
 // ---------- 截图激活期间事件隔离测试 ----------
@@ -980,6 +1205,7 @@ describe("InlineTextEditor", () => {
       cancelAnnotation: (ann) => {
         cancelled = ann;
       },
+      onClose: () => {},
       rerender: () => {},
     });
 
@@ -1014,6 +1240,7 @@ describe("InlineTextEditor", () => {
       getSelection: () => ({ x: 0, y: 0, width: 500, height: 400 }),
       commitAnnotation: () => {},
       cancelAnnotation: () => {},
+      onClose: () => {},
       rerender: () => {},
     });
 
@@ -1060,6 +1287,7 @@ describe("InlineTextEditor", () => {
       getSelection: () => ({ x: 0, y: 0, width: 500, height: 400 }),
       commitAnnotation: () => {},
       cancelAnnotation: () => {},
+      onClose: () => {},
       rerender: () => {},
     });
 
@@ -1088,6 +1316,7 @@ describe("InlineTextEditor", () => {
       getSelection: () => ({ x: 0, y: 0, width: 500, height: 400 }),
       commitAnnotation: () => {},
       cancelAnnotation: () => {},
+      onClose: () => {},
       rerender: () => {},
     });
 
@@ -1106,5 +1335,110 @@ describe("InlineTextEditor", () => {
     textarea.value = "";
     inputFns[0]({ type: "input" });
     assert.equal(textarea.style.width, "80px");
+  });
+
+  test("空文本 blur 关闭：触发 onClose 且输入框移除", () => {
+    const wrapper = createElementStub("div");
+    let closed = 0;
+    const editor = new InlineTextEditor({
+      wrapper,
+      getSelection: () => ({ x: 0, y: 0, width: 500, height: 400 }),
+      commitAnnotation: () => {},
+      cancelAnnotation: () => {},
+      onClose: () => {
+        closed++;
+      },
+      rerender: () => {},
+    });
+
+    editor.spawn(100, 100);
+    const textarea = findTextarea(wrapper);
+    textarea.value = ""; // 未输入任何内容
+    const blurFns = textarea.listeners["blur"];
+    assert.ok(blurFns, "blur listener should be registered");
+    blurFns[0]({ type: "blur" });
+    assert.equal(closed, 1, "空文本关闭应触发 onClose（状态机恢复 locked）");
+    assert.ok(
+      !wrapper.children.some((c: any) => c.tagName === "TEXTAREA"),
+      "textarea 应被移除"
+    );
+  });
+
+  test("二次编辑清空文字确认：rerender 与 onClose 均触发", () => {
+    const wrapper = createElementStub("div");
+    let closed = 0;
+    let rerendered = 0;
+    const editor = new InlineTextEditor({
+      wrapper,
+      getSelection: () => ({ x: 0, y: 0, width: 500, height: 400 }),
+      commitAnnotation: () => {},
+      cancelAnnotation: () => {},
+      onClose: () => {
+        closed++;
+      },
+      rerender: () => {
+        rerendered++;
+      },
+    });
+
+    editor.spawn(100, 100, "original");
+    const textarea = findTextarea(wrapper);
+    textarea.value = ""; // 清空原有文字
+    const blurFns = textarea.listeners["blur"];
+    blurFns[0]({ type: "blur" });
+    assert.equal(rerendered, 1, "应重绘清除原文字");
+    assert.equal(closed, 1, "清空确认应触发 onClose（状态机恢复 locked）");
+  });
+
+  test("cancelEdit：空输入触发 onClose，二次编辑 Esc 还原原文", () => {
+    const wrapper = createElementStub("div");
+    let closed = 0;
+    let cancelled: any = null;
+    const editor = new InlineTextEditor({
+      wrapper,
+      getSelection: () => ({ x: 0, y: 0, width: 500, height: 400 }),
+      commitAnnotation: () => {},
+      cancelAnnotation: (ann) => {
+        cancelled = ann;
+      },
+      onClose: () => {
+        closed++;
+      },
+      rerender: () => {},
+    });
+
+    // 新建空输入：cancelEdit → onClose
+    editor.spawn(100, 100);
+    editor.cancelEdit();
+    assert.equal(closed, 1, "空输入取消应触发 onClose");
+    assert.equal(cancelled, null, "空输入取消不应走 cancelAnnotation");
+
+    // 二次编辑：cancelEdit → 还原原文
+    editor.spawn(200, 200, "original");
+    editor.cancelEdit();
+    assert.ok(cancelled, "应还原原文");
+    assert.equal(cancelled.text, "original");
+    assert.equal(cancelled.position.x, 200);
+    assert.equal(closed, 1, "还原原文路径不应额外触发 onClose");
+  });
+
+  test("cancelEdit 幂等：重复调用只处理一次", () => {
+    const wrapper = createElementStub("div");
+    let closed = 0;
+    const editor = new InlineTextEditor({
+      wrapper,
+      getSelection: () => ({ x: 0, y: 0, width: 500, height: 400 }),
+      commitAnnotation: () => {},
+      cancelAnnotation: () => {},
+      onClose: () => {
+        closed++;
+      },
+      rerender: () => {},
+    });
+
+    editor.spawn(100, 100);
+    editor.cancelEdit();
+    editor.cancelEdit(); // 第二次调用应为 no-op
+    assert.equal(closed, 1, "重复取消只触发一次 onClose");
   });
 });

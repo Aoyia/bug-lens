@@ -144,6 +144,8 @@ export interface InlineTextEditorOptions {
   commitAnnotation: (ann: AnnotationItem) => void;
   /** Esc 取消时还原原有文本批注 */
   cancelAnnotation: (ann: AnnotationItem) => void;
+  /** 输入框关闭且未产出有效批注时触发（空文本 / 清空原有文字），由组合根恢复状态机 */
+  onClose: () => void;
   /** 仅重绘 Canvas（清空确认场景） */
   rerender: () => void;
 }
@@ -153,13 +155,21 @@ export class InlineTextEditor {
   private readonly getSelection: () => RectBounds | null;
   private readonly commitAnnotation: (ann: AnnotationItem) => void;
   private readonly cancelAnnotation: (ann: AnnotationItem) => void;
+  private readonly onClose: () => void;
   private readonly rerender: () => void;
+
+  /** 当前活动文本输入上下文（供 cancelEdit 复用 Esc 语义，保证关闭必恢复状态机） */
+  private activeInput: HTMLTextAreaElement | null = null;
+  private activeInitialText = "";
+  private activePosition = { x: 0, y: 0 };
+  private activeIsHandled = false;
 
   constructor(options: InlineTextEditorOptions) {
     this.wrapper = options.wrapper;
     this.getSelection = options.getSelection;
     this.commitAnnotation = options.commitAnnotation;
     this.cancelAnnotation = options.cancelAnnotation;
+    this.onClose = options.onClose;
     this.rerender = options.rerender;
   }
 
@@ -233,6 +243,12 @@ export class InlineTextEditor {
       input.value = initialText;
     }
 
+    // 保存当前活动编辑上下文（供 cancelEdit 复用 Esc 语义）
+    this.activeInput = input;
+    this.activeInitialText = initialText || "";
+    this.activePosition = { x, y };
+    this.activeIsHandled = false;
+
     // 输入时实时跟随最终气泡尺寸（所见即所得）：与渲染层共用同一布局函数
     const syncSize = () => {
       const text = input.value || "";
@@ -242,39 +258,33 @@ export class InlineTextEditor {
     };
     input.addEventListener("input", syncSize);
 
-    let isHandled = false;
     const commitText = () => {
-      if (isHandled) return;
-      isHandled = true;
+      if (this.activeIsHandled) return;
+      this.activeIsHandled = true;
       const text = input.value.trim();
       if (text) {
         this.commitAnnotation({
           id: `ann_${Date.now()}`,
           type: "text",
-          position: { x, y },
+          position: { x: this.activePosition.x, y: this.activePosition.y },
           text,
         });
-      } else if (initialText) {
-        // 如果原本有字但清空确认了，则重新绘制 Canvas 清除原文字
+      } else if (this.activeInitialText) {
+        // 原本有字但清空确认了：重绘 Canvas 清除原文字，并通知组合根恢复状态机
         this.rerender();
+        this.onClose();
+      } else {
+        // 新建文本但未输入内容：直接关闭，通知组合根恢复状态机
+        this.onClose();
       }
+      this.activeInput = null;
       input.remove();
     };
 
     input.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
-        if (isHandled) return;
-        isHandled = true;
-        if (initialText) {
-          // 按 Escape 取消时，还原原本的文字批注
-          this.cancelAnnotation({
-            id: `ann_${Date.now()}`,
-            type: "text",
-            position: { x, y },
-            text: initialText,
-          });
-        }
-        input.remove();
+        // 统一的 Esc 取消语义（含还原原文 / 恢复状态机）
+        this.cancelEdit();
       }
     });
 
@@ -290,5 +300,29 @@ export class InlineTextEditor {
       }
       syncSize();
     }, 20);
+  }
+
+  /**
+   * 取消当前文本编辑（Esc 语义）：二次编辑还原原文，新建空输入直接关闭；
+   * 无论哪种情况都通过 cancelAnnotation / onClose 通知组合根恢复状态机。
+   * 由输入框自身 keydown 与组合根（编辑态 Esc、切换工具）调用。
+   */
+  cancelEdit(): void {
+    const input = this.activeInput;
+    if (!input || this.activeIsHandled) return;
+    this.activeIsHandled = true;
+    if (this.activeInitialText) {
+      // 按 Escape 取消时，还原原本的文字批注
+      this.cancelAnnotation({
+        id: `ann_${Date.now()}`,
+        type: "text",
+        position: { x: this.activePosition.x, y: this.activePosition.y },
+        text: this.activeInitialText,
+      });
+    } else {
+      this.onClose();
+    }
+    this.activeInput = null;
+    input.remove();
   }
 }

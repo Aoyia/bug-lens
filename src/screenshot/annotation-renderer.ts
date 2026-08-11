@@ -224,30 +224,9 @@ export function renderAnnotations(
 }
 
 /**
- * 计算选中批注的删除按钮位置（与绘制逻辑完全一致，供命中检测复用）。
- * rect/privacy 位于右上角外侧，arrow 位于最右最上外侧，text 位于右上外侧。
+ * 绘制选中批注的调整手柄与选中虚线框（无状态，仅依赖 ctx 与批注数据）。
+ * 删除批注依赖 Delete/Backspace 键，不再提供浮动删除按钮。
  */
-export function getDeleteButtonPosition(
-  ann: AnnotationItem
-): { x: number; y: number } | null {
-  if (ann.type === "rect" || ann.type === "privacy") {
-    const { x, y, width } = ann.bounds;
-    return { x: x + width + 8, y: y - 8 };
-  }
-  if (ann.type === "arrow") {
-    const maxX = Math.max(ann.startPoint.x, ann.endPoint.x);
-    const minY = Math.min(ann.startPoint.y, ann.endPoint.y);
-    return { x: maxX + 8, y: minY - 8 };
-  }
-  if (ann.type === "text") {
-    // 与绘制共用同一布局函数：删除按钮锚点 = 气泡右上角外侧
-    const layout = computeTextLayout(ann.text);
-    return { x: ann.position.x + layout.bgWidth + 8, y: ann.position.y - 8 };
-  }
-  return null;
-}
-
-/** 绘制选中批注的调整手柄与删除按钮（无状态，仅依赖 ctx 与批注数据） */
 export function renderSelectionHandles(
   ctx: CanvasRenderingContext2D,
   ann: AnnotationItem
@@ -293,47 +272,15 @@ export function renderSelectionHandles(
     ctx.setLineDash([]);
   }
 
-  // 绘制删除浮动图标按钮 (圆形红底 + 白色 ×)
-  const deleteBtnPos = getDeleteButtonPosition(ann);
-  if (deleteBtnPos) {
-    const btnR = 9;
-    ctx.save();
-    ctx.fillStyle = "#ff4d4f";
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = 1.8;
-
-    ctx.beginPath();
-    ctx.arc(deleteBtnPos.x, deleteBtnPos.y, btnR, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.moveTo(deleteBtnPos.x - 3.5, deleteBtnPos.y - 3.5);
-    ctx.lineTo(deleteBtnPos.x + 3.5, deleteBtnPos.y + 3.5);
-    ctx.moveTo(deleteBtnPos.x + 3.5, deleteBtnPos.y - 3.5);
-    ctx.lineTo(deleteBtnPos.x - 3.5, deleteBtnPos.y + 3.5);
-    ctx.stroke();
-
-    ctx.restore();
-  }
-
   ctx.restore();
 }
 
-/** 检测坐标是否命中选中批注的调整手柄（纯查询，无副作用） */
+/** 检测坐标是否命中选中批注的调整手柄（纯查询，无副作用；不含删除按钮） */
 export function hitTestAnnotationHandle(
   ann: AnnotationItem,
   x: number,
   y: number
 ): { ann: AnnotationItem; handle: string } | null {
-  // 删除按钮优先（绘制在批注外侧，半径 9 + 容差，命中区域略大于视觉尺寸便于点击）
-  const deletePos = getDeleteButtonPosition(ann);
-  if (deletePos) {
-    const deleteRadius = 12;
-    if (Math.hypot(x - deletePos.x, y - deletePos.y) <= deleteRadius) {
-      return { ann, handle: "delete" };
-    }
-  }
-
   const radius = 8;
 
   if (ann.type === "rect" || ann.type === "privacy") {
