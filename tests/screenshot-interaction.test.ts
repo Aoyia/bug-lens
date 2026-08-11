@@ -71,6 +71,9 @@ function createCtxStub(): any {
 }
 
 function createElementStub(tag: string): Stub {
+  // 供 hover 光标断言使用：组合根通过 shadowRoot.querySelector(".selection-box")
+  // 设置内联 cursor，测试经由同一实例读取
+  const selectionBoxStub = { style: {} as Record<string, any> };
   const stub: Stub = {
     tagName: tag.toUpperCase(),
     id: "",
@@ -106,7 +109,8 @@ function createElementStub(tag: string): Stub {
     closest() {
       return null;
     },
-    querySelector() {
+    querySelector(sel: string) {
+      if (sel === ".selection-box") return selectionBoxStub as any;
       return null;
     },
     querySelectorAll() {
@@ -395,6 +399,170 @@ describe("ScreenshotOverlay 交互行为基线", () => {
 
     h.mouseUp(120, 110);
     assert.equal(sel(anyOv).isDraggingSelectionBox, false);
+  });
+
+  test("锁定后选区内部按下拖拽可整体平移，批注同步平移", () => {
+    const h = createHarness();
+    const anyOv = h.overlay as any;
+
+    // 拉框建立选区
+    h.mouseDown(100, 100);
+    h.mouseMove(300, 200);
+    h.mouseUp(300, 200);
+
+    // 在选区内绘制一个 rect 批注
+    anyOv.currentTool = "rect";
+    h.mouseDown(150, 150);
+    h.mouseMove(200, 170);
+    h.mouseUp(200, 170);
+    assert.equal(ann(anyOv).annotations.length, 1);
+
+    // 切回 select，从选区内部空白处按下拖拽（越过 5px 阈值）→ 整体平移
+    anyOv.currentTool = "select";
+    h.mouseDown(240, 150);
+    assert.equal(sel(anyOv).isDraggingSelectionBox, true);
+
+    h.mouseMove(260, 160);
+    assert.deepEqual(sel(anyOv).selection, {
+      x: 120,
+      y: 110,
+      width: 200,
+      height: 100,
+    });
+    assert.deepEqual(ann(anyOv).annotations[0].bounds, {
+      x: 170,
+      y: 160,
+      width: 50,
+      height: 20,
+    });
+
+    h.mouseUp(220, 160);
+    assert.equal(sel(anyOv).isDraggingSelectionBox, false);
+  });
+
+  test("锁定后选区内部按下位移小于 5px 视为单击，不移动选区框", () => {
+    const h = createHarness();
+    const anyOv = h.overlay as any;
+
+    h.mouseDown(100, 100);
+    h.mouseMove(300, 200);
+    h.mouseUp(300, 200);
+    assert.deepEqual(sel(anyOv).selection, {
+      x: 100,
+      y: 100,
+      width: 200,
+      height: 100,
+    });
+
+    // 内部按下并小幅移动（2,2）< 5px 阈值 → 选区纹丝不动
+    anyOv.currentTool = "select";
+    h.mouseDown(200, 150);
+    assert.equal(sel(anyOv).isDraggingSelectionBox, true);
+    h.mouseMove(202, 152);
+    assert.deepEqual(sel(anyOv).selection, {
+      x: 100,
+      y: 100,
+      width: 200,
+      height: 100,
+    });
+
+    h.mouseUp(202, 152);
+    assert.equal(sel(anyOv).isDraggingSelectionBox, false);
+  });
+
+  test("锁定后点击工具栏按钮不启动选区拖拽", () => {
+    const h = createHarness();
+    const anyOv = h.overlay as any;
+
+    h.mouseDown(100, 100);
+    h.mouseMove(300, 200);
+    h.mouseUp(300, 200);
+
+    // 模拟按下点命中工具栏（shadow DOM 内 target.closest 命中 .toolbar）
+    anyOv.currentTool = "select";
+    const toolbarTarget = {
+      closest: (sel: string) => (sel.includes("toolbar") ? {} : null),
+    };
+    h.mouseDown(200, 150, toolbarTarget as any);
+    assert.equal(sel(anyOv).isDraggingSelectionBox, false);
+
+    h.mouseMove(250, 180);
+    assert.deepEqual(sel(anyOv).selection, {
+      x: 100,
+      y: 100,
+      width: 200,
+      height: 100,
+    });
+
+    h.mouseUp(250, 180);
+    assert.equal(sel(anyOv).isDraggingSelectionBox, false);
+  });
+
+  test("hover 光标：选中批注手柄显示方向光标，批注体显示 move", () => {
+    const h = createHarness();
+    const anyOv = h.overlay as any;
+
+    h.mouseDown(100, 100);
+    h.mouseMove(300, 200);
+    h.mouseUp(300, 200);
+
+    // 绘制一个 rect 批注（bounds: 150,150,50,20）并选中
+    anyOv.currentTool = "rect";
+    h.mouseDown(150, 150);
+    h.mouseMove(200, 170);
+    h.mouseUp(200, 170);
+    anyOv.currentTool = "select";
+    h.mouseDown(175, 160); // 命中批注体 → 选中
+    h.mouseUp(175, 160);
+    assert.ok(ann(anyOv).selectedAnnotation);
+
+    const box = anyOv.container.querySelector(".selection-box");
+    assert.ok(box, "selection-box should exist");
+
+    // 对角手柄 → nwse-resize（nw / se）
+    h.mouseMove(150, 150);
+    assert.equal(box.style.cursor, "nwse-resize");
+    h.mouseMove(200, 170);
+    assert.equal(box.style.cursor, "nwse-resize");
+    // 对角手柄 → nesw-resize（ne 角内侧，避开删除按钮命中区）
+    h.mouseMove(198, 152);
+    assert.equal(box.style.cursor, "nesw-resize");
+    // 批注体 → move
+    h.mouseMove(175, 160);
+    assert.equal(box.style.cursor, "move");
+  });
+
+  test("hover 光标：arrow 批注端点显示 move，绘制工具下空白处回落 crosshair", () => {
+    const h = createHarness();
+    const anyOv = h.overlay as any;
+
+    h.mouseDown(100, 100);
+    h.mouseMove(300, 200);
+    h.mouseUp(300, 200);
+
+    // 绘制 arrow 并选中（start: 120,120 end: 180,160）
+    anyOv.currentTool = "arrow";
+    h.mouseDown(120, 120);
+    h.mouseMove(180, 160);
+    h.mouseUp(180, 160);
+    anyOv.currentTool = "select";
+    h.mouseDown(150, 140); // 命中箭头线 → 选中
+    h.mouseUp(150, 140);
+    assert.ok(ann(anyOv).selectedAnnotation);
+
+    const box = anyOv.container.querySelector(".selection-box");
+    assert.ok(box);
+
+    // 端点 → move
+    h.mouseMove(120, 120);
+    assert.equal(box.style.cursor, "move");
+    h.mouseMove(180, 160);
+    assert.equal(box.style.cursor, "move");
+
+    // arrow 工具下 hover 空白（无批注命中）→ crosshair
+    anyOv.currentTool = "arrow";
+    h.mouseMove(250, 150);
+    assert.equal(box.style.cursor, "crosshair");
   });
 
   test("绘制 arrow 批注并点击命中选中", () => {

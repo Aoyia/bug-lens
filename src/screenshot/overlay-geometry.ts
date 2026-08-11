@@ -86,6 +86,16 @@ export function hitTestSelectionEdge(
   return outerHit && !innerHit;
 }
 
+/** 判断点是否落在矩形内（含边界），用于锁定后选区内部自由拖拽 */
+export function pointInRect(x: number, y: number, rect: RectBounds): boolean {
+  return (
+    x >= rect.x &&
+    x <= rect.x + rect.width &&
+    y >= rect.y &&
+    y <= rect.y + rect.height
+  );
+}
+
 /** 拖拽截图框整体平移：计算目标坐标并限制在视口内 */
 export function computeDraggedPosition(
   initial: RectBounds,

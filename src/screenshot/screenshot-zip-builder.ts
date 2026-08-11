@@ -28,6 +28,18 @@ export function stringToUint8Array(str: string): Uint8Array {
 }
 
 /**
+ * 按电脑本地时区格式化时间戳，用于导出文件命名。
+ * 格式保持与历史一致：YYYY-MM-DD-HH-MM-SS（不使用 toISOString，避免 UTC 与本地时区混淆）。
+ */
+export function formatLocalTimestamp(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return (
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
+    `-${pad(date.getHours())}-${pad(date.getMinutes())}-${pad(date.getSeconds())}`
+  );
+}
+
+/**
  * 组装截图 ZIP 证据包 (fflate zipSync 高性能同步压缩)
  */
 export function buildScreenshotZipPackage(
@@ -37,7 +49,8 @@ export function buildScreenshotZipPackage(
   const markdownPrompt = formatPayloadToMarkdownForZip(payload);
   const imageU8 = base64ToUint8Array(payload.image.base64Data);
 
-  const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+  // 使用电脑本地时区生成时间戳（避免 UTC 时间让用户看不懂）
+  const timestamp = formatLocalTimestamp(new Date());
   const filename = `bug-lens-screenshot-${timestamp}.zip`;
 
   // 统一固定图片文件名为 screenshot.png

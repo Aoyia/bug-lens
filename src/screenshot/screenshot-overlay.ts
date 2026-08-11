@@ -402,8 +402,34 @@ export class ScreenshotOverlay {
       return;
     }
     // 批注域：手柄缩放 → 拖拽平移 → 绘制临时批注
-    this.annotationController.onMouseMove(e);
+    if (this.annotationController.onMouseMove(e)) {
+      e.stopPropagation();
+      return;
+    }
+    // 无拖拽进行中：按鼠标位置更新 hover 光标（批注手柄/批注体优先）
+    this.updateHoverCursor(e.clientX, e.clientY);
     e.stopPropagation();
+  }
+
+  /**
+   * 更新 hover 光标：批注调整手柄（canvas 绘制，无 DOM 光标）→ 方向光标；
+   * 批注体 → move；未命中批注时，select 工具下保持选区拖拽提示，其他工具回落 crosshair。
+   */
+  private updateHoverCursor(x: number, y: number): void {
+    if (!this.shadowRoot) return;
+    const box = this.shadowRoot.querySelector<HTMLDivElement>(".selection-box");
+    if (!box) return;
+
+    const annCursor = this.annotationController.getHoverCursor(x, y);
+    if (annCursor) {
+      box.style.cursor = annCursor;
+      return;
+    }
+    // 批注未命中：非 select 工具（绘制态）回落 crosshair；
+    // select 工具下已由 selectionController 维护 move/crosshair，不覆盖。
+    if (this.currentTool !== "select") {
+      box.style.cursor = "crosshair";
+    }
   }
 
   private handleMouseUp(e: MouseEvent): void {
@@ -480,35 +506,63 @@ export class ScreenshotOverlay {
     this.textEditor.spawn(x, y, initialText);
   }
 
-  private showToast(msg: string): void {
+  private showToast(
+    message: string,
+    durationMs = 2800,
+    tone: "success" | "error" = "success"
+  ): void {
     if (!document.body) return;
+
+    // 与录制导出 Toast（recording-widget）保持一致的视觉：先移除旧 toast 再新建
+    const existing = document.querySelector("#__bug_lens_screenshot_toast__");
+    if (existing) existing.remove();
+
     const toast = document.createElement("div");
-    toast.className = "bug-lens-toast-box";
+    toast.id = "__bug_lens_screenshot_toast__";
     toast.style.cssText = `
-      position: fixed;
-      top: 30%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: #0f172a;
-      color: #38bdf8;
-      border: 1px solid #0284c7;
-      padding: 12px 24px;
-      border-radius: 8px;
-      font-size: 14px;
-      font-weight: 600;
-      box-shadow: 0 20px 30px rgba(0,0,0,0.5);
-      pointer-events: none;
-      z-index: 2147483647;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      position: fixed !important;
+      top: 16px !important;
+      left: 50% !important;
+      transform: translateX(-50%) translateY(-10px) !important;
+      z-index: 2147483647 !important;
+      background: #ffffff !important;
+      -webkit-backdrop-filter: blur(16px) !important;
+      backdrop-filter: blur(16px) !important;
+      border: 1px solid rgba(0, 0, 0, 0.08) !important;
+      color: #1d2129 !important;
+      padding: 6px 16px !important;
+      border-radius: 6px !important;
+      font-size: 13px !important;
+      font-weight: 500 !important;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+      display: flex !important;
+      align-items: center !important;
+      gap: 8px !important;
+      pointer-events: none !important;
+      transition: opacity 0.2s ease, transform 0.2s ease !important;
+      opacity: 0 !important;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
     `;
-    toast.innerHTML = `✓ ${msg}`;
+
+    const icon = tone === "error" ? "!" : "✓";
+    const iconColor = tone === "error" ? "#d5484c" : "#00b42a";
+    toast.innerHTML = `<span style="color:${iconColor};font-size:16px;">${icon}</span> <span>${message}</span>`;
     document.body.appendChild(toast);
+
+    const rAF =
+      typeof requestAnimationFrame === "function"
+        ? requestAnimationFrame
+        : (fn: FrameRequestCallback) => setTimeout(fn, 0);
+    rAF(() => {
+      toast.style.opacity = "1";
+      toast.style.transform = "translateX(-50%) translateY(0)";
+    });
+
     setTimeout(() => {
-      if (toast.parentElement) toast.parentElement.removeChild(toast);
-    }, 1800);
+      toast.style.opacity = "0";
+      toast.style.transform = "translateX(-50%) translateY(-10px)";
+      setTimeout(() => toast.remove(), 200);
+    }, durationMs);
   }
 
   async confirm(viewportDataUrl: string): Promise<void> {

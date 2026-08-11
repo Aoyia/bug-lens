@@ -6,9 +6,12 @@ import {
   clampPointToRect,
   computeDraggedPosition,
   computeResizedRect,
-  hitTestSelectionEdge,
+  pointInRect,
 } from "./overlay-geometry.ts";
 import type { OverlayPhase } from "./overlay-state.ts";
+
+/** 选区内部拖拽的防误触阈值（px）：位移不足时视为单击，不移动选区框 */
+const DRAG_THRESHOLD_PX = 5;
 
 /** SelectionController 所需的外部依赖（由组合根注入，无双向引用） */
 export interface SelectionControllerOptions {
@@ -89,11 +92,17 @@ export class SelectionController {
   /** 第 3 步：select 工具下的兜底分支 —— 未命中批注时拉框或平移截图框 */
   onSelectOrDrag(e: MouseEvent): "selecting" | "dragging-selection" | null {
     if (this.getCurrentTool() !== "select") return null;
+
+    // 排除遮罩 UI 元素（工具栏 / 尺寸角标），避免点击工具按钮误移动选区
+    const target = e.target as HTMLElement;
+    if (target && target.closest(".toolbar, .size-badge")) return null;
+
     if (!this.isSelectionLocked) {
       this.startPoint = { x: e.clientX, y: e.clientY };
       return "selecting";
     } else if (this.selection) {
-      if (hitTestSelectionEdge(e.clientX, e.clientY, this.selection)) {
+      // 命中选区内部或边缘均可整体平移（内部自由拖拽；移动阶段带 5px 防误触阈值）
+      if (pointInRect(e.clientX, e.clientY, this.selection)) {
         this.dragBoxStartPoint = { x: e.clientX, y: e.clientY };
         this.initialSelection = { ...this.selection };
         return "dragging-selection";
@@ -124,7 +133,7 @@ export class SelectionController {
       return true;
     }
 
-    // 锁定后悬停提示：选区边缘显示 move / 内部显示 crosshair
+    // 锁定后悬停提示：选区内部与边缘均可拖拽平移，统一显示 move 光标
     if (
       this.getCurrentTool() === "select" &&
       this.isSelectionLocked &&
@@ -134,18 +143,14 @@ export class SelectionController {
       if (shadowRoot) {
         const box = shadowRoot.querySelector<HTMLDivElement>(".selection-box");
         if (box) {
-          box.style.cursor = hitTestSelectionEdge(
-            e.clientX,
-            e.clientY,
-            this.selection
-          )
+          box.style.cursor = pointInRect(e.clientX, e.clientY, this.selection)
             ? "move"
             : "crosshair";
         }
       }
     }
 
-    // 整体平移拖拽截图框（批注同步平移）
+    // 整体平移拖拽截图框（批注同步平移；位移 < 5px 视为单击防误触）
     if (
       this.isDraggingSelectionBox &&
       this.dragBoxStartPoint &&
@@ -153,6 +158,14 @@ export class SelectionController {
     ) {
       const dx = e.clientX - this.dragBoxStartPoint.x;
       const dy = e.clientY - this.dragBoxStartPoint.y;
+
+      // 防误触阈值：按下后位移不足 5px 不移动选区框（纯单击框纹丝不动）
+      if (
+        Math.abs(dx) < DRAG_THRESHOLD_PX &&
+        Math.abs(dy) < DRAG_THRESHOLD_PX
+      ) {
+        return true;
+      }
 
       const newPos = computeDraggedPosition(this.initialSelection, dx, dy);
       const newX = newPos.x;

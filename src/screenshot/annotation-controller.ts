@@ -333,6 +333,24 @@ export class AnnotationController {
     return hitTestAnnotationInList(this.annotations, x, y);
   }
 
+  /**
+   * hover 光标查询（纯函数，无副作用）：优先命中选中批注的调整手柄/删除按钮，
+   * 其次命中批注体（可拖拽）；均未命中返回 null，由调用方回落默认光标。
+   */
+  getHoverCursor(x: number, y: number): string | null {
+    const handleHit = this.hitTestAnnotationHandle(x, y);
+    if (handleHit) {
+      const h = handleHit.handle;
+      if (h === "delete") return "pointer";
+      if (h === "start" || h === "end") return "move";
+      if (h === "nw" || h === "se") return "nwse-resize";
+      if (h === "ne" || h === "sw") return "nesw-resize";
+      return "move";
+    }
+    if (this.hitTestAnnotation(x, y)) return "move";
+    return null;
+  }
+
   private hitTestAnnotationHandle(
     x: number,
     y: number
