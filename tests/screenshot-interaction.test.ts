@@ -187,7 +187,13 @@ function createHarness(): Harness {
 
   const fire = (type: string, evt: any) => {
     const fns = wrapper.listeners[type] || [];
-    for (const fn of fns) fn(evt);
+    for (const fn of fns) {
+      fn({
+        preventDefault: () => {},
+        stopPropagation: () => {},
+        ...evt,
+      });
+    }
   };
 
   return {
@@ -411,6 +417,199 @@ describe("ScreenshotOverlay 交互行为基线", () => {
     overlay.cancel();
     assert.equal(cancelled, 1);
     assert.equal((overlay as any).selectionController.selection, null);
+  });
+});
+
+// ---------- 截图激活期间事件隔离测试 ----------
+describe("截图激活期间事件隔离（避免网页响应）", () => {
+  test("非编辑场景：普通按键被拦截，不泄漏到网页", () => {
+    const h = createHarness();
+    const anyOv = h.overlay as any;
+    const calls: string[] = [];
+    anyOv.handleKeyDown({
+      key: "a",
+      code: "KeyA",
+      type: "keydown",
+      metaKey: false,
+      ctrlKey: false,
+      preventDefault: () => calls.push("preventDefault"),
+      stopPropagation: () => calls.push("stopPropagation"),
+    });
+    assert.ok(calls.includes("preventDefault"), "should preventDefault");
+    assert.ok(calls.includes("stopPropagation"), "should stopPropagation");
+    // 普通按键不应取消截图（overlay 仍激活）
+    assert.ok(anyOv.container, "overlay should stay active");
+  });
+
+  test("Esc 取消截图且事件被拦截", () => {
+    let cancelled = 0;
+    const overlay = new ScreenshotOverlay();
+    overlay.show({
+      viewportDataUrl: "data:image/png;base64,",
+      onComplete: () => {},
+      onCancel: () => {
+        cancelled++;
+      },
+    });
+    const anyOv = overlay as any;
+    const calls: string[] = [];
+    anyOv.handleKeyDown({
+      key: "Escape",
+      type: "keydown",
+      metaKey: false,
+      ctrlKey: false,
+      preventDefault: () => calls.push("preventDefault"),
+      stopPropagation: () => calls.push("stopPropagation"),
+    });
+    assert.equal(cancelled, 1);
+    assert.ok(calls.includes("preventDefault"));
+    assert.ok(calls.includes("stopPropagation"));
+  });
+
+  test("文本编辑场景：按键放行以正常输入", () => {
+    const h = createHarness();
+    const anyOv = h.overlay as any;
+    anyOv.shadowRoot = {
+      activeElement: {
+        tagName: "TEXTAREA",
+        classList: { contains: () => true },
+      },
+    };
+    const calls: string[] = [];
+    anyOv.handleKeyDown({
+      key: "a",
+      code: "KeyA",
+      type: "keydown",
+      metaKey: false,
+      ctrlKey: false,
+      preventDefault: () => calls.push("preventDefault"),
+      stopPropagation: () => calls.push("stopPropagation"),
+    });
+    assert.deepEqual(calls, [], "editing text should pass keys through");
+  });
+
+  test("keyup 在非编辑场景被拦截，编辑场景放行", () => {
+    const h = createHarness();
+    const anyOv = h.overlay as any;
+    const calls: string[] = [];
+    anyOv.handleKeyUp({
+      key: "a",
+      type: "keyup",
+      preventDefault: () => calls.push("preventDefault"),
+      stopPropagation: () => calls.push("stopPropagation"),
+    });
+    assert.ok(calls.includes("preventDefault"));
+    assert.ok(calls.includes("stopPropagation"));
+
+    // 编辑场景放行
+    anyOv.shadowRoot = {
+      activeElement: {
+        tagName: "INPUT",
+        classList: { contains: () => false },
+      },
+    };
+    const calls2: string[] = [];
+    anyOv.handleKeyUp({
+      key: "a",
+      type: "keyup",
+      preventDefault: () => calls2.push("preventDefault"),
+      stopPropagation: () => calls2.push("stopPropagation"),
+    });
+    assert.deepEqual(calls2, [], "editing text should pass keyup through");
+  });
+
+  test("mousedown 处理完成后阻止事件传播到网页", () => {
+    const h = createHarness();
+    let sp = 0;
+    const evt = {
+      type: "mousedown",
+      clientX: 100,
+      clientY: 100,
+      target: plainTarget,
+      preventDefault: () => {},
+      stopPropagation: () => {
+        sp++;
+      },
+    };
+    const fns = h.wrapper.listeners["mousedown"] || [];
+    for (const fn of fns) fn(evt);
+    assert.ok(sp >= 1, "mousedown should stop propagation");
+  });
+
+  test("contextmenu 在截图激活期间被全局拦截", () => {
+    const h = createHarness();
+    const anyOv = h.overlay as any;
+    let pd = 0;
+    let sp = 0;
+    anyOv.handleContextMenu({
+      type: "contextmenu",
+      preventDefault: () => {
+        pd++;
+      },
+      stopPropagation: () => {
+        sp++;
+      },
+    });
+    assert.equal(pd, 1);
+    assert.equal(sp, 1);
+  });
+
+  test("dblclick 传播被拦截，输入框内放行", () => {
+    const h = createHarness();
+    const anyOv = h.overlay as any;
+    let sp = 0;
+    anyOv.handleOverlayDblClick({
+      type: "dblclick",
+      target: plainTarget,
+      preventDefault: () => {},
+      stopPropagation: () => {
+        sp++;
+      },
+    });
+    assert.equal(sp, 1, "dblclick outside input should be stopped");
+
+    const inputTarget = {
+      closest: (s: string) => (s === ".inline-text-input" ? {} : null),
+    };
+    sp = 0;
+    anyOv.handleOverlayDblClick({
+      type: "dblclick",
+      target: inputTarget,
+      preventDefault: () => {},
+      stopPropagation: () => {
+        sp++;
+      },
+    });
+    assert.equal(sp, 0, "dblclick inside input should pass through");
+  });
+
+  test("click 传播被拦截，工具栏按钮与输入框除外", () => {
+    const h = createHarness();
+    const anyOv = h.overlay as any;
+    let sp = 0;
+    anyOv.handleOverlayClick({
+      type: "click",
+      target: plainTarget,
+      preventDefault: () => {},
+      stopPropagation: () => {
+        sp++;
+      },
+    });
+    assert.equal(sp, 1, "click outside input should be stopped");
+
+    const inputTarget = {
+      closest: (s: string) => (s === ".inline-text-input" ? {} : null),
+    };
+    sp = 0;
+    anyOv.handleOverlayClick({
+      type: "click",
+      target: inputTarget,
+      preventDefault: () => {},
+      stopPropagation: () => {
+        sp++;
+      },
+    });
+    assert.equal(sp, 0, "click inside input should pass through");
   });
 });
 

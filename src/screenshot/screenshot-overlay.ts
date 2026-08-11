@@ -51,6 +51,10 @@ export class ScreenshotOverlay {
     this.handleMouseMove = this.handleMouseMove.bind(this);
     this.handleMouseUp = this.handleMouseUp.bind(this);
     this.handleDoubleClick = this.handleDoubleClick.bind(this);
+    this.handleContextMenu = this.handleContextMenu.bind(this);
+    this.handleOverlayDblClick = this.handleOverlayDblClick.bind(this);
+    this.handleOverlayClick = this.handleOverlayClick.bind(this);
+    this.handleKeyUp = this.handleKeyUp.bind(this);
 
     // 组合根：以依赖注入方式组装两个领域控制器，控制器之间无直接引用
     this.selectionController = new SelectionController({
@@ -182,6 +186,9 @@ export class ScreenshotOverlay {
 
     // 3. 事件监听绑定与全局滚动拦截
     window.addEventListener("keydown", this.handleKeyDown, true);
+    window.addEventListener("keyup", this.handleKeyUp, true);
+    // 截图激活期间禁用网页右键菜单，避免误触发网页交互
+    window.addEventListener("contextmenu", this.handleContextMenu, true);
     window.addEventListener("wheel", this.handlePreventScroll, {
       passive: false,
       capture: true,
@@ -196,6 +203,9 @@ export class ScreenshotOverlay {
     wrapper.addEventListener("mousedown", this.handleMouseDown);
     wrapper.addEventListener("mousemove", this.handleMouseMove);
     wrapper.addEventListener("mouseup", this.handleMouseUp);
+    // 拦截 click / dblclick 传播，避免截图操作触发网页的点击与双击逻辑
+    wrapper.addEventListener("dblclick", this.handleOverlayDblClick);
+    wrapper.addEventListener("click", this.handleOverlayClick);
 
     // 工具栏事件委托
     const toolbar = wrapper.querySelector(".toolbar");
@@ -255,15 +265,22 @@ export class ScreenshotOverlay {
     }
   }
 
-  private handleKeyDown(e: KeyboardEvent): void {
-    const isEditingText = !!(
+  private isEditingText(): boolean {
+    return !!(
       this.shadowRoot?.activeElement &&
       (this.shadowRoot.activeElement.tagName === "TEXTAREA" ||
         this.shadowRoot.activeElement.tagName === "INPUT" ||
         this.shadowRoot.activeElement.classList.contains("inline-text-input"))
     );
+  }
+
+  private handleKeyDown(e: KeyboardEvent): void {
+    const isEditingText = this.isEditingText();
 
     if (e.key === "Escape") {
+      // 取消截图，并阻止事件继续传递到网页（避免触发网页快捷键）
+      e.preventDefault();
+      e.stopPropagation();
       this.cancel();
     } else if (
       (e.key === "z" || e.key === "Z" || e.code === "KeyZ") &&
@@ -275,14 +292,6 @@ export class ScreenshotOverlay {
         this.undo();
       }
     } else if (
-      e.key === "c" &&
-      (e.metaKey || e.ctrlKey) &&
-      this.selectionController.selection
-    ) {
-      e.preventDefault();
-      e.stopPropagation();
-      this.confirm(this.cachedViewportDataUrl);
-    } else if (
       (e.key === "Delete" || e.key === "Backspace") &&
       this.annotationController.selectedAnnotation
     ) {
@@ -291,7 +300,50 @@ export class ScreenshotOverlay {
         e.stopPropagation();
         this.deleteSelectedAnnotation();
       }
+    } else if (!isEditingText) {
+      // 截图激活期间吞掉所有其余按键，避免网页全局快捷键被无意触发
+      e.preventDefault();
+      e.stopPropagation();
     }
+  }
+
+  /**
+   * 截图激活期间：非编辑场景吞掉 keyup，避免网页监听 keyup 的快捷键（如
+   * 编辑器/游戏）被截图操作触发。
+   */
+  private handleKeyUp(e: KeyboardEvent): void {
+    if (this.isEditingText()) return;
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
+  /**
+   * 截图激活期间：禁用网页右键菜单，避免误触发网页交互。
+   * 在 window capture 阶段拦截，保证 shadow DOM 内外右键都被吞掉。
+   */
+  private handleContextMenu(e: Event): void {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
+  /** 截图激活期间：拦截双击事件传播，避免触发网页双击逻辑（输入框内放行以支持选词） */
+  private handleOverlayDblClick(e: MouseEvent): void {
+    const target = e.target as HTMLElement;
+    if (target && target.closest(".inline-text-input")) {
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
+  /** 截图激活期间：拦截非工具栏/输入框区域的 click 传播（工具栏按钮的 click 已自行 stopPropagation） */
+  private handleOverlayClick(e: MouseEvent): void {
+    const target = e.target as HTMLElement;
+    if (target && target.closest(".inline-text-input")) {
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
   }
 
   /**
@@ -301,15 +353,23 @@ export class ScreenshotOverlay {
   private handleMouseDown(e: MouseEvent): void {
     const target = e.target as HTMLElement;
     if (target && target.closest(".inline-text-input")) {
+      e.stopPropagation();
       return;
     }
 
     // 1) 选区 8 点手柄 resize（优先于批注命中）
-    if (this.selectionController.onMouseDown(e)) return;
+    if (this.selectionController.onMouseDown(e)) {
+      e.stopPropagation();
+      return;
+    }
     // 2) 批注域：手柄/删除 → 命中选中/拖拽 → 清空选中 → 绘制启动
-    if (this.annotationController.onMouseDown(e)) return;
+    if (this.annotationController.onMouseDown(e)) {
+      e.stopPropagation();
+      return;
+    }
     // 3) select 工具：拉框 or 锁定后平移截图框
     this.selectionController.onSelectOrDrag(e);
+    e.stopPropagation();
   }
 
   private handleMouseMove(e: MouseEvent): void {
@@ -317,16 +377,24 @@ export class ScreenshotOverlay {
     this.renderMagnifier(e.clientX, e.clientY);
 
     // 选区域：Resize → 锁定光标 → 平移截图框 → 拉框/吸附
-    if (this.selectionController.onMouseMove(e)) return;
+    if (this.selectionController.onMouseMove(e)) {
+      e.stopPropagation();
+      return;
+    }
     // 批注域：手柄缩放 → 拖拽平移 → 绘制临时批注
     this.annotationController.onMouseMove(e);
+    e.stopPropagation();
   }
 
   private handleMouseUp(e: MouseEvent): void {
     // 批注域：拖拽复位 → 手柄复位 → 绘制提交/text 输入
-    if (this.annotationController.onMouseUp(e)) return;
+    if (this.annotationController.onMouseUp(e)) {
+      e.stopPropagation();
+      return;
+    }
     // 选区域：Resize 复位 → 平移复位 → 拉框完成并锁定
     this.selectionController.onMouseUp(e);
+    e.stopPropagation();
   }
 
   private handleDoubleClick(e: MouseEvent): void {
@@ -476,6 +544,8 @@ export class ScreenshotOverlay {
 
   destroy(): void {
     window.removeEventListener("keydown", this.handleKeyDown, true);
+    window.removeEventListener("keyup", this.handleKeyUp, true);
+    window.removeEventListener("contextmenu", this.handleContextMenu, true);
     window.removeEventListener("wheel", this.handlePreventScroll, {
       capture: true,
     } as any);
