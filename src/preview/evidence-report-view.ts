@@ -143,8 +143,15 @@ export class EvidenceReportView {
     }
 
     // 标题与元信息
-    const titleText = snapshot.session.target.initialTitle || "录制预览";
-    const metaText = `${snapshot.session.target.initialUrl} · ${snapshot.session.timeline.durationMs ? `${Math.round(snapshot.session.timeline.durationMs / 1000)} 秒` : "时长未知"}`;
+    const titleText =
+      snapshot.session.target.initialTitle || t("recordingPreviewFallback");
+    const metaText = `${snapshot.session.target.initialUrl} · ${
+      snapshot.session.timeline.durationMs
+        ? t("previewDuration", [
+            String(Math.round(snapshot.session.timeline.durationMs / 1000)),
+          ])
+        : t("unknownDuration")
+    }`;
     const titleEl = this.root.querySelector<HTMLElement>("#title");
     if (titleEl) {
       titleEl.textContent = titleText;
@@ -312,7 +319,7 @@ export class EvidenceReportView {
 
             const video = this.root.querySelector<HTMLVideoElement>("#video");
             if (!video || video.hidden || !video.src) {
-              this.shell.notify("当前会话无可用录像，无法导出视频片段");
+              this.shell.notify(t("clipExportNoVideo"));
               return;
             }
 
@@ -339,15 +346,21 @@ export class EvidenceReportView {
     if (!snapshot) return;
     const included = snapshot.interactions.included;
     const metrics = [
-      { key: "steps", value: included.length, label: "有效步骤" },
+      { key: "steps", value: included.length, label: t("metricSteps") },
       ...(this.adapter.mode === "editable"
-        ? [{ key: "deleted", value: this.excludedCount(), label: "已删除" }]
+        ? [
+            {
+              key: "deleted",
+              value: this.excludedCount(),
+              label: t("metricDeleted"),
+            },
+          ]
         : []),
       {
         key: "screenshots",
         value: included.filter((item) => item.screenshot.status === "captured")
           .length,
-        label: "步骤截图",
+        label: t("metricScreenshots"),
       },
       {
         key: "console",
@@ -362,7 +375,7 @@ export class EvidenceReportView {
       {
         key: "issues",
         value: snapshot.issueScenes?.included.length ?? 0,
-        label: "问题现场",
+        label: t("issueScenes"),
       },
     ];
     this.root.querySelector<HTMLElement>("#metrics")!.innerHTML = metrics
@@ -408,25 +421,25 @@ export class EvidenceReportView {
         selector: "#restore",
         kind: "interaction" as const,
         tab: "steps",
-        label: "步骤",
+        label: t("restoreLabelSteps"),
       },
       {
         selector: "#restore-console",
         kind: "console" as const,
         tab: "console",
-        label: "日志",
+        label: t("restoreLabelLogs"),
       },
       {
         selector: "#restore-network",
         kind: "network" as const,
         tab: "network",
-        label: "请求",
+        label: t("restoreLabelRequests"),
       },
       {
         selector: "#restore-issues",
         kind: "issueScene" as const,
         tab: "issues",
-        label: "问题现场",
+        label: t("issueScenes"),
       },
     ];
     for (const item of buttons) {

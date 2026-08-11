@@ -1380,5 +1380,40 @@
         "content": "$1"
       }
     }
+  },
+  "recordingPreviewFallback": {
+    "message": "录制预览"
+  },
+  "previewDuration": {
+    "message": "$SECONDS$ 秒",
+    "placeholders": {
+      "seconds": {
+        "content": "$1"
+      }
+    }
+  },
+  "unknownDuration": {
+    "message": "时长未知"
+  },
+  "metricSteps": {
+    "message": "有效步骤"
+  },
+  "metricDeleted": {
+    "message": "已删除"
+  },
+  "metricScreenshots": {
+    "message": "步骤截图"
+  },
+  "restoreLabelSteps": {
+    "message": "步骤"
+  },
+  "restoreLabelLogs": {
+    "message": "日志"
+  },
+  "restoreLabelRequests": {
+    "message": "请求"
+  },
+  "clipExportNoVideo": {
+    "message": "当前会话无可用录像，无法导出视频片段"
   }
 }

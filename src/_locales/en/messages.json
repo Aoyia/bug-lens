@@ -1380,5 +1380,40 @@
         "content": "$1"
       }
     }
+  },
+  "recordingPreviewFallback": {
+    "message": "Recording preview"
+  },
+  "previewDuration": {
+    "message": "$SECONDS$ sec",
+    "placeholders": {
+      "seconds": {
+        "content": "$1"
+      }
+    }
+  },
+  "unknownDuration": {
+    "message": "Duration unknown"
+  },
+  "metricSteps": {
+    "message": "Valid steps"
+  },
+  "metricDeleted": {
+    "message": "Deleted"
+  },
+  "metricScreenshots": {
+    "message": "Step screenshots"
+  },
+  "restoreLabelSteps": {
+    "message": "Steps"
+  },
+  "restoreLabelLogs": {
+    "message": "Logs"
+  },
+  "restoreLabelRequests": {
+    "message": "Requests"
+  },
+  "clipExportNoVideo": {
+    "message": "No recording available for this session, so no video clip can be exported."
   }
 }
