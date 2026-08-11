@@ -20,6 +20,7 @@ import {
 import { useRpc } from "../../hooks/useRpc.ts";
 import { copyTextToClipboard } from "../../preview/clipboard";
 import { useSessionState } from "../../hooks/useSessionState.ts";
+import { bindConfirmDialogDismiss } from "../../popup/confirm-dialog";
 import { RecordPanel } from "./RecordPanel.tsx";
 import { OptionsGrid, type VideoQuality } from "./OptionsGrid.tsx";
 import { HistoryList } from "./HistoryList.tsx";
@@ -305,6 +306,21 @@ export function PopupApp() {
     message: string;
     onConfirm: () => void;
   } | null>(null);
+  const confirmCancelRef = useRef<HTMLButtonElement | null>(null);
+
+  // 确认框的标准对话框交互：打开聚焦安全默认操作（取消）、Escape 取消、
+  // 关闭后焦点归还触发元素（与全应用「Escape 取消当前层」惯例保持一致）
+  useEffect(() => {
+    if (!confirmModal) return;
+    const active = document.activeElement;
+    const trigger =
+      active && active !== document.body ? (active as HTMLElement) : null;
+    return bindConfirmDialogDismiss({
+      trigger,
+      cancelButton: confirmCancelRef.current,
+      onCancel: () => setConfirmModal(null),
+    });
+  }, [confirmModal]);
 
   const handleStart = useCallback(async () => {
     if (!activeTab?.id) return;
@@ -657,10 +673,18 @@ export function PopupApp() {
       {/* 自定义内联 Confirm 模态框 */}
       {confirmModal && (
         <div className="confirm-overlay">
-          <div className="confirm-dialog">
-            <div className="confirm-message">{confirmModal.message}</div>
+          <div
+            className="confirm-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="confirm-message"
+          >
+            <div id="confirm-message" className="confirm-message">
+              {confirmModal.message}
+            </div>
             <div className="confirm-actions">
               <button
+                ref={confirmCancelRef}
                 className="btn-confirm-cancel"
                 onClick={() => setConfirmModal(null)}
               >
