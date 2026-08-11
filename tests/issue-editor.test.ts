@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   isEnterCommitKey,
+  resolveEscapeTarget,
   shouldWarnEmptyActual,
 } from "../src/entrypoints/content/collector/issue-editor.ts";
 
@@ -40,4 +41,17 @@ test("issue-editor: 非 Enter 键不触发提交", () => {
   assert.equal(isEnterCommitKey({ key: "Tab" }), false);
   assert.equal(isEnterCommitKey({ key: "Escape" }), false);
   assert.equal(isEnterCommitKey({ key: "" }), false);
+});
+
+test("issue-editor: Esc 在文字批注浮层聚焦时让位给浮层（含与表单同聚焦的边界）", () => {
+  assert.equal(resolveEscapeTarget(true, false), "text-overlay");
+  assert.equal(resolveEscapeTarget(true, true), "text-overlay");
+});
+
+test("issue-editor: Esc 在表单字段聚焦时仅失焦，不取消编辑器", () => {
+  assert.equal(resolveEscapeTarget(false, true), "form-field");
+});
+
+test("issue-editor: 非文本输入场景 Esc 取消整个编辑器（等价顶部 ✕）", () => {
+  assert.equal(resolveEscapeTarget(false, false), "editor");
 });

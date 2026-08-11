@@ -40,6 +40,24 @@ export function shouldWarnEmptyActual(
   return actual.trim().length === 0 && !alreadyWarned;
 }
 
+export type IssueEditorEscapeTarget = "text-overlay" | "form-field" | "editor";
+
+/**
+ * Esc 在问题编辑器内的语义分派（与截图层"文本编辑态 Esc 不取消整个覆盖层"的先例一致）：
+ * - 文字批注浮层聚焦 → 让位给浮层，Esc 只关闭浮层；
+ * - 表单字段（实际/预期/说明）聚焦 → 仅失焦，避免误触 Esc 丢弃已录入内容
+ *   （中文输入法用户常以 Esc 撤销组词）；
+ * - 其余场景 → 取消整个编辑器，等价顶部 ✕（废弃场景并恢复录制条）。
+ */
+export function resolveEscapeTarget(
+  textOverlayFocused: boolean,
+  formFieldFocused: boolean
+): IssueEditorEscapeTarget {
+  if (textOverlayFocused) return "text-overlay";
+  if (formFieldFocused) return "form-field";
+  return "editor";
+}
+
 /**
  * 判断单行输入框的按键是否应触发「保存并继续」提交：
  * 仅当按下 Enter 且不在输入法组词状态时返回 true。
@@ -392,6 +410,28 @@ export class IssueEditor {
     if (redoBtn) redoBtn.title = `${t("redo")} (${redoShortcutText})`;
 
     this.keydownListener = (e: KeyboardEvent) => {
+      // 模态一致性（第一性原理）：全应用覆盖层均支持 Esc 取消当前层，本编辑器是
+      // 唯一缺失项；且未拦截的 Esc 会穿透到页面，触发网页自身的 Esc 快捷键，
+      // 在扩展全屏编辑器之下悄悄改变被遮挡页面的状态。
+      if (e.key === "Escape") {
+        const activeEl = document.activeElement;
+        const target = resolveEscapeTarget(
+          activeEl === textInputOverlay,
+          activeEl === actualInput ||
+            activeEl === expectedInput ||
+            (activeEl?.tagName === "TEXTAREA" && root.contains(activeEl))
+        );
+        e.preventDefault();
+        e.stopPropagation();
+        if (target === "text-overlay") {
+          removeTextInputOverlay();
+        } else if (target === "form-field") {
+          (activeEl as HTMLElement).blur();
+        } else {
+          cancel();
+        }
+        return;
+      }
       const isCmdOrCtrl = e.metaKey || e.ctrlKey;
       if (!isCmdOrCtrl) return;
       const activeEl = document.activeElement;
