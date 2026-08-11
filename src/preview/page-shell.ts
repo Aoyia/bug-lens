@@ -135,7 +135,7 @@ export class PreviewPageShell {
                 codeButton.innerHTML = originalHtml;
               }, 1500);
             })
-            .catch((error) => this.notify(`复制失败：${String(error)}`));
+            .catch((error) => this.notify(t("copyFailed", String(error))));
       }
 
       const locatorButton =
@@ -152,7 +152,7 @@ export class PreviewPageShell {
               locatorButton.textContent = originalText;
             }, 1500);
           })
-          .catch((error) => this.notify(`复制失败：${String(error)}`));
+          .catch((error) => this.notify(t("copyFailed", String(error))));
     });
   }
 
