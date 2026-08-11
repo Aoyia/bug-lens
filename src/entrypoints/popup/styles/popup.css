@@ -480,6 +480,8 @@ input[type="search"]:focus {
   padding: 8px 10px;
   background: #ffffff;
   transition: border-color 0.15s ease;
+  /* 整卡可点击打开预览：与 :hover 蓝色描边（可点击暗示）保持一致的光标反馈 */
+  cursor: pointer;
 }
 .session:hover {
   border-color: rgba(22, 93, 255, 0.3);

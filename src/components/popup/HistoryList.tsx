@@ -93,6 +93,10 @@ export const HistoryList = memo(function HistoryList({
                 key={session.id}
                 className="session"
                 aria-label={session.target.initialTitle || t("unnamedTab")}
+                // 整卡可点击打开预览：卡片 hover 已有蓝色描边（可点击暗示），
+                // 若点击主体无响应会破坏感知可用性；同时扩大主操作热区（Fitts 定律）。
+                // 内嵌按钮各自 stopPropagation，避免冒泡双触发。
+                onClick={() => onOpenPreview(session.id)}
               >
                 <div className="session-head">
                   <div
@@ -105,7 +109,10 @@ export const HistoryList = memo(function HistoryList({
                     {isContinuable && (
                       <button
                         className="btn-continue-sm"
-                        onClick={() => onResumeSession(session.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onResumeSession(session.id);
+                        }}
                         aria-label={`${t("resume")} - ${session.target.initialTitle || t("unnamedTab")}`}
                       >
                         {t("resume")}
@@ -113,7 +120,10 @@ export const HistoryList = memo(function HistoryList({
                     )}
                     <button
                       className="btn-open-preview"
-                      onClick={() => onOpenPreview(session.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpenPreview(session.id);
+                      }}
                       aria-label={`${t("preview")} - ${session.target.initialTitle || t("unnamedTab")}`}
                     >
                       {t("preview")}
@@ -122,7 +132,10 @@ export const HistoryList = memo(function HistoryList({
                       className="btn-delete-icon"
                       title={t("deleteSession")}
                       aria-label={`${t("deleteSession")} - ${session.target.initialTitle || t("unnamedTab")}`}
-                      onClick={() => onDeleteSession(session.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteSession(session.id);
+                      }}
                     >
                       <svg
                         width="12"

@@ -136,3 +136,32 @@ test("首次引导已迁移至 GitHub Pages 网页，扩展内不再内嵌引导
   // GitHub Pages 引导页存在且包含核心内容
   assert.ok(guidePage.includes("Bug Lens"), "docs/index.html 应包含产品名");
 });
+
+test("历史会话卡片整卡可点击打开预览，内嵌操作按钮必须阻止冒泡", () => {
+  const historyList = readFileSync(
+    resolve(process.cwd(), "src/components/popup/HistoryList.tsx"),
+    "utf8"
+  );
+
+  // 会话卡片主体必须绑定打开预览的点击处理器（与 :hover 蓝色描边的可点击
+  // 暗示保持一致，避免"看着可点、点了没反应"的交互断裂）
+  assert.ok(
+    /<article\b[^>]*onClick=\{\(\) => onOpenPreview\(session\.id\)\}/.test(
+      historyList
+    ),
+    "Session card must open preview on click"
+  );
+
+  // 内嵌的继续/预览/删除按钮必须阻止事件冒泡，避免点按钮时同时触发达成
+  // 打开预览的双重动作
+  const bubbleGuards = historyList.match(
+    /onClick=\{\(e\) => \{\s*e\.stopPropagation\(\);/g
+  );
+  assert.ok(
+    bubbleGuards && bubbleGuards.length >= 3,
+    [
+      "Resume / preview / delete buttons must stopPropagation",
+      `found ${bubbleGuards?.length ?? 0} guards`,
+    ].join(": ")
+  );
+});
