@@ -4,6 +4,15 @@ import type {
 } from "../shared/protocol.ts";
 
 /**
+ * 翻译函数：将 i18n key（及可选占位符参数）转换为当前界面语言的文案。
+ * 由调用方注入（预览页传入 t），保持本域模块与 i18n 环境解耦。
+ */
+export type TranslateFn = (
+  key: string,
+  substitutions?: string | string[]
+) => string;
+
+/**
  * 表示被分组（合并）后的交互卡片的类型。
  * - `form_input_submit`: 包含表单输入（可能还有提交）的复合操作
  * - `continuous_click`: 对同一个元素的连续多次点击
@@ -78,7 +87,9 @@ export function isSameElement(
  * 判断事件是否属于可合并的表单/输入/按键交互
  */
 function isFormOrInputKind(kind: InteractionRecord["kind"]): boolean {
-  return ["click", "input", "keydown", "change", "submit", "dblclick"].includes(kind);
+  return ["click", "input", "keydown", "change", "submit", "dblclick"].includes(
+    kind
+  );
 }
 
 /**
@@ -86,6 +97,7 @@ function isFormOrInputKind(kind: InteractionRecord["kind"]): boolean {
  */
 export function groupInteractions(
   records: InteractionRecord[],
+  translate: TranslateFn,
   windowMs: number = 3000
 ): GroupedInteractionCard[] {
   if (!records || records.length === 0) return [];
@@ -128,10 +140,13 @@ export function groupInteractions(
     groups.push(currentGroup);
   }
 
-  return groups.map((children) => buildCard(children));
+  return groups.map((children) => buildCard(children, translate));
 }
 
-function buildCard(children: InteractionRecord[]): GroupedInteractionCard {
+function buildCard(
+  children: InteractionRecord[],
+  translate: TranslateFn
+): GroupedInteractionCard {
   const first = children[0];
   const last = children[children.length - 1];
 
@@ -144,15 +159,17 @@ function buildCard(children: InteractionRecord[]): GroupedInteractionCard {
       record.element.tagName.toLowerCase();
     const actionLabel =
       record.kind === "click"
-        ? "点击"
+        ? translate("stepClick")
         : record.kind === "input"
-          ? "输入"
+          ? translate("stepInput")
           : record.kind === "keydown"
             ? record.metadata?.shortcut
-              ? `快捷键 ${record.metadata.shortcut}`
-              : `按键 ${record.metadata?.key ?? ""}`
+              ? translate("stepShortcut", record.metadata.shortcut)
+              : translate("stepKey", record.metadata?.key ?? "")
             : record.kind === "navigation"
-              ? `页面导航 (${record.metadata?.navigationType ?? "navigation"})`
+              ? translate("stepNavigation", [
+                  record.metadata?.navigationType ?? "navigation",
+                ])
               : record.kind;
 
     return {
@@ -161,14 +178,16 @@ function buildCard(children: InteractionRecord[]): GroupedInteractionCard {
       primaryRecord: record,
       children,
       aggregatedMeta: {
-        title: `${actionLabel} (${elemName})`,
+        title: translate("stepAtomicTitle", [actionLabel, elemName]),
         description:
           record.kind === "navigation"
             ? (record.metadata?.toUrl ?? record.page.url)
             : record.metadata?.value
-              ? `输入: "${record.metadata.value}"`
+              ? translate("stepInputValue", record.metadata.value)
               : record.metadata?.valueLength
-                ? `输入: ${record.metadata.valueLength} 字符 (脱敏)`
+                ? translate("stepInputRedacted", [
+                    String(record.metadata.valueLength),
+                  ])
                 : record.page.url,
         startTime: record.createdAt,
         endTime: record.createdAt,
@@ -254,29 +273,34 @@ function buildCard(children: InteractionRecord[]): GroupedInteractionCard {
   let title = "";
   if (kind === "form_input_submit") {
     title = hasEnterSubmit
-      ? `表单输入与回车提交 (${elemIdentifier})`
-      : `表单连续输入与修改 (${elemIdentifier})`;
+      ? translate("stepFormSubmitTitle", elemIdentifier)
+      : translate("stepFormInputTitle", elemIdentifier);
   } else if (kind === "continuous_click") {
-    title = `连续点击 ${children.length} 次 (${elemIdentifier})`;
+    title = translate("stepContinuousClickTitle", [
+      String(children.length),
+      elemIdentifier,
+    ]);
   } else {
-    title = `复合操作 (${elemIdentifier})`;
+    title = translate("stepCompositeTitle", elemIdentifier);
   }
 
   const descParts: string[] = [];
   if (finalValue !== undefined) {
-    descParts.push(
-      `输入文本: "${finalValue.length > 20 ? finalValue.slice(0, 20) + "..." : finalValue}"`
-    );
+    const shown =
+      finalValue.length > 20 ? `${finalValue.slice(0, 20)}...` : finalValue;
+    descParts.push(translate("stepInputTextValue", shown));
   } else if (finalValueLength !== undefined) {
-    descParts.push(`输入文本: ${finalValueLength} 字符 (脱敏)`);
+    descParts.push(
+      translate("stepInputTextRedacted", [String(finalValueLength)])
+    );
   }
   if (hasEnterSubmit) {
-    descParts.push("按 Enter 提交");
+    descParts.push(translate("stepEnterSubmit"));
   }
   if (totalInputEvents > 1) {
-    descParts.push(`共 ${totalInputEvents} 次连续打字事件`);
+    descParts.push(translate("stepTypingEvents", String(totalInputEvents)));
   } else {
-    descParts.push(`包含 ${children.length} 个物理事件`);
+    descParts.push(translate("stepPhysicalEvents", String(children.length)));
   }
 
   return {

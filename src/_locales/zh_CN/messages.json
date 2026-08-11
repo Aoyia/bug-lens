@@ -1274,5 +1274,100 @@
   },
   "sessionStatusFailed": {
     "message": "失败"
+  },
+  "stepClick": {
+    "message": "点击"
+  },
+  "stepInput": {
+    "message": "输入"
+  },
+  "stepShortcut": {
+    "message": "快捷键 $KEY$",
+    "placeholders": {
+      "key": { "content": "$1" }
+    }
+  },
+  "stepKey": {
+    "message": "按键 $KEY$",
+    "placeholders": {
+      "key": { "content": "$1" }
+    }
+  },
+  "stepNavigation": {
+    "message": "页面导航 ($TYPE$)",
+    "placeholders": {
+      "type": { "content": "$1" }
+    }
+  },
+  "stepAtomicTitle": {
+    "message": "$ACTION$ ($ELEMENT$)",
+    "placeholders": {
+      "action": { "content": "$1" },
+      "element": { "content": "$2" }
+    }
+  },
+  "stepInputValue": {
+    "message": "输入: \"$VALUE$\"",
+    "placeholders": {
+      "value": { "content": "$1" }
+    }
+  },
+  "stepInputRedacted": {
+    "message": "输入: $COUNT$ 字符 (脱敏)",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "stepFormSubmitTitle": {
+    "message": "表单输入与回车提交 ($ELEMENT$)",
+    "placeholders": {
+      "element": { "content": "$1" }
+    }
+  },
+  "stepFormInputTitle": {
+    "message": "表单连续输入与修改 ($ELEMENT$)",
+    "placeholders": {
+      "element": { "content": "$1" }
+    }
+  },
+  "stepContinuousClickTitle": {
+    "message": "连续点击 $COUNT$ 次 ($ELEMENT$)",
+    "placeholders": {
+      "count": { "content": "$1" },
+      "element": { "content": "$2" }
+    }
+  },
+  "stepCompositeTitle": {
+    "message": "复合操作 ($ELEMENT$)",
+    "placeholders": {
+      "element": { "content": "$1" }
+    }
+  },
+  "stepInputTextValue": {
+    "message": "输入文本: \"$VALUE$\"",
+    "placeholders": {
+      "value": { "content": "$1" }
+    }
+  },
+  "stepInputTextRedacted": {
+    "message": "输入文本: $COUNT$ 字符 (脱敏)",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "stepEnterSubmit": {
+    "message": "按 Enter 提交"
+  },
+  "stepTypingEvents": {
+    "message": "共 $COUNT$ 次连续打字事件",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "stepPhysicalEvents": {
+    "message": "包含 $COUNT$ 个物理事件",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
   }
 }

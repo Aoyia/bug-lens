@@ -1274,5 +1274,100 @@
   },
   "sessionStatusFailed": {
     "message": "Failed"
+  },
+  "stepClick": {
+    "message": "Click"
+  },
+  "stepInput": {
+    "message": "Input"
+  },
+  "stepShortcut": {
+    "message": "Shortcut $KEY$",
+    "placeholders": {
+      "key": { "content": "$1" }
+    }
+  },
+  "stepKey": {
+    "message": "Key $KEY$",
+    "placeholders": {
+      "key": { "content": "$1" }
+    }
+  },
+  "stepNavigation": {
+    "message": "Page navigation ($TYPE$)",
+    "placeholders": {
+      "type": { "content": "$1" }
+    }
+  },
+  "stepAtomicTitle": {
+    "message": "$ACTION$ ($ELEMENT$)",
+    "placeholders": {
+      "action": { "content": "$1" },
+      "element": { "content": "$2" }
+    }
+  },
+  "stepInputValue": {
+    "message": "Input: \"$VALUE$\"",
+    "placeholders": {
+      "value": { "content": "$1" }
+    }
+  },
+  "stepInputRedacted": {
+    "message": "Input: $COUNT$ chars (redacted)",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "stepFormSubmitTitle": {
+    "message": "Form input & Enter submit ($ELEMENT$)",
+    "placeholders": {
+      "element": { "content": "$1" }
+    }
+  },
+  "stepFormInputTitle": {
+    "message": "Repeated form input & edits ($ELEMENT$)",
+    "placeholders": {
+      "element": { "content": "$1" }
+    }
+  },
+  "stepContinuousClickTitle": {
+    "message": "Clicked $COUNT$ times ($ELEMENT$)",
+    "placeholders": {
+      "count": { "content": "$1" },
+      "element": { "content": "$2" }
+    }
+  },
+  "stepCompositeTitle": {
+    "message": "Composite action ($ELEMENT$)",
+    "placeholders": {
+      "element": { "content": "$1" }
+    }
+  },
+  "stepInputTextValue": {
+    "message": "Input text: \"$VALUE$\"",
+    "placeholders": {
+      "value": { "content": "$1" }
+    }
+  },
+  "stepInputTextRedacted": {
+    "message": "Input text: $COUNT$ chars (redacted)",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "stepEnterSubmit": {
+    "message": "Press Enter to submit"
+  },
+  "stepTypingEvents": {
+    "message": "$COUNT$ consecutive typing events",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "stepPhysicalEvents": {
+    "message": "$COUNT$ physical events",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
   }
 }

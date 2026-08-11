@@ -126,7 +126,7 @@ export const InteractionsTab = memo(function InteractionsTab({
   >({});
 
   const groupedCards = useMemo(() => {
-    return groupInteractions(snapshot.included);
+    return groupInteractions(snapshot.included, t);
   }, [snapshot.included]);
 
   // 会话时间原点：与 NetworkTab / StreamTab / ConsoleTab 一致，行时间优先显示相对录制起点的耗时

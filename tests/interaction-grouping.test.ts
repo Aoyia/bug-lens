@@ -1,10 +1,27 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   groupInteractions,
   isSameElement,
+  type TranslateFn,
 } from "../src/domain/interaction-grouping.ts";
 import type { InteractionRecord } from "../src/shared/protocol.ts";
+import { t } from "../src/shared/i18n.ts";
+
+/** 基于真实 locale 字典构造翻译函数：既保持中英文语义断言，也校验新 i18n key 真实存在。 */
+function translatorFromLocale(locale: "en" | "zh_CN"): TranslateFn {
+  const dict = JSON.parse(
+    readFileSync(
+      resolve(process.cwd(), `src/_locales/${locale}/messages.json`),
+      "utf8"
+    )
+  ) as Record<string, { message: string }>;
+  return (key, substitutions) => t(key, substitutions, dict);
+}
+const zh = translatorFromLocale("zh_CN");
+const en = translatorFromLocale("en");
 
 function mockRecord(overrides: Partial<InteractionRecord>): InteractionRecord {
   return {
@@ -136,7 +153,7 @@ test("5 条搜索相关交互 (click, input, input, keydown Enter, change) 被�
     }),
   ];
 
-  const cards = groupInteractions(records, 4000);
+  const cards = groupInteractions(records, zh, 4000);
 
   assert.equal(cards.length, 1);
   const card = cards[0];
@@ -161,7 +178,7 @@ test("超出的时间窗口（如间隔大于 3 秒）自动打断开辟新卡�
     }),
   ];
 
-  const cards = groupInteractions(records, 3000);
+  const cards = groupInteractions(records, zh, 3000);
 
   assert.equal(cards.length, 2);
   assert.equal(cards[0].children.length, 2);
@@ -197,9 +214,55 @@ test("不同元素的交互不会被错误合并", () => {
     },
   });
 
-  const cards = groupInteractions([recordA, recordB]);
+  const cards = groupInteractions([recordA, recordB], zh);
 
   assert.equal(cards.length, 2);
   assert.equal(cards[0].kind, "atomic");
   assert.equal(cards[1].kind, "atomic");
+});
+
+test("步骤卡片标题与描述随界面语言（翻译函数）输出中英文", () => {
+  const baseTime = 100000;
+  const records: InteractionRecord[] = [
+    mockRecord({
+      id: "rec-1",
+      kind: "click",
+      createdAt: baseTime,
+      element: {
+        tagName: "button",
+        id: "btn-submit",
+        classNames: [],
+        attributes: {},
+        boundingBox: { x: 0, y: 0, width: 80, height: 30 },
+        locators: [
+          {
+            kind: "id",
+            expression: "#btn-submit",
+            matchCount: 1,
+            stabilityScore: 0.9,
+            reasons: [],
+          },
+        ],
+      },
+    }),
+    mockRecord({
+      id: "rec-2",
+      kind: "input",
+      createdAt: baseTime + 500,
+      metadata: { inputType: "insertText", valueLength: 11 },
+    }),
+  ];
+
+  const zhCards = groupInteractions(records, zh, 3000);
+  const enCards = groupInteractions(records, en, 3000);
+
+  // 单条 click 标题：跟随语言
+  assert.equal(zhCards[0].aggregatedMeta.title, "点击 (btn-submit)");
+  assert.equal(enCards[0].aggregatedMeta.title, "Click (btn-submit)");
+  // 输入脱敏描述：跟随语言
+  assert.equal(zhCards[1].aggregatedMeta.description, "输入: 11 字符 (脱敏)");
+  assert.equal(
+    enCards[1].aggregatedMeta.description,
+    "Input: 11 chars (redacted)"
+  );
 });
