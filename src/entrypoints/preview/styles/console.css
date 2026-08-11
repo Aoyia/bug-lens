@@ -65,6 +65,9 @@
   padding: 4px 0;
   border-bottom: 1px solid rgba(0, 0, 0, 0.05);
   background: #ffffff;
+  /* 行可点击（点击跳转视频到该日志时间点）：与 .network-row 及 hover 背景反馈保持一致，
+     避免"看着可点、光标无确认"的感知断裂（affordance mismatch） */
+  cursor: pointer;
   transition: background 0.1s ease;
 }
 .console-row:last-child {

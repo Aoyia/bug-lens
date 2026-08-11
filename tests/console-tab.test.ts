@@ -150,3 +150,26 @@ test("ConsoleTab 行点击选中态 class 与样式规则存在（防 UI 回归�
     "console.css 应包含选中行高亮规则"
   );
 });
+
+test("Console 日志行可点击暗示与 Network 行保持一致（cursor: pointer）", () => {
+  // Console 行点击会跳转视频到该日志时间点（ConsoleTab 行 onClick → onSeekVideo），
+  // 且 hover 已有背景反馈暗示可交互；光标必须同步为 pointer，避免
+  // "看着可点、光标无确认"的感知断裂（与 .network-row 及历史会话卡片同款契约）。
+  const consoleCss = readFileSync(
+    resolve(process.cwd(), "src/entrypoints/preview/styles/console.css"),
+    "utf8"
+  );
+  const networkCss = readFileSync(
+    resolve(process.cwd(), "src/entrypoints/preview/styles/network.css"),
+    "utf8"
+  );
+
+  assert.ok(
+    /\.console-row\s*\{[^}]*cursor:\s*pointer;/.test(consoleCss),
+    ".console-row must declare cursor: pointer"
+  );
+  assert.ok(
+    /\.network-row\s*\{[^}]*cursor:\s*pointer;/.test(networkCss),
+    ".network-row cursor: pointer must exist as the reference"
+  );
+});
