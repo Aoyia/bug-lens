@@ -8,6 +8,7 @@ import { generatePlaywrightScript } from "../../preview/playwright-generator";
 import { highlightJs } from "../../preview/rendering";
 import { copyTextToClipboard } from "../../preview/clipboard";
 import { applyPrivacyBadge } from "../../preview/privacy-badge";
+import { bindPlaywrightModalClose } from "../../preview/playwright-modal";
 import { applyI18n, t } from "../../shared/i18n";
 import "../../shared/components/truncated-text";
 
@@ -113,6 +114,9 @@ playwrightModal.addEventListener("click", (e) => {
     playwrightModal.hidden = true;
   }
 });
+
+// 与其他模态框（图片查看器、快捷键面板）保持一致：Escape 关闭 Playwright 弹窗
+bindPlaywrightModalClose(playwrightModal);
 
 playwrightCopy.addEventListener("click", async () => {
   const text = playwrightOutput.textContent;
