@@ -256,7 +256,7 @@ describe("RendererRegistry: text", () => {
       position: { x: 10, y: 10 },
       text: "hello world",
     };
-    // 单行 "hello world"（11 个 ASCII 字符）：估算 maxW≈73.7 → bgW=max(80, 73.7+20)=93.7，bgH=32
+    // 单行 "hello world"（10 字母 + 1 空格）：估算 maxW=10*6.7+3.6=70.6 → bgW=max(80, 70.6+20)=90.6，bgH=32
     // 命中区 = (10-4,10-4) ~ (10+93.7+4, 10+32+4) = (6,6)~(107.7,46)
     assert.equal(r.hitTest(ann, 20, 20), true); // 内部
     assert.equal(r.hitTest(ann, 6, 44), true); // 左下角边界

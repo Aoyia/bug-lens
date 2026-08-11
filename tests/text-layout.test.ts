@@ -27,6 +27,69 @@ describe("text-layout 估算器", () => {
   test("空串宽度为 0", () => {
     assert.equal(estimateTextWidth(""), 0);
   });
+
+  test("空格宽度独立估算（3.6px < 字母 6.7px）", () => {
+    assert.equal(estimateTextWidth("a b"), 6.7 + 3.6 + 6.7);
+    assert.ok(estimateTextWidth("a b") < estimateTextWidth("abc"));
+  });
+});
+
+describe("computeTextLayout 换行规则（浏览器 word-wrap 语义）", () => {
+  test("英文按词断行：单词不切断、行首无空格", () => {
+    // "hello world foo bar" = 18*6.7 + 3*3.6 = 131.4；maxWidth 80 只能容纳 2 个词
+    const layout = computeTextLayout("hello world foo bar", {
+      maxWidth: 80,
+    });
+    assert.deepEqual(layout.lines, ["hello world", "foo bar"]);
+  });
+
+  test("超长单词（无断行机会）才在词内硬切", () => {
+    // 20 字母 × 6.7 = 134 > 30 → 每行最多 4 字母（4*6.7=26.8 ≤ 30）
+    const layout = computeTextLayout("supercalifragilistic", {
+      maxWidth: 30,
+    });
+    assert.equal(layout.lines.length, 5);
+    assert.ok(
+      layout.lines.every((l) => estimateTextWidth(l) <= 30),
+      "硬切后每行不超 maxWidth"
+    );
+  });
+
+  test("CJK 逐字断行：每行不超过 maxWidth", () => {
+    // 13px/字，maxWidth 40 → 每行最多 3 字
+    const layout = computeTextLayout("一二三四五六七八九十", {
+      maxWidth: 40,
+    });
+    assert.deepEqual(layout.lines, ["一二三", "四五六", "七八九", "十"]);
+  });
+
+  test("中英混排：英文词整体移行不被切断", () => {
+    // "页面加载"=52 ≤ 80；+"failed"=92.2 > 80 → failed 整体换行
+    const layout = computeTextLayout("页面加载failed请重试", {
+      maxWidth: 80,
+    });
+    assert.deepEqual(layout.lines, ["页面加载", "failed请重试"]);
+  });
+
+  test("手动换行 \\n 保留：空行占一行行高", () => {
+    const layout = computeTextLayout("a\n\nb");
+    assert.deepEqual(layout.lines, ["a", "", "b"]);
+    assert.equal(layout.bgHeight, 12 + 3 * 18);
+  });
+
+  test("长文本多行：每行宽不超 maxWidth，bgWidth 取最长行", () => {
+    const text = "hello world foo bar baz qux";
+    const layout = computeTextLayout(text, { maxWidth: 80 });
+    assert.ok(layout.lines.length >= 2);
+    for (const l of layout.lines) {
+      assert.ok(estimateTextWidth(l) <= 80, `行超宽: "${l}"`);
+    }
+    const maxLineW = Math.max(...layout.lines.map(estimateTextWidth));
+    assert.equal(
+      layout.bgWidth,
+      Math.max(TEXT_MIN_WIDTH, Math.min(80, maxLineW + 20))
+    );
+  });
 });
 
 describe("computeTextLayout 默认估算布局", () => {
