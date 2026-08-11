@@ -97,6 +97,52 @@ export class RecordingWidget {
     }, durationMs);
   }
 
+  /**
+   * 新录制会话开始时调用：清除已保存的拖拽位置，挂件回到默认位置。
+   * 与 restoreSavedPosition 配合：同一会话内重挂载（标记问题后返回）保留用户拖拽的位置，
+   * 仅真正开始新会话时重置，避免挂件反复跳回默认位置遮挡页面内容。
+   */
+  resetPosition(): void {
+    try {
+      if (typeof sessionStorage !== "undefined") {
+        sessionStorage.removeItem("__wbr_widget_pos__");
+      }
+    } catch {}
+  }
+
+  /**
+   * 恢复本会话内已保存的拖拽位置（right/top 定位）。
+   * 恢复时按当前视口做钳制，避免窗口尺寸变化后挂件被拖出屏幕。
+   */
+  private restoreSavedPosition(root: HTMLElement): void {
+    try {
+      if (typeof sessionStorage === "undefined") return;
+      const raw = sessionStorage.getItem("__wbr_widget_pos__");
+      if (!raw) return;
+      const saved = JSON.parse(raw) as { right?: string; top?: string };
+      const rightPx = Number.parseFloat(saved?.right ?? "");
+      const topPx = Number.parseFloat(saved?.top ?? "");
+      if (!Number.isFinite(rightPx) || !Number.isFinite(topPx)) return;
+
+      const winWidth =
+        window.innerWidth || document.documentElement.clientWidth;
+      const winHeight =
+        window.innerHeight || document.documentElement.clientHeight;
+      const rect = root.getBoundingClientRect();
+      const maxRight = Math.max(0, winWidth - rect.width);
+      const maxTop = Math.max(0, winHeight - rect.height);
+      const right = Math.min(Math.max(0, rightPx), maxRight);
+      const top = Math.min(Math.max(0, topPx), maxTop);
+
+      root.style.setProperty("top", `${top}px`, "important");
+      root.style.setProperty("right", `${right}px`, "important");
+      root.style.setProperty("bottom", "auto", "important");
+      root.style.setProperty("left", "auto", "important");
+    } catch {
+      // 存储不可用或数据损坏时静默回退默认位置
+    }
+  }
+
   mount(): void {
     if (this.container || window.top !== window) return;
     const root = document.createElement("div");
@@ -279,17 +325,12 @@ export class RecordingWidget {
       </div>
     `;
 
-    // 新录制会话开始时清除已保存的拖拽位置，恢复默认位置
-    try {
-      if (typeof sessionStorage !== "undefined") {
-        sessionStorage.removeItem("__wbr_widget_pos__");
-      }
-    } catch {}
-
     const attach = () => {
       if (document.body) {
         document.body.appendChild(root);
         this.container = root;
+        // 恢复本会话内已保存的拖拽位置（若有），保持用户放置的位置不因重挂载丢失
+        this.restoreSavedPosition(root);
 
         const stopBtn = root.querySelector("#__wbr_stop_btn__");
         if (stopBtn) {

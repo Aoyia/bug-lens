@@ -315,6 +315,8 @@ if (existingController) {
   ): void {
     observer.clearPending();
     if (!next) removeIssueUi();
+    // 记录进入本函数前的会话状态：用于区分"真正开始新会话"与"同一会话内重挂载"
+    const hadSession = Boolean(session);
     if (next) {
       if (next.startedAtEpochMs) {
         cachedStartedAtEpochMs = next.startedAtEpochMs;
@@ -328,6 +330,9 @@ if (existingController) {
     // 同步到 window 挂载符号，供调试与重复注入时读取
     window.__WEB_BUG_RECORDER_SESSION__ = next;
     if (next) {
+      // 仅当真正开始新会话（从无会话变为有会话）时重置挂件位置；
+      // 同一会话内标记问题后重挂载（编辑器关闭/选区取消）保留用户拖拽的位置
+      if (!hadSession) widget.resetPosition();
       widget.mount();
       if (health) widget.updateHealth(health);
       monitor.start();

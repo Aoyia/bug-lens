@@ -185,6 +185,8 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
     const pendingTimeouts = new Map<number, Function>();
     let intervalCallback: Function | undefined;
     const mockWindow: any = {
+      innerWidth: 1200,
+      innerHeight: 800,
       setInterval(fn: Function) {
         intervalCallback = fn;
         return 1;
@@ -315,7 +317,23 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
     );
   });
 
-  test("resets position to default on new recording session mount", () => {
+  test("resets saved position to default on explicit resetPosition for a new recording session", () => {
+    sessionStorage.setItem(
+      "__wbr_widget_pos__",
+      JSON.stringify({ right: "120px", top: "240px" })
+    );
+
+    widget = new RecordingWidget(callbacks);
+    widget.resetPosition();
+
+    assert.equal(
+      sessionStorage.getItem("__wbr_widget_pos__"),
+      null,
+      "Saved position should be cleared when starting a new recording session"
+    );
+  });
+
+  test("restores saved drag position on re-mount within the same session", () => {
     sessionStorage.setItem(
       "__wbr_widget_pos__",
       JSON.stringify({ right: "120px", top: "240px" })
@@ -324,10 +342,57 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
     widget = new RecordingWidget(callbacks);
     widget.mount();
 
+    // 同一会话内重挂载（标记问题后返回）应恢复用户拖拽的位置，
+    // 而非跳回默认右下角遮挡页面内容
     assert.equal(
       sessionStorage.getItem("__wbr_widget_pos__"),
-      null,
-      "Saved position should be cleared on new recording session"
+      JSON.stringify({ right: "120px", top: "240px" }),
+      "Saved position should survive re-mount within the same session"
+    );
+    assert.equal(
+      mockRootElement.style.top,
+      "240px",
+      "Widget should restore the saved top position"
+    );
+    assert.equal(
+      mockRootElement.style.right,
+      "120px",
+      "Widget should restore the saved right position"
+    );
+    assert.equal(
+      mockRootElement.style.bottom,
+      "auto",
+      "Widget should clear bottom when restoring top/right position"
+    );
+    assert.equal(
+      mockRootElement.style.left,
+      "auto",
+      "Widget should clear left when restoring top/right position"
+    );
+  });
+
+  test("clamps restored position to current viewport bounds", () => {
+    // 窗口比保存位置时更小：保存的 right/top 超出视口，应被钳制回可视范围
+    sessionStorage.setItem(
+      "__wbr_widget_pos__",
+      JSON.stringify({ right: "5000px", top: "3000px" })
+    );
+
+    widget = new RecordingWidget(callbacks);
+    widget.mount();
+
+    const rect = mockRootElement.getBoundingClientRect(); // width 200, height 40
+    const maxRight = 1200 - rect.width; // 1000
+    const maxTop = 800 - rect.height; // 760
+    assert.equal(
+      mockRootElement.style.top,
+      `${maxTop}px`,
+      "Restored top should be clamped to the visible viewport"
+    );
+    assert.equal(
+      mockRootElement.style.right,
+      `${maxRight}px`,
+      "Restored right should be clamped to the visible viewport"
     );
   });
 
