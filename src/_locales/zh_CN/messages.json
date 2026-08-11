@@ -1044,7 +1044,7 @@
     "message": "补充上下文"
   },
   "issueSaveContinue": {
-    "message": "保存并继续"
+    "message": "保存并继续 (Enter)"
   },
   "issueSaveStop": {
     "message": "保存并结束"

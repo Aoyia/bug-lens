@@ -41,6 +41,23 @@ export function shouldWarnEmptyActual(
 }
 
 /**
+ * 判断单行输入框的按键是否应触发「保存并继续」提交：
+ * 仅当按下 Enter 且不在输入法组词状态时返回 true。
+ * keyCode 229 是部分浏览器在 IME 组合期间上报的兼容值（isComposing 不可靠时兜底），
+ * 避免中文输入法确认候选词时误提交。
+ */
+export function isEnterCommitKey(e: {
+  key: string;
+  isComposing?: boolean;
+  keyCode?: number;
+}): boolean {
+  if (e.key !== "Enter") return false;
+  if (e.isComposing) return false;
+  if (e.keyCode === 229) return false;
+  return true;
+}
+
+/**
  * 问题现场编辑器。
  * 这是一个覆盖全屏的 UI 组件，允许用户在截图上进行圈选、添加批注、
  * 描述问题现象并提交记录。
@@ -685,6 +702,20 @@ export class IssueEditor {
     root
       .querySelector("[data-issue-save-stop]")
       ?.addEventListener("click", () => commit(true));
+
+    // 键盘一致性（与截图 overlay 的 Enter 确认快捷键保持同一交互语言）：
+    // 单行输入框内按 Enter 直接触发主操作「保存并继续」，省去打字后
+    // 移鼠标瞄准按钮的往返；提交进行中（按钮已禁用）忽略连按，防止重复提交。
+    const saveBtnEl =
+      root.querySelector<HTMLButtonElement>("[data-issue-save]");
+    const onSingleLineEnter = (e: KeyboardEvent) => {
+      if (!isEnterCommitKey(e)) return;
+      e.preventDefault();
+      if (saveBtnEl?.disabled) return;
+      commit(false);
+    };
+    actualInput?.addEventListener("keydown", onSingleLineEnter);
+    expectedInput?.addEventListener("keydown", onSingleLineEnter);
   }
 
   // ─── SVG Rendering ───

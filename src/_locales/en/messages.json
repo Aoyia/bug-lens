@@ -1044,7 +1044,7 @@
     "message": "Additional context"
   },
   "issueSaveContinue": {
-    "message": "Save & continue"
+    "message": "Save & continue (Enter)"
   },
   "issueSaveStop": {
     "message": "Save & stop"
