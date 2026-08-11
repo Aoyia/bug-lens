@@ -36,8 +36,9 @@ test("overlay-template: 撤销/清空按钮 tooltip 走 t()（无 chrome 环境�
     markup.includes('title="shotClear"'),
     'clear 按钮应使用 t("shotClear")'
   );
-  // 其余 7 个按钮保持既有 t() 键不变
+  // 其余 8 个按钮保持既有 t() 键不变
   for (const key of [
+    "shotSelect",
     "shotRect",
     "shotArrow",
     "shotPrivacy",
@@ -50,13 +51,30 @@ test("overlay-template: 撤销/清空按钮 tooltip 走 t()（无 chrome 环境�
   }
 });
 
-test("i18n: shotUndo/shotClear 在 en 与 zh_CN 字典中均存在且非空", () => {
+test("overlay-template: 工具栏首位提供「选择/移动」按钮且默认激活", () => {
+  const markup = createOverlayMarkup();
+  // 工具栏第一个按钮必须是 select（恢复"批注后可回 select 平移选区"的能力入口）
+  const toolbarStart = markup.slice(markup.indexOf('<div class="toolbar">'));
+  assert.ok(
+    toolbarStart.startsWith(
+      '<div class="toolbar">\n          <button data-tool="select" class="select-btn active"'
+    ),
+    "select 按钮应为工具栏首项且带初始 active 类"
+  );
+  // 其余工具按钮不带初始 active（初始工具即 select，高亮唯一）
+  for (const tool of ["rect", "arrow", "privacy", "text"]) {
+    const re = new RegExp(`data-tool="${tool}"[^>]*class="[^"]*active`);
+    assert.ok(!re.test(markup), `${tool} 按钮不应初始激活`);
+  }
+});
+
+test("i18n: shotUndo/shotClear/shotSelect 在 en 与 zh_CN 字典中均存在且非空", () => {
   const root = join(import.meta.dirname, "..", "src", "_locales");
   for (const locale of ["en", "zh_CN"]) {
     const dict = JSON.parse(
       readFileSync(join(root, locale, "messages.json"), "utf8")
     ) as Record<string, { message: string }>;
-    for (const key of ["shotUndo", "shotClear"]) {
+    for (const key of ["shotUndo", "shotClear", "shotSelect"]) {
       assert.ok(dict[key], `${locale} 缺少 ${key}`);
       assert.ok(
         dict[key].message.trim().length > 0,

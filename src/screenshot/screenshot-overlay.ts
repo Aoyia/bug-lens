@@ -238,18 +238,7 @@ export class ScreenshotOverlay {
           this.styleAdjustmentMode = !this.styleAdjustmentMode;
           btn.classList.toggle("active", this.styleAdjustmentMode);
         } else if (tool) {
-          // 切换工具时主动结束文本编辑（若输入框开着）：防御性兜底，
-          // 确保不残留 editing-text 状态阻塞后续绘制
-          this.textEditor?.cancelEdit();
-          this.currentTool = tool as any;
-          toolbar
-            .querySelectorAll<HTMLButtonElement>("button[data-tool]")
-            .forEach((b) => {
-              if (b.dataset.tool !== "style-adjust") {
-                b.classList.remove("active");
-              }
-            });
-          btn.classList.add("active");
+          this.setTool(tool);
         } else if (action === "undo") {
           this.undo();
         } else if (action === "clear") {
@@ -282,6 +271,27 @@ export class ScreenshotOverlay {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
     }
+  }
+
+  /**
+   * 切换当前工具并同步工具栏高亮（按钮点击与 V 快捷键共用同一入口）。
+   * style-adjust 是独立开关模式，不参与工具互斥高亮。
+   */
+  private setTool(tool: string): void {
+    // 切换工具时主动结束文本编辑（若输入框开着）：防御性兜底，
+    // 确保不残留 editing-text 状态阻塞后续绘制
+    this.textEditor?.cancelEdit();
+    this.currentTool = tool as any;
+    if (!this.shadowRoot) return;
+    const toolbar = this.shadowRoot.querySelector<HTMLDivElement>(".toolbar");
+    if (!toolbar) return;
+    toolbar
+      .querySelectorAll<HTMLButtonElement>("button[data-tool]")
+      .forEach((b) => {
+        if (b.dataset.tool !== "style-adjust") {
+          b.classList.toggle("active", b.dataset.tool === tool);
+        }
+      });
   }
 
   private isEditingText(): boolean {
@@ -324,6 +334,12 @@ export class ScreenshotOverlay {
       e.preventDefault();
       e.stopPropagation();
       void this.confirm(this.cachedViewportDataUrl);
+    } else if ((e.key === "v" || e.key === "V") && !isEditingText) {
+      // V 快捷键回到"选择/移动"工具：批注后仍可拖拽整体平移选区，
+      // 兑现 SelectionController 已支持、但工具栏缺失入口的能力。
+      e.preventDefault();
+      e.stopPropagation();
+      this.setTool("select");
     } else if (
       (e.key === "z" || e.key === "Z" || e.code === "KeyZ") &&
       (e.metaKey || e.ctrlKey)

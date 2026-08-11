@@ -1265,6 +1265,144 @@ describe("Enter 确认快捷键", () => {
 });
 
 // ---------- InlineTextEditor 组件级测试 ----------
+
+// ---------- V 快捷键回到"选择/移动"工具（批注后可平移选区） ----------
+describe("V 快捷键切换选择工具", () => {
+  test("非编辑场景按 V 切回 select 工具且事件被拦截", () => {
+    const h = createHarness();
+    const anyOv = h.overlay as any;
+
+    // 先切到标注工具（模拟点击工具栏后的状态）
+    anyOv.currentTool = "rect";
+    assert.equal(anyOv.currentTool, "rect");
+
+    const calls: string[] = [];
+    anyOv.handleKeyDown({
+      key: "v",
+      code: "KeyV",
+      type: "keydown",
+      metaKey: false,
+      ctrlKey: false,
+      preventDefault: () => calls.push("preventDefault"),
+      stopPropagation: () => calls.push("stopPropagation"),
+    });
+
+    assert.equal(anyOv.currentTool, "select", "V 应切回 select 工具");
+    assert.ok(calls.includes("preventDefault"), "should preventDefault");
+    assert.ok(calls.includes("stopPropagation"), "should stopPropagation");
+    // V 不应取消截图（与 Esc 语义区分）
+    assert.ok(anyOv.container, "overlay should stay active");
+  });
+
+  test("大写 V 同样切回 select 工具", () => {
+    const h = createHarness();
+    const anyOv = h.overlay as any;
+    anyOv.currentTool = "arrow";
+
+    anyOv.handleKeyDown({
+      key: "V",
+      code: "KeyV",
+      type: "keydown",
+      metaKey: false,
+      ctrlKey: false,
+      preventDefault: () => {},
+      stopPropagation: () => {},
+    });
+
+    assert.equal(anyOv.currentTool, "select", "大写 V 应切回 select 工具");
+  });
+
+  test("文本编辑场景按 V 放行（输入字母），不切换工具", () => {
+    const h = createHarness();
+    const anyOv = h.overlay as any;
+    anyOv.currentTool = "text";
+    anyOv.shadowRoot = {
+      activeElement: {
+        tagName: "TEXTAREA",
+        classList: { contains: () => true },
+      },
+    };
+
+    const calls: string[] = [];
+    anyOv.handleKeyDown({
+      key: "v",
+      code: "KeyV",
+      type: "keydown",
+      metaKey: false,
+      ctrlKey: false,
+      preventDefault: () => calls.push("preventDefault"),
+      stopPropagation: () => calls.push("stopPropagation"),
+    });
+
+    assert.deepEqual(calls, [], "编辑态 V 应放行输入");
+    assert.equal(anyOv.currentTool, "text", "编辑态 V 不应切换工具");
+  });
+
+  test("setTool 同步高亮：切换到标注工具后 V 再切回 select", () => {
+    const h = createHarness();
+    const anyOv = h.overlay as any;
+    const toggles: Array<[string, boolean]> = [];
+    // stub querySelectorAll 返回 []，通过注入可控 toolbar 验证高亮同步逻辑
+    const fakeToolbar = {
+      querySelectorAll: () => [
+        {
+          dataset: { tool: "select" },
+          classList: {
+            toggle: (_c: string, f: boolean) => toggles.push(["select", f]),
+          },
+        },
+        {
+          dataset: { tool: "rect" },
+          classList: {
+            toggle: (_c: string, f: boolean) => toggles.push(["rect", f]),
+          },
+        },
+        {
+          dataset: { tool: "arrow" },
+          classList: {
+            toggle: (_c: string, f: boolean) => toggles.push(["arrow", f]),
+          },
+        },
+        {
+          dataset: { tool: "style-adjust" },
+          classList: {
+            toggle: (_c: string, f: boolean) =>
+              toggles.push(["style-adjust", f]),
+          },
+        },
+      ],
+    };
+    anyOv.shadowRoot = {
+      querySelector: (sel: string) => (sel === ".toolbar" ? fakeToolbar : null),
+    };
+
+    anyOv.setTool("rect");
+    assert.equal(anyOv.currentTool, "rect");
+    assert.deepEqual(
+      toggles,
+      [
+        ["select", false],
+        ["rect", true],
+        ["arrow", false],
+      ],
+      "rect 激活、其余互斥熄灭、style-adjust 不参与互斥"
+    );
+
+    toggles.length = 0;
+    anyOv.setTool("select");
+    assert.equal(anyOv.currentTool, "select");
+    assert.deepEqual(
+      toggles,
+      [
+        ["select", true],
+        ["rect", false],
+        ["arrow", false],
+      ],
+      "select 激活、其余熄灭"
+    );
+  });
+});
+
 describe("InlineTextEditor", () => {
   /** wrapper.children 中按 tagName 查找 textarea（首位是幂等注入的 <style>） */
   const findTextarea = (wrapper: any): any =>

@@ -1070,6 +1070,9 @@
   "unknownError": {
     "message": "未知错误"
   },
+  "shotSelect": {
+    "message": "选择/移动 (V)"
+  },
   "shotRect": {
     "message": "矩形框"
   },

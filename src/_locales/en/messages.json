@@ -1070,6 +1070,9 @@
   "unknownError": {
     "message": "Unknown error"
   },
+  "shotSelect": {
+    "message": "Select / Move (V)"
+  },
   "shotRect": {
     "message": "Rectangle"
   },
