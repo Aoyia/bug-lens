@@ -236,7 +236,7 @@ export class SelectionOverlay {
 
       const removeBtn = document.createElement("div");
       removeBtn.textContent = "✕";
-      removeBtn.title = "移除该标记";
+      removeBtn.title = t("removeSelectionMark");
       Object.assign(removeBtn.style, {
         position: "absolute",
         top: "-9px",
@@ -569,14 +569,16 @@ export class SelectionOverlay {
       )
       .then((response) => {
         if (!response?.ok || !response.scene) {
-          alert(`问题现场采集失败：${response?.error ?? "未知错误"}`);
+          alert(
+            t("issueSceneCaptureFailed", [response?.error ?? t("unknownError")])
+          );
           this.deps.onCancel();
           return;
         }
         this.deps.onCaptureComplete(response.scene, response.dataUrl);
       })
       .catch((error) => {
-        alert(`问题现场采集失败：${String(error)}`);
+        alert(t("issueSceneCaptureFailed", [String(error)]));
         this.deps.onCancel();
       });
   }

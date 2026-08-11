@@ -1369,5 +1369,16 @@
     "placeholders": {
       "count": { "content": "$1" }
     }
+  },
+  "removeSelectionMark": {
+    "message": "Remove this mark"
+  },
+  "issueSceneCaptureFailed": {
+    "message": "Issue scene capture failed: $ERROR$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
   }
 }

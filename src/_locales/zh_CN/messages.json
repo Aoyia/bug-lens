@@ -1369,5 +1369,16 @@
     "placeholders": {
       "count": { "content": "$1" }
     }
+  },
+  "removeSelectionMark": {
+    "message": "移除该标记"
+  },
+  "issueSceneCaptureFailed": {
+    "message": "问题现场采集失败：$ERROR$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
   }
 }
