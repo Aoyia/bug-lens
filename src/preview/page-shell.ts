@@ -7,6 +7,8 @@ export class PreviewPageShell {
   private tab: PreviewTab = "issues";
   private readonly root: Document;
   private onTabChange?: () => void;
+  /** Toast 单例的隐藏定时器句柄：连续通知必须重置计时，否则旧通知的定时器会提前截断新通知。 */
+  private toastTimer: number | undefined;
 
   constructor(root: Document, onTabChange: () => void) {
     this.root = root;
@@ -25,7 +27,13 @@ export class PreviewPageShell {
     const toast = this.root.querySelector<HTMLElement>("#toast-message")!;
     toast.textContent = message;
     toast.hidden = false;
-    window.setTimeout(() => {
+    // 先清理上一次的隐藏定时器：Toast 承诺展示 2.5s，连续通知时旧定时器
+    // 不得提前截断最新一条（与 PopupApp 错误提示 effect 的清理范式一致）。
+    if (this.toastTimer !== undefined) {
+      window.clearTimeout(this.toastTimer);
+    }
+    this.toastTimer = window.setTimeout(() => {
+      this.toastTimer = undefined;
       toast.hidden = true;
     }, 2500);
   }
