@@ -64,8 +64,9 @@ export const textRenderer: AnnotationRenderer<TextAnnotation> = {
   },
 
   hitTest(ann, x, y) {
-    // 命中区与绘制区共用布局：浏览器实测贴合气泡；node 单测无 2d ctx 退化为估算
-    const layout = computeTextLayout(ann.text, { maxWidth: TEXT_MAX_WIDTH });
+    // 命中区与绘制区共用同一布局函数：浏览器 draw 传入 ctx.measureText 实测，
+    // 命中检测用默认字符分类估算器（无 2D ctx 也可运行），偏差由 ±4px 容差吸收。
+    const layout = computeTextLayout(ann.text);
     const px = ann.position.x;
     const py = ann.position.y;
     return (

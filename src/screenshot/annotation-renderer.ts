@@ -2,7 +2,11 @@ import type {
   AnnotationItem,
   RectBounds,
 } from "../domain/screenshot-payload.ts";
-import { pointToSegmentDistance } from "./overlay-geometry.ts";
+import {
+  pointInRectEdgeBand,
+  pointToSegmentDistance,
+} from "./overlay-geometry.ts";
+import { computeTextLayout } from "./text-layout.ts";
 
 /** renderAnnotations 的渲染输入：仅读状态，不改动任何调用方状态 */
 export interface RenderAnnotationsOptions {
@@ -236,14 +240,9 @@ export function getDeleteButtonPosition(
     return { x: maxX + 8, y: minY - 8 };
   }
   if (ann.type === "text") {
-    const px = ann.position.x;
-    const py = ann.position.y;
-    let maxW = 80;
-    for (const line of ann.text.split("\n")) {
-      if (line.length * 12 > maxW) maxW = line.length * 12;
-    }
-    const bgW = Math.min(320, maxW + 20);
-    return { x: px + bgW + 8, y: py - 8 };
+    // 与绘制共用同一布局函数：删除按钮锚点 = 气泡右上角外侧
+    const layout = computeTextLayout(ann.text);
+    return { x: ann.position.x + layout.bgWidth + 8, y: ann.position.y - 8 };
   }
   return null;
 }
@@ -283,18 +282,14 @@ export function renderSelectionHandles(
     drawPoint(ann.startPoint.x, ann.startPoint.y);
     drawPoint(ann.endPoint.x, ann.endPoint.y);
   } else if (ann.type === "text") {
+    // 选中虚线框与绘制共用同一布局：气泡尺寸逐像素一致
+    const layout = computeTextLayout(ann.text);
     const px = ann.position.x;
     const py = ann.position.y;
-    const lines = ann.text.split("\n");
-    let maxW = 80;
-    for (const line of lines) {
-      if (line.length * 12 > maxW) maxW = line.length * 12;
-    }
-    const bgW = Math.min(320, maxW + 20);
 
     ctx.setLineDash([3, 3]);
     ctx.strokeStyle = "rgba(0, 122, 255, 0.85)";
-    ctx.strokeRect(px - 2, py - 2, bgW + 4, lines.length * 20 + 16);
+    ctx.strokeRect(px - 2, py - 2, layout.bgWidth + 4, layout.bgHeight + 4);
     ctx.setLineDash([]);
   }
 
@@ -365,6 +360,9 @@ export function hitTestAnnotationHandle(
   return null;
 }
 
+/** 矩形批注（rect/privacy）的命中容差：仅边框 ±6px 环形带可命中，内部视为空白穿透 */
+const RECT_EDGE_HIT_TOLERANCE = 6;
+
 /** 检测坐标是否命中任意批注（纯查询，无副作用），命中顺序：后添加者优先 */
 export function hitTestAnnotation(
   annotations: AnnotationItem[],
@@ -374,30 +372,20 @@ export function hitTestAnnotation(
   for (let i = annotations.length - 1; i >= 0; i--) {
     const ann = annotations[i];
     if (ann.type === "rect" || ann.type === "privacy") {
-      const b = ann.bounds;
-      if (
-        x >= b.x - 5 &&
-        x <= b.x + b.width + 5 &&
-        y >= b.y - 5 &&
-        y <= b.y + b.height + 5
-      ) {
+      // 仅边框 ±6px 环形带可命中：避免上层方框内部遮罩下层方框无法选中
+      if (pointInRectEdgeBand(x, y, ann.bounds, RECT_EDGE_HIT_TOLERANCE)) {
         return ann;
       }
     } else if (ann.type === "text") {
+      // 与绘制共用同一布局：命中区 = 气泡区域（±4px 容差），杜绝"点空白也选中"
+      const layout = computeTextLayout(ann.text);
       const px = ann.position.x;
       const py = ann.position.y;
-      const lines = ann.text.split("\n");
-      let maxW = 80;
-      for (const line of lines) {
-        if (line.length * 12 > maxW) maxW = line.length * 12;
-      }
-      const bgW = Math.min(320, maxW + 20);
-      const bgH = lines.length * 20 + 12;
       if (
         x >= px - 4 &&
-        x <= px + bgW + 4 &&
+        x <= px + layout.bgWidth + 4 &&
         y >= py - 4 &&
-        y <= py + bgH + 4
+        y <= py + layout.bgHeight + 4
       ) {
         return ann;
       }

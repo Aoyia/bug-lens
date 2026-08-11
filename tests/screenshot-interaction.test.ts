@@ -512,8 +512,8 @@ describe("ScreenshotOverlay 交互行为基线", () => {
     h.mouseMove(200, 170);
     h.mouseUp(200, 170);
     anyOv.currentTool = "select";
-    h.mouseDown(175, 160); // 命中批注体 → 选中
-    h.mouseUp(175, 160);
+    h.mouseDown(150, 160); // 命中左边缘带 → 选中
+    h.mouseUp(150, 160);
     assert.ok(ann(anyOv).selectedAnnotation);
 
     const box = anyOv.container.querySelector(".selection-box");
@@ -527,8 +527,142 @@ describe("ScreenshotOverlay 交互行为基线", () => {
     // 对角手柄 → nesw-resize（ne 角内侧，避开删除按钮命中区）
     h.mouseMove(198, 152);
     assert.equal(box.style.cursor, "nesw-resize");
-    // 批注体 → move
-    h.mouseMove(175, 160);
+    // 批注边缘 → move
+    h.mouseMove(150, 160);
+    assert.equal(box.style.cursor, "move");
+  });
+
+  test("重叠方框：点击下层露出的边缘可选中下层（边缘命中）", () => {
+    const h = createHarness();
+    const anyOv = h.overlay as any;
+
+    h.mouseDown(100, 100);
+    h.mouseMove(400, 300);
+    h.mouseUp(400, 300);
+
+    // 下层 rect：bounds 150,150,120,80
+    anyOv.currentTool = "rect";
+    h.mouseDown(150, 150);
+    h.mouseMove(270, 230);
+    h.mouseUp(270, 230);
+    // 上层 rect：bounds 190,170,120,80（覆盖下层右下，下层左边缘露出）
+    h.mouseDown(190, 170);
+    h.mouseMove(310, 250);
+    h.mouseUp(310, 250);
+    assert.equal(ann(anyOv).annotations.length, 2);
+
+    anyOv.currentTool = "select";
+
+    // 点上层边缘 → 选中上层（后添加者优先，行为与之前一致）
+    h.mouseDown(190, 170);
+    assert.equal(
+      ann(anyOv).selectedAnnotation?.id,
+      ann(anyOv).annotations[1].id
+    );
+    h.mouseUp(190, 170);
+
+    // 点下层露出的左边缘（152,210：下层边缘带内、上层范围外）→ 选中下层
+    h.mouseDown(152, 210);
+    assert.equal(
+      ann(anyOv).selectedAnnotation?.id,
+      ann(anyOv).annotations[0].id
+    );
+    h.mouseUp(152, 210);
+  });
+
+  test("方框内部点击不选中批注，穿透为选区内部拖拽", () => {
+    const h = createHarness();
+    const anyOv = h.overlay as any;
+
+    h.mouseDown(100, 100);
+    h.mouseMove(400, 300);
+    h.mouseUp(400, 300);
+
+    // 绘制 rect：bounds 150,150,120,80
+    anyOv.currentTool = "rect";
+    h.mouseDown(150, 150);
+    h.mouseMove(270, 230);
+    h.mouseUp(270, 230);
+    assert.equal(ann(anyOv).annotations.length, 1);
+
+    // 切回 select：点方框内部（200,190）→ 不选中批注，且穿透为选区内部拖拽
+    anyOv.currentTool = "select";
+    h.mouseDown(200, 190);
+    assert.equal(ann(anyOv).selectedAnnotation, null, "内部点击不应选中批注");
+    assert.equal(sel(anyOv).isDraggingSelectionBox, true);
+
+    // 拖拽平移选区，批注同步跟随
+    h.mouseMove(220, 210);
+    assert.deepEqual(sel(anyOv).selection, {
+      x: 120,
+      y: 120,
+      width: 300,
+      height: 200,
+    });
+    assert.deepEqual(ann(anyOv).annotations[0].bounds, {
+      x: 170,
+      y: 170,
+      width: 120,
+      height: 80,
+    });
+    h.mouseUp(220, 210);
+  });
+
+  test("同位置重叠方框：边框完全重合时下层不可达（方案 A 已知局限）", () => {
+    const h = createHarness();
+    const anyOv = h.overlay as any;
+
+    // 直接注入两个同位置框：交互层面 rect 工具下第二次点击同一边缘会拖拽已有框
+    // （而非画新框），因此同位置重合只能通过代码注入构造
+    const annController = ann(anyOv);
+    annController.addAnnotation({
+      id: "box1",
+      type: "rect",
+      bounds: { x: 150, y: 150, width: 120, height: 80 },
+      color: "#FA5252",
+    });
+    annController.addAnnotation({
+      id: "box2",
+      type: "rect",
+      bounds: { x: 150, y: 150, width: 120, height: 80 },
+      color: "#FA5252",
+    });
+    assert.equal(annController.annotations.length, 2);
+
+    anyOv.currentTool = "select";
+    // 点边框带（152,210）→ 两框边缘带完全重合 → 后添加者优先，选中上层
+    h.mouseDown(152, 210);
+    assert.equal(
+      ann(anyOv).selectedAnnotation?.id,
+      "box2",
+      "边框完全重合时只能选中上层（下层零露出，属方案 A 已知局限）"
+    );
+    h.mouseUp(152, 210);
+  });
+
+  test("hover 方框内部不显示批注 move，绘制工具回落 crosshair", () => {
+    const h = createHarness();
+    const anyOv = h.overlay as any;
+
+    h.mouseDown(100, 100);
+    h.mouseMove(400, 300);
+    h.mouseUp(400, 300);
+
+    // 绘制 rect：bounds 150,150,120,80
+    anyOv.currentTool = "rect";
+    h.mouseDown(150, 150);
+    h.mouseMove(270, 230);
+    h.mouseUp(270, 230);
+
+    const box = anyOv.container.querySelector(".selection-box");
+    assert.ok(box);
+
+    // arrow 工具下：hover 方框内部 → 非批注命中，回落 crosshair
+    anyOv.currentTool = "arrow";
+    h.mouseMove(200, 190);
+    assert.equal(box.style.cursor, "crosshair");
+    // hover 方框边缘 → 命中批注 → move
+    h.mouseMove(152, 210);
     assert.equal(box.style.cursor, "move");
   });
 

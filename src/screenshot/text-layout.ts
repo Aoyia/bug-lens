@@ -7,6 +7,33 @@ export const TEXT_PADDING_Y = 6;
 export const TEXT_LINE_HEIGHT = 18;
 export const TEXT_CORNER_RADIUS = 6;
 
+/** CJK/全角字符的估算宽度（px），13px 字体下实测约 13px */
+const CJK_CHAR_WIDTH = 13;
+/** 其余字符（ASCII 字母/数字/空格）的估算宽度（px），13px 字体下实测约 6.7px */
+const DEFAULT_CHAR_WIDTH = 6.7;
+
+function isCJKChar(ch: string): boolean {
+  const code = ch.codePointAt(0) ?? 0;
+  return (
+    (code >= 0x2e80 && code <= 0x9fff) || // CJK 部首 + 统一表意文字
+    (code >= 0xf900 && code <= 0xfaff) || // 兼容表意文字
+    (code >= 0xff00 && code <= 0xffef) // 全角形式
+  );
+}
+
+/**
+ * 估算一段文本的渲染宽度（px）。
+ * 无 2D ctx 环境（node 单测）与命中检测共用：比旧 `length * 12` 精确一个量级，
+ * 中文/英文混排的换行与气泡尺寸更贴近浏览器实测，偏差由命中容差 ±4px 吸收。
+ */
+export function estimateTextWidth(str: string): number {
+  let w = 0;
+  for (const ch of str) {
+    w += isCJKChar(ch) ? CJK_CHAR_WIDTH : DEFAULT_CHAR_WIDTH;
+  }
+  return w;
+}
+
 export interface TextLayoutOptions {
   measure?: (str: string) => number;
   maxWidth?: number;
@@ -23,6 +50,7 @@ export function computeTextLayout(
   options: TextLayoutOptions = {}
 ): TextLayoutResult {
   const { measure, maxWidth = TEXT_MAX_WIDTH } = options;
+  const measureWidth = measure ?? estimateTextWidth;
   const paragraphList = text.split("\n");
   const lines: string[] = [];
 
@@ -34,7 +62,7 @@ export function computeTextLayout(
     let cur = "";
     for (const ch of p) {
       const test = cur + ch;
-      const w = measure ? measure(test) : test.length * 12;
+      const w = measureWidth(test);
       if (w > maxWidth && cur) {
         lines.push(cur);
         cur = ch;
@@ -47,7 +75,7 @@ export function computeTextLayout(
 
   let maxW = 0;
   for (const l of lines) {
-    const w = measure ? measure(l) : l.length * 12;
+    const w = measureWidth(l);
     if (w > maxW) maxW = w;
   }
 

@@ -164,19 +164,15 @@ export class InlineTextEditor {
     const availableHeight = Math.max(40, boundsBottom - y - 10);
     const maxWidth = Math.min(320, availableWidth);
 
-    // 如果非常靠近右边界，智能往左靠齐
-    let renderX = x;
-    if (boundsRight - x < 130 && x - 200 >= (selection?.x || 0)) {
-      renderX = Math.max(selection?.x || 0, x - 180);
-    }
-
+    // 位置语义诚实：点击位置即气泡锚点（不再"靠右左跳"改写 position）。
+    // 靠近右边界时气泡由渲染层按 maxWidth 压缩自适应，数据不漂移。
     const input = document.createElement("textarea");
     input.rows = 1;
     input.className = "inline-text-input";
     input.placeholder = t("shotTextPlaceholder");
     input.style.cssText = `
       position: absolute;
-      left: ${renderX}px;
+      left: ${x}px;
       top: ${y}px;
       max-width: ${maxWidth}px;
       max-height: ${availableHeight}px;
@@ -220,7 +216,7 @@ export class InlineTextEditor {
         this.commitAnnotation({
           id: `ann_${Date.now()}`,
           type: "text",
-          position: { x: renderX, y },
+          position: { x, y },
           text,
         });
       } else if (initialText) {
@@ -239,7 +235,7 @@ export class InlineTextEditor {
           this.cancelAnnotation({
             id: `ann_${Date.now()}`,
             type: "text",
-            position: { x: renderX, y },
+            position: { x, y },
             text: initialText,
           });
         }
