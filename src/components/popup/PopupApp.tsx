@@ -45,6 +45,9 @@ export function PopupApp() {
   );
   const [errorText, setErrorText] = useState<string>("");
   const [advancedOpen, setAdvancedOpen] = useState<boolean>(false);
+  // 启动录制是异步慢操作（权限检查/取流/内容脚本注入）：提交期间置位，
+  // 用于禁用开始按钮并提供"正在启动"反馈，防止重复点击触发二次启动。
+  const [starting, setStarting] = useState<boolean>(false);
 
   // 录制选项状态
   const [captureVideo, setCaptureVideo] = useState<boolean>(true);
@@ -330,6 +333,7 @@ export function PopupApp() {
       .catch(() => undefined);
 
     setErrorText("");
+    setStarting(true);
     try {
       // 非 localhost 的 http/https 页面需要全站访问权限才能注入采集脚本；
       // 未授权时引导用户到权限授权中转页主动授权（走用户授权流程）。
@@ -365,6 +369,9 @@ export function PopupApp() {
     } catch (error) {
       setErrorText(String(error));
       await refreshRecord();
+    } finally {
+      // 无论成功/失败/授权跳转，都在启动流程结束后复位 pending 状态
+      setStarting(false);
     }
   }, [
     activeTab,
@@ -575,6 +582,7 @@ export function PopupApp() {
           active={active}
           ready={previewReady}
           timerText={timerText}
+          starting={starting}
           getStatusText={getStatusText}
           activeEvidence={activeEvidence}
           evidenceLabel={evidenceLabel}

@@ -147,6 +147,48 @@ test("确认弹窗（清空历史）按钮文案走 i18n，不硬编码中文", 
   }
 });
 
+test("PopupApp 开始录制进入 pending 态：禁用按钮防止重复提交，并提供启动反馈", () => {
+  const popupApp = readFileSync(
+    resolve(process.cwd(), "src/components/popup/PopupApp.tsx"),
+    "utf8"
+  );
+  const recordPanel = readFileSync(
+    resolve(process.cwd(), "src/components/popup/RecordPanel.tsx"),
+    "utf8"
+  );
+  const popupCss = readFileSync(
+    resolve(process.cwd(), "src/entrypoints/popup/styles/popup.css"),
+    "utf8"
+  );
+
+  // 启动是异步慢操作（权限检查/取流/内容脚本注入）：
+  // 提交期间必须禁用开始按钮并显示"正在启动"反馈，防止双击触发第二个 session/start
+  assert.ok(
+    /disabled=\{!canCapture \|\| starting\}/.test(recordPanel),
+    "Start button must be disabled while starting or on non-capturable tabs (pending state)"
+  );
+  assert.ok(
+    recordPanel.includes('starting ? t("recordingStarting")'),
+    "Start button must show starting feedback text while pending"
+  );
+  assert.ok(
+    popupApp.includes("starting={starting}"),
+    "PopupApp must pass starting state down to RecordPanel"
+  );
+  assert.ok(
+    popupApp.includes("setStarting(true)"),
+    "PopupApp must set pending state before awaiting session/start"
+  );
+  assert.ok(
+    popupApp.includes("setStarting(false)"),
+    "PopupApp must clear pending state after start resolves or fails"
+  );
+  assert.ok(
+    popupCss.includes("button.action-btn:disabled"),
+    "Popup CSS must provide a disabled visual state for action buttons"
+  );
+});
+
 test("首次引导已迁移至 GitHub Pages 网页，扩展内不再内嵌引导（B1 演进）", () => {
   const popupApp = readFileSync(
     resolve(process.cwd(), "src/components/popup/PopupApp.tsx"),

@@ -32,6 +32,8 @@ interface RecordPanelProps {
   activeTab?: chrome.tabs.Tab;
   active: boolean;
   ready: boolean;
+  /** 录制启动流程进行中（异步提交 pending）：禁用开始按钮并显示启动反馈 */
+  starting: boolean;
   timerText: string;
   getStatusText: () => string;
   activeEvidence: (session?: RecordingSession) => EvidenceSummary[];
@@ -49,6 +51,7 @@ export const RecordPanel = memo(function RecordPanel({
   activeTab,
   active,
   ready,
+  starting,
   timerText,
   getStatusText,
   activeEvidence,
@@ -129,7 +132,7 @@ export const RecordPanel = memo(function RecordPanel({
               data-testid="start-recording-btn"
               className="action-btn start"
               onClick={onStart}
-              disabled={!canCapture}
+              disabled={!canCapture || starting}
               aria-label={t("startRecording")}
               title={
                 canCapture
@@ -146,7 +149,9 @@ export const RecordPanel = memo(function RecordPanel({
               >
                 <circle cx="12" cy="12" r="8"></circle>
               </svg>
-              <span>{t("startRecording")}</span>
+              <span>
+                {starting ? t("recordingStarting") : t("startRecording")}
+              </span>
             </button>
             <button
               id="take-screenshot"

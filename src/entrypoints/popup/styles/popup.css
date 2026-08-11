@@ -415,6 +415,10 @@ button.action-btn:disabled {
   box-shadow: none;
   transform: none !important;
 }
+button.action-btn:disabled:hover {
+  transform: none;
+  box-shadow: none;
+}
 button.action-btn.start:disabled,
 button.action-btn.start:disabled:hover {
   background: linear-gradient(135deg, var(--bl-primary) 0%, #0e42d2 100%);
