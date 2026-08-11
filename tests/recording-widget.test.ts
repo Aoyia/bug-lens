@@ -1,6 +1,7 @@
 import { test, describe, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { RecordingWidget } from "../src/entrypoints/content/collector/recording-widget.ts";
+import { t } from "../src/shared/i18n.ts";
 
 describe("RecordingWidget - Drag and Auto-Collapse", () => {
   let widget: RecordingWidget;
@@ -84,6 +85,21 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
       },
     };
 
+    const issueBtn = {
+      disabled: false,
+      textContent: "",
+      style: { opacity: "1" },
+      addEventListener(type: string, fn: Function) {
+        addListener(this, type, fn);
+      },
+      removeEventListener(type: string, fn: Function) {
+        removeListener(this, type, fn);
+      },
+      dispatchEvent(evt: any) {
+        dispatch(this, evt);
+      },
+    };
+
     const timerDisplay = {
       textContent: "00:00",
       _innerHTML: "",
@@ -135,6 +151,7 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
       querySelector(sel: string) {
         if (sel.includes("drag_handle")) return dragHandle;
         if (sel.includes("stop_btn")) return stopBtn;
+        if (sel.includes("issue_btn")) return issueBtn;
         if (sel.includes("timer_display")) return timerDisplay;
         return null;
       },
@@ -463,6 +480,36 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
 
     // 应扣除 4 秒暂停时间：显示 00:06 (idlePaused)
     assert.equal(timerDisplay.textContent, "00:06 (idlePaused)");
+  });
+
+  test("setIssueSelecting(false) restores mark-issue button after a cancelled selection", () => {
+    widget = new RecordingWidget(callbacks);
+    widget.mount();
+
+    const issueBtn = mockRootElement.querySelector(
+      "#__wbr_issue_btn__"
+    ) as unknown as {
+      disabled: boolean;
+      textContent: string;
+      style: { opacity: string };
+    };
+    assert.ok(issueBtn, "Issue button should exist in widget");
+    assert.equal(issueBtn.disabled, false);
+
+    // 进入选择模式（proceedToIssueSelection）：按钮禁用并显示「选择中…」
+    widget.setIssueSelecting(true);
+    assert.equal(issueBtn.disabled, true);
+    assert.equal(issueBtn.textContent, t("selecting"));
+    assert.equal(issueBtn.style.opacity, ".72");
+
+    // 取消选择后恢复（onCancel 路径）：按钮可用、文案回到「标记问题 (快捷键)」
+    widget.setIssueSelecting(false);
+    assert.equal(issueBtn.disabled, false);
+    assert.equal(
+      issueBtn.textContent,
+      `${t("markIssue")} (${widget.shortcutKeyText})`
+    );
+    assert.equal(issueBtn.style.opacity, "1");
   });
 
   test("shows toast notification with zen light style consistent with preview page", () => {

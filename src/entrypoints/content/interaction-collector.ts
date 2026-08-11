@@ -197,7 +197,10 @@ if (existingController) {
       editor.open(scene, dataUrl);
     },
     onCancel() {
-      widget.mount();
+      // 取消元素选择：挂件在选择期间始终处于挂载态，mount() 为空转；
+      // 必须复位「标记问题」按钮，否则会停留在禁用「选择中…」状态，
+      // 鼠标无法再次发起标记流程（只能依赖 Alt+S 快捷键）。
+      widget.setIssueSelecting(false);
     },
     getEditorElement: () => editor.element,
     shortcutKeyText: widget.shortcutKeyText,
