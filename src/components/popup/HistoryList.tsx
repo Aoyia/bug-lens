@@ -216,7 +216,7 @@ export const HistoryList = memo(function HistoryList({
         <span id="storage-count">
           {storage
             ? t("sessionsCount", String(storage.sessionCount))
-            : "0 个会话"}
+            : t("loading")}
         </span>
         {storage && (
           <div id="storage-policy" className="storage-policy">

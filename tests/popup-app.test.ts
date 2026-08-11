@@ -333,3 +333,33 @@ test("历史视图会话状态标签必须本地化，不能直接渲染内部�
     assert.ok(key in enDict, `en/messages.json must define '${key}'`);
   }
 });
+
+test("历史视图 footer 会话数在存储未就绪时显示加载提示而非硬编码中文", () => {
+  const historyList = readFileSync(
+    resolve(process.cwd(), "src/components/popup/HistoryList.tsx"),
+    "utf8"
+  );
+
+  // storage 未就绪时 #storage-count 必须与相邻 #storage-used 一致地回退到
+  // t("loading")（"正在读取…"/"Loading…"）：
+  // - 不再谎报"0 个会话"（加载期间向用户提供错误数据状态，与列表空状态同源问题）
+  // - 不再在英文界面渲染硬编码中文（破坏扩展全量中英双语一致性）
+  assert.ok(
+    historyList.includes('id="storage-count"'),
+    "Must retain storage-count span in history footer"
+  );
+  assert.ok(
+    historyList.includes('t("sessionsCount", String(storage.sessionCount))'),
+    "Storage count must render localized session count when storage is available"
+  );
+  assert.ok(
+    !historyList.includes('"0 个会话"'),
+    "Storage count fallback must not be a hardcoded Chinese string"
+  );
+  assert.ok(
+    historyList.includes(
+      't("sessionsCount", String(storage.sessionCount))\n            : t("loading")'
+    ),
+    "Storage count fallback must use t('loading') like the sibling storage-used span"
+  );
+});
