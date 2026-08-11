@@ -9,6 +9,7 @@ import {
   type ApiSnippetTarget,
 } from "../../domain/api-snippet-generator.ts";
 import { copyTextToClipboard } from "../../preview/clipboard.ts";
+import { handleFilterEscape } from "../../preview/filter-search.ts";
 import { escapeHtml, renderCodeBlockHtml } from "../../preview/rendering.ts";
 import { useFilteredList } from "../../hooks/useFilteredList.ts";
 import { t } from "../../shared/i18n.ts";
@@ -222,6 +223,7 @@ export const NetworkTab = memo(function NetworkTab({
           className="panel-search-input"
           value={searchQuery}
           onInput={(e) => setSearchQuery((e.target as HTMLInputElement).value)}
+          onKeyDown={(e) => handleFilterEscape(e, searchQuery, setSearchQuery)}
         />
         <span className="panel-filter-count">{countText}</span>
       </div>

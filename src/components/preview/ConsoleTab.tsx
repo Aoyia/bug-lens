@@ -4,6 +4,7 @@ import type { ConsoleEntry, RecordingSession } from "../../shared/protocol.ts";
 import { formatElapsedEpochTime } from "../../domain/evidence-clock.ts";
 import { useFilteredList } from "../../hooks/useFilteredList.ts";
 import { filterConsoleEntries } from "../../preview/console-filter.ts";
+import { handleFilterEscape } from "../../preview/filter-search.ts";
 import { t } from "../../shared/i18n.ts";
 
 export interface ConsoleTabProps {
@@ -112,6 +113,7 @@ export const ConsoleTab = memo(function ConsoleTab({
           placeholder={t("searchLogText")}
           value={searchQuery}
           onInput={(e) => setSearchQuery((e.target as HTMLInputElement).value)}
+          onKeyDown={(e) => handleFilterEscape(e, searchQuery, setSearchQuery)}
         />
         <span className="panel-filter-count">{displayCountText}</span>
       </div>
