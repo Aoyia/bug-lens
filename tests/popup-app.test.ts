@@ -101,7 +101,7 @@ test("首次引导已迁移至 GitHub Pages 网页，扩展内不再内嵌引导
     "utf8"
   );
   const background = readFileSync(
-    resolve(process.cwd(), "src/entrypoints/background/index.ts"),
+    resolve(process.cwd(), "src/entrypoints/background/events.ts"),
     "utf8"
   );
   const guidePage = readFileSync(
@@ -122,15 +122,15 @@ test("首次引导已迁移至 GitHub Pages 网页，扩展内不再内嵌引导
   // background 在首次安装时打开 GitHub Pages 引导页（自动化测试可跳过）
   assert.ok(
     background.includes("onInstalled"),
-    "background 应监听 onInstalled 以在安装后打开引导页"
+    "background events 应监听 onInstalled 以在安装后打开引导页"
   );
   assert.ok(
     background.includes("aoyia.github.io/bug-lens"),
-    "background 应指向 GitHub Pages 引导页地址"
+    "background events 应指向 GitHub Pages 引导页地址"
   );
   assert.ok(
     background.includes("skipOnboardingGuide"),
-    "background 应支持 skipOnboardingGuide 跳过标记（自动化测试）"
+    "background events 应支持 skipOnboardingGuide 跳过标记（自动化测试）"
   );
 
   // GitHub Pages 引导页存在且包含核心内容
