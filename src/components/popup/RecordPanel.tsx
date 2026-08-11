@@ -16,6 +16,17 @@ const isMac =
 const recordShortcut = isMac ? "Option+R" : "Alt+R";
 const screenshotShortcut = isMac ? "Option+X" : "Alt+X";
 
+/**
+ * 采集契约：与 background 快捷键入口（startRecordingViaShortcut /
+ * triggerScreenshotInTab）保持一致的判定——只有 http/https 普通网页
+ * 才能注入采集脚本并获取媒体流。非 http(s) 标签页（chrome://、edge://、
+ * file://、about: 等）上启动录制只会产生采不到数据的"降级幻影会话"，
+ * 截图则会被 background 静默忽略，因此 Popup 层必须提前禁用主操作。
+ */
+export function isRecordableTabUrl(url?: string): boolean {
+  return typeof url === "string" && /^https?:/i.test(url);
+}
+
 interface RecordPanelProps {
   activeSession?: RecordingSession;
   activeTab?: chrome.tabs.Tab;
@@ -49,6 +60,10 @@ export const RecordPanel = memo(function RecordPanel({
   onStartNew,
   onError,
 }: RecordPanelProps) {
+  // 当前标签页是否可采集：不可用时禁用主操作并给出原因提示，
+  // 避免在 chrome://、file:// 等页面上出现"看似在录制实则无数据"的死角。
+  const canCapture = isRecordableTabUrl(activeTab?.url);
+
   const handleTakeScreenshot = () => {
     if (!activeTab?.id) {
       onError(t("failedToReadTab"));
@@ -114,8 +129,13 @@ export const RecordPanel = memo(function RecordPanel({
               data-testid="start-recording-btn"
               className="action-btn start"
               onClick={onStart}
+              disabled={!canCapture}
               aria-label={t("startRecording")}
-              title={`${t("startRecording")} (${recordShortcut})`}
+              title={
+                canCapture
+                  ? `${t("startRecording")} (${recordShortcut})`
+                  : t("captureUnavailableTab")
+              }
             >
               <svg
                 width="14"
@@ -133,8 +153,13 @@ export const RecordPanel = memo(function RecordPanel({
               data-testid="take-screenshot-btn"
               className="action-btn secondary"
               onClick={handleTakeScreenshot}
+              disabled={!canCapture}
               aria-label={t("takeScreenshot")}
-              title={`${t("takeScreenshot")} (${screenshotShortcut})`}
+              title={
+                canCapture
+                  ? `${t("takeScreenshot")} (${screenshotShortcut})`
+                  : t("captureUnavailableTab")
+              }
             >
               <svg
                 width="14"

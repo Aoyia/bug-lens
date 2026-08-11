@@ -88,6 +88,9 @@
   "screenshotFailed": {
     "message": "Failed to start screenshot, please retry"
   },
+  "captureUnavailableTab": {
+    "message": "Recording and screenshots are only available on http/https pages"
+  },
   "dismissError": {
     "message": "Dismiss"
   },

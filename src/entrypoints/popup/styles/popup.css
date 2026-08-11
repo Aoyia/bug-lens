@@ -407,6 +407,18 @@ button.action-btn.secondary:hover {
   color: var(--primary);
   border-color: rgba(22, 93, 255, 0.2);
 }
+/* 不可采集标签页（非 http/https）下主操作禁用态：
+   降低透明度并取消 hover 位移，避免与可用态混淆 */
+button.action-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none !important;
+}
+button.action-btn.start:disabled,
+button.action-btn.start:disabled:hover {
+  background: linear-gradient(135deg, var(--bl-primary) 0%, #0e42d2 100%);
+}
 
 /* Search Wrapper */
 .search-wrapper {

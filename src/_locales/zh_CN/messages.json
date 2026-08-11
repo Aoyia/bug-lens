@@ -88,6 +88,9 @@
   "screenshotFailed": {
     "message": "截图触发失败，请重试"
   },
+  "captureUnavailableTab": {
+    "message": "仅支持在 http/https 网页上录制与截图"
+  },
   "dismissError": {
     "message": "关闭"
   },
