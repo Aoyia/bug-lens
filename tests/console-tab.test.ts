@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { h } from "preact";
+import render from "preact-render-to-string";
 import { filterConsoleEntries } from "../src/preview/console-filter.ts";
+import { ConsoleTab } from "../src/components/preview/ConsoleTab.tsx";
 
 import type { ConsoleEntry } from "../src/shared/protocol.ts";
 
@@ -101,4 +106,47 @@ test("ConsoleTab - 7项搜索与筛选组合行为测试", () => {
     "nonexistent-keyword"
   );
   assert.equal(emptyRes.length, 0);
+});
+
+test("ConsoleTab 初始渲染不包含任何选中行", () => {
+  const html = render(
+    h(ConsoleTab, {
+      snapshot: {
+        session: undefined,
+        all: mockConsoleEntries,
+        included: mockConsoleEntries,
+      },
+      editable: false,
+    })
+  );
+  // 行结构保留
+  assert.match(html, /class="console-row console-row-log"/);
+  assert.match(html, /class="console-row console-row-error"/);
+  // 默认无选中态，避免误高亮（<option selected> 是 select 默认值，不在检查范围）
+  assert.doesNotMatch(
+    html,
+    /console-row[^>]*\bselected\b/,
+    "初始渲染的日志行不应出现 selected 选中态"
+  );
+});
+
+test("ConsoleTab 行点击选中态 class 与样式规则存在（防 UI 回归）", () => {
+  const source = readFileSync(
+    resolve(process.cwd(), "src/components/preview/ConsoleTab.tsx"),
+    "utf8"
+  );
+  // 点击行时应记录选中 id，并在行 class 上拼接 selected
+  assert.ok(source.includes("setSelectedId"), "行点击应记录选中 id");
+  assert.ok(
+    source.includes('" selected"'),
+    "选中行应拼接 selected class，提供点击反馈"
+  );
+  const css = readFileSync(
+    resolve(process.cwd(), "src/entrypoints/preview/styles/console.css"),
+    "utf8"
+  );
+  assert.ok(
+    css.includes(".console-row.selected"),
+    "console.css 应包含选中行高亮规则"
+  );
 });

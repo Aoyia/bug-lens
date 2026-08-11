@@ -168,3 +168,8 @@
   background: rgba(22, 93, 255, 0.1);
   color: #165dff;
 }
+
+/* 点击定位视频后的选中态反馈（与 network 行选中视觉统一，压过 level 底色与 hover） */
+.console-row.selected {
+  background: #e8f0fe;
+}

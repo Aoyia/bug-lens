@@ -26,6 +26,7 @@ export const ConsoleTab = memo(function ConsoleTab({
   onSeekVideo,
 }: ConsoleTabProps) {
   const [levelFilter, setLevelFilter] = useState("all");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   // 行时间统一时间语言：优先显示相对录制起点的 MM:SS.mmm
   // （与 NetworkTab / StreamTab / InteractionsTab 的证据时间线契约一致，
@@ -81,7 +82,8 @@ export const ConsoleTab = memo(function ConsoleTab({
   );
 
   const handleRowClick = useCallback(
-    (createdAt: number) => {
+    (id: string, createdAt: number) => {
+      setSelectedId(id);
       onSeekVideo?.(createdAt);
     },
     [onSeekVideo]
@@ -130,9 +132,9 @@ export const ConsoleTab = memo(function ConsoleTab({
                 return (
                   <div
                     key={entry.id}
-                    className={`console-row console-row-${level}`}
+                    className={`console-row console-row-${level}${entry.id === selectedId ? " selected" : ""}`}
                     data-id={entry.id}
-                    onClick={() => handleRowClick(entry.createdAt)}
+                    onClick={() => handleRowClick(entry.id, entry.createdAt)}
                   >
                     <div className="console-row-left">
                       {level === "error" ? (
