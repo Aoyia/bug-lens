@@ -131,7 +131,6 @@ if (existingController) {
         const res = await chrome.runtime.sendMessage(
           message("session/stop", {
             commandId: crypto.randomUUID(),
-            silentExport: true,
           })
         );
         const exportFailure = getSilentExportFailure(res, t("stopFailed"));

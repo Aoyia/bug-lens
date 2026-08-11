@@ -350,7 +350,10 @@ export class ScreenshotOverlay {
         this.undo();
       }
     } else if (
-      (e.key === "Delete" || e.key === "Backspace") &&
+      (e.key === "Delete" ||
+        e.key === "Backspace" ||
+        e.code === "Backspace" ||
+        e.code === "Delete") &&
       this.annotationController.selectedAnnotation
     ) {
       if (!isEditingText) {
@@ -587,6 +590,7 @@ export class ScreenshotOverlay {
 
     const toast = document.createElement("div");
     toast.id = "__bug_lens_screenshot_toast__";
+    toast.setAttribute("data-wbr-ignore", "true");
     toast.style.cssText = `
       position: fixed !important;
       top: 16px !important;

@@ -31,7 +31,7 @@ function envMilliseconds(name: string, fallback: number): number {
   return Number.isFinite(value) && value >= 0 ? value : fallback;
 }
 
-const slowMoMs = envMilliseconds("E2E_SLOW_MO_MS", process.env.CI ? 0 : 250);
+const slowMoMs = envMilliseconds("E2E_SLOW_MO_MS", 0);
 
 export function safeUrlForLog(url: string | undefined): string | undefined {
   if (!url) return undefined;

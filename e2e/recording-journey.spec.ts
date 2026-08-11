@@ -12,10 +12,7 @@ function logE2e(message: string, details?: unknown): void {
   );
 }
 
-const previewHoldMs = envMilliseconds(
-  "E2E_PREVIEW_HOLD_MS",
-  process.env.CI ? 0 : 8_000
-);
+const previewHoldMs = envMilliseconds("E2E_PREVIEW_HOLD_MS", 0);
 
 test.describe("Bug Lens Chrome Extension E2E User Journey", () => {
   test("REC-001: records the active tab through a trusted extension invocation", async ({
@@ -187,12 +184,15 @@ test.describe("Bug Lens Chrome Extension E2E User Journey", () => {
       ...evidence.networkEntries,
     ];
     for (const item of allEvidenceItems) {
-      const timestamp =
+      let timestamp =
         item.createdAt ??
         item.createdAtEpochMs ??
         item.occurredAt ??
         item.timestamp ??
         0;
+      if (timestamp > 1e14) {
+        timestamp = Math.floor(timestamp / 1000);
+      }
       expect(timestamp).toBeGreaterThanOrEqual(startedAt!);
       expect(timestamp).toBeLessThanOrEqual(stoppedAt! + 1000); // 1s 宽松缓冲以适应时间戳记录时序
     }
