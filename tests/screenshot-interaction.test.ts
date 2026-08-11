@@ -1021,10 +1021,11 @@ describe("InlineTextEditor", () => {
     const textarea = findTextarea(wrapper);
     const css = textarea.style.cssText as string;
 
-    // 渲染态 token：深底白字、实线蓝边框、6px 圆角、13px/400、行高 18px、padding 6/10
-    assert.ok(css.includes("background: rgba(15, 23, 42, 0.92)"), css);
-    assert.ok(css.includes("color: #f8fafc"), css);
+    // 渲染态 token：白底深字、实线蓝边框、轻阴影、6px 圆角、13px/400、行高 18px、padding 6/10
+    assert.ok(css.includes("background: rgba(255, 255, 255, 0.94)"), css);
+    assert.ok(css.includes("color: #1f2937"), css);
     assert.ok(css.includes("border: 1px solid #0284c7"), css);
+    assert.ok(css.includes("box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25)"), css);
     assert.ok(css.includes("border-radius: 6px"), css);
     assert.ok(css.includes("font-size: 13px"), css);
     assert.ok(css.includes("font-weight: 400"), css);
@@ -1032,17 +1033,51 @@ describe("InlineTextEditor", () => {
     assert.ok(css.includes("padding: 6px 10px"), css);
     assert.ok(css.includes("min-width: 80px"), css);
 
-    // 旧输入态样式全部退役
+    // 旧输入态样式全部退役（含上一版深底白字）
     assert.ok(!css.includes("#ff3b30"), "红色输入文字应移除");
     assert.ok(!css.includes("dashed"), "虚线边框应移除");
     assert.ok(!css.includes("text-shadow"), "投影应移除");
+    assert.ok(!css.includes("rgba(15, 23, 42"), "深底应移除");
+    assert.ok(!css.includes("#f8fafc"), "亮白文字应移除");
 
-    // 占位符样式幂等注入：仅一个 <style>
+    // 占位符样式幂等注入：仅一个 <style>，白底上浅灰占位符
     const styles = wrapper.children.filter((c: any) => c.tagName === "STYLE");
     assert.equal(styles.length, 1, "style 只注入一次");
     assert.ok(
       styles[0].textContent.includes("::placeholder"),
       "占位符配色已注入"
+    );
+    assert.ok(
+      styles[0].textContent.includes("rgba(31, 41, 55, 0.45)"),
+      "占位符为白底浅灰"
+    );
+  });
+
+  test("编辑已有批注时输入态沿用其文字色（所见即所得）", () => {
+    const wrapper = createElementStub("div");
+    const editor = new InlineTextEditor({
+      wrapper,
+      getSelection: () => ({ x: 0, y: 0, width: 500, height: 400 }),
+      commitAnnotation: () => {},
+      cancelAnnotation: () => {},
+      rerender: () => {},
+    });
+
+    // 不带 color → 默认近黑
+    editor.spawn(100, 100, "hello");
+    let textarea = findTextarea(wrapper);
+    assert.ok(
+      textarea.style.cssText.includes("color: #1f2937"),
+      "默认色为近黑"
+    );
+    textarea.remove();
+
+    // 带 color → 输入态文字用批注色
+    editor.spawn(200, 200, "colored", "#dc2626");
+    textarea = findTextarea(wrapper);
+    assert.ok(
+      textarea.style.cssText.includes("color: #dc2626"),
+      "编辑时沿用批注文字色"
     );
   });
 
@@ -1060,7 +1095,7 @@ describe("InlineTextEditor", () => {
     const textarea = findTextarea(wrapper);
     textarea.value = "hello world";
 
-    // 触发 input → syncSize：width = bgWidth（估算 "hello world" ≈ 93.7px）
+    // 触发 input → syncSize：width = bgWidth（估算 "hello world" = 10*6.7+3.6+20 ≈ 90.6px）
     const inputFns = textarea.listeners["input"];
     assert.ok(inputFns, "input listener should be registered");
     inputFns[0]({ type: "input" });

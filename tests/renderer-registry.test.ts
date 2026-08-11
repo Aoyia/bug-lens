@@ -4,26 +4,26 @@ import { getRenderer } from "../src/screenshot/renderers/renderer-registry.ts";
 
 function createRecordingCtx(): { ctx: any; calls: string[] } {
   const calls: string[] = [];
-  const ctx = new Proxy(
-    {},
-    {
-      get(_t, prop) {
-        if (prop === "measureText")
-          return (s: string) => ({ width: s.length * 8 });
-        if (prop === "roundRect") return undefined; // 走 else 分支
-        if (typeof prop === "string") {
-          return (...args: any[]) => {
-            calls.push(`${String(prop)}:${JSON.stringify(args)}`);
-          };
-        }
-        return undefined;
-      },
-      set(t, prop, value) {
-        (t as any)[prop] = value;
-        return true;
-      },
-    }
-  );
+  const target: Record<string, any> = {};
+  const ctx = new Proxy(target, {
+    get(_t, prop) {
+      if (prop === "measureText")
+        return (s: string) => ({ width: s.length * 8 });
+      if (prop === "roundRect") return undefined; // 走 else 分支
+      if (typeof prop === "string" && prop in target) return target[prop];
+      if (typeof prop === "string") {
+        return (...args: any[]) => {
+          calls.push(`${String(prop)}:${JSON.stringify(args)}`);
+        };
+      }
+      return undefined;
+    },
+    set(t, prop, value) {
+      (t as any)[prop] = value;
+      calls.push(`set:${String(prop)}:${JSON.stringify(value)}`);
+      return true;
+    },
+  });
   return { ctx, calls };
 }
 
@@ -311,5 +311,61 @@ describe("RendererRegistry: text", () => {
     const fillTextCalls = calls.filter((c) => c.startsWith("fillText:"));
     assert.ok(fillTextCalls.length >= 1);
     assert.ok(calls.some((c) => c.startsWith("fill:")));
+  });
+
+  test("draw：固定白底 + 品牌蓝描边 + 轻阴影，文字色默认近黑且可配置", () => {
+    const { ctx, calls } = createRecordingCtx();
+
+    // 未设置 color → 默认近黑：首次 fillStyle 为白底，末次为默认文字色
+    getRenderer("text").draw(
+      ctx,
+      {
+        id: "5",
+        type: "text" as const,
+        position: { x: 10, y: 10 },
+        text: "hi",
+      },
+      {
+        selection: { x: 0, y: 0, width: 500, height: 500 },
+        viewportImage: null,
+      }
+    );
+    const fillStyleSets = calls.filter((c) => c.startsWith("set:fillStyle:"));
+    assert.ok(
+      fillStyleSets[0].includes("rgba(255, 255, 255, 0.94)"),
+      `气泡底应为白底，实际 ${fillStyleSets[0]}`
+    );
+    assert.ok(
+      fillStyleSets[fillStyleSets.length - 1].includes("#1f2937"),
+      "默认文字色应为近黑"
+    );
+    assert.equal(ctx.strokeStyle, "#0284c7", "品牌蓝描边");
+    assert.ok(
+      calls.some((c) => c === 'set:shadowColor:"rgba(0, 0, 0, 0.25)"'),
+      "轻阴影色"
+    );
+    assert.equal(
+      ctx.shadowColor,
+      "transparent",
+      "气泡画完后阴影已重置（文字不带阴影）"
+    );
+
+    // 设置 color → 文字色生效
+    const ctx2 = createRecordingCtx().ctx;
+    getRenderer("text").draw(
+      ctx2,
+      {
+        id: "6",
+        type: "text" as const,
+        position: { x: 10, y: 10 },
+        text: "hi",
+        color: "#dc2626",
+      },
+      {
+        selection: { x: 0, y: 0, width: 500, height: 500 },
+        viewportImage: null,
+      }
+    );
+    assert.equal(ctx2.fillStyle, "#dc2626", "ann.color 生效");
   });
 });

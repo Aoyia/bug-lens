@@ -11,6 +11,41 @@ export const TEXT_PADDING_Y = 6;
 export const TEXT_LINE_HEIGHT = 18;
 export const TEXT_CORNER_RADIUS = 6;
 
+// ===== 文字批注配色（统一样式：固定白底 + 可配置深色系文字）=====
+// 设计决策（第一性原理）：任何固定色都会在相反亮度的截图上沉没，而白色是唯一
+// "永不沉没"的极端色——暗色截图上为全场最亮元素必然突出，浅色截图靠描边+阴影区分；
+// 且白底能承载未来可配置的全部深色系文字（对比度 ≥ 4.5:1），黑底只能承载亮色系。
+/** 气泡背景：半透明白 */
+export const TEXT_BUBBLE_BACKGROUND = "rgba(255, 255, 255, 0.94)";
+/** 气泡描边：品牌蓝，明暗截图均可辨 */
+export const TEXT_BUBBLE_STROKE = "#0284c7";
+/** 默认文字色：近黑，白底对比度 ≈ 17:1 */
+export const TEXT_DEFAULT_COLOR = "#1f2937";
+/** 气泡轻阴影（canvas 与 CSS box-shadow 共用同一组参数） */
+export const TEXT_BUBBLE_SHADOW_COLOR = "rgba(0, 0, 0, 0.25)";
+export const TEXT_BUBBLE_SHADOW_OFFSET_Y = 1;
+export const TEXT_BUBBLE_SHADOW_BLUR = 3;
+/** 输入态占位符色：白底上的浅灰，仍可读但不喧宾夺主 */
+export const TEXT_PLACEHOLDER_COLOR = "rgba(31, 41, 55, 0.45)";
+
+/**
+ * 文字批注可选色板（白底上全部 WCAG AA ≥ 4.5:1 达标）。
+ * 亮色系（黄/白/浅绿）在白底不可读，不入色板——除非将来改深底方案。
+ */
+export const TEXT_COLOR_PALETTE = [
+  "#1f2937", // 黑（默认）
+  "#dc2626", // 红
+  "#9a3412", // 橙
+  "#15803d", // 绿
+  "#2563eb", // 蓝
+  "#7c3aed", // 紫
+] as const;
+
+/** 校验色值是否属于文字批注色板（供将来取色器 UI 过滤/标记；渲染层不强制） */
+export function isTextPaletteColor(color: string): boolean {
+  return (TEXT_COLOR_PALETTE as readonly string[]).includes(color);
+}
+
 /** CJK/全角字符的估算宽度（px），13px 字体下实测约 13px */
 const CJK_CHAR_WIDTH = 13;
 /** ASCII 字母/数字的估算宽度（px），13px 字体下实测约 6.7px */

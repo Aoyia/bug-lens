@@ -5,6 +5,21 @@ import {
   type RectBounds,
 } from "../domain/screenshot-payload.ts";
 import { message } from "../shared/protocol.ts";
+import {
+  TEXT_ANNOTATION_FONT_FAMILY,
+  TEXT_ANNOTATION_FONT_SIZE,
+  TEXT_BUBBLE_BACKGROUND,
+  TEXT_BUBBLE_SHADOW_BLUR,
+  TEXT_BUBBLE_SHADOW_COLOR,
+  TEXT_BUBBLE_SHADOW_OFFSET_Y,
+  TEXT_BUBBLE_STROKE,
+  TEXT_DEFAULT_COLOR,
+  TEXT_MAX_WIDTH,
+  TEXT_MIN_WIDTH,
+  TEXT_PADDING_X,
+  TEXT_PADDING_Y,
+  TEXT_LINE_HEIGHT,
+} from "./text-layout.ts";
 import { collectSpatialDomTree } from "./dom-spatial-collector.ts";
 import { collectCascadeIndex } from "./cascade-snapshot-collector.ts";
 import { probeFrameworkComponents } from "./framework-probe.ts";
@@ -178,17 +193,17 @@ export function drawAnnotationsOnCanvas(
         }
       }
     } else if (ann.type === "text") {
-      // 绘制高档 Inline 多行文本气泡
+      // 绘制高档 Inline 多行文本气泡（配色/尺寸与 overlay 渲染层完全一致）
       const px = ann.position.x * dpr;
       const py = ann.position.y * dpr;
       const text = ann.text;
 
-      ctx.font = `bold ${13 * dpr}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+      ctx.font = `${TEXT_ANNOTATION_FONT_SIZE * dpr}px ${TEXT_ANNOTATION_FONT_FAMILY}`;
 
       const boundsRight = ctx.canvas?.width || 800;
       const maxTextWidth = Math.max(
-        100 * dpr,
-        Math.min(300 * dpr, boundsRight - px - 24 * dpr)
+        TEXT_MIN_WIDTH * dpr,
+        Math.min(TEXT_MAX_WIDTH * dpr, boundsRight - px - 24 * dpr)
       );
 
       // 按换行符与 maxTextWidth 自动拆分多行
@@ -212,9 +227,9 @@ export function drawAnnotationsOnCanvas(
         if (cur) lines.push(cur);
       }
 
-      const paddingX = 10 * dpr;
-      const paddingY = 6 * dpr;
-      const lineHeight = 18 * dpr;
+      const paddingX = TEXT_PADDING_X * dpr;
+      const paddingY = TEXT_PADDING_Y * dpr;
+      const lineHeight = TEXT_LINE_HEIGHT * dpr;
       let maxW = 0;
       for (const l of lines) {
         const w = ctx.measureText(l).width;
@@ -224,9 +239,14 @@ export function drawAnnotationsOnCanvas(
       const bgWidth = maxW + paddingX * 2;
       const bgHeight = paddingY * 2 + lines.length * lineHeight;
 
-      ctx.fillStyle = "rgba(15, 23, 42, 0.92)";
-      ctx.strokeStyle = "#0284c7";
+      ctx.fillStyle = TEXT_BUBBLE_BACKGROUND;
+      ctx.strokeStyle = TEXT_BUBBLE_STROKE;
       ctx.lineWidth = 1 * dpr;
+
+      // 轻阴影与 overlay 渲染层同参数（dpr 缩放保持视觉一致）
+      ctx.shadowColor = TEXT_BUBBLE_SHADOW_COLOR;
+      ctx.shadowBlur = TEXT_BUBBLE_SHADOW_BLUR * dpr;
+      ctx.shadowOffsetY = TEXT_BUBBLE_SHADOW_OFFSET_Y * dpr;
 
       ctx.beginPath();
       if (ctx.roundRect) {
@@ -237,7 +257,12 @@ export function drawAnnotationsOnCanvas(
       ctx.fill();
       ctx.stroke();
 
-      ctx.fillStyle = "#f8fafc";
+      ctx.shadowColor = "transparent";
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetY = 0;
+
+      // 文字色可配置（白底深色系），未设置用默认近黑
+      ctx.fillStyle = ann.color || TEXT_DEFAULT_COLOR;
       ctx.textAlign = "left";
       ctx.textBaseline = "top";
       for (let i = 0; i < lines.length; i++) {

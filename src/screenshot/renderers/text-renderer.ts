@@ -2,7 +2,13 @@ import type { TextAnnotation } from "../../domain/screenshot-payload.ts";
 import {
   computeTextLayout,
   TEXT_ANNOTATION_FONT,
+  TEXT_BUBBLE_BACKGROUND,
+  TEXT_BUBBLE_SHADOW_BLUR,
+  TEXT_BUBBLE_SHADOW_COLOR,
+  TEXT_BUBBLE_SHADOW_OFFSET_Y,
+  TEXT_BUBBLE_STROKE,
   TEXT_CORNER_RADIUS,
+  TEXT_DEFAULT_COLOR,
   TEXT_LINE_HEIGHT,
   TEXT_MAX_WIDTH,
   TEXT_MIN_WIDTH,
@@ -38,9 +44,14 @@ export const textRenderer: AnnotationRenderer<TextAnnotation> = {
       maxWidth: maxTextWidth,
     });
 
-    ctx.fillStyle = "rgba(15, 23, 42, 0.92)";
-    ctx.strokeStyle = "#0284c7";
+    ctx.fillStyle = TEXT_BUBBLE_BACKGROUND;
+    ctx.strokeStyle = TEXT_BUBBLE_STROKE;
     ctx.lineWidth = 1;
+
+    // 轻阴影：暗色截图上白底气泡边缘更清晰（画完气泡立即重置，文字不带阴影）
+    ctx.shadowColor = TEXT_BUBBLE_SHADOW_COLOR;
+    ctx.shadowBlur = TEXT_BUBBLE_SHADOW_BLUR;
+    ctx.shadowOffsetY = TEXT_BUBBLE_SHADOW_OFFSET_Y;
 
     ctx.beginPath();
     if ((ctx as any).roundRect) {
@@ -51,7 +62,12 @@ export const textRenderer: AnnotationRenderer<TextAnnotation> = {
     ctx.fill();
     ctx.stroke();
 
-    ctx.fillStyle = "#f8fafc";
+    ctx.shadowColor = "transparent";
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+
+    // 文字色可配置（白底上深色系可读）；未设置时用默认近黑
+    ctx.fillStyle = ann.color || TEXT_DEFAULT_COLOR;
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
     for (let i = 0; i < lines.length; i++) {

@@ -7,12 +7,19 @@ import {
   TEXT_ANNOTATION_FONT_FAMILY,
   TEXT_ANNOTATION_FONT_SIZE,
   TEXT_ANNOTATION_FONT_WEIGHT,
+  TEXT_BUBBLE_BACKGROUND,
+  TEXT_BUBBLE_SHADOW_BLUR,
+  TEXT_BUBBLE_SHADOW_COLOR,
+  TEXT_BUBBLE_SHADOW_OFFSET_Y,
+  TEXT_BUBBLE_STROKE,
   TEXT_CORNER_RADIUS,
+  TEXT_DEFAULT_COLOR,
   TEXT_LINE_HEIGHT,
   TEXT_MAX_WIDTH,
   TEXT_MIN_WIDTH,
   TEXT_PADDING_X,
   TEXT_PADDING_Y,
+  TEXT_PLACEHOLDER_COLOR,
 } from "./text-layout.ts";
 import { t } from "../shared/i18n.ts";
 
@@ -156,7 +163,7 @@ export class InlineTextEditor {
     this.rerender = options.rerender;
   }
 
-  spawn(x: number, y: number, initialText?: string): void {
+  spawn(x: number, y: number, initialText?: string, color?: string): void {
     const wrapper = this.wrapper;
 
     const existing = wrapper.querySelector(".inline-text-input");
@@ -186,6 +193,7 @@ export class InlineTextEditor {
     input.className = "inline-text-input";
     input.placeholder = t("shotTextPlaceholder");
     // 视觉参数与渲染层 textRenderer.draw 完全一致：输入态即最终气泡的"活体预览"
+    // （白底 + 品牌蓝描边 + 轻阴影；文字色可配置，未设置用默认近黑）
     input.style.cssText = `
       position: absolute;
       left: ${x}px;
@@ -193,15 +201,16 @@ export class InlineTextEditor {
       max-width: ${maxWidth}px;
       max-height: ${availableHeight}px;
       min-width: ${TEXT_MIN_WIDTH}px;
-      background: rgba(15, 23, 42, 0.92);
-      color: #f8fafc;
-      border: 1px solid #0284c7;
+      background: ${TEXT_BUBBLE_BACKGROUND};
+      color: ${color || TEXT_DEFAULT_COLOR};
+      border: 1px solid ${TEXT_BUBBLE_STROKE};
       border-radius: ${TEXT_CORNER_RADIUS}px;
       padding: ${TEXT_PADDING_Y}px ${TEXT_PADDING_X}px;
       font-size: ${TEXT_ANNOTATION_FONT_SIZE}px;
       font-weight: ${TEXT_ANNOTATION_FONT_WEIGHT};
       line-height: ${TEXT_LINE_HEIGHT}px;
       font-family: ${TEXT_ANNOTATION_FONT_FAMILY};
+      box-shadow: 0 ${TEXT_BUBBLE_SHADOW_OFFSET_Y}px ${TEXT_BUBBLE_SHADOW_BLUR}px ${TEXT_BUBBLE_SHADOW_COLOR};
       outline: none;
       z-index: 100;
       resize: none;
@@ -211,12 +220,11 @@ export class InlineTextEditor {
       box-sizing: border-box;
     `;
 
-    // 幂等注入占位符配色（深底气泡上保持可读）；仅首次 spawn 时注入
+    // 幂等注入占位符配色（白底上的浅灰，保持可读）；仅首次 spawn 时注入
     if (!(wrapper as any).__inlineTextStyleInjected) {
       const style = document.createElement("style");
       style.id = "inline-text-input-style";
-      style.textContent =
-        ".inline-text-input::placeholder { color: rgba(248, 250, 252, 0.5); }";
+      style.textContent = `.inline-text-input::placeholder { color: ${TEXT_PLACEHOLDER_COLOR}; }`;
       wrapper.appendChild(style);
       (wrapper as any).__inlineTextStyleInjected = true;
     }

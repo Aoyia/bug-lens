@@ -462,7 +462,12 @@ export class ScreenshotOverlay {
       this.annotationController.saveUndoState();
       this.annotationController.removeAnnotationById(hit.id);
       this.renderAnnotationsOnCanvas();
-      this.spawnInlineTextInput(hit.position.x, hit.position.y, hit.text);
+      this.spawnInlineTextInput(
+        hit.position.x,
+        hit.position.y,
+        hit.text,
+        hit.color
+      );
     }
   }
 
@@ -496,14 +501,15 @@ export class ScreenshotOverlay {
   private spawnInlineTextInput(
     x: number,
     y: number,
-    initialText?: string
+    initialText?: string,
+    color?: string
   ): void {
     if (!this.shadowRoot) return;
     const wrapper =
       this.shadowRoot.querySelector<HTMLDivElement>(".overlay-wrapper");
     if (!wrapper) return;
     if (!this.textEditor) return;
-    this.textEditor.spawn(x, y, initialText);
+    this.textEditor.spawn(x, y, initialText, color);
   }
 
   private showToast(
