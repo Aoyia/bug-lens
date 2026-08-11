@@ -4,6 +4,8 @@ import type { ExpectedStatement } from "../../../shared/protocol";
 export type ExpectedCaptureCardDeps = {
   onSubmit(expected: ExpectedStatement): void;
   onSkip(): void;
+  /** 取消整条标记流程（Escape）：关闭卡片，不进入元素选择。 */
+  onCancel(): void;
 };
 
 const CHIP_KEYS = [
@@ -206,9 +208,13 @@ export class ExpectedCaptureCard {
         e.stopPropagation();
         this.submit();
       } else if (e.key === "Escape") {
+        // Escape 语义与流程内其余模态保持一致（选择遮罩 / 问题编辑器均为
+        // Escape = 取消）：在这里是取消整条标记流程，而不是"跳过并进入
+        // 元素选择"——否则误触标记入口的用户会被推入更侵入式的选择遮罩，
+        // 且速记卡将是流程中唯一没有取消通道的模态。
         e.preventDefault();
         e.stopPropagation();
-        this.skip();
+        this.cancel();
       }
     };
     window.addEventListener("keydown", this.keydownListener, true);
@@ -353,5 +359,13 @@ export class ExpectedCaptureCard {
     this.submitted = true;
     this.close();
     this.deps.onSkip();
+  }
+
+  /** 取消整条标记流程：与 skip() 对称，但回调 onCancel 而非 onSkip。 */
+  private cancel(): void {
+    if (this.submitted) return;
+    this.submitted = true;
+    this.close();
+    this.deps.onCancel();
   }
 }

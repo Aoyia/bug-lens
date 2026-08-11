@@ -218,6 +218,11 @@ if (existingController) {
       pendingExpected = undefined;
       proceedToIssueSelection();
     },
+    onCancel() {
+      // 取消整条标记流程：速记卡阶段 widget 始终挂载且未进入选择态，
+      // 防御性复位「标记问题」按钮即可，不进入元素选择。
+      widget.setIssueSelecting(false);
+    },
   });
 
   // 空闲监测：页面长时间无交互时暂停录制（联动 offscreen 媒体暂停/恢复）
