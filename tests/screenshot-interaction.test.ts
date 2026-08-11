@@ -962,6 +962,10 @@ describe("截图激活期间事件隔离（避免网页响应）", () => {
 
 // ---------- InlineTextEditor 组件级测试 ----------
 describe("InlineTextEditor", () => {
+  /** wrapper.children 中按 tagName 查找 textarea（首位是幂等注入的 <style>） */
+  const findTextarea = (wrapper: any): any =>
+    wrapper.children.find((c: any) => c.tagName === "TEXTAREA");
+
   test("输入文本后 blur 提交批注；Esc 取消还原原文", () => {
     const wrapper = createElementStub("div");
     let committed: any = null;
@@ -981,7 +985,7 @@ describe("InlineTextEditor", () => {
 
     // 提交场景
     editor.spawn(100, 100, "hello");
-    const textarea = wrapper.children[0] as any;
+    const textarea = findTextarea(wrapper);
     assert.ok(textarea, "textarea should be appended to wrapper");
     textarea.value = "hello world";
     const blurFns = textarea.listeners["blur"];
@@ -994,12 +998,78 @@ describe("InlineTextEditor", () => {
 
     // Esc 取消场景：输入框没有移除时，Esc 还原原文
     editor.spawn(200, 200, "original");
-    const textarea2 = wrapper.children[0] as any;
+    const textarea2 = findTextarea(wrapper);
     textarea2.value = "changed";
     const keyFns = textarea2.listeners["keydown"];
     assert.ok(keyFns, "keydown listener should be registered");
     keyFns[0]({ type: "keydown", key: "Escape" });
     assert.ok(cancelled, "cancel should fire");
     assert.equal(cancelled.text, "original");
+  });
+
+  test("输入态视觉 = 最终气泡：样式参数与渲染层一致（所见即所得）", () => {
+    const wrapper = createElementStub("div");
+    const editor = new InlineTextEditor({
+      wrapper,
+      getSelection: () => ({ x: 0, y: 0, width: 500, height: 400 }),
+      commitAnnotation: () => {},
+      cancelAnnotation: () => {},
+      rerender: () => {},
+    });
+
+    editor.spawn(100, 100, "hello");
+    const textarea = findTextarea(wrapper);
+    const css = textarea.style.cssText as string;
+
+    // 渲染态 token：深底白字、实线蓝边框、6px 圆角、13px/400、行高 18px、padding 6/10
+    assert.ok(css.includes("background: rgba(15, 23, 42, 0.92)"), css);
+    assert.ok(css.includes("color: #f8fafc"), css);
+    assert.ok(css.includes("border: 1px solid #0284c7"), css);
+    assert.ok(css.includes("border-radius: 6px"), css);
+    assert.ok(css.includes("font-size: 13px"), css);
+    assert.ok(css.includes("font-weight: 400"), css);
+    assert.ok(css.includes("line-height: 18px"), css);
+    assert.ok(css.includes("padding: 6px 10px"), css);
+    assert.ok(css.includes("min-width: 80px"), css);
+
+    // 旧输入态样式全部退役
+    assert.ok(!css.includes("#ff3b30"), "红色输入文字应移除");
+    assert.ok(!css.includes("dashed"), "虚线边框应移除");
+    assert.ok(!css.includes("text-shadow"), "投影应移除");
+
+    // 占位符样式幂等注入：仅一个 <style>
+    const styles = wrapper.children.filter((c: any) => c.tagName === "STYLE");
+    assert.equal(styles.length, 1, "style 只注入一次");
+    assert.ok(
+      styles[0].textContent.includes("::placeholder"),
+      "占位符配色已注入"
+    );
+  });
+
+  test("输入时气泡尺寸实时跟随布局（所见即所得）", () => {
+    const wrapper = createElementStub("div");
+    const editor = new InlineTextEditor({
+      wrapper,
+      getSelection: () => ({ x: 0, y: 0, width: 500, height: 400 }),
+      commitAnnotation: () => {},
+      cancelAnnotation: () => {},
+      rerender: () => {},
+    });
+
+    editor.spawn(100, 100);
+    const textarea = findTextarea(wrapper);
+    textarea.value = "hello world";
+
+    // 触发 input → syncSize：width = bgWidth（估算 "hello world" ≈ 93.7px）
+    const inputFns = textarea.listeners["input"];
+    assert.ok(inputFns, "input listener should be registered");
+    inputFns[0]({ type: "input" });
+    assert.ok(textarea.style.width.endsWith("px"), textarea.style.width);
+    assert.ok(textarea.style.height.endsWith("px"), textarea.style.height);
+
+    // 空文本回落最小宽 80px
+    textarea.value = "";
+    inputFns[0]({ type: "input" });
+    assert.equal(textarea.style.width, "80px");
   });
 });

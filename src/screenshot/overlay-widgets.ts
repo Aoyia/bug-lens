@@ -2,6 +2,18 @@ import type {
   AnnotationItem,
   RectBounds,
 } from "../domain/screenshot-payload.ts";
+import {
+  computeTextLayout,
+  TEXT_ANNOTATION_FONT_FAMILY,
+  TEXT_ANNOTATION_FONT_SIZE,
+  TEXT_ANNOTATION_FONT_WEIGHT,
+  TEXT_CORNER_RADIUS,
+  TEXT_LINE_HEIGHT,
+  TEXT_MAX_WIDTH,
+  TEXT_MIN_WIDTH,
+  TEXT_PADDING_X,
+  TEXT_PADDING_Y,
+} from "./text-layout.ts";
 import { t } from "../shared/i18n.ts";
 
 /**
@@ -160,9 +172,12 @@ export class InlineTextEditor {
       ? selection.y + selection.height
       : window.innerHeight;
 
-    const availableWidth = Math.max(120, boundsRight - x - 10);
     const availableHeight = Math.max(40, boundsBottom - y - 10);
-    const maxWidth = Math.min(320, availableWidth);
+    // 与渲染层 draw 同公式：选区右边界 - 24px 兜底，气泡不溢出选区
+    const maxWidth = Math.max(
+      TEXT_MIN_WIDTH,
+      Math.min(TEXT_MAX_WIDTH, boundsRight - x - 24)
+    );
 
     // 位置语义诚实：点击位置即气泡锚点（不再"靠右左跳"改写 position）。
     // 靠近右边界时气泡由渲染层按 maxWidth 压缩自适应，数据不漂移。
@@ -170,23 +185,23 @@ export class InlineTextEditor {
     input.rows = 1;
     input.className = "inline-text-input";
     input.placeholder = t("shotTextPlaceholder");
+    // 视觉参数与渲染层 textRenderer.draw 完全一致：输入态即最终气泡的"活体预览"
     input.style.cssText = `
       position: absolute;
       left: ${x}px;
       top: ${y}px;
       max-width: ${maxWidth}px;
       max-height: ${availableHeight}px;
-      min-width: 120px;
-      background: transparent;
-      color: #ff3b30;
-      border: 1.5px dashed #007aff;
-      border-radius: 4px;
-      padding: 4px 6px;
-      font-size: 14px;
-      font-weight: 700;
-      line-height: 1.4;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+      min-width: ${TEXT_MIN_WIDTH}px;
+      background: rgba(15, 23, 42, 0.92);
+      color: #f8fafc;
+      border: 1px solid #0284c7;
+      border-radius: ${TEXT_CORNER_RADIUS}px;
+      padding: ${TEXT_PADDING_Y}px ${TEXT_PADDING_X}px;
+      font-size: ${TEXT_ANNOTATION_FONT_SIZE}px;
+      font-weight: ${TEXT_ANNOTATION_FONT_WEIGHT};
+      line-height: ${TEXT_LINE_HEIGHT}px;
+      font-family: ${TEXT_ANNOTATION_FONT_FAMILY};
       outline: none;
       z-index: 100;
       resize: none;
@@ -196,16 +211,28 @@ export class InlineTextEditor {
       box-sizing: border-box;
     `;
 
+    // 幂等注入占位符配色（深底气泡上保持可读）；仅首次 spawn 时注入
+    if (!(wrapper as any).__inlineTextStyleInjected) {
+      const style = document.createElement("style");
+      style.id = "inline-text-input-style";
+      style.textContent =
+        ".inline-text-input::placeholder { color: rgba(248, 250, 252, 0.5); }";
+      wrapper.appendChild(style);
+      (wrapper as any).__inlineTextStyleInjected = true;
+    }
+
     if (initialText) {
       input.value = initialText;
     }
 
-    // 监听输入自动调整高度
-    const autoResize = () => {
-      input.style.height = "auto";
-      input.style.height = `${Math.min(input.scrollHeight, availableHeight)}px`;
+    // 输入时实时跟随最终气泡尺寸（所见即所得）：与渲染层共用同一布局函数
+    const syncSize = () => {
+      const text = input.value || "";
+      const { bgWidth, bgHeight } = computeTextLayout(text, { maxWidth });
+      input.style.width = `${bgWidth}px`;
+      input.style.height = `${Math.min(bgHeight, availableHeight)}px`;
     };
-    input.addEventListener("input", autoResize);
+    input.addEventListener("input", syncSize);
 
     let isHandled = false;
     const commitText = () => {
@@ -253,7 +280,7 @@ export class InlineTextEditor {
       if (input.value) {
         input.setSelectionRange(input.value.length, input.value.length);
       }
-      autoResize();
+      syncSize();
     }, 20);
   }
 }

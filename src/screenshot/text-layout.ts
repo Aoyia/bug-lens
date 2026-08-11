@@ -1,5 +1,9 @@
-export const TEXT_ANNOTATION_FONT =
-  "13px -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif";
+export const TEXT_ANNOTATION_FONT_SIZE = 13;
+export const TEXT_ANNOTATION_FONT_WEIGHT = 400;
+export const TEXT_ANNOTATION_FONT_FAMILY =
+  "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif";
+/** 保持既有字符串值不变（向后兼容），供 canvas ctx.font 直接使用 */
+export const TEXT_ANNOTATION_FONT = `${TEXT_ANNOTATION_FONT_SIZE}px ${TEXT_ANNOTATION_FONT_FAMILY}`;
 export const TEXT_MIN_WIDTH = 80;
 export const TEXT_MAX_WIDTH = 320;
 export const TEXT_PADDING_X = 10;
