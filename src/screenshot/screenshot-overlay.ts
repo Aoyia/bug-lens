@@ -42,6 +42,9 @@ export class ScreenshotOverlay {
   private magnifier: MagnifierRenderer | null = null;
   private textEditor: InlineTextEditor | null = null;
 
+  /** 确认导出防重入守卫：Enter 连按或双击确认按钮时只进入一次 processScreenshot */
+  private isConfirming = false;
+
   private readonly selectionController: SelectionController;
   private readonly annotationController: AnnotationController;
   private readonly stateMachine = new OverlayStateMachine();
@@ -315,6 +318,12 @@ export class ScreenshotOverlay {
         );
         this.cancel();
       }
+    } else if (e.key === "Enter" && !isEditingText) {
+      // 兑现 shotConfirm 文案承诺：非编辑态按 Enter 直接确认导出，
+      // 省去"离开现场→找鼠标→瞄准确认按钮"的摩擦（第一性原理 P1/P2）。
+      e.preventDefault();
+      e.stopPropagation();
+      void this.confirm(this.cachedViewportDataUrl);
     } else if (
       (e.key === "z" || e.key === "Z" || e.code === "KeyZ") &&
       (e.metaKey || e.ctrlKey)
@@ -609,8 +618,13 @@ export class ScreenshotOverlay {
   }
 
   async confirm(viewportDataUrl: string): Promise<void> {
+    if (this.isConfirming) return;
+    this.isConfirming = true;
     const selection = this.selectionController.selection;
-    if (!selection) return;
+    if (!selection) {
+      this.isConfirming = false;
+      return;
+    }
 
     // 隐藏 Overlay UI 瞬时视角
     if (this.container) {
@@ -633,6 +647,7 @@ export class ScreenshotOverlay {
     } catch (err) {
       console.error("Bug Lens: Screenshot process failed", err);
     } finally {
+      this.isConfirming = false;
       this.destroy();
     }
   }

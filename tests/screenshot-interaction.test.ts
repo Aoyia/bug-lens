@@ -1185,6 +1185,85 @@ describe("截图激活期间事件隔离（避免网页响应）", () => {
   });
 });
 
+// ---------- Enter 确认快捷键（shotConfirm 文案承诺兑现） ----------
+describe("Enter 确认快捷键", () => {
+  test("非编辑场景按 Enter 触发确认导出且事件被拦截", () => {
+    const h = createHarness();
+    const anyOv = h.overlay as any;
+    let confirmCalls = 0;
+    anyOv.confirm = (url: string) => {
+      confirmCalls++;
+      assert.equal(url, "data:image/png;base64,", "应传入缓存的视口 dataURL");
+    };
+
+    const calls: string[] = [];
+    anyOv.handleKeyDown({
+      key: "Enter",
+      code: "Enter",
+      type: "keydown",
+      metaKey: false,
+      ctrlKey: false,
+      preventDefault: () => calls.push("preventDefault"),
+      stopPropagation: () => calls.push("stopPropagation"),
+    });
+
+    assert.equal(confirmCalls, 1, "Enter 应触发一次确认导出");
+    assert.ok(calls.includes("preventDefault"), "should preventDefault");
+    assert.ok(calls.includes("stopPropagation"), "should stopPropagation");
+    // Enter 确认不应取消截图（overlay 保持激活，与 Esc 语义区分）
+    assert.ok(
+      anyOv.container,
+      "overlay should stay active until confirm settles"
+    );
+  });
+
+  test("文本编辑场景按 Enter 放行（textarea 换行），不触发确认", () => {
+    const h = createHarness();
+    const anyOv = h.overlay as any;
+    anyOv.shadowRoot = {
+      activeElement: {
+        tagName: "TEXTAREA",
+        classList: { contains: () => true },
+      },
+    };
+    let confirmCalls = 0;
+    anyOv.confirm = () => {
+      confirmCalls++;
+    };
+
+    const calls: string[] = [];
+    anyOv.handleKeyDown({
+      key: "Enter",
+      code: "Enter",
+      type: "keydown",
+      metaKey: false,
+      ctrlKey: false,
+      preventDefault: () => calls.push("preventDefault"),
+      stopPropagation: () => calls.push("stopPropagation"),
+    });
+
+    assert.deepEqual(calls, [], "editing text should pass Enter through");
+    assert.equal(confirmCalls, 0, "编辑态 Enter 不应触发确认导出");
+  });
+
+  test("confirm 防重入：确认进行中再次触发直接忽略", async () => {
+    const h = createHarness();
+    const anyOv = h.overlay as any;
+
+    // 模拟第一次确认尚未完成（processScreenshot 挂起中）
+    anyOv.isConfirming = true;
+
+    // 第二次调用应被守卫同步忽略（Promise 立即 settle），
+    // 不会再次进入 processScreenshot（否则会因 Image 永不 onload 而挂起超时）
+    const p = anyOv.confirm("data:image/png;base64,");
+    let settled = false;
+    await p.then(() => {
+      settled = true;
+    });
+    assert.equal(settled, true, "guarded confirm should settle immediately");
+  });
+});
+
 // ---------- InlineTextEditor 组件级测试 ----------
 describe("InlineTextEditor", () => {
   /** wrapper.children 中按 tagName 查找 textarea（首位是幂等注入的 <style>） */
