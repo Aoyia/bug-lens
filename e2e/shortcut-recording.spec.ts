@@ -85,13 +85,25 @@ test.describe("Bug Lens Chrome Extension E2E SHORTCUT-001: Global Shortcut One-C
         : undefined,
     });
 
-    // 4. 通过页面内的录制挂件停止录制，验证全链路闭合
+    // 4. 通过页面内的录制挂件停止录制，验证全链路闭合。
+    //    自 0b55d10 起挂件停止改为非静默：停止完成后打开预览页，
+    //    active-session 由 openPendingPreview 的 updateSessionAndClearActive 原子清理，
+    //    因此状态断言按 sessionId 查询（activeSession() 此时已正确返回 undefined）。
     await targetPage.bringToFront();
     const stopButton = targetPage.locator("#__wbr_stop_btn__");
     await expect(stopButton).toBeVisible({ timeout: 5_000 });
+    const previewPagePromise = context.waitForEvent("page", {
+      predicate: (page) => page.url().includes("preview.html"),
+      timeout: 10_000,
+    });
     await stopButton.click();
+    const previewPage = await previewPagePromise;
+    expect(previewPage.url()).toContain(session.id);
+    logE2e("Preview opened after widget stop", {
+      previewUrl: previewPage.url(),
+    });
     await expect
-      .poll(async () => (await mediaProbe.activeSession())?.status, {
+      .poll(async () => (await mediaProbe.getSession(session.id))?.status, {
         timeout: 10_000,
       })
       .toBe("PREVIEW_READY");
