@@ -12,6 +12,7 @@ import {
 import { InlineTextEditor, MagnifierRenderer } from "./overlay-widgets.ts";
 import { SelectionController } from "./selection-controller.ts";
 import { AnnotationController } from "./annotation-controller.ts";
+import { OverlayStateMachine } from "./overlay-state.ts";
 
 /**
  * 截图完成后的 toast 文案：根据 ZIP 是否已注入本地绝对路径区分提示。
@@ -43,6 +44,7 @@ export class ScreenshotOverlay {
 
   private readonly selectionController: SelectionController;
   private readonly annotationController: AnnotationController;
+  private readonly stateMachine = new OverlayStateMachine();
 
   constructor() {
     this.handleKeyDown = this.handleKeyDown.bind(this);
@@ -61,11 +63,13 @@ export class ScreenshotOverlay {
       getShadowRoot: () => this.shadowRoot,
       getAnnotations: () => this.annotationController.annotations,
       getCurrentTool: () => this.currentTool,
+      getPhase: () => this.stateMachine.phase,
       rerender: () => this.renderAnnotationsOnCanvas(),
     });
     this.annotationController = new AnnotationController({
       getSelection: () => this.selectionController.selection,
       getCurrentTool: () => this.currentTool,
+      getPhase: () => this.stateMachine.phase,
       spawnInlineTextInput: (x, y, initialText) =>
         this.spawnInlineTextInput(x, y, initialText),
       rerender: () => this.renderAnnotationsOnCanvas(),
@@ -174,10 +178,12 @@ export class ScreenshotOverlay {
       commitAnnotation: (ann) => {
         this.annotationController.addAnnotation(ann);
         this.renderAnnotationsOnCanvas();
+        this.stateMachine.transition("locked");
       },
       cancelAnnotation: (ann) => {
         this.annotationController.addAnnotation(ann);
         this.renderAnnotationsOnCanvas();
+        this.stateMachine.transition("locked");
       },
       rerender: () => {
         this.renderAnnotationsOnCanvas();
@@ -359,16 +365,30 @@ export class ScreenshotOverlay {
 
     // 1) 选区 8 点手柄 resize（优先于批注命中）
     if (this.selectionController.onMouseDown(e)) {
+      this.stateMachine.transition("resizing-selection");
       e.stopPropagation();
       return;
     }
     // 2) 批注域：手柄/删除 → 命中选中/拖拽 → 清空选中 → 绘制启动
-    if (this.annotationController.onMouseDown(e)) {
+    const annIntent = this.annotationController.onMouseDown(e);
+    if (annIntent) {
+      if (annIntent === "resize") {
+        this.stateMachine.transition("resizing-annotation");
+      } else if (annIntent === "drag") {
+        this.stateMachine.transition("dragging-annotation");
+      } else if (annIntent === "draw") {
+        this.stateMachine.transition("drawing");
+      } else if (annIntent === "text-edit") {
+        this.stateMachine.transition("editing-text");
+      }
       e.stopPropagation();
       return;
     }
     // 3) select 工具：拉框 or 锁定后平移截图框
-    this.selectionController.onSelectOrDrag(e);
+    const selIntent = this.selectionController.onSelectOrDrag(e);
+    if (selIntent) {
+      this.stateMachine.transition(selIntent);
+    }
     e.stopPropagation();
   }
 
@@ -388,12 +408,20 @@ export class ScreenshotOverlay {
 
   private handleMouseUp(e: MouseEvent): void {
     // 批注域：拖拽复位 → 手柄复位 → 绘制提交/text 输入
-    if (this.annotationController.onMouseUp(e)) {
+    const annUp = this.annotationController.onMouseUp(e);
+    if (annUp) {
+      this.stateMachine.transition(
+        annUp === "spawned-text" ? "editing-text" : "locked"
+      );
       e.stopPropagation();
       return;
     }
     // 选区域：Resize 复位 → 平移复位 → 拉框完成并锁定
-    this.selectionController.onMouseUp(e);
+    if (this.selectionController.onMouseUp(e)) {
+      this.stateMachine.transition("locked");
+      e.stopPropagation();
+      return;
+    }
     e.stopPropagation();
   }
 
@@ -565,5 +593,6 @@ export class ScreenshotOverlay {
     this.textEditor = null;
     this.selectionController.reset();
     this.annotationController.reset();
+    this.stateMachine.reset();
   }
 }

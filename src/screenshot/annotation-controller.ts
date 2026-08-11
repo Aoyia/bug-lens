@@ -7,11 +7,15 @@ import {
   hitTestAnnotation as hitTestAnnotationInList,
   hitTestAnnotationHandle as hitTestAnnotationHandleOf,
 } from "./annotation-renderer.ts";
+import type { OverlayPhase } from "./overlay-state.ts";
+import { UndoManager } from "./undo-manager.ts";
 
 /** AnnotationController 所需的外部依赖（由组合根注入，无双向引用） */
 export interface AnnotationControllerOptions {
   getSelection: () => RectBounds | null;
   getCurrentTool: () => string;
+  /** 读取组合根状态机当前 phase */
+  getPhase: () => OverlayPhase;
   /** 文本批注的浮动输入（组合根的 spawnInlineTextInput） */
   spawnInlineTextInput: (x: number, y: number, initialText?: string) => void;
   /** 重新渲染遮罩画布（组合根的 renderAnnotationsOnCanvas） */
@@ -31,19 +35,17 @@ export class AnnotationController {
   /** 当前选中的批注（组合根渲染读取） */
   selectedAnnotation: AnnotationItem | null = null;
 
-  private isDrawingTool = false;
   private startPoint: { x: number; y: number } | null = null;
 
   private draggedAnnotation: AnnotationItem | null = null;
-  private isDraggingAnnotation = false;
   private dragStartPoint: { x: number; y: number } | null = null;
   private activeResizeHandle: string | null = null;
-  private isResizingAnnotationHandle = false;
 
-  private undoStack: AnnotationItem[][] = [];
+  private readonly undoManager = new UndoManager();
 
   private readonly getSelection: () => RectBounds | null;
   private readonly getCurrentTool: () => string;
+  private readonly getPhase: () => OverlayPhase;
   private readonly spawnInlineTextInput: (
     x: number,
     y: number,
@@ -54,25 +56,27 @@ export class AnnotationController {
   constructor(options: AnnotationControllerOptions) {
     this.getSelection = options.getSelection;
     this.getCurrentTool = options.getCurrentTool;
+    this.getPhase = options.getPhase;
     this.spawnInlineTextInput = options.spawnInlineTextInput;
     this.rerender = options.rerender;
   }
 
-  /** 第 2 步：批注命中（手柄/删除按钮 → 整体 → 清空选中 → 绘制启动）；返回是否已消费事件 */
-  onMouseDown(e: MouseEvent): boolean {
+  /** 第 2 步：批注命中（手柄/删除按钮 → 整体 → 清空选中 → 绘制启动）；返回意图供组合根驱动转移 */
+  onMouseDown(
+    e: MouseEvent
+  ): "delete" | "resize" | "drag" | "draw" | "text-edit" | null {
     // 1. 优先检测是否击中了当前选中批注框的 Resize 控制点或删除按钮
     const handleHit = this.hitTestAnnotationHandle(e.clientX, e.clientY);
     if (handleHit) {
       if (handleHit.handle === "delete") {
         this.deleteSelectedAnnotation();
-        return true;
+        return "delete";
       }
       this.saveUndoState();
-      this.isResizingAnnotationHandle = true;
       this.activeResizeHandle = handleHit.handle;
       this.selectedAnnotation = handleHit.ann;
       this.dragStartPoint = { x: e.clientX, y: e.clientY };
-      return true;
+      return "resize";
     }
 
     // 2. 次之检测是否点击了已有批注元素整体（选中并准备平移）
@@ -86,16 +90,15 @@ export class AnnotationController {
         this.annotations = this.annotations.filter((a) => a.id !== hit.id);
         this.selectedAnnotation = null;
         this.rerender();
-        return true;
+        return "text-edit";
       }
 
       this.selectedAnnotation = hit;
       this.rerender();
       this.saveUndoState();
-      this.isDraggingAnnotation = true;
       this.draggedAnnotation = hit;
       this.dragStartPoint = { x: e.clientX, y: e.clientY };
-      return true;
+      return "drag";
     } else if (this.selectedAnnotation) {
       this.selectedAnnotation = null;
       this.rerender();
@@ -105,22 +108,21 @@ export class AnnotationController {
     if (this.getCurrentTool() !== "select") {
       const selection = this.getSelection();
       if (selection) {
-        this.isDrawingTool = true;
         this.startPoint = clampPointToRect(
           { x: e.clientX, y: e.clientY },
           selection
         );
-        return true;
+        return "draw";
       }
     }
 
-    return false;
+    return null;
   }
 
   /** mousemove：批注手柄缩放 → 批注拖拽平移 → 绘制临时批注；返回是否已消费事件 */
   onMouseMove(e: MouseEvent): boolean {
     if (
-      this.isResizingAnnotationHandle &&
+      this.getPhase() === "resizing-annotation" &&
       this.selectedAnnotation &&
       this.dragStartPoint &&
       this.activeResizeHandle
@@ -177,7 +179,7 @@ export class AnnotationController {
 
     // 拖拽平移已选中的批注
     if (
-      this.isDraggingAnnotation &&
+      this.getPhase() === "dragging-annotation" &&
       this.draggedAnnotation &&
       this.dragStartPoint
     ) {
@@ -204,7 +206,7 @@ export class AnnotationController {
     }
 
     // 在拉框选区内绘制批注（临时标注）
-    if (this.isDrawingTool && this.startPoint) {
+    if (this.getPhase() === "drawing" && this.startPoint) {
       const selection = this.getSelection();
       if (selection) {
         const currentPoint = clampPointToRect(
@@ -250,30 +252,30 @@ export class AnnotationController {
     return false;
   }
 
-  /** mouseup：批注拖拽复位 → 手柄复位 → 绘制提交/text 输入唤起；返回是否已消费事件 */
-  onMouseUp(e: MouseEvent): boolean {
-    if (this.isDraggingAnnotation) {
-      this.isDraggingAnnotation = false;
+  /** mouseup：批注拖拽复位 → 手柄复位 → 绘制提交/text 输入唤起；返回意图供组合根驱动转移 */
+  onMouseUp(
+    e: MouseEvent
+  ): "resize" | "drag" | "committed" | "spawned-text" | null {
+    if (this.getPhase() === "dragging-annotation") {
       this.draggedAnnotation = null;
       this.dragStartPoint = null;
-      return true;
+      return "drag";
     }
 
-    if (this.isResizingAnnotationHandle) {
-      this.isResizingAnnotationHandle = false;
+    if (this.getPhase() === "resizing-annotation") {
       this.activeResizeHandle = null;
       this.dragStartPoint = null;
-      return true;
+      return "resize";
     }
 
-    if (this.isDrawingTool) {
-      this.isDrawingTool = false;
+    if (this.getPhase() === "drawing") {
       if (this.activeTempAnnotation) {
         this.saveUndoState();
         this.annotations.push(this.activeTempAnnotation);
         this.activeTempAnnotation = null;
       }
-      if (this.getCurrentTool() === "text") {
+      const isText = this.getCurrentTool() === "text";
+      if (isText) {
         const selection = this.getSelection();
         const textPos = selection
           ? clampPointToRect({ x: e.clientX, y: e.clientY }, selection)
@@ -281,10 +283,10 @@ export class AnnotationController {
         this.spawnInlineTextInput(textPos.x, textPos.y);
       }
       this.rerender();
-      return true;
+      return isText ? "spawned-text" : "committed";
     }
 
-    return false;
+    return null;
   }
 
   /** 追加一个已确认的批注（文本编辑器提交等场景） */
@@ -307,27 +309,15 @@ export class AnnotationController {
     this.rerender();
   }
 
-  /** 保存撤销快照（深拷贝，上限 30 份） */
+  /** 保存撤销快照（深拷贝，上限 30 份）——委托给 UndoManager */
   saveUndoState(): void {
-    this.undoStack.push(JSON.parse(JSON.stringify(this.annotations)));
-    if (this.undoStack.length > 30) {
-      this.undoStack.shift();
-    }
+    this.undoManager.record(this.annotations);
   }
 
-  /** 撤销：优先移除最后一个批注，否则回退快照 */
+  /** 撤销：语义与旧实现完全一致（pop 优先 + 快照回退） */
   undo(): void {
-    if (this.annotations.length > 0) {
-      this.saveUndoState();
-      this.annotations.pop();
-      this.rerender();
-    } else if (this.undoStack.length > 0) {
-      const prev = this.undoStack.pop();
-      if (prev) {
-        this.annotations = prev;
-        this.rerender();
-      }
-    }
+    this.annotations = this.undoManager.undo(this.annotations);
+    this.rerender();
   }
 
   /** 一键清空所有批注（工具栏 clear） */
@@ -356,13 +346,10 @@ export class AnnotationController {
     this.annotations = [];
     this.activeTempAnnotation = null;
     this.selectedAnnotation = null;
-    this.isDrawingTool = false;
     this.startPoint = null;
     this.draggedAnnotation = null;
-    this.isDraggingAnnotation = false;
     this.dragStartPoint = null;
     this.activeResizeHandle = null;
-    this.isResizingAnnotationHandle = false;
-    this.undoStack = [];
+    this.undoManager.reset();
   }
 }

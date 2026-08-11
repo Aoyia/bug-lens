@@ -307,6 +307,51 @@ describe("ScreenshotOverlay 交互行为基线", () => {
     assert.equal(sel(anyOv).activeHandle, null);
   });
 
+  test("初始预选态下直接 Resize 手柄（无需先拉框锁定）", () => {
+    const h = createHarness();
+    const anyOv = h.overlay as any;
+
+    const handleEl = { dataset: { handle: "se" }, closest: () => null };
+    const handleTarget = {
+      closest: (s: string) => (s === ".handle" ? handleEl : null),
+    };
+
+    h.mouseDown(1280, 800, handleTarget);
+    assert.equal(sel(anyOv).isResizing, true);
+    assert.equal(sel(anyOv).activeHandle, "se");
+
+    h.mouseMove(1300, 820);
+    assert.deepEqual(sel(anyOv).selection, {
+      x: 0,
+      y: 0,
+      width: 1300,
+      height: 820,
+    });
+
+    h.mouseUp(1300, 820);
+    assert.equal(sel(anyOv).isResizing, false);
+    assert.equal(anyOv.isSelectionLocked, false);
+  });
+
+  test("初始预选态下直接绘制 rect（无需先拉框锁定）", () => {
+    const h = createHarness();
+    const anyOv = h.overlay as any;
+
+    anyOv.currentTool = "rect";
+    h.mouseDown(100, 100);
+    h.mouseMove(200, 150);
+    h.mouseUp(200, 150);
+
+    assert.equal(ann(anyOv).annotations.length, 1);
+    assert.deepEqual(ann(anyOv).annotations[0].bounds, {
+      x: 100,
+      y: 100,
+      width: 100,
+      height: 50,
+    });
+    assert.equal(anyOv.isSelectionLocked, false);
+  });
+
   test("锁定后边缘拖拽整体平移，批注同步平移", () => {
     const h = createHarness();
     const anyOv = h.overlay as any;

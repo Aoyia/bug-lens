@@ -8,6 +8,7 @@ import {
   computeResizedRect,
   hitTestSelectionEdge,
 } from "./overlay-geometry.ts";
+import type { OverlayPhase } from "./overlay-state.ts";
 
 /** SelectionController 所需的外部依赖（由组合根注入，无双向引用） */
 export interface SelectionControllerOptions {
@@ -15,6 +16,8 @@ export interface SelectionControllerOptions {
   /** 选区整体平移时需同步平移已存在的批注（返回数组引用，原地修改） */
   getAnnotations: () => AnnotationItem[];
   getCurrentTool: () => string;
+  /** 读取组合根状态机当前 phase */
+  getPhase: () => OverlayPhase;
   /** 重新渲染遮罩画布（组合根的 renderAnnotationsOnCanvas） */
   rerender: () => void;
 }
@@ -29,9 +32,21 @@ export class SelectionController {
   /** 选区是否已锁定（测试与组合根均直接读取） */
   isSelectionLocked = false;
 
-  private isSelecting = false;
-  private isResizing = false;
-  private isDraggingSelectionBox = false;
+  /** 是否正在拉框（由状态机 phase 派生，测试读取的字段名保持不变） */
+  get isSelecting(): boolean {
+    return this.getPhase() === "selecting";
+  }
+
+  /** 是否正在拉伸选区手柄（由状态机 phase 派生） */
+  get isResizing(): boolean {
+    return this.getPhase() === "resizing-selection";
+  }
+
+  /** 是否正在整体平移截图框（由状态机 phase 派生） */
+  get isDraggingSelectionBox(): boolean {
+    return this.getPhase() === "dragging-selection";
+  }
+
   private dragBoxStartPoint: { x: number; y: number } | null = null;
   private activeHandle: string | null = null;
   private resizeStartPoint: { x: number; y: number } | null = null;
@@ -42,12 +57,14 @@ export class SelectionController {
   private readonly getShadowRoot: () => ShadowRoot | null;
   private readonly getAnnotations: () => AnnotationItem[];
   private readonly getCurrentTool: () => string;
+  private readonly getPhase: () => OverlayPhase;
   private readonly rerender: () => void;
 
   constructor(options: SelectionControllerOptions) {
     this.getShadowRoot = options.getShadowRoot;
     this.getAnnotations = options.getAnnotations;
     this.getCurrentTool = options.getCurrentTool;
+    this.getPhase = options.getPhase;
     this.rerender = options.rerender;
   }
 
@@ -61,7 +78,6 @@ export class SelectionController {
     const target = e.target as HTMLElement;
     const handleEl = target.closest<HTMLElement>(".handle");
     if (handleEl && this.selection) {
-      this.isResizing = true;
       this.activeHandle = handleEl.dataset.handle || null;
       this.resizeStartPoint = { x: e.clientX, y: e.clientY };
       this.initialSelection = { ...this.selection };
@@ -71,18 +87,19 @@ export class SelectionController {
   }
 
   /** 第 3 步：select 工具下的兜底分支 —— 未命中批注时拉框或平移截图框 */
-  onSelectOrDrag(e: MouseEvent): void {
-    if (this.getCurrentTool() !== "select") return;
+  onSelectOrDrag(e: MouseEvent): "selecting" | "dragging-selection" | null {
+    if (this.getCurrentTool() !== "select") return null;
     if (!this.isSelectionLocked) {
-      this.isSelecting = true;
       this.startPoint = { x: e.clientX, y: e.clientY };
+      return "selecting";
     } else if (this.selection) {
       if (hitTestSelectionEdge(e.clientX, e.clientY, this.selection)) {
-        this.isDraggingSelectionBox = true;
         this.dragBoxStartPoint = { x: e.clientX, y: e.clientY };
         this.initialSelection = { ...this.selection };
+        return "dragging-selection";
       }
     }
+    return null;
   }
 
   /** mousemove：Resize → 锁定光标 → 整体平移 → 拉框/吸附；返回是否已消费事件 */
@@ -195,7 +212,6 @@ export class SelectionController {
   /** mouseup：Resize 复位 → 平移复位 → 拉框完成并锁定选区；返回是否已消费事件 */
   onMouseUp(e: MouseEvent): boolean {
     if (this.isResizing) {
-      this.isResizing = false;
       this.activeHandle = null;
       this.resizeStartPoint = null;
       this.initialSelection = null;
@@ -203,14 +219,12 @@ export class SelectionController {
     }
 
     if (this.isDraggingSelectionBox) {
-      this.isDraggingSelectionBox = false;
       this.dragBoxStartPoint = null;
       this.initialSelection = null;
       return true;
     }
 
     if (this.isSelecting) {
-      this.isSelecting = false;
       const isClickOnly =
         this.startPoint &&
         Math.abs(e.clientX - this.startPoint.x) < 5 &&
@@ -357,9 +371,6 @@ export class SelectionController {
   reset(): void {
     this.selection = null;
     this.isSelectionLocked = false;
-    this.isSelecting = false;
-    this.isResizing = false;
-    this.isDraggingSelectionBox = false;
     this.dragBoxStartPoint = null;
     this.activeHandle = null;
     this.resizeStartPoint = null;

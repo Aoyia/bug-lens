@@ -607,8 +607,7 @@ test.describe("Bug Lens Chrome Extension E2E SCREENSHOT-004: 截图文本批注�
     await delay(100);
 
     // ---- 3) 点击 rect 工具按钮：blur 提交文本批注并切换工具 ----
-    // text 工具具有粘性：点击按钮时 mousedown 会被视为绘制起点，
-    // mouseup 后会在按钮位置残留一个空白输入框；用 Tab 让其 blur 移除。
+    // 状态机拒绝"编辑中开启绘制"的转移：点击按钮仅触发 blur 提交，不残留空白输入框。
     await probe.click('button[data-tool="rect"]');
     await delay(300);
     await page.keyboard.press("Tab");
