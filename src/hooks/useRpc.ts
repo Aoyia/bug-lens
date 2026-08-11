@@ -15,12 +15,13 @@ export type RpcErr = { ok: false; error: string };
 export type RpcResult<T> = RpcOk<T> | RpcErr;
 
 /**
- * Type-safe RPC wrapper over chrome.runtime.sendMessage.
+ * 基于 chrome.runtime.sendMessage 的类型安全 RPC 封装。
  *
- * Eliminates the repetitive pattern of:
- *   `await chrome.runtime.sendMessage(message(type, payload))` + error handling
+ * 消除以下重复样板代码：
+ *   const result = await chrome.runtime.sendMessage(message("session/stop", {...}));
+ *   if (!result.ok) ...
  *
- * Usage:
+ * 用法：
  *   const { send } = useRpc();
  *   const result = await send("session/stop", { commandId: crypto.randomUUID() });
  *   if (!result.ok) setErrorText(result.error);
@@ -33,9 +34,11 @@ export function useRpc() {
       sessionId?: string
     ): Promise<RpcResult<RuntimeMessageResponseMap[T]>> => {
       try {
+        // 统一发往 background：所有 RPC 的固定收件人
         const response: unknown = await chrome.runtime.sendMessage(
           message(type, payload, sessionId, "background")
         );
+        // background 返回的 { ok:false, error } 信封 → 归约为 RpcErr
         if (
           response &&
           typeof response === "object" &&
@@ -50,6 +53,7 @@ export function useRpc() {
         }
         return { ok: true, data: response as RuntimeMessageResponseMap[T] };
       } catch (err) {
+        // 通道异常（如扩展被重载）同样归约为失败结果，调用方无需自行 try/catch
         return { ok: false, error: String(err) };
       }
     },

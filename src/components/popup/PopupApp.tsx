@@ -40,7 +40,7 @@ export function PopupApp() {
   const [errorText, setErrorText] = useState<string>("");
   const [advancedOpen, setAdvancedOpen] = useState<boolean>(false);
 
-  // Options state
+  // 录制选项状态
   const [captureVideo, setCaptureVideo] = useState<boolean>(true);
   const [captureAudio, setCaptureAudio] = useState<boolean>(false);
   const [captureScreenshots, setCaptureScreenshots] = useState<boolean>(true);
@@ -53,7 +53,7 @@ export function PopupApp() {
   const [videoQuality, setVideoQuality] = useState<VideoQuality>("balanced");
   const [privacyMode, setPrivacyMode] = useState<"safe" | "raw">("safe");
 
-  // History state
+  // 历史记录状态
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>("");
   const [sessions, setSessions] = useState<SessionOverview[]>([]);
@@ -276,7 +276,7 @@ export function PopupApp() {
     }
   }, [currentView, debouncedSearchQuery]);
 
-  // Modal state for custom in-extension confirmation (replacing browser native window.confirm)
+  // 扩展内自定义确认弹窗的状态（替代浏览器原生 window.confirm）
   const [confirmModal, setConfirmModal] = useState<{
     message: string;
     onConfirm: () => void;
@@ -371,7 +371,7 @@ export function PopupApp() {
         try {
           await copyTextToClipboard(prompt);
         } catch {
-          // ignore
+          // 忽略
         }
       }
       updateSessionState(result.data?.session);

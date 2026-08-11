@@ -8,7 +8,7 @@ export async function copyTextToClipboard(
       return;
     }
   } catch {
-    // Local file reports may not receive the Clipboard API permission.
+    // 本地文件报告可能拿不到 Clipboard API 权限，需降级处理。
   }
 
   const textarea = root.createElement("textarea");

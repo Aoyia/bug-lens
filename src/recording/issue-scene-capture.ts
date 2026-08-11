@@ -68,6 +68,7 @@ export class IssueSceneCapture {
     this.isStopping = isStopping;
   }
 
+  /** 采集问题现场：时序切片冻结 → 归一化批注 → 原始截图 → draft；失败降级 partial。 */
   capture(
     payload: CapturePayload,
     sender: Sender
@@ -75,10 +76,12 @@ export class IssueSceneCapture {
     return this.track(this.captureImpl(payload, sender));
   }
 
+  /** 提交问题描述：合并 narrative/批注后保存，经 offscreen 渲染批注图置 complete；失败降级 partial。 */
   commit(payload: CommitPayload, sender: Sender): Promise<IssueScene> {
     return this.track(this.commitImpl(payload, sender));
   }
 
+  /** 取消问题现场：仅允许删除当前会话的 scene，找不到时静默返回。 */
   cancel(issueSceneId: string, nonce: string, sender: Sender): Promise<void> {
     return this.track(this.cancelImpl(issueSceneId, nonce, sender));
   }
@@ -94,6 +97,7 @@ export class IssueSceneCapture {
     return errors;
   }
 
+  /** 录制停止时兜底：把仍在 capturing/draft/committed 的场景统一标记为 partial。 */
   async finalizeUnfinished(sessionId: string): Promise<void> {
     const scenes = await db.getIssueScenes(sessionId);
     await Promise.all(
@@ -128,6 +132,10 @@ export class IssueSceneCapture {
     return task;
   }
 
+  /**
+   * 会话准入校验：会话存在、非停止中、状态在录制状态集内、消息来自录制目标
+   * tab 且 nonce 匹配；任一不满足抛 ISSUE_SESSION_REJECTED 拒绝该请求。
+   */
   private async getAcceptedSession(nonce: string, sender: Sender) {
     const session = await db.getActiveSession();
     if (
@@ -187,6 +195,7 @@ export class IssueSceneCapture {
   ): Promise<{ scene: IssueScene; dataUrl?: string }> {
     const session = await this.getAcceptedSession(payload.nonce, sender);
     const sceneId = crypto.randomUUID();
+    // 未带批注时以默认锚点（0,0）归一化，保证 annotation 结构始终合法
     const annotation = normalizeAnnotation(
       payload.annotation ??
         defaultAnnotation({ clientX: 0, clientY: 0 }, payload.page.viewport)

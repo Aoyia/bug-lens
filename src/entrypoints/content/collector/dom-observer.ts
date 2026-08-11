@@ -51,7 +51,7 @@ export class DomObserver {
   private messageQueue: Array<() => void> = [];
   private isFlushScheduled = false;
 
-  // Store bound handlers for removal
+  // 保存已绑定的处理器引用，便于后续移除
   private readonly handlePointerdown: (event: PointerEvent) => void;
   private readonly handleClick: (event: MouseEvent) => void;
   private readonly handleInput: (event: Event) => void;

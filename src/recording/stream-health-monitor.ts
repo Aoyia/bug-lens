@@ -17,6 +17,10 @@ export class StreamHealthMonitor {
   private currentTabId: number | undefined;
   private currentSessionId: string | undefined;
 
+  /**
+   * 初始化四流状态：按录制选项把未启用的流（视频 / 控制台网络）置为 disabled，
+   * 其余默认 ok，并立即同步一次 badge 与页面健康提示。
+   */
   public initialize(
     tabId: number,
     sessionId: string,
@@ -37,6 +41,7 @@ export class StreamHealthMonitor {
     return this.currentSessionId;
   }
 
+  /** 更新单条流的状态：仅在值变化时触发 UI 同步，避免无效刷新；返回最新健康信息。 */
   public updateStream(
     stream: keyof StreamHealthVector,
     state: StreamHealthState
@@ -52,6 +57,11 @@ export class StreamHealthMonitor {
     return this.evaluate();
   }
 
+  /**
+   * 按优先级聚合四流状态为单一健康码：内容/存储 failed 最优先（不可恢复），
+   * 依次为页面重连中、视频中断、存储接近上限、控制台/网络中断，均无异常才为
+   * RECORDING；同时决定 badge 文案与颜色。
+   */
   public evaluate(): RecordingHealthInfo {
     const s = this.currentStreams;
 
@@ -96,6 +106,7 @@ export class StreamHealthMonitor {
     };
   }
 
+  /** 把聚合结果同步到 UI：badge 文案/颜色 + 录制态图标，并向 content 推送健康更新。 */
   public async sync(): Promise<void> {
     if (!this.currentTabId) return;
     const health = this.evaluate();
@@ -126,6 +137,7 @@ export class StreamHealthMonitor {
     }
   }
 
+  /** 录制结束清理：清空目标 tab 的 badge 并恢复空闲图标，重置内部状态。 */
   public reset(tabId?: number): void {
     if (tabId) {
       chrome.action.setBadgeText({ tabId, text: "" }).catch(() => undefined);

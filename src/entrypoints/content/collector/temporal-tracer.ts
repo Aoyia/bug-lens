@@ -42,7 +42,7 @@ export class TemporalTracer {
           message: msg,
         });
       } catch {
-        // ignore
+        // 忽略
       }
       originalConsoleError.apply(console, args);
     };

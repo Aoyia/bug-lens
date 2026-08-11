@@ -112,7 +112,7 @@ export class MagnifierRenderer {
         const hex = `#${((1 << 24) + (pixel[0] << 16) + (pixel[1] << 8) + pixel[2]).toString(16).slice(1).toUpperCase()}`;
         if (magColor) magColor.textContent = hex;
       } catch {
-        // Fallback
+        // 兜底
       }
     }
   }

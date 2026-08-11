@@ -2,10 +2,13 @@ import type { ExportManifest, RecordingSession } from "../shared/protocol";
 import type { ArchiveEntryIntegrity } from "./export-pipeline";
 import { sha256 } from "./sha256.ts";
 
+// 当前导出清单（ExportManifest）的 schema 版本，结构变更时递增
 export const EXPORT_SCHEMA_VERSION = 3;
+// 允许读取并迁移到当前版本的历史版本号列表
 export const SUPPORTED_EXPORT_SCHEMA_VERSIONS = [1, 2, 3] as const;
 
-/** Makes a persisted v1 session safe to serialize in the v2 evidence package. */
+/** 将持久化的 v1 会话补全为 v2 形态，确保能在 v2 证据包中安全序列化。 */
+// v1 会话缺少 schemaVersion/storage 字段，此处补齐为 v2 形态以便统一序列化；v2 已是现版本，原样返回
 export function migrateSessionForExport(
   session: RecordingSession
 ): RecordingSession {
@@ -27,6 +30,7 @@ export function buildExportManifest(
     createdAtEpochMs: Date.now(),
     sessionId: session.id,
     files,
+    // migration 元信息：声明清单由当前版本生成，并列出可迁移读取的历史版本
     migration: {
       currentSchemaVersion: EXPORT_SCHEMA_VERSION,
       supportedFrom: [...SUPPORTED_EXPORT_SCHEMA_VERSIONS],
@@ -37,6 +41,7 @@ export function buildExportManifest(
 export function migrateExportPayload<T extends { session: RecordingSession }>(
   payload: T
 ): T & { session: RecordingSession } {
+  // 版本不在支持列表中直接抛错，避免按错误结构迁移旧数据
   if (
     !SUPPORTED_EXPORT_SCHEMA_VERSIONS.includes(payload.session.schemaVersion)
   ) {
@@ -53,6 +58,7 @@ export async function verifyExportIntegrity(
 ): Promise<{ valid: boolean; invalidFiles: string[]; missingFiles: string[] }> {
   const invalidFiles: string[] = [];
   const missingFiles: string[] = [];
+  // 对照清单逐文件校验：缺失的计入 missing，byteLength 或 sha256 不符的计入 invalid
   for (const [name, expected] of Object.entries(manifest.files)) {
     const file = files[name];
     if (!file) {

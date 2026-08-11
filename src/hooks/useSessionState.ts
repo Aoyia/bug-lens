@@ -16,14 +16,15 @@ export type UseSessionStateOptions = {
 };
 
 /**
- * Manages the active recording session state, including:
- *  - session object
- *  - live timer text (mm:ss) driven by setInterval
- *  - derived booleans: active / previewReady / controlsLocked
+ * 管理进行中的录制会话状态，包括：
+ *  - 会话对象
+ *  - 由 setInterval 驱动的实时计时文本（mm:ss）
+ *  - 派生布尔值：active / previewReady / controlsLocked
  *
- * Extracted from PopupApp.tsx where these ~50 lines were tightly coupled.
+ * 该逻辑从 PopupApp.tsx 中抽取而来，原先这些约 50 行与主组件高度耦合。
  */
 export function useSessionState(options?: UseSessionStateOptions) {
+  // 定时器/时钟可注入（测试用假定时器），经 ref 取最新值避免每次渲染重建 effect
   const optionsRef = useRef(options);
   optionsRef.current = options;
 
@@ -34,12 +35,14 @@ export function useSessionState(options?: UseSessionStateOptions) {
   const timerRef = useRef<number | undefined>();
   const isMountedRef = useRef(true);
 
+  // 会话是否处于录制中：status 命中 ACTIVE_STATUSES 即视为活跃
   const isActive = useCallback(
     (session?: RecordingSession) =>
       Boolean(session && ACTIVE_STATUSES.includes(session.status)),
     []
   );
 
+  // 预览就绪/已导出：与录制中一致，锁定控件禁止继续编辑
   const isPreviewReady = useCallback(
     (session?: RecordingSession) =>
       Boolean(session && PREVIEW_STATUSES.includes(session.status)),
@@ -60,6 +63,7 @@ export function useSessionState(options?: UseSessionStateOptions) {
     const setIntervalFn =
       optionsRef.current?.setInterval ?? window.setInterval.bind(window);
 
+    // 活跃会话按 timeline.startedAtEpochMs 计时，每 1s 刷新一次 mm:ss 文本
     if (isActive(activeSession) && activeSession?.timeline.startedAtEpochMs) {
       clearTimer();
       const startedAt = activeSession.timeline.startedAtEpochMs;

@@ -279,7 +279,7 @@ export class RecordingWidget {
       </div>
     `;
 
-    // Clear saved drag position on new recording session so it resets to default position
+    // 新录制会话开始时清除已保存的拖拽位置，恢复默认位置
     try {
       if (typeof sessionStorage !== "undefined") {
         sessionStorage.removeItem("__wbr_widget_pos__");
@@ -315,7 +315,7 @@ export class RecordingWidget {
           true
         );
 
-        // Setup Drag Handle Logic
+        // 拖拽手柄逻辑
         const dragHandle =
           root.querySelector<HTMLElement>(".__wbr_drag_handle");
         if (dragHandle) {
@@ -390,7 +390,7 @@ export class RecordingWidget {
           );
         }
 
-        // Setup Auto-Collapse Logic
+        // 自动折叠逻辑
         // 鼠标悬停期间保持展开：只清除折叠计时器，不再重新安排折叠
         const onMouseEnter = () => {
           if (this._isSaving) return;
@@ -438,7 +438,7 @@ export class RecordingWidget {
           root.removeEventListener("mouseleave", onMouseLeave);
         };
 
-        // Start initial collapse countdown
+        // 启动初始折叠倒计时
         this.resetCollapseTimer();
 
         const updateTimer = () => {

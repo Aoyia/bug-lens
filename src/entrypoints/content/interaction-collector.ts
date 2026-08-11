@@ -29,6 +29,8 @@ type ContentController = {
   refresh: (next: ContentSession | undefined) => void;
 };
 
+// window 全局挂载符号：标记已安装/当前会话/控制器入口，
+// 供重复注入时幂等复用——检测到已有 CONTROLLER 即跳过重新初始化
 declare global {
   interface Window {
     __WEB_BUG_RECORDER_INSTALLED__?: boolean;
@@ -40,6 +42,7 @@ declare global {
 import { ScreenshotOverlay } from "../../screenshot/screenshot-overlay";
 import { recentErrorsTracker } from "../../screenshot/recent-errors-tracker";
 
+// 启动最近错误监听：为截图 overlay 提供"附带最近报错"的数据源
 recentErrorsTracker.startListening();
 
 // 截图 overlay 初始为关闭：content script 重新注入（页面刷新等）时刷新 background
@@ -52,6 +55,7 @@ let screenshotOverlayInstance: ScreenshotOverlay | null = null;
 
 chrome.runtime.onMessage.addListener((msg, _sender, _sendResponse) => {
   if (msg && msg.type === "TRIGGER_SCREENSHOT_OVERLAY" && msg.viewportDataUrl) {
+    // 单例复用：同一时刻只存在一个截图 overlay，关闭后可再次触发
     if (!screenshotOverlayInstance) {
       screenshotOverlayInstance = new ScreenshotOverlay();
     }
@@ -77,6 +81,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, _sendResponse) => {
   }
 });
 
+// 幂等重入：页面已存在本脚本安装的控制器（重复注入/多帧）时复用旧实例，
+// 仅重新握手同步会话，避免重复挂载 UI 与监听器
 const existingController = window.__WEB_BUG_RECORDER_CONTROLLER__;
 if (existingController) {
   void chrome.runtime
@@ -115,7 +121,9 @@ if (existingController) {
     );
 
   // ─── Module Instances ───
+  // 各子模块以回调注入互相解耦（互不持有对方引用），由本协调器编排流程
 
+  // 录制控制条：展示录制态，提供停止/标记问题/暂停操作
   const widget: RecordingWidget = new RecordingWidget({
     async onStop() {
       widget.setSavingState(true);
@@ -136,7 +144,7 @@ if (existingController) {
           try {
             await copyTextToClipboard(prompt);
           } catch {
-            // ignore
+            // 忽略
           }
         }
         widget.showToast(t("exportSuccessCopied"));
@@ -161,6 +169,7 @@ if (existingController) {
     },
   });
 
+  // 问题编辑器：编辑已捕获的场景快照，与选区流程分离
   const editor = new IssueEditor({
     getSession: () => session,
     onClose(restoreWidget) {
@@ -175,6 +184,7 @@ if (existingController) {
     isMac,
   });
 
+  // 元素选择遮罩：在页面上框选问题区域，确认后进入编辑器
   const overlay: SelectionOverlay = new SelectionOverlay({
     getSession: () => session,
     getPendingExpected: () => pendingExpected,
@@ -190,6 +200,7 @@ if (existingController) {
     shortcutKeyText: widget.shortcutKeyText,
   });
 
+  // DOM 观察器：监听页面交互，触发框架状态采集与问题入口
   const observer = new DomObserver({
     getSession: () => session,
     isIssueActive: () => overlay.isActive || editor.isOpen,
@@ -198,6 +209,7 @@ if (existingController) {
     onEvidenceTick: () => captureFrameworkTick("interaction"),
   });
 
+  // 期望速记卡：选区前置步骤，先记录"预期应该发生什么"
   const expectedCard = new ExpectedCaptureCard({
     onSubmit(expected) {
       pendingExpected = expected;
@@ -209,6 +221,7 @@ if (existingController) {
     },
   });
 
+  // 空闲监测：页面长时间无交互时暂停录制（联动 offscreen 媒体暂停/恢复）
   const monitor: InactivityMonitor = new InactivityMonitor({
     onPause() {
       widget.updatePauseState(true);
@@ -242,6 +255,8 @@ if (existingController) {
   let lastFrameworkTickAt = 0;
   const FRAMEWORK_TICK_MIN_INTERVAL_MS = 3_000;
 
+  // 框架状态采集节流：普通触发 3s 内只上报一次，start 触发不受限；
+  // 且仅会话开启 captureFrameworkState 时才采集（性能/隐私开关）
   function captureFrameworkTick(trigger: FrameworkStateTrigger): void {
     if (!session?.sessionId) return;
     if (!session.captureFrameworkState) return;
@@ -273,6 +288,7 @@ if (existingController) {
     expectedCard.open(anchor);
   }
 
+  // 速记卡确认/跳过后进入元素选择，并采集当前框架状态作为问题上下文
   function proceedToIssueSelection(): void {
     if (overlay.isActive || editor.isOpen) return;
     widget.setIssueSelecting(true);
@@ -287,6 +303,8 @@ if (existingController) {
     widget.setIssueSelecting(false);
   }
 
+  // 会话激活：挂载 widget、启动空闲监测、上报 start 框架态；
+  // 会话销毁：卸载 UI、停止监测，并清理 pending 状态
   function refreshSession(
     next: ContentSession | undefined,
     health?: import("../../shared/protocol").RecordingHealthInfo
@@ -303,6 +321,7 @@ if (existingController) {
       cachedStartedAtEpochMs = undefined;
     }
     session = next;
+    // 同步到 window 挂载符号，供调试与重复注入时读取
     window.__WEB_BUG_RECORDER_SESSION__ = next;
     if (next) {
       widget.mount();
@@ -332,6 +351,7 @@ if (existingController) {
   });
   chrome.runtime
     .sendMessage(
+      // 与 background 握手：上报页面环境，换取当前激活会话并恢复 UI
       message("content/hello", {
         url: location.href,
         title: document.title,

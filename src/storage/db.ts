@@ -52,6 +52,11 @@ export {
   type BudgetWriteResult,
 } from "./storage-budget.ts";
 
+/**
+ * 证据仓储：封装 IndexedDB 的读写，供 background/offscreen 统一调用。
+ * 方法按职责分组：会话管理、证据存取（含预算写入）、导出选择、存储策略与清理。
+ */
+
 async function put(storeName: StoreName, value: unknown): Promise<void> {
   const db = await openDb();
   await new Promise<void>((resolve, reject) => {
@@ -79,6 +84,7 @@ async function list<T>(
   indexName: string,
   key: IDBValidKey
 ): Promise<T[]> {
+  // 内部通用工具：按索引键取回某会话的整组记录
   const db = await openDb();
   return new Promise((resolve, reject) => {
     const req = db
@@ -135,6 +141,7 @@ async function listMediaChunkBatch(
   afterSequence: number,
   limit: number
 ): Promise<MediaChunkRecord[]> {
+  // 按 (sessionId, sequence) 复合索引游标分页：只取 afterSequence 之后的一段，避免一次载入全部分片
   const db = await openDb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction("mediaChunks");
@@ -163,6 +170,7 @@ async function listMediaChunkBatch(
 async function getMediaSummary(
   sessionId: string
 ): Promise<{ count: number; mimeType?: string }> {
+  // 同时发起 count 与首个游标请求，二者都完成即可得到分片数量与首片类型
   const db = await openDb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction("mediaChunks");
@@ -218,6 +226,7 @@ function sumBytesByCursor(
 
 async function measureSessionBytes(sessionId: string): Promise<number> {
   const database = await openDb();
+  // 跨 7 个证据 store 逐个游标累计字节数；仅在没有缓存用量（storage.usedBytes）时兜底调用
   const storeNames: StoreName[] = [
     "interactions",
     "consoleEntries",
@@ -235,6 +244,7 @@ async function measureSessionBytes(sessionId: string): Promise<number> {
 }
 
 async function deleteIssueScene(issueSceneId: string): Promise<void> {
+  // 同事务删除问题现场及其证据资产，并把释放的字节数从会话用量中扣回
   const [scene, assets] = await Promise.all([
     get<IssueScene>("issueScenes", issueSceneId),
     list<EvidenceAsset>("evidenceAssets", "issueSceneId", issueSceneId),
@@ -292,6 +302,7 @@ async function evidenceFor(session: RecordingSession) {
 }
 
 export const db = {
+  // ===== 会话管理 =====
   getSession: (id: string) => get<RecordingSession>("sessions", id),
   listSessions: async (limit = 10) =>
     (await listAll<RecordingSession>("sessions"))
@@ -301,6 +312,8 @@ export const db = {
       )
       .slice(0, Math.max(0, limit)),
   listSessionOverviews: async (query = ""): Promise<SessionOverview[]> => {
+    // 关键词检索（标题/URL/状态/ID 任一命中）+ 按创建时间倒序；
+    // 过期时间按 retentionDays 现算，用量优先取缓存、缺失时兜底实测
     const normalizedQuery = query.trim().toLocaleLowerCase();
     const [policy, allSessions] = await Promise.all([
       db.getStoragePolicy(),
@@ -369,6 +382,7 @@ export const db = {
     id: string,
     update: (current: RecordingSession) => RecordingSession
   ) => {
+    // 会话收尾专用：同一事务内完成会话状态更新并清除活动标记，二者要么同时生效要么都回滚
     const dbInstance = await openDb();
     return new Promise<RecordingSession | undefined>((resolve, reject) => {
       const tx = dbInstance.transaction(["sessions", "control"], "readwrite");
@@ -413,6 +427,8 @@ export const db = {
       : undefined;
   },
   claimSession: async (session: RecordingSession) => {
+    // 原子占用：仅当当前无活跃会话（或已有会话已结束）时抢注 active-session，
+    // 防止 offscreen 与 background 并发启动导致双会话互相覆盖
     const dbInstance = await openDb();
     return new Promise<{ session: RecordingSession; claimed: boolean }>(
       (resolve, reject) => {
@@ -464,6 +480,7 @@ export const db = {
     );
   },
   clearActive: async (sessionId: string) => {
+    // 仅在当前活动会话匹配时才清除，避免误删后来者抢占的会话标记
     const dbInstance = await openDb();
     await new Promise<void>((resolve, reject) => {
       const tx = dbInstance.transaction("control", "readwrite");
@@ -483,6 +500,7 @@ export const db = {
   getCommand: (commandId: string) =>
     get<CommandRecord>("control", `command:${commandId}`),
   claimCommand: async (command: Omit<CommandRecord, "key">) => {
+    // 与 claimSession 同理：同一 start/stop 指令只被消费一次，防止重复处理
     const dbInstance = await openDb();
     return new Promise<{ command: CommandRecord; claimed: boolean }>(
       (resolve, reject) => {
@@ -512,6 +530,7 @@ export const db = {
       }
     );
   },
+  // ===== 证据存取（*WithinBudget 走预算批量写入通道） =====
   getInteraction: (id: string) => get<InteractionRecord>("interactions", id),
   saveInteraction: (record: InteractionRecord) => put("interactions", record),
   saveInteractionWithinBudget: (record: InteractionRecord) =>
@@ -585,6 +604,8 @@ export const db = {
     visitor: (chunk: MediaChunkRecord) => void | Promise<void>,
     batchSize = 16
   ) => {
+    // 以 afterSequence 为游标分批拉取录像分片，逐片交给 visitor 处理后翻页，
+    // 避免把大体积媒体数据一次性读入内存（导出/打包场景专用）
     let afterSequence = -1;
     let visited = 0;
     const size = Math.max(1, Math.floor(batchSize));
@@ -599,6 +620,7 @@ export const db = {
       if (batch.length < size) return visited;
     }
   },
+  // ===== 导出选择与导出产物（以 sessionId 为主键，每会话各存一份） =====
   getExportSelection: (sessionId: string) =>
     get<ExportSelection>("exportSelections", sessionId),
   saveExportSelection: (selection: ExportSelection) =>
@@ -607,6 +629,7 @@ export const db = {
     get<ExportArtifact>("exportArtifacts", sessionId),
   saveExportArtifact: (artifact: ExportArtifact) =>
     put("exportArtifacts", artifact),
+  // ===== 存储策略与用量总览 =====
   getStoragePolicy: async (): Promise<StoragePolicy> => {
     const stored = await get<{ key: string; policy?: Partial<StoragePolicy> }>(
       "control",
@@ -622,6 +645,7 @@ export const db = {
     return next;
   },
   getStorageOverview: async (): Promise<StorageOverview> => {
+    // 总用量 = 各会话用量之和；配额优先取浏览器 storage.estimate，失败时兜底为策略下限
     const [policy, sessions] = await Promise.all([
       db.getStoragePolicy(),
       listAll<RecordingSession>("sessions"),
@@ -646,8 +670,10 @@ export const db = {
       policy,
     };
   },
+  // ===== 会话清理 =====
   deleteSession: deleteSessionAndEvidence,
   cleanupExpiredSessions: async (now = Date.now()): Promise<string[]> => {
+    // 按 retentionDays 清理过期会话，跳过仍处于活动状态的会话
     const [policy, sessions, active] = await Promise.all([
       db.getStoragePolicy(),
       listAll<RecordingSession>("sessions"),
@@ -664,6 +690,7 @@ export const db = {
     return expired.map((session) => session.id);
   },
   clearAllHistory: async (): Promise<string[]> => {
+    // 清空历史记录但保留活动会话，避免删除正在录制的数据
     const [sessions, active] = await Promise.all([
       listAll<RecordingSession>("sessions"),
       db.getActiveSession(),

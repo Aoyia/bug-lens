@@ -103,7 +103,7 @@ export class SpatialPruner {
             }
           }
         } catch {
-          // ignore detection errors
+          // 忽略检测错误
         }
 
         // 尝试检测 Vue 组件
@@ -124,7 +124,7 @@ export class SpatialPruner {
             }
           }
         } catch {
-          // ignore detection errors
+          // 忽略检测错误
         }
       }
     }

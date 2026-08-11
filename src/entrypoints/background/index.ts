@@ -38,6 +38,7 @@ import { runMainWorldFrameworkProbe } from "../../screenshot/main-world-probe";
 
 const EXTENSION_VERSION = chrome.runtime.getManifest().version;
 const STOPPING_IDS_KEY = "bug-lens-stopping-ids";
+/** 录制健康状态机：汇总 content/cdp/media/storage 各采集流的健康度，驱动录制挂件状态与降级提示。 */
 const streamHealthMonitor = new StreamHealthMonitor();
 /** 独立截图 overlay 是否打开（content script 上报）。用于与视频录制互斥。 */
 let isScreenshotOverlayOpen = false;
@@ -52,6 +53,7 @@ setStorageBudgetListener((sessionId, result) => {
     streamHealthMonitor.updateStream("storage", "ok");
   }
 });
+/** 生命周期协调器：保证 start/stop 串行执行，并将停止中的会话 ID 持久化到 session storage 供 SW 重启后恢复。 */
 const recordingCoordinator = new RecordingCoordinator({
   save(ids) {
     chrome.storage.session
@@ -68,10 +70,13 @@ const recordingCoordinator = new RecordingCoordinator({
       : [];
   },
 });
+/** content script 管理器：录制挂件与交互采集脚本的动态注入、导航后恢复与移除。 */
 const contentScripts = new ContentScriptManager();
+// 浏览器纪元：每次浏览器启动都会因 session storage 清空而生成新值，据此识别跨重启的会话中断。
 const BROWSER_EPOCH_KEY = "bug-lens-browser-epoch";
 const browserEpochPromise = loadOrCreateBrowserEpoch();
 
+/** 读取或创建本浏览器启动周期的唯一标识（session storage 重启即清空）。 */
 async function loadOrCreateBrowserEpoch(): Promise<string> {
   const stored = await chrome.storage.session.get(BROWSER_EPOCH_KEY);
   const existing = stored[BROWSER_EPOCH_KEY];
@@ -81,6 +86,7 @@ async function loadOrCreateBrowserEpoch(): Promise<string> {
   return created;
 }
 
+/** 会话事件入口：写库后返回最新会话，状态迁移逻辑集中在 recording-session 域 reducer。 */
 async function applySessionEvent(
   sessionId: string,
   event: RecordingSessionEvent
@@ -107,6 +113,7 @@ const issueSceneCapture = new IssueSceneCapture((sessionId) =>
   recordingCoordinator.isStopping(sessionId)
 );
 
+/** 并行读取交互/控制台/网络/问题现场四类证据，重算质量快照写入会话。 */
 async function reconcileSessionQuality(sessionId: string): Promise<void> {
   const [interactions, consoleEntries, networkEntries, issueScenes] =
     await Promise.all([
@@ -175,6 +182,11 @@ function issue(
   };
 }
 
+/**
+ * 启动录制主流程：claimSession 互斥抢占 → 取媒体流 → 拉起 offscreen 文档
+ * → 注入 content script → CDP attach → offscreen/start-media → 落 started 事件；
+ * 任一步失败则回滚已启动的资源并落 failed 事件。
+ */
 async function startSessionImpl(
   payload: Extract<RuntimeMessage, { type: "session/start" }>["payload"]
 ): Promise<RecordingSession> {
@@ -364,12 +376,14 @@ async function startSessionImpl(
   }
 }
 
+/** runLifecycle 串行包装，防止与停止等其他生命周期操作并发。 */
 function startSession(
   payload: Extract<RuntimeMessage, { type: "session/start" }>["payload"]
 ): Promise<RecordingSession> {
   return recordingCoordinator.runLifecycle(() => startSessionImpl(payload));
 }
 
+/** 续录：仅当会话已带 SESSION_* 或 MEDIA_CONTEXT_LOST 可恢复问题（边界校验）时，以当前激活标签页为目标重新走 startSession。 */
 async function continueInterruptedSession(
   sessionId: string,
   commandId: string
@@ -423,6 +437,10 @@ async function resolveDownloadedFilePath(
   return result.state === "complete" ? result.filename : undefined;
 }
 
+/**
+ * 停止主流程：stop-requested（commandId 幂等）→ CDP detach → offscreen 停媒体
+ * → 各采集器 drain → network 正文收尾 → 质量重算 → PREVIEW_READY → silentExport 或打开 preview。
+ */
 async function performStopSession(
   session: RecordingSession,
   commandId?: string,
@@ -580,6 +598,7 @@ async function performStopSession(
   }
 }
 
+/** 幂等停止：同 commandId 已入库则直接复用其关联会话，保证一条停止指令只执行一次。 */
 async function stopSessionImpl(
   commandId?: string,
   autoExport = false,
@@ -619,6 +638,7 @@ async function stopSessionImpl(
   );
 }
 
+/** runLifecycle 串行包装，与启动等生命周期操作互斥。 */
 function stopSession(
   commandId?: string,
   autoExport = false,
@@ -630,6 +650,7 @@ function stopSession(
   );
 }
 
+/** 打开 preview 页：同一 sessionId 已有标签页则复用不重复开页，成功后清 previewPending。 */
 async function openPendingPreview(
   session: RecordingSession,
   autoExport = false
@@ -664,6 +685,7 @@ async function openPendingPreview(
   );
 }
 
+/** 中断恢复：重算质量 → 落 recover 问题 → 清理残留采集资源 → 打开 preview 查看已保留证据。 */
 async function recoverInterruptedSession(
   session: RecordingSession,
   code: string,
@@ -687,6 +709,11 @@ async function recoverInterruptedSession(
   await openPendingPreview(recovered);
 }
 
+/**
+ * SW 启动恢复全流程：恢复 stopping 状态 → 清理过期会话 → 校验浏览器纪元：
+ * 纪元不符按重启中断恢复；STOPPING 继续完成停止；PREPARING 按启动中断恢复；
+ * 正常活动会话则重注入 content、探测媒体上下文、校验/重连 CDP。
+ */
 async function bootstrapRuntimeState(): Promise<void> {
   await recordingCoordinator.restoreStoppingIds();
   await db
@@ -831,6 +858,7 @@ async function resumeMediaSession(sessionId: string): Promise<void> {
   }
 }
 
+/** 消息路由中枢：承载 content script / popup / offscreen 的所有消息分发。 */
 chrome.runtime.onMessage.addListener((raw: unknown, sender) => {
   if (!isEnvelope(raw)) return;
   const incoming = raw as RuntimeMessage;
@@ -838,6 +866,7 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender) => {
 
   return (async () => {
     try {
+      // offscreen 上报存储写入结果：据此更新存储健康流，预算拒写/近限时顺带清理过期会话
       if (incoming.type === "offscreen/storage-state") {
         const active = await db.getActiveSession();
         const valid = validateStorageHealthUpdate({
@@ -872,6 +901,7 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender) => {
         }
         return { ok: true };
       }
+      // offscreen 上报媒体录制状态：错误时落 MEDIA_RECORDER_FAILED 问题并更新媒体健康流
       if (incoming.type === "offscreen/media-state") {
         const activeSession = await db.getActiveSession();
         const validSender =
@@ -913,6 +943,7 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender) => {
       }
       await bootstrapPromise;
       switch (incoming.type) {
+        // 启动新录制会话
         case "session/start":
           // 截图与视频录制互斥：截图 overlay 打开时拒绝启动录制
           if (isScreenshotOverlayOpen)
@@ -921,6 +952,7 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender) => {
             ok: true,
             session: await startSession(incoming.payload),
           };
+        // 停止当前录制（commandId 保证幂等）
         case "session/stop":
           return {
             ok: true,
@@ -931,13 +963,16 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender) => {
               incoming.payload.silentExport
             ),
           };
+        // 查询当前活动会话
         case "session/status":
           return { ok: true, session: await db.getActiveSession() };
+        // 按查询条件列出历史会话
         case "session/list":
           return {
             ok: true,
             sessions: await db.listSessionOverviews(incoming.payload.query),
           };
+        // 删除历史会话（正在录制的活动会话拒绝删除）
         case "session/delete": {
           const active = await db.getActiveSession();
           if (active?.id === incoming.payload.sessionId)
@@ -947,6 +982,7 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender) => {
             deleted: await db.deleteSession(incoming.payload.sessionId),
           };
         }
+        // 续录中断会话
         case "session/resume":
           return {
             ok: true,
@@ -955,23 +991,28 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender) => {
               incoming.payload.commandId
             ),
           };
+        // 查询存储概览（用量与预算）
         case "storage/get":
           return { ok: true, storage: await db.getStorageOverview() };
+        // 更新存储策略
         case "storage/update":
           return {
             ok: true,
             policy: await db.saveStoragePolicy(incoming.payload.policy),
           };
+        // 立即清理过期会话
         case "storage/cleanup":
           return {
             ok: true,
             deletedSessionIds: await db.cleanupExpiredSessions(),
           };
+        // 清空全部历史数据
         case "storage/clear-all":
           return {
             ok: true,
             deletedSessionIds: await db.clearAllHistory(),
           };
+        // 直接打开指定会话的 preview 页
         case "session/open-preview":
           await chrome.tabs.create({
             url: chrome.runtime.getURL(
@@ -979,6 +1020,7 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender) => {
             ),
           });
           return { ok: true };
+        // content script 握手：校验归属后下发会话上下文（nonce/隐私模式/健康度），并回填环境信息
         case "content/hello": {
           const session = await db.getActiveSession();
           const allowed = Boolean(
@@ -1016,10 +1058,12 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender) => {
             health: allowed ? streamHealthMonitor.getHealth() : undefined,
           };
         }
+        // content script 上报截图 overlay 开合状态，用于与视频录制互斥
         case "content/screenshot-overlay-state": {
           isScreenshotOverlayOpen = Boolean(incoming.payload.open);
           return { ok: true };
         }
+        // content script 上报框架状态快照（在存储预算内写入）
         case "framework/state": {
           const state = incoming.payload.state;
           const session = await db.getActiveSession();
@@ -1032,10 +1076,12 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender) => {
           const result = await db.saveFrameworkStateWithinBudget(state);
           return { ok: true, stored: result.stored };
         }
+        // 交互候选/确认：转交 interactionCapture 落库（含截图采集决策）
         case "interaction/candidate":
         case "interaction/confirmed":
           await interactionCapture.handle(incoming.payload.interaction, sender);
           return { ok: true };
+        // 交互取消：撤销候选/已确认记录
         case "interaction/cancelled":
           await interactionCapture.cancel(
             incoming.payload.interactionId,
@@ -1044,12 +1090,14 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender) => {
             sender
           );
           return { ok: true };
+        // 候选交互升级为已确认
         case "interaction/upgrade":
           await interactionCapture.upgrade(
             incoming.payload.interactionId,
             incoming.payload.kind
           );
           return { ok: true };
+        // 问题现场采集：截图+DOM 快照落库，并累计质量增量
         case "issue-scene/capture": {
           const result = await issueSceneCapture.capture(
             incoming.payload,
@@ -1072,6 +1120,7 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender) => {
             dataUrl: result.dataUrl,
           };
         }
+        // 问题现场提交定稿；stopAfterCommit 时自动停止录制
         case "issue-scene/commit": {
           const scene = await issueSceneCapture.commit(
             incoming.payload,
@@ -1081,6 +1130,7 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender) => {
             void stopSession(`issue-scene:${scene.id}`);
           return { ok: true, scene };
         }
+        // 取消未提交的问题现场
         case "issue-scene/cancel": {
           await issueSceneCapture.cancel(
             incoming.payload.issueSceneId,
@@ -1089,6 +1139,7 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender) => {
           );
           return { ok: true };
         }
+        // 触发独立截图：定位目标标签页后走 triggerScreenshotInTab（互斥校验在其中）
         case "screenshot/trigger": {
           const targetTabId = incoming.payload?.tabId || sender.tab?.id;
           if (!targetTabId) {
@@ -1142,6 +1193,7 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender) => {
           }
           return { ok: true, results };
         }
+        // 查询选中元素的样式来源（经 CDP 读 CSSOM）
         case "screenshot/style-source": {
           const tabId = sender.tab?.id;
           const { selectors } = incoming.payload || {};
@@ -1162,10 +1214,12 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender) => {
   })();
 });
 
+// CDP 事件统一转发给 cdpCollector（网络/控制台证据采集）
 chrome.debugger.onEvent.addListener((source, method, params) => {
   cdpCollector.handleEvent(source, method, params);
 });
 
+// 调试器意外断开（导航/关闭等）：非停止流程中标记 cdp 异常并尝试重连恢复
 chrome.debugger.onDetach.addListener((source, reason) => {
   void bootstrapPromise.then(async () => {
     const session = await db.getActiveSession();
@@ -1185,6 +1239,7 @@ chrome.debugger.onDetach.addListener((source, reason) => {
   });
 });
 
+// 录制目标标签页被关闭：以系统指令停止对应会话
 chrome.tabs.onRemoved.addListener((tabId) => {
   void (async () => {
     await bootstrapPromise;
@@ -1194,11 +1249,11 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   })();
 });
 
+/** 页面导航后恢复采集：重注入 content script 并校验/重连 CDP（导航不结束录制）。 */
 /**
- * A page navigation replaces the document (and therefore its content-script
- * instance), but it must not end a tab capture session. Re-inject the current
- * document's content script after the navigation settles so the recording
- * widget and interaction collectors can handshake with the existing session.
+ * 页面导航会替换文档（及其中的 content script 实例），但不应当结束 tab capture 录制会话。
+ * 导航稳定后重新注入当前文档的 content script，
+ * 使录制挂件与交互采集器能与既有会话重新握手。
  */
 async function restoreSessionAfterNavigation(tabId: number): Promise<void> {
   const session = await db.getActiveSession();
@@ -1213,9 +1268,8 @@ async function restoreSessionAfterNavigation(tabId: number): Promise<void> {
   await contentScripts.restore(tabId);
   streamHealthMonitor.updateStream("content", "ok");
 
-  // Chrome may detach the debugger while replacing the page target. Reattach
-  // only when it is no longer attached; an already-attached target is left
-  // alone to avoid the "Already attached" error.
+  // Chrome 在替换页面 target 时可能分离调试器。仅当目标已不再附着时才重新 attach；
+  // 已附着的 target 保持原样，避免触发 "Already attached" 错误。
   if (session.options.captureConsole || session.options.captureNetwork) {
     const isOwner = await cdpCollector.verifyOwnership(tabId);
     if (isOwner) {
@@ -1237,9 +1291,10 @@ async function restoreSessionAfterNavigation(tabId: number): Promise<void> {
   await streamHealthMonitor.sync();
 }
 
+// 标签页导航完成（complete）后重注入采集脚本，恢复录制挂件与 CDP 连接
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
-  // `complete` gives the new document a stable body for the widget. The
-  // dynamic registration still runs at document_start for early collection.
+  // `complete` 为新文档提供稳定的 body 供录制挂件使用；
+  // 动态注册仍会在 document_start 运行，以便尽早开始采集。
   if (changeInfo.status !== "complete") return;
   void bootstrapPromise
     .then(() =>
@@ -1323,6 +1378,7 @@ async function startRecordingViaShortcut(): Promise<void> {
   }
 }
 
+/** 独立截图入口（popup/快捷键/消息共用）：录制互斥 → 注入 content script → captureVisibleTab → 唤起页面 overlay。 */
 export async function triggerScreenshotInTab(
   tabId: number,
   windowId: number
@@ -1357,6 +1413,7 @@ export async function triggerScreenshotInTab(
   });
 }
 
+/** 截图快捷键入口：对当前激活标签页触发独立截图。 */
 async function startScreenshotViaShortcut(): Promise<void> {
   await bootstrapPromise;
   const [tab] = await chrome.tabs.query({
@@ -1371,6 +1428,7 @@ async function startScreenshotViaShortcut(): Promise<void> {
   }
 }
 
+// 全局快捷键分发：start-recording → 录屏，take-screenshot → 独立截图
 chrome.commands.onCommand.addListener((command) => {
   if (command === "start-recording") {
     void startRecordingViaShortcut();

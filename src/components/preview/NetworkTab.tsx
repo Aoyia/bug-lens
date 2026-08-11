@@ -142,7 +142,7 @@ export const NetworkTab = memo(function NetworkTab({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const detailRef = useRef<HTMLDivElement>(null);
 
-  // Auto-select logic
+  // 自动选中逻辑
   let activeSelectedId = selectedId;
   if (entries.length > 0 && !entries.some((entry) => entry.id === selectedId)) {
     activeSelectedId = entries[entries.length - 1]!.id;
@@ -175,7 +175,7 @@ export const NetworkTab = memo(function NetworkTab({
   const selectedEntry = entries.find((entry) => entry.id === activeSelectedId);
   const [snippetTarget, setSnippetTarget] = useState<ApiSnippetTarget>("curl");
 
-  // Copy multi-language snippet logic
+  // 多语言代码片段复制逻辑
   useEffect(() => {
     if (!detailRef.current || !selectedEntry) return;
 

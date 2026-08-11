@@ -49,7 +49,7 @@ function loadReportData(): StaticReportData | undefined {
     try {
       return JSON.parse(scriptEl.textContent) as StaticReportData;
     } catch {
-      // Ignore parse failure
+      // 忽略解析失败
     }
   }
   return undefined;

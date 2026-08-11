@@ -60,7 +60,7 @@ export function sanitizeUrl(value: string, mode: PrivacyMode): string {
         try {
           decoded = decodeURIComponent(segment);
         } catch {
-          /* preserve malformed segment, but keep URL redaction */
+          /* 保留畸形分段，但仍执行 URL 脱敏 */
         }
         return OPAQUE_PATH_SEGMENT.test(decoded) ? "[ID]" : segment;
       })

@@ -101,6 +101,7 @@ export class InteractionCapture {
     });
   }
 
+  /** 停止时调用：最多轮询 3 轮等待所有在途交互写入完成，返回失败明细。 */
   async drain(): Promise<string[]> {
     const errors: string[] = [];
     for (let round = 0; round < 3; round += 1) {
@@ -138,6 +139,10 @@ export class InteractionCapture {
     return current;
   }
 
+  /**
+   * 以 sessionId:interactionId 为 key 的串行队列执行 applyInteractionEvent：
+   * 同一交互的并发事件（候选→确认、截图落库等）按到达顺序合并，避免读-改-写竞争。
+   */
   private persist(
     sessionId: string,
     interactionId: string,
@@ -159,6 +164,10 @@ export class InteractionCapture {
     });
   }
 
+  /**
+   * 准入校验链：会话存在、非停止中、状态在录制状态集内，且消息来自录制目标
+   * tab、nonce 与会话匹配（防串会话 / 伪造请求）。
+   */
   private isAccepted(
     session: RecordingSession | undefined,
     sender: chrome.runtime.MessageSender,
@@ -179,6 +188,8 @@ export class InteractionCapture {
   ): Promise<void> {
     const session = await this.repository.getActiveSession();
     if (!this.isAccepted(session, sender, interaction.sessionId)) return;
+    // 脱敏后落库：强制绑定当前会话 id 并按隐私模式过滤，同时按会话选项
+    // 关闭截图存储（captureScreenshots 未开启时置 disabled）
     const incoming = sanitizeInteractionRecord(
       {
         ...interaction,
@@ -215,6 +226,7 @@ export class InteractionCapture {
       confirmedInteractionCount:
         next.status === "confirmed" && previous?.status !== "confirmed" ? 1 : 0,
     };
+    // 仅在计数有净变化时推送 quality-delta（新增交互 / 首次确认），供质量统计
     if (
       interactionDelta.interactionCount ||
       interactionDelta.confirmedInteractionCount
@@ -232,6 +244,10 @@ export class InteractionCapture {
   private lastCaptureTime = 0;
   private captureQueue = Promise.resolve();
 
+  /**
+   * 全局串行 + 相邻间隔 510ms 节流的截屏执行器：规避 chrome 对
+   * captureVisibleTab 的每分钟调用次数配额限制。
+   */
   private async executeCaptureVisibleTab(windowId: number): Promise<string> {
     const task = this.captureQueue.then(async () => {
       const elapsed = Date.now() - this.lastCaptureTime;
@@ -404,6 +420,7 @@ export class InteractionCapture {
     await this.writeSessionEvent(session.id, delta);
   }
 
+  /** 断言录制目标 tab 当前处于激活态（captureVisibleTab 只能截取活动 tab）。 */
   private async assertTargetTabIsActive(
     session: RecordingSession
   ): Promise<void> {

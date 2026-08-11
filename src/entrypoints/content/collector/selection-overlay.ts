@@ -49,7 +49,7 @@ export class SelectionOverlay {
   private layer: HTMLDivElement | undefined;
   private escapeListener: ((event: KeyboardEvent) => void) | undefined;
 
-  // Scroll lock state
+  // 滚动锁定状态
   private scrollPreventListener: ((event: Event) => void) | undefined;
   private scrollKeyPreventListener:
     ((event: KeyboardEvent) => void) | undefined;

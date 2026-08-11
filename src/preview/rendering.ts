@@ -83,7 +83,7 @@ export function renderCodeBlockHtml(
       text = JSON.stringify(JSON.parse(rawText), null, 2);
       isFormattedJson = true;
     } catch {
-      // The original text is still safe to render after HTML escaping.
+      // 原文经 HTML 转义后仍可安全渲染。
     }
   }
 

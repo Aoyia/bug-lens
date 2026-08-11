@@ -12,6 +12,11 @@ function hasIssue(session: RecordingSession, source: string): boolean {
   return session.quality.issues.some((entry) => entry.source === source);
 }
 
+/**
+ * 由「开关 / 采集数量 / 是否故障」推导证据状态：
+ * - 未开启 → disabled；有故障且一条没采到 → failed；有故障但采到部分 → partial；
+ * - 其余正常 → captured。
+ */
 function enabledState(
   enabled: boolean,
   count: number,
@@ -23,6 +28,10 @@ function enabledState(
   return "captured";
 }
 
+/**
+ * 汇总会话各类证据的采集概况（数量、状态、体积），供会话列表与详情页展示。
+ * 网络响应体还会统计实际捕获字节数与脱敏/截断条数。
+ */
 export function buildEvidenceSummary(
   session: RecordingSession,
   media: MediaSummary,
@@ -57,6 +66,7 @@ export function buildEvidenceSummary(
     media.count,
     hasIssue(session, "media")
   );
+  // 截图状态是独立推导的：全失败 → failed，部分成功 → partial（与 enabledState 语义一致）
   const screenshotState = !session.options.captureScreenshots
     ? "disabled"
     : unavailableScreenshots
@@ -75,6 +85,7 @@ export function buildEvidenceSummary(
     hasIssue(session, "debugger")
   );
   let bodiesState: EvidenceState = "disabled";
+  // 响应体状态优先级：存在脱敏 → redacted；否则全不可用按是否有部分成功区分
   if (session.options.captureNetwork && session.options.captureNetworkBodies) {
     bodiesState = redactedBodyCount
       ? "redacted"

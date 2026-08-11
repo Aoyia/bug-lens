@@ -1,4 +1,4 @@
-/** Optional persistence adapter for stopping state survival across SW restarts. */
+/** 停止中会话 ID 的可选持久化适配器，用于跨 Service Worker 重启保留停止状态。 */
 export type StoppingPersistence = {
   save(ids: string[]): void;
   load(): Promise<string[]>;
@@ -14,19 +14,24 @@ export class RecordingCoordinator {
     this.persistence = persistence;
   }
 
-  /** Restore stopping IDs from persistent storage (call once during bootstrap). */
+  /** 从持久化存储恢复停止中的会话 ID（bootstrap 时调用一次，配合 background 恢复）。 */
   async restoreStoppingIds(): Promise<void> {
     if (!this.persistence) return;
     const ids = await this.persistence.load();
     for (const id of ids) this.stoppingSessionIds.add(id);
   }
 
+  /** 全局串行队列：保证 start/stop 等生命周期操作按序执行、互不并发。 */
   runLifecycle<T>(work: () => Promise<T>): Promise<T> {
     const current = this.lifecycleQueue.catch(() => undefined).then(work);
     this.lifecycleQueue = current.catch(() => undefined);
     return current;
   }
 
+  /**
+   * 按 sessionId 合并并发 stop：同一会话的并发停止调用共用同一个 Promise，
+   * 避免重复执行停止流程；完成后（成功或失败）自动从队列移除。
+   */
   runStop<T>(sessionId: string, work: () => Promise<T>): Promise<T> {
     const existing = this.stopFlights.get(sessionId) as Promise<T> | undefined;
     if (existing) return existing;
@@ -45,6 +50,8 @@ export class RecordingCoordinator {
     return flight;
   }
 
+  // 标记会话进入停止中并持久化；SW 重启后由 restoreStoppingIds 恢复，
+  // 防止停止期间新到的交互/截图请求误写入该会话。
   beginStopping(sessionId: string): void {
     this.stoppingSessionIds.add(sessionId);
     this.persistStoppingIds();

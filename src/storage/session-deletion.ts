@@ -1,5 +1,9 @@
 import { openEvidenceDatabase, type StoreName } from "./indexed-db-schema.ts";
 
+/**
+ * 单事务删除会话及其全部证据：一次 readwrite 事务覆盖 10 个 store，
+ * 要么全部删除成功、要么整体回滚，避免残留半删除状态。
+ */
 export async function deleteSessionAndEvidence(
   sessionId: string
 ): Promise<boolean> {
@@ -26,6 +30,7 @@ export async function deleteSessionAndEvidence(
       sessions.delete(sessionId);
     };
     sessionRequest.onerror = () => reject(sessionRequest.error);
+    // 证据明细类 store 没有以 sessionId 为主键，需经 sessionId 索引用 openKeyCursor 遍历逐个删除
     for (const storeName of [
       "interactions",
       "consoleEntries",
@@ -48,6 +53,7 @@ export async function deleteSessionAndEvidence(
     }
     transaction.objectStore("exportSelections").delete(sessionId);
     transaction.objectStore("exportArtifacts").delete(sessionId);
+    // 若删除的正是活动会话，需同步清理 control.active-session 标记，避免悬空引用
     const activeRequest = transaction
       .objectStore("control")
       .get("active-session");

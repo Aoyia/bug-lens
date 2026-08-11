@@ -40,7 +40,7 @@ export const ConsoleTab = memo(function ConsoleTab({
     countText,
   } = useFilteredList(snapshot.included, matchFn);
 
-  // Override countText when level filter is active
+  // 级别过滤生效时覆盖 countText 文案
   const displayCountText =
     levelFilter !== "all" || searchQuery.trim()
       ? t("matchingCount", [

@@ -63,7 +63,7 @@ export class EvidenceReportView {
   private readonly imageViewer: ImageViewer;
   private hasInitializedDefaultTab = false;
 
-  // Preact mount containers
+  // Preact 挂载容器
   private readonly consoleContainer: HTMLElement;
   private readonly networkContainer: HTMLElement;
   private readonly interactionsContainer: HTMLElement;
@@ -80,7 +80,7 @@ export class EvidenceReportView {
       this.shell.notify(message)
     );
 
-    // Locate mount targets
+    // 定位挂载目标
     this.consoleContainer =
       root.querySelector<HTMLElement>("#tab-pane-console")!;
     this.networkContainer =
@@ -94,7 +94,7 @@ export class EvidenceReportView {
     );
     this.streamContainer = root.querySelector<HTMLElement>("#tab-pane-stream");
 
-    // Restore button wiring (editable mode only)
+    // 恢复按钮绑定（仅 editable 模式）
     if (adapter.mode === "editable") {
       root
         .querySelector<HTMLButtonElement>("#restore")
@@ -142,7 +142,7 @@ export class EvidenceReportView {
       this.hasInitializedDefaultTab = true;
     }
 
-    // Title & meta
+    // 标题与元信息
     const titleText = snapshot.session.target.initialTitle || "录制预览";
     const metaText = `${snapshot.session.target.initialUrl} · ${snapshot.session.timeline.durationMs ? `${Math.round(snapshot.session.timeline.durationMs / 1000)} 秒` : "时长未知"}`;
     const titleEl = this.root.querySelector<HTMLElement>("#title");
@@ -182,7 +182,7 @@ export class EvidenceReportView {
       }
     };
 
-    // Console tab
+    // Console 标签页
     render(
       h(ConsoleTab, {
         snapshot: {
@@ -204,7 +204,7 @@ export class EvidenceReportView {
       this.consoleContainer
     );
 
-    // Network tab
+    // Network 标签页
     render(
       h(NetworkTab, {
         snapshot: {
@@ -227,7 +227,7 @@ export class EvidenceReportView {
       this.networkContainer
     );
 
-    // Interactions tab
+    // Interactions 标签页
     render(
       h(InteractionsTab, {
         snapshot: {
@@ -255,7 +255,7 @@ export class EvidenceReportView {
       this.interactionsContainer
     );
 
-    // Issue scenes tab
+    // 问题现场标签页
     const issueScenes = snapshot.issueScenes ?? { all: [], included: [] };
     render(
       h(IssueSceneTab, {
@@ -278,7 +278,7 @@ export class EvidenceReportView {
       this.issueScenesContainer
     );
 
-    // Framework states tab
+    // 框架状态标签页
     if (this.frameworkStatesContainer) {
       render(
         h(FrameworkStateTab, {
@@ -289,7 +289,7 @@ export class EvidenceReportView {
       );
     }
 
-    // Timeline stream tab (not present in offline report)
+    // 时间线流标签页（离线报告中不存在）
     if (this.streamContainer) {
       render(
         h(StreamTab, {
@@ -332,7 +332,7 @@ export class EvidenceReportView {
     }
   }
 
-  // ---------- summary & restore ----------
+  // ---------- 摘要与恢复 ----------
 
   private renderSummary(): void {
     const snapshot = this.adapter.getSnapshot();
