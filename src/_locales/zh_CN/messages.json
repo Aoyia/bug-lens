@@ -37,6 +37,18 @@
   "config": {
     "message": "配置"
   },
+  "language": {
+    "message": "界面语言"
+  },
+  "languageAuto": {
+    "message": "跟随系统"
+  },
+  "languageZhCN": {
+    "message": "简体中文"
+  },
+  "languageEnUS": {
+    "message": "English"
+  },
   "video": {
     "message": "录像"
   },

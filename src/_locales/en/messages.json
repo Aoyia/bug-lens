@@ -37,6 +37,18 @@
   "config": {
     "message": "Settings"
   },
+  "language": {
+    "message": "Language"
+  },
+  "languageAuto": {
+    "message": "System Default"
+  },
+  "languageZhCN": {
+    "message": "简体中文"
+  },
+  "languageEnUS": {
+    "message": "English"
+  },
   "video": {
     "message": "Video"
   },
