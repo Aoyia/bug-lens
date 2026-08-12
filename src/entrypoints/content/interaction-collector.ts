@@ -131,6 +131,8 @@ if (existingController) {
         const res = await chrome.runtime.sendMessage(
           message("session/stop", {
             commandId: crypto.randomUUID(),
+            // 结束即导出：直出证据包下载，不打开预览页（业务契约，勿改）
+            silentExport: true,
           })
         );
         const exportFailure = getSilentExportFailure(res, t("stopFailed"));

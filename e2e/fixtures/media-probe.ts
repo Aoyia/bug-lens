@@ -289,6 +289,83 @@ export class MediaProbe {
     );
   }
 
+  /**
+   * 查询最近一次静默导出下载。Playwright 会把扩展后台（Service Worker）
+   * 发起的下载重定向到 test-results 下的 .playwright-artifacts 目录（UUID
+   * 文件名、去掉扩展名），因此匹配条件需兼容 .zip 后缀与 artifacts 重定向
+   * 路径两种形态。
+   */
+  async latestExportDownload(): Promise<
+    { filename: string; state: string; totalBytes?: number } | undefined
+  > {
+    return this.evaluateWorker(async () => {
+      const items = await chrome.downloads.search({
+        limit: 10,
+        orderBy: ["-startTime"],
+      });
+      const completed = items.filter(
+        (item) =>
+          item.state === "complete" &&
+          (item.totalBytes ?? 0) > 0 &&
+          (item.filename?.toLowerCase().endsWith(".zip") ||
+            item.filename?.includes(".playwright-artifacts"))
+      );
+      const zip = completed.find((item) =>
+        item.filename?.toLowerCase().endsWith(".zip")
+      );
+      const pick = zip ?? completed[0];
+      return pick
+        ? {
+            filename: pick.filename ?? "",
+            state: pick.state ?? "",
+            totalBytes: pick.totalBytes,
+          }
+        : undefined;
+    }, undefined);
+  }
+
+  /**
+   * 原始下载列表（诊断用）：返回最近 10 条 chrome.downloads 记录。
+   */
+  async rawDownloads(): Promise<
+    Array<{
+      filename?: string;
+      state?: string;
+      error?: string;
+      totalBytes?: number;
+    }>
+  > {
+    return this.evaluateWorker(async () => {
+      const items = await chrome.downloads.search({
+        limit: 10,
+        orderBy: ["-startTime"],
+      });
+      return items.map((item) => ({
+        filename: item.filename,
+        state: item.state,
+        error: item.error,
+        totalBytes: item.totalBytes,
+      }));
+    }, undefined);
+  }
+
+  /** 轮询直到静默导出证据包下载完成（默认 15s）。 */
+  async waitForExportDownload(
+    timeoutMs = 15_000
+  ): Promise<{ filename: string; state: string; totalBytes?: number }> {
+    const deadline = Date.now() + timeoutMs;
+    let last:
+      { filename: string; state: string; totalBytes?: number } | undefined;
+    while (Date.now() < deadline) {
+      last = await this.latestExportDownload();
+      if (last && last.state === "complete") return last;
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+    throw new Error(
+      `SILENT_EXPORT_DOWNLOAD_TIMEOUT: ${JSON.stringify(last)}; all=${JSON.stringify(await this.rawDownloads())}`
+    );
+  }
+
   async getBadgeText(tabId: number): Promise<string> {
     return this.evaluateWorker(async (targetId) => {
       return chrome.action.getBadgeText({ tabId: targetId });

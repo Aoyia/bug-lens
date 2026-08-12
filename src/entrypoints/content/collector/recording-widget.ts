@@ -592,9 +592,7 @@ export class RecordingWidget {
       );
       const m = String(Math.floor(sec / 60)).padStart(2, "0");
       const s = String(sec % 60).padStart(2, "0");
-      display.textContent = this.callbacks.isIdlePaused()
-        ? `${m}:${s} (${t("idlePaused")})`
-        : `${m}:${s}`;
+      display.textContent = `${m}:${s}`;
     }
   }
 
@@ -619,7 +617,8 @@ export class RecordingWidget {
       dot.style.animation = paused ? "none" : "wbr-pulse 1.5s infinite";
     }
     if (recTag) {
-      recTag.textContent = paused ? "PAUSED" : "REC";
+      const isIdle = paused && this.callbacks.isIdlePaused();
+      recTag.textContent = paused ? (isIdle ? "IDLE PAUSED" : "PAUSED") : "REC";
       recTag.style.color = paused ? "#ffc107" : "#fff";
     }
   }

@@ -112,6 +112,11 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
       },
     };
 
+    const recTag = {
+      textContent: "REC",
+      style: {},
+    };
+
     const classSet = new Set<string>();
     const styleObj: Record<string, string> = {};
 
@@ -153,6 +158,7 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
         if (sel.includes("stop_btn")) return stopBtn;
         if (sel.includes("issue_btn")) return issueBtn;
         if (sel.includes("timer_display")) return timerDisplay;
+        if (sel.includes("rec-tag")) return recTag;
         return null;
       },
       remove() {},
@@ -478,8 +484,10 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
     pausedDurationMs = 4_000;
     (globalThis.window as any).triggerInterval();
 
-    // 应扣除 4 秒暂停时间：显示 00:06 (idlePaused)
-    assert.equal(timerDisplay.textContent, "00:06 (idlePaused)");
+    // 应扣除 4 秒暂停时间：显示 00:06，左侧 Tag 显示 IDLE PAUSED
+    assert.equal(timerDisplay.textContent, "00:06");
+    const recTag = mockRootElement.querySelector("[data-wbr-rec-tag]");
+    assert.equal(recTag?.textContent, "IDLE PAUSED");
   });
 
   test("setIssueSelecting(false) restores mark-issue button after a cancelled selection", () => {

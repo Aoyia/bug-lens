@@ -1,18 +1,11 @@
 import { test, expect } from "./fixtures/extension.ts";
 
-function envMilliseconds(name: string, fallback: number): number {
-  const value = Number(process.env[name] ?? fallback);
-  return Number.isFinite(value) && value >= 0 ? value : fallback;
-}
-
 function logE2e(message: string, details?: unknown): void {
   const suffix = details === undefined ? "" : ` ${JSON.stringify(details)}`;
   console.log(
     `[Bug Lens E2E][${new Date().toISOString()}] ${message}${suffix}`
   );
 }
-
-const previewHoldMs = envMilliseconds("E2E_PREVIEW_HOLD_MS", 0);
 
 test.describe("Bug Lens Chrome Extension E2E User Journey", () => {
   test("REC-001: records the active tab through a trusted extension invocation", async ({
@@ -91,22 +84,20 @@ test.describe("Bug Lens Chrome Extension E2E User Journey", () => {
     const stopButton = targetPage.locator("#__wbr_stop_btn__");
     await expect(stopButton).toBeVisible();
 
-    const previewPagePromise = context.waitForEvent("page", {
-      predicate: (page) =>
-        page.url().startsWith(`chrome-extension://${extensionId}/preview.html`),
-      timeout: 10_000,
-    });
+    // 业务契约：点击「结束并导出」应直出证据包下载，不打开预览页
     logE2e("Clicking the visible in-page stop control");
     await stopButton.click();
-    const previewPage = await previewPagePromise;
-    await previewPage.waitForLoadState("domcontentloaded");
-    await previewPage.bringToFront();
-    logE2e("Preview page opened", { url: previewPage.url() });
+    // Playwright 捕获不到扩展后台发起的下载，改由 chrome.downloads API 轮询验证
+    const exportedDownload = await mediaProbe.waitForExportDownload();
+    logE2e("Silent export download completed", {
+      filename: exportedDownload.filename,
+      state: exportedDownload.state,
+      totalBytes: exportedDownload.totalBytes,
+    });
+    expect(exportedDownload.state).toBe("complete");
+    expect(exportedDownload.totalBytes ?? 0).toBeGreaterThan(0);
 
-    const evidence = await mediaProbe.persistedEvidence(
-      previewPage,
-      session.id
-    );
+    const evidence = await mediaProbe.persistedEvidence(session.id);
     const totalMediaBytes = evidence.mediaChunks.reduce(
       (total, chunk) => total + chunk.byteLength,
       0
@@ -197,32 +188,25 @@ test.describe("Bug Lens Chrome Extension E2E User Journey", () => {
       expect(timestamp).toBeLessThanOrEqual(stoppedAt! + 1000); // 1s 宽松缓冲以适应时间戳记录时序
     }
 
-    // 验证 WebM 视频可播放
-    const video = previewPage.locator("#video");
-    await expect(video).toBeVisible({ timeout: 10_000 });
-    await previewPage.waitForFunction(
-      () => {
-        const element = document.querySelector<HTMLVideoElement>("#video");
-        return Boolean(
-          element &&
-          element.readyState >= 1 &&
-          Number.isFinite(element.duration) &&
-          element.duration > 0
-        );
-      },
-      undefined,
-      { timeout: 10_000 }
-    );
-    const duration = await video.evaluate(
-      (element) => (element as HTMLVideoElement).duration
-    );
-    expect(duration).toBeGreaterThan(0);
-    logE2e("Preview video is playable", { durationSeconds: duration });
+    // 静默导出成功：会话停留在 PREVIEW_READY 且不挂起预览（previewPending 清空）
+    expect(evidence.session?.previewPending).toBe(false);
+
+    // 验证证据包已真实落盘且为合法 ZIP（静默导出不打开 Preview，直接产出证据包）
+    const archivePath = exportedDownload.filename;
+    expect(archivePath).toBeTruthy();
+    const { readFileSync } = await import("node:fs");
+    const zipHeader = readFileSync(archivePath).subarray(0, 4);
+    expect(zipHeader.toString("latin1").startsWith("PK")).toBe(true);
+    logE2e("Silent export archive landed on disk", {
+      path: archivePath,
+      header: zipHeader.toString("latin1"),
+    });
 
     // --- 三、停止后的资源清理断言 ---
     // 1. 目标 tab 不再处于 active/pending tabCapture
-    const stoppedCapture = await previewPage.evaluate(async () =>
-      chrome.tabCapture.getCapturedTabs()
+    const stoppedCapture = await mediaProbe.evaluateWorker(
+      async () => chrome.tabCapture.getCapturedTabs(),
+      undefined
     );
     const targetTabCapture = stoppedCapture.find(
       (entry) => entry.tabId === targetTabId
@@ -237,30 +221,27 @@ test.describe("Bug Lens Chrome Extension E2E User Journey", () => {
     expect(await mediaProbe.isOverlayRemoved(targetPage)).toBe(true);
 
     // 4. IndexedDB 中不存在错误的 active-session 指针
-    const activeSessionAfterStop = await mediaProbe.activeSession();
+    //    clearActive 在静默导出成功分支执行；短轮询规避与下载落盘之间的时序抖动
+    const activeDeadline = Date.now() + 3_000;
+    let activeSessionAfterStop = await mediaProbe.activeSession();
+    while (activeSessionAfterStop && Date.now() < activeDeadline) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      activeSessionAfterStop = await mediaProbe.activeSession();
+    }
     expect(activeSessionAfterStop).toBeUndefined();
 
-    // 5. 同一个 sessionId 只打开了一个 Preview
+    // 5. 静默导出不自动打开 Preview（直出导出，业务契约）
     const previewPages = context
       .pages()
-      .filter(
-        (p) =>
-          p.url().includes(`chrome-extension://${extensionId}/preview.html`) &&
-          p.url().includes(session.id)
+      .filter((p) =>
+        p.url().includes(`chrome-extension://${extensionId}/preview.html`)
       );
-    expect(previewPages.length).toBe(1);
+    expect(previewPages.length).toBe(0);
 
     // 6. Chrome Action badge 恢复为空闲状态
     const badgeText = await mediaProbe.getBadgeText(targetTabId!);
     expect(badgeText).toBe("");
 
     logE2e("All REC-001 Golden Path assertions passed cleanly");
-
-    if (previewHoldMs > 0) {
-      logE2e("Holding Preview page for visual inspection", {
-        milliseconds: previewHoldMs,
-      });
-      await previewPage.waitForTimeout(previewHoldMs);
-    }
   });
 });

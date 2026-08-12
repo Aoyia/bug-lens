@@ -8,7 +8,7 @@ function logE2e(message: string, details?: unknown): void {
 }
 
 test.describe("Bug Lens Recording Widget Compact Controls E2E", () => {
-  test("WIDGET-001: renders mark-screenshot and stop-preview controls, opens preview on stop", async ({
+  test("WIDGET-001: renders mark-screenshot and stop controls, triggers silent export on stop", async ({
     context,
     extensionId,
     openActionPopup,
@@ -59,8 +59,9 @@ test.describe("Bug Lens Recording Widget Compact Controls E2E", () => {
     await expect(timerDisplay).toBeVisible();
 
     // 按钮文案：标记截图（含快捷键），停止并导出（仅保留一个停止按钮）
+    // 快捷键文案随平台变化（macOS 显示 Option+S，其余平台 Alt+S）
     await expect(issueButton).toContainText("标记截图");
-    await expect(issueButton).toContainText("Alt+S");
+    await expect(issueButton).toContainText(/\(?(Alt|Option)\+S\)?/);
     await expect(stopButton).toHaveText("结束并导出");
 
     // 已移除的按钮不应存在
@@ -68,21 +69,36 @@ test.describe("Bug Lens Recording Widget Compact Controls E2E", () => {
     await expect(targetPage.locator("#__wbr_pause_btn__")).toHaveCount(0);
     await expect(targetPage.locator("#__wbr_stop_export_btn__")).toHaveCount(0);
 
-    // 4. 点击【停止并预览】：停止录制并自动打开预览页
-    const previewPagePromise = context.waitForEvent("page", {
-      predicate: (page) =>
-        page.url().startsWith(`chrome-extension://${extensionId}/preview.html`),
-      timeout: 10_000,
-    });
-    logE2e("Clicking the compact stop-preview control");
+    // 4. 点击【结束并导出】：停止录制并直出证据包下载（不打开预览页）
+    logE2e("Clicking the compact stop-export control");
     await stopButton.click();
-    const previewPage = await previewPagePromise;
-    await previewPage.waitForLoadState("domcontentloaded");
-    await previewPage.bringToFront();
-    logE2e("Preview page opened after stop", { url: previewPage.url() });
-    await expect(previewPage.locator(".zen-workspace")).toBeVisible({
-      timeout: 5_000,
+    // Playwright 捕获不到扩展后台发起的下载，改由 chrome.downloads API 轮询验证
+    const exportedDownload = await mediaProbe.waitForExportDownload();
+    logE2e("Silent export download completed", {
+      filename: exportedDownload.filename,
+      state: exportedDownload.state,
+      totalBytes: exportedDownload.totalBytes,
     });
+    expect(exportedDownload.state).toBe("complete");
+    expect(exportedDownload.totalBytes ?? 0).toBeGreaterThan(0);
+
+    // 静默导出不自动打开 Preview 页
+    await targetPage.waitForTimeout(1_500);
+    const previewPages = context
+      .pages()
+      .filter((p) =>
+        p.url().includes(`chrome-extension://${extensionId}/preview.html`)
+      );
+    expect(previewPages.length).toBe(0);
+
+    // 会话进入 PREVIEW_READY、previewPending 清空且 active 已清除
+    const exportedSession = await mediaProbe.waitForSessionStatus(
+      session.id,
+      "PREVIEW_READY"
+    );
+    expect(exportedSession.status).toBe("PREVIEW_READY");
+    expect(exportedSession.previewPending).toBe(false);
+    expect(await mediaProbe.activeSession()).toBeUndefined();
   });
 
   test("WIDGET-002: stays expanded while hovering and only collapses after mouse leaves", async ({
