@@ -12,7 +12,13 @@ import {
   type SessionOverview,
   type StorageOverview,
 } from "../../shared/protocol.ts";
-import { applyI18n, t } from "../../shared/i18n.ts";
+import {
+  applyI18n,
+  t,
+  initI18nPreference,
+  setUserLanguagePreference,
+  type LanguagePreference,
+} from "../../shared/i18n.ts";
 import {
   DEFAULT_RECORDING_OPTIONS,
   VIDEO_BITRATE_BY_COMPRESSION,
@@ -64,6 +70,9 @@ export function PopupApp() {
     useState<boolean>(true);
   const [videoQuality, setVideoQuality] = useState<VideoQuality>("balanced");
   const [privacyMode, setPrivacyMode] = useState<"safe" | "raw">("safe");
+  const [languagePreference, setLanguagePreference] =
+    useState<LanguagePreference>("auto");
+  const [i18nVersion, setI18nVersion] = useState<number>(0);
 
   // 历史记录状态
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -79,7 +88,11 @@ export function PopupApp() {
   const historyRequestIdRef = useRef(0);
 
   useEffect(() => {
-    applyI18n();
+    void (async () => {
+      const pref = await initI18nPreference();
+      setLanguagePreference(pref);
+      applyI18n();
+    })();
     refreshRecord();
     void (async () => {
       try {
@@ -120,6 +133,16 @@ export function PopupApp() {
       }
     })();
   }, []);
+
+  const handleSetLanguagePreference = useCallback(
+    async (pref: LanguagePreference) => {
+      setLanguagePreference(pref);
+      await setUserLanguagePreference(pref);
+      applyI18n();
+      setI18nVersion((v) => v + 1);
+    },
+    []
+  );
 
   // 错误提示自动消失：出现后 6 秒自动清除，避免残留阻塞弹窗空间
   useEffect(() => {
@@ -520,7 +543,7 @@ export function PopupApp() {
   }, [active, previewReady, activeSession?.status]);
 
   return (
-    <main className="shell">
+    <main className="shell" key={i18nVersion}>
       {/* 动态主 Header (录制模式) */}
       <header
         id="main-header"
@@ -659,6 +682,7 @@ export function PopupApp() {
           captureFrameworkState={captureFrameworkState}
           videoQuality={videoQuality}
           privacyMode={privacyMode}
+          languagePreference={languagePreference}
           onToggleAdvanced={() => setAdvancedOpen(!advancedOpen)}
           onSetCaptureVideo={setCaptureVideo}
           onSetCaptureAudio={setCaptureAudio}
@@ -669,6 +693,7 @@ export function PopupApp() {
           onSetCaptureFrameworkState={setCaptureFrameworkState}
           onSetVideoQuality={setVideoQuality}
           onSetPrivacyMode={setPrivacyMode}
+          onSetLanguagePreference={handleSetLanguagePreference}
         />
       </section>
 

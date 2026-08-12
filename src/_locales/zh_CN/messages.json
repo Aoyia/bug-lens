@@ -49,6 +49,35 @@
   "languageEnUS": {
     "message": "English"
   },
+  "downloadComplete": {
+    "message": "下载完成"
+  },
+  "downloadCompleteNoPath": {
+    "message": "下载完成（路径不可用）"
+  },
+  "downloading": {
+    "message": "正在下载"
+  },
+  "downloadInterrupted": {
+    "message": "下载中断"
+  },
+  "downloadNoAbsolutePath": {
+    "message": "Chrome 未返回绝对路径；可从下载列表定位文件。"
+  },
+  "exportBeforeCopyPath": {
+    "message": "请先点击“导出离线报告”，完成下载后获取绝对路径。"
+  },
+  "copyFailed": {
+    "message": "复制失败：$ERROR$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "componentContext": {
+    "message": "组件上下文"
+  },
   "video": {
     "message": "录像"
   },
@@ -297,7 +326,15 @@
     }
   },
   "storagePolicy": {
-    "message": "自动清理 $DAYS$ 天前会话 · 单会话 $MAX$",
+    "message": "保留 $DAYS$ 天",
+    "placeholders": {
+      "days": {
+        "content": "$1"
+      }
+    }
+  },
+  "storagePolicyFull": {
+    "message": "自动清理 $DAYS$ 天前记录 · 单会话上限 $MAX$",
     "placeholders": {
       "days": {
         "content": "$1"

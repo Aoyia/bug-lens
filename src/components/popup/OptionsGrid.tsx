@@ -1,5 +1,5 @@
 import { memo } from "preact/compat";
-import { t } from "../../shared/i18n";
+import { t, type LanguagePreference } from "../../shared/i18n";
 
 export type VideoQuality = "quality" | "balanced" | "small";
 
@@ -15,6 +15,7 @@ interface OptionsGridProps {
   captureFrameworkState: boolean;
   videoQuality: VideoQuality;
   privacyMode: "safe" | "raw";
+  languagePreference: LanguagePreference;
   onToggleAdvanced: () => void;
   onSetCaptureVideo: (val: boolean) => void;
   onSetCaptureAudio: (val: boolean) => void;
@@ -25,6 +26,7 @@ interface OptionsGridProps {
   onSetCaptureFrameworkState: (val: boolean) => void;
   onSetVideoQuality: (val: VideoQuality) => void;
   onSetPrivacyMode: (mode: "safe" | "raw") => void;
+  onSetLanguagePreference: (pref: LanguagePreference) => void;
 }
 
 export const OptionsGrid = memo(function OptionsGrid({
@@ -39,6 +41,7 @@ export const OptionsGrid = memo(function OptionsGrid({
   captureFrameworkState,
   videoQuality,
   privacyMode,
+  languagePreference,
   onToggleAdvanced,
   onSetCaptureVideo,
   onSetCaptureAudio,
@@ -49,6 +52,7 @@ export const OptionsGrid = memo(function OptionsGrid({
   onSetCaptureFrameworkState,
   onSetVideoQuality,
   onSetPrivacyMode,
+  onSetLanguagePreference,
 }: OptionsGridProps) {
   return (
     <div>
@@ -197,6 +201,24 @@ export const OptionsGrid = memo(function OptionsGrid({
               </select>
             </label>
           )}
+          <label className="video-quality-row">
+            <span className="video-quality-label">{t("language")}</span>
+            <select
+              id="language-preference"
+              className="privacy-select"
+              value={languagePreference}
+              disabled={controlsLocked}
+              onChange={(e) =>
+                onSetLanguagePreference(
+                  e.currentTarget.value as LanguagePreference
+                )
+              }
+            >
+              <option value="auto">{t("languageAuto")}</option>
+              <option value="zh-CN">{t("languageZhCN")}</option>
+              <option value="en-US">{t("languageEnUS")}</option>
+            </select>
+          </label>
         </div>
       )}
     </div>

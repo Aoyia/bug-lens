@@ -29,22 +29,21 @@ export class PreviewAiHandoff {
     const status = this.options.root.querySelector<HTMLElement>("#ai-status");
     if (status)
       status.textContent = complete
-        ? "下载完成"
+        ? t("downloadComplete")
         : artifact?.state === "complete"
-          ? "下载完成（路径不可用）"
+          ? t("downloadCompleteNoPath")
           : artifact?.state === "in_progress"
-            ? "正在下载"
+            ? t("downloading")
             : artifact?.state === "interrupted"
-              ? "下载中断"
-              : "等待导出";
+              ? t("downloadInterrupted")
+              : t("waitForEvidenceLoad");
     const pathNode = this.options.root.querySelector<HTMLElement>("#ai-path");
     if (pathNode)
       pathNode.textContent = complete
         ? path!
         : artifact?.state === "complete"
-          ? "Chrome 未返回绝对路径；可从下载列表定位文件。"
-          : artifact?.error ||
-            "请先点击“导出离线报告”，完成下载后获取绝对路径。";
+          ? t("downloadNoAbsolutePath")
+          : artifact?.error || t("exportBeforeCopyPath");
     const prompt = this.options.root.querySelector<HTMLElement>("#ai-prompt");
     if (prompt) prompt.textContent = this.options.getPrompt(path);
     const copyPath =
@@ -58,25 +57,29 @@ export class PreviewAiHandoff {
   async copyPrompt(): Promise<void> {
     await this.copy(
       this.options.getPrompt(this.options.getArtifact()?.filename),
-      t("aiPromptCopied")
+      t("promptCopied")
     );
   }
 
+  async copyPath(): Promise<void> {
+    const path = this.options.getArtifact()?.filename;
+    if (!path) return;
+    await this.copy(path, t("pathCopied"));
+  }
+
   async autoCopyPrompt(): Promise<boolean> {
+    const path = this.options.getArtifact()?.filename;
+    if (!path) return false;
     try {
-      const prompt = this.options.getPrompt(
-        this.options.getArtifact()?.filename
+      await copyTextToClipboard(
+        this.options.getPrompt(path),
+        this.options.root
       );
-      await copyTextToClipboard(prompt, this.options.root);
+      this.options.notify(t("autoCopiedPrompt"));
       return true;
     } catch {
       return false;
     }
-  }
-
-  private async copyPath(): Promise<void> {
-    const path = this.options.getArtifact()?.filename;
-    if (path) await this.copy(path, t("zipPathCopied"));
   }
 
   private showFile(): void {
@@ -89,7 +92,7 @@ export class PreviewAiHandoff {
       await copyTextToClipboard(value, this.options.root);
       this.options.notify(successMessage);
     } catch (error) {
-      this.options.notify(`复制失败：${String(error)}`);
+      this.options.notify(t("copyFailed", String(error)));
     }
   }
 }

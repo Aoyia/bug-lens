@@ -9,10 +9,13 @@ import { highlightJs } from "../../preview/rendering";
 import { copyTextToClipboard } from "../../preview/clipboard";
 import { applyPrivacyBadge } from "../../preview/privacy-badge";
 import { bindPlaywrightModalClose } from "../../preview/playwright-modal";
-import { applyI18n, t } from "../../shared/i18n";
+import { applyI18n, initI18nPreference, t } from "../../shared/i18n";
 import "../../shared/components/truncated-text";
 
-applyI18n();
+void (async () => {
+  await initI18nPreference();
+  applyI18n();
+})();
 
 const $ = <T extends HTMLElement>(selector: string) =>
   document.querySelector<T>(selector)!;
@@ -30,6 +33,22 @@ const reportView = new EvidenceReportView(document, {
   excludeDiagnostic: (kind, id) => runtime.excludeDiagnostic(kind, id),
   restore: (kind) => runtime.restore(kind),
 });
+
+if (
+  typeof chrome !== "undefined" &&
+  chrome.storage &&
+  chrome.storage.onChanged
+) {
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName === "sync" && changes["user_language_preference"]) {
+      void (async () => {
+        await initI18nPreference();
+        applyI18n();
+        reportView.render();
+      })();
+    }
+  });
+}
 
 let exportController!: PreviewExportController;
 const aiHandoff = new PreviewAiHandoff({

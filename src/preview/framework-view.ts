@@ -107,7 +107,7 @@ export function renderFrameworkSnapshot(framework?: FrameworkSnapshot): string {
   let html = `<div class="framework-snapshot-section" style="margin-top:6px;padding:6px;background:${bg};border:1px solid ${color}33;border-radius:4px">`;
 
   html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-    <span style="font-size:11px;font-weight:700;color:${color}">${escapeStr(label)} 组件上下文</span>
+    <span style="font-size:11px;font-weight:700;color:${color}">${escapeStr(label)} ${t("componentContext")}</span>
   </div>`;
 
   if (chain.length > 0) {

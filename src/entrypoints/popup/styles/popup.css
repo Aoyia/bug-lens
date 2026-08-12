@@ -608,14 +608,14 @@ input[type="search"]:focus {
 .storage-footer {
   font-size: 10.5px;
   color: var(--ink-muted);
-  margin-top: 4px;
+  margin-top: 6px;
   text-align: center;
   line-height: 1.45;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .storage-policy {
-  margin-top: 2px;
-  padding-top: 3px;
-  border-top: 1px dashed var(--border-subtle);
   opacity: 0.85;
 }
 .error {

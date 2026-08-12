@@ -3,6 +3,7 @@
  */
 
 export type SupportedLocale = "zh-CN" | "en-US";
+export type LanguagePreference = "auto" | "zh-CN" | "en-US";
 export type I18nDict = Record<string, { message: string }>;
 export type I18nBundle = {
   locale: SupportedLocale;
@@ -16,6 +17,9 @@ declare global {
   }
 }
 
+let activePreference: LanguagePreference = "auto";
+const loadedDicts: Partial<Record<SupportedLocale, I18nDict>> = {};
+
 /**
  * 将任意原始区域标识（如 "zh_CN"、"zh-CN"、"zh"、"en"、"en_US"）归一化为标准 BCP-47 标签。
  */
@@ -28,7 +32,85 @@ export function normalizeLocale(rawLocale?: string): SupportedLocale {
   return "zh-CN";
 }
 
+export function getLanguagePreference(): LanguagePreference {
+  return activePreference;
+}
+
+export async function loadLocaleDict(
+  locale: SupportedLocale
+): Promise<I18nDict | undefined> {
+  if (loadedDicts[locale]) return loadedDicts[locale];
+  try {
+    if (
+      typeof chrome !== "undefined" &&
+      chrome.runtime &&
+      chrome.runtime.getURL
+    ) {
+      const folder = locale === "en-US" ? "en" : "zh_CN";
+      const url = chrome.runtime.getURL(`_locales/${folder}/messages.json`);
+      const res = await fetch(url);
+      if (res.ok) {
+        const dict = (await res.json()) as I18nDict;
+        loadedDicts[locale] = dict;
+        return dict;
+      }
+    }
+  } catch {
+    // 无法获取文件时静默处理
+  }
+  return undefined;
+}
+
+export async function initI18nPreference(): Promise<LanguagePreference> {
+  try {
+    if (
+      typeof chrome !== "undefined" &&
+      chrome.storage &&
+      chrome.storage.sync
+    ) {
+      const stored = (await chrome.storage.sync.get([
+        "user_language_preference",
+      ])) as {
+        user_language_preference?: LanguagePreference;
+      };
+      if (stored?.user_language_preference) {
+        activePreference = stored.user_language_preference;
+      }
+    }
+  } catch {
+    // sync 不可用时回退
+  }
+  if (activePreference !== "auto") {
+    await loadLocaleDict(activePreference);
+  }
+  return activePreference;
+}
+
+export async function setUserLanguagePreference(
+  pref: LanguagePreference
+): Promise<void> {
+  activePreference = pref;
+  try {
+    if (
+      typeof chrome !== "undefined" &&
+      chrome.storage &&
+      chrome.storage.sync
+    ) {
+      await chrome.storage.sync.set({ user_language_preference: pref });
+    }
+  } catch {
+    // sync 不可用时静默跳过
+  }
+  if (pref !== "auto") {
+    await loadLocaleDict(pref);
+  }
+}
+
 export function getLocale(): SupportedLocale {
+  if (activePreference !== "auto") {
+    return activePreference;
+  }
+
   try {
     if (
       typeof chrome !== "undefined" &&
@@ -54,18 +136,50 @@ export function isEn(): boolean {
   return getLocale() === "en-US";
 }
 
+function formatMessage(
+  template: string,
+  substitutions?: string | string[]
+): string {
+  if (!substitutions) return template;
+  const subs = Array.isArray(substitutions) ? substitutions : [substitutions];
+  let namedIndex = 0;
+  let msg = template.replace(
+    /\$(COUNT|BYTES|DAYS|MAX|CURRENT|TOTAL|SIZE|ERROR|SECONDS|ACTION|ELEMENT|KEY|TYPE|VALUE)\$/g,
+    () => {
+      const value = subs[namedIndex] ?? "";
+      namedIndex += 1;
+      return value;
+    }
+  );
+  msg = msg.replace(/\$(\d+)\$/g, (_match, index: string) => {
+    const value = subs[Number(index) - 1];
+    return value ?? "";
+  });
+  return msg;
+}
+
 export function t(
   key: string,
   substitutions?: string | string[],
   customDict?: I18nDict
 ): string {
+  // 如果手动指定了语言，且已有对应的静态字典，使用字典匹配
+  const targetLocale =
+    activePreference !== "auto" ? activePreference : undefined;
+  if (targetLocale && loadedDicts[targetLocale]) {
+    const dict = loadedDicts[targetLocale];
+    if (dict && dict[key]?.message) {
+      return formatMessage(dict[key].message, substitutions);
+    }
+  }
+
   try {
     if (
       typeof chrome !== "undefined" &&
       chrome.i18n &&
       typeof chrome.i18n.getMessage === "function"
     ) {
-      // 优先走 Chrome 官方 _locales 消息表
+      // 默认走 Chrome 官方 _locales 消息表
       const message = chrome.i18n.getMessage(key, substitutions);
       if (message) return message;
     }
@@ -80,28 +194,7 @@ export function t(
       ? window.__WEB_BUG_REPORT_I18N__?.dict
       : undefined);
   if (dict && dict[key]?.message) {
-    let msg = dict[key].message;
-    if (substitutions) {
-      const subs = Array.isArray(substitutions)
-        ? substitutions
-        : [substitutions];
-      // 按命名占位符在消息中首次出现的顺序，依次映射替换参数（先出现者用第一个参数，依此类推）
-      let namedIndex = 0;
-      msg = msg.replace(
-        /\$(COUNT|BYTES|DAYS|MAX|CURRENT|TOTAL|SIZE|ERROR|SECONDS|ACTION|ELEMENT|KEY|TYPE|VALUE)\$/g,
-        () => {
-          const value = subs[namedIndex] ?? "";
-          namedIndex += 1;
-          return value;
-        }
-      );
-      // 兼容数字占位符 $1$ / $2$ …
-      msg = msg.replace(/\$(\d+)\$/g, (_match, index: string) => {
-        const value = subs[Number(index) - 1];
-        return value ?? "";
-      });
-    }
-    return msg;
+    return formatMessage(dict[key].message, substitutions);
   }
 
   return key;
@@ -112,7 +205,6 @@ export function applyI18n(
   customDict?: I18nDict
 ): void {
   // 批量翻译容器内带 data-i18n / data-i18n-ph / data-i18n-title 属性的元素
-  // 翻译文本内容
   const elements = container.querySelectorAll<HTMLElement>("[data-i18n]");
   elements.forEach((el) => {
     const key = el.getAttribute("data-i18n");
@@ -124,7 +216,6 @@ export function applyI18n(
     }
   });
 
-  // 翻译占位符
   const placeholderElements = container.querySelectorAll<
     HTMLInputElement | HTMLTextAreaElement
   >("[data-i18n-ph]");
@@ -138,7 +229,6 @@ export function applyI18n(
     }
   });
 
-  // 翻译 title 属性
   const titleElements =
     container.querySelectorAll<HTMLElement>("[data-i18n-title]");
   titleElements.forEach((el) => {

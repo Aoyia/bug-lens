@@ -49,6 +49,35 @@
   "languageEnUS": {
     "message": "English"
   },
+  "downloadComplete": {
+    "message": "Download complete"
+  },
+  "downloadCompleteNoPath": {
+    "message": "Download complete (path unavailable)"
+  },
+  "downloading": {
+    "message": "Downloading"
+  },
+  "downloadInterrupted": {
+    "message": "Download interrupted"
+  },
+  "downloadNoAbsolutePath": {
+    "message": "Chrome did not return an absolute path; locate the file in downloads."
+  },
+  "exportBeforeCopyPath": {
+    "message": "Please click 'Export Offline Report' first to get absolute path after download."
+  },
+  "copyFailed": {
+    "message": "Copy failed: $ERROR$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "componentContext": {
+    "message": "Component Context"
+  },
   "video": {
     "message": "Video"
   },
@@ -297,7 +326,15 @@
     }
   },
   "storagePolicy": {
-    "message": "Auto clean sessions before $DAYS$ days · Max single session $MAX$",
+    "message": "Cleaned after $DAYS$d",
+    "placeholders": {
+      "days": {
+        "content": "$1"
+      }
+    }
+  },
+  "storagePolicyFull": {
+    "message": "Auto clean sessions older than $DAYS$ days · Max session $MAX$",
     "placeholders": {
       "days": {
         "content": "$1"

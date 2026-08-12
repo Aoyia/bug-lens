@@ -205,25 +205,35 @@ export const HistoryList = memo(function HistoryList({
         )}
       </div>
 
-      <div className="storage-footer">
+      <div
+        className="storage-footer"
+        title={
+          storage
+            ? t("storagePolicyFull", [
+                String(storage.policy.retentionDays),
+                formatBytes(storage.policy.maxSessionBytes),
+              ])
+            : undefined
+        }
+      >
         <span id="storage-used">
           {storage
             ? t("storageUsed", formatBytes(storage.usedBytes))
             : t("loading")}
-        </span>{" "}
-        ·{" "}
+        </span>
+        {" · "}
         <span id="storage-count">
           {storage
             ? t("sessionsCount", String(storage.sessionCount))
             : t("loading")}
         </span>
         {storage && (
-          <div id="storage-policy" className="storage-policy">
-            {t("storagePolicy", [
-              String(storage.policy.retentionDays),
-              formatBytes(storage.policy.maxSessionBytes),
-            ])}
-          </div>
+          <>
+            {" · "}
+            <span id="storage-policy" className="storage-policy">
+              {t("storagePolicy", [String(storage.policy.retentionDays)])}
+            </span>
+          </>
         )}
       </div>
     </div>
