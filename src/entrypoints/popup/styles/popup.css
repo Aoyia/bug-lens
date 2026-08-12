@@ -166,6 +166,14 @@ body {
   white-space: nowrap;
   flex-shrink: 0;
 }
+/* live region 只包状态文本（dot+status）：计时器是同层兄弟，位于实时区域外，
+   避免每秒 tick 触发 aria-atomic 整段播报；内层同样以 inline-flex 保持
+   dot 与状态文本的 5px 间距（与原徽标布局一致，视觉零变化） */
+.status-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
 .dot {
   width: 6px;
   height: 6px;

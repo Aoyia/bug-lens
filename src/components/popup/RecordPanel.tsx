@@ -87,18 +87,24 @@ export const RecordPanel = memo(function RecordPanel({
         <div id="title" className="target-title">
           {activeTab?.title || t("failedToReadTab")}
         </div>
-        <div
-          className="status-badge"
-          role="status"
-          aria-live="polite"
-          aria-atomic="true"
-        >
+        <div className="status-badge">
+          {/* live region 只包状态文本（dot+status）：录制计时器每秒 tick，
+              放在 role=status 区域内会触发 aria-atomic 整段播报，每秒向读屏
+              播报一次「录制中 00:01」「录制中 00:02」……，淹没真正的状态变更；
+              故计时器作为同层兄弟位于实时区域之外（仍可见、可被按需读取）。 */}
           <span
-            id="dot"
-            className={`dot ${active ? "rec" : ""}`}
-            aria-hidden="true"
-          ></span>
-          <span id="status">{getStatusText()}</span>
+            className="status-live"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            <span
+              id="dot"
+              className={`dot ${active ? "rec" : ""}`}
+              aria-hidden="true"
+            ></span>
+            <span id="status">{getStatusText()}</span>
+          </span>
           {timerText && (
             <span id="timer" style={{ marginLeft: "4px" }}>
               {timerText}
