@@ -8,9 +8,27 @@ import {
   groupInteractions,
   type GroupedInteractionCard,
 } from "../../domain/interaction-grouping";
+import { formatElapsedEpochTime } from "../../domain/evidence-clock";
 
 import { copyTextToClipboard } from "../../preview/clipboard";
 import { t } from "../../shared/i18n.ts";
+
+/**
+ * 步骤卡片时间的统一时间语言：优先显示相对录制起点的 MM:SS.mmm
+ * （与 NetworkTab / StreamTab / ConsoleTab 的证据时间线契约一致，
+ *  点击卡片 seek 视频时行时间必须与视频时间轴同基准）。
+ * 无起点或时间早于起点时回退到本地绝对时间，不丢信息、不抛异常。
+ */
+function formatStepTime(
+  epochMs: number,
+  originEpochMs: number | undefined
+): string {
+  if (originEpochMs != null) {
+    const relative = formatElapsedEpochTime(epochMs, originEpochMs);
+    if (relative !== undefined) return relative;
+  }
+  return new Date(epochMs).toLocaleTimeString();
+}
 
 function formatPlaywrightLocator(
   locator: { kind: string; expression: string },
@@ -110,6 +128,9 @@ export const InteractionsTab = memo(function InteractionsTab({
   const groupedCards = useMemo(() => {
     return groupInteractions(snapshot.included);
   }, [snapshot.included]);
+
+  // 会话时间原点：与 NetworkTab / StreamTab / ConsoleTab 一致，行时间优先显示相对录制起点的耗时
+  const originEpochMs = snapshot.startedAtEpochMs;
 
   const toggleExpand = (cardId: string, e: MouseEvent) => {
     e.stopPropagation();
@@ -300,9 +321,29 @@ export const InteractionsTab = memo(function InteractionsTab({
             </div>
             <div className="text">
               {primary.page.url} ·{" "}
-              {new Date(card.aggregatedMeta.startTime).toLocaleTimeString()}
-              {card.children.length > 1 &&
-                ` ~ ${new Date(card.aggregatedMeta.endTime).toLocaleTimeString()}`}
+              <span
+                className="step-time"
+                title={t(
+                  "absoluteTime",
+                  new Date(card.aggregatedMeta.startTime).toLocaleString()
+                )}
+              >
+                {formatStepTime(card.aggregatedMeta.startTime, originEpochMs)}
+              </span>
+              {card.children.length > 1 && (
+                <>
+                  {" ~ "}
+                  <span
+                    className="step-time"
+                    title={t(
+                      "absoluteTime",
+                      new Date(card.aggregatedMeta.endTime).toLocaleString()
+                    )}
+                  >
+                    {formatStepTime(card.aggregatedMeta.endTime, originEpochMs)}
+                  </span>
+                </>
+              )}
             </div>
 
             <div className="aggregated-summary-bar">
@@ -332,7 +373,14 @@ export const InteractionsTab = memo(function InteractionsTab({
                         {child.kind}
                       </span>
                       <span className="sub-step-time">
-                        {new Date(child.createdAt).toLocaleTimeString()}
+                        <span
+                          title={t(
+                            "absoluteTime",
+                            new Date(child.createdAt).toLocaleString()
+                          )}
+                        >
+                          {formatStepTime(child.createdAt, originEpochMs)}
+                        </span>
                       </span>
 
                       {child.kind === "input" && (
