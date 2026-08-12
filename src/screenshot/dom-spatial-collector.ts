@@ -15,6 +15,7 @@ import type {
   TextOverflowInfo,
 } from "../domain/screenshot-payload.ts";
 import type { FrameworkProbeEntry } from "../shared/protocol.ts";
+import { t } from "../shared/i18n.ts";
 
 /** 主世界框架探针：content script 隔离世界读不到 __vue__/__reactFiber$ 等 expando 属性，须注入页面主世界读取 */
 export interface FrameworkProbeFn {
@@ -689,7 +690,7 @@ export function extractSelectState(
   if (rawOptions.length > MAX_OPTIONS) {
     options.push({
       value: "...",
-      text: `... (超出 30 项，共有 ${rawOptions.length} 项)`,
+      text: t("exceedMaxOptions", String(rawOptions.length)),
       selected: false,
       disabled: true,
     });
@@ -714,11 +715,11 @@ export function cleanText(el: Element, maxLen = 60): string | undefined {
       .filter((o) => o.selected)
       .map((o) => o.text || o.value);
     const selectedStr =
-      selectedTexts.length > 0 ? selectedTexts.join(", ") : "未选中";
+      selectedTexts.length > 0 ? selectedTexts.join(", ") : t("noneSelected");
     const allOptStr = selectState.options
       .map((o) => (o.selected ? `${o.text}*` : o.text))
       .join(", ");
-    const fullSummary = `[Select: ${selectedStr} | 选项: ${allOptStr}]`;
+    const fullSummary = t("selectOptionSummary", [selectedStr, allOptStr]);
 
     return maxLen && Number.isFinite(maxLen) && fullSummary.length > maxLen
       ? `${fullSummary.slice(0, maxLen)}...`

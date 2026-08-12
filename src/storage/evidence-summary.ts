@@ -5,6 +5,7 @@ import type {
   NetworkEntry,
   RecordingSession,
 } from "../shared/protocol.ts";
+import { t } from "../shared/i18n.ts";
 
 type MediaSummary = { count: number; mimeType?: string };
 
@@ -66,7 +67,6 @@ export function buildEvidenceSummary(
     media.count,
     hasIssue(session, "media")
   );
-  // 截图状态是独立推导的：全失败 → failed，部分成功 → partial（与 enabledState 语义一致）
   const screenshotState = !session.options.captureScreenshots
     ? "disabled"
     : unavailableScreenshots
@@ -85,7 +85,6 @@ export function buildEvidenceSummary(
     hasIssue(session, "debugger")
   );
   let bodiesState: EvidenceState = "disabled";
-  // 响应体状态优先级：存在脱敏 → redacted；否则全不可用按是否有部分成功区分
   if (session.options.captureNetwork && session.options.captureNetworkBodies) {
     bodiesState = redactedBodyCount
       ? "redacted"
@@ -95,13 +94,16 @@ export function buildEvidenceSummary(
           : "failed"
         : "captured";
   }
+
   return [
     {
       kind: "video",
       state: videoState,
       count: media.count,
       sizeBytes: 0,
-      detail: media.count ? `${media.count} 个 WebM 分片` : "未写入录像",
+      detail: media.count
+        ? t("webmChunks", String(media.count))
+        : t("videoNotCaptured"),
     },
     {
       kind: "audio",
@@ -109,8 +111,8 @@ export function buildEvidenceSummary(
       count: session.options.captureAudio && media.count ? 1 : 0,
       sizeBytes: 0,
       detail: session.options.captureAudio
-        ? "与标签页录像复用同一 WebM"
-        : "未采集",
+        ? t("audioReused")
+        : t("notCaptured"),
     },
     {
       kind: "screenshots",
@@ -118,10 +120,13 @@ export function buildEvidenceSummary(
       count: screenshotCount,
       sizeBytes: 0,
       detail: !session.options.captureScreenshots
-        ? "未采集"
+        ? t("notCaptured")
         : unavailableScreenshots
-          ? `${screenshotCount} 成功，${unavailableScreenshots} 失败`
-          : `${screenshotCount} 张`,
+          ? t("screenshotDetailPartial", [
+              String(screenshotCount),
+              String(unavailableScreenshots),
+            ])
+          : t("countItems", String(screenshotCount)),
     },
     {
       kind: "issueScenes",
@@ -135,22 +140,22 @@ export function buildEvidenceSummary(
       count: issueScenes.length,
       sizeBytes: 0,
       detail: issueScenes.length
-        ? `${issueScenes.length} 个问题现场`
-        : "未标记问题",
+        ? t("issueSceneCountDetail", String(issueScenes.length))
+        : t("noIssueScene"),
     },
     {
       kind: "console",
       state: consoleState,
       count: session.quality.consoleEntryCount,
       sizeBytes: 0,
-      detail: `${session.quality.consoleEntryCount} 条`,
+      detail: t("countEntries", String(session.quality.consoleEntryCount)),
     },
     {
       kind: "network",
       state: networkState,
       count: session.quality.networkEntryCount,
       sizeBytes: 0,
-      detail: `${session.quality.networkEntryCount} 条`,
+      detail: t("countEntries", String(session.quality.networkEntryCount)),
     },
     {
       kind: "networkBodies",
@@ -158,12 +163,17 @@ export function buildEvidenceSummary(
       count: networkBodyEntries.length,
       sizeBytes: bodyBytes,
       detail: !session.options.captureNetworkBodies
-        ? "未采集"
-        : redactedBodyCount
-          ? `${redactedBodyCount} 条已脱敏${truncatedBodyCount ? `，${truncatedBodyCount} 条已截断` : ""}`
-          : truncatedBodyCount
-            ? `${truncatedBodyCount} 条已截断`
-            : `${networkBodyEntries.length} 条`,
+        ? t("notCaptured")
+        : redactedBodyCount && truncatedBodyCount
+          ? t("redactedAndTruncatedBodies", [
+              String(redactedBodyCount),
+              String(truncatedBodyCount),
+            ])
+          : redactedBodyCount
+            ? t("redactedBodies", String(redactedBodyCount))
+            : truncatedBodyCount
+              ? t("truncatedBodies", String(truncatedBodyCount))
+              : t("countEntries", String(networkBodyEntries.length)),
     },
     {
       kind: "frameworkStates",

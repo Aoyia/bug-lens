@@ -78,6 +78,88 @@
   "componentContext": {
     "message": "组件上下文"
   },
+  "webmChunks": {
+    "message": "$COUNT$ 个 WebM 分片"
+  },
+  "videoNotCaptured": {
+    "message": "未写入录像"
+  },
+  "audioReused": {
+    "message": "与标签页录像复用同一 WebM"
+  },
+  "notCaptured": {
+    "message": "未采集"
+  },
+  "screenshotDetailPartial": {
+    "message": "$COUNT$ 成功，$COUNT2$ 失败"
+  },
+  "countItems": {
+    "message": "$COUNT$ 张"
+  },
+  "issueSceneCountDetail": {
+    "message": "$COUNT$ 个问题现场"
+  },
+  "noIssueScene": {
+    "message": "未标记问题"
+  },
+  "countEntries": {
+    "message": "$COUNT$ 条"
+  },
+  "redactedAndTruncatedBodies": {
+    "message": "$COUNT$ 条已脱敏，$COUNT2$ 条已截断"
+  },
+  "redactedBodies": {
+    "message": "$COUNT$ 条已脱敏"
+  },
+  "truncatedBodies": {
+    "message": "$COUNT$ 条已截断"
+  },
+  "frameworkFrames": {
+    "message": "$COUNT$ 帧"
+  },
+  "noFrameworkDetected": {
+    "message": "页面未识别到 React/Vue 组件树"
+  },
+  "healthNormal": {
+    "message": "正常录制中"
+  },
+  "healthUnrecoverable": {
+    "message": "录制环境不可恢复或存储失败"
+  },
+  "healthReconnecting": {
+    "message": "页面采集重连中..."
+  },
+  "healthVideoDisrupted": {
+    "message": "视频画面流中断 (仅采集日志/事件)"
+  },
+  "healthStorageNearLimit": {
+    "message": "存储空间接近配额上限 (>=90%)"
+  },
+  "healthPartialDisruption": {
+    "message": "控制台/网络日志采集中断 (DevTools可能已打开)"
+  },
+  "exceedMaxOptions": {
+    "message": "... (超出 30 项，共有 $TOTAL$ 项)",
+    "placeholders": {
+      "total": {
+        "content": "$1"
+      }
+    }
+  },
+  "noneSelected": {
+    "message": "未选中"
+  },
+  "selectOptionSummary": {
+    "message": "[Select: $SELECTED$ | 选项: $OPTIONS$]",
+    "placeholders": {
+      "selected": {
+        "content": "$1"
+      },
+      "options": {
+        "content": "$2"
+      }
+    }
+  },
   "video": {
     "message": "录像"
   },

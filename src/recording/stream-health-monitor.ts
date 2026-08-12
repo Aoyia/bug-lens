@@ -5,6 +5,7 @@ import {
   type StreamHealthState,
   type StreamHealthVector,
 } from "../shared/protocol.ts";
+import { t } from "../shared/i18n.ts";
 
 export class StreamHealthMonitor {
   private currentStreams: StreamHealthVector = {
@@ -68,33 +69,33 @@ export class StreamHealthMonitor {
     let code: RecordingHealthCode = "RECORDING";
     let badgeText = "REC";
     let badgeColor = "#d92d20";
-    let messageText = "正常录制中";
+    let messageText = t("healthNormal");
 
     if (s.content === "failed" || s.storage === "failed") {
       code = "UNRECOVERABLE";
       badgeText = "ERR";
       badgeColor = "#101828";
-      messageText = "录制环境不可恢复或存储失败";
+      messageText = t("healthUnrecoverable");
     } else if (s.content === "reconnecting") {
       code = "RECONNECTING";
       badgeText = "LINK";
       badgeColor = "#eaaa08";
-      messageText = "页面采集重连中...";
+      messageText = t("healthReconnecting");
     } else if (s.media === "disrupted" || s.media === "failed") {
       code = "VIDEO_DISRUPTED";
       badgeText = "NO_V";
       badgeColor = "#f04438";
-      messageText = "视频画面流中断 (仅采集日志/事件)";
+      messageText = t("healthVideoDisrupted");
     } else if (s.storage === "disrupted") {
       code = "STORAGE_NEAR_LIMIT";
       badgeText = "FULL";
       badgeColor = "#f79009";
-      messageText = "存储空间接近配额上限 (>=90%)";
+      messageText = t("healthStorageNearLimit");
     } else if (s.cdp === "disrupted" || s.cdp === "reconnecting") {
       code = "PARTIAL_DISRUPTION";
       badgeText = "PART";
       badgeColor = "#f79009";
-      messageText = "控制台/网络日志采集中断 (DevTools可能已打开)";
+      messageText = t("healthPartialDisruption");
     }
 
     return {

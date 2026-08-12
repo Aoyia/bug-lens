@@ -78,6 +78,88 @@
   "componentContext": {
     "message": "Component Context"
   },
+  "webmChunks": {
+    "message": "$COUNT$ WebM chunks"
+  },
+  "videoNotCaptured": {
+    "message": "No video recorded"
+  },
+  "audioReused": {
+    "message": "Shares WebM with tab video"
+  },
+  "notCaptured": {
+    "message": "Not captured"
+  },
+  "screenshotDetailPartial": {
+    "message": "$COUNT$ succeeded, $COUNT2$ failed"
+  },
+  "countItems": {
+    "message": "$COUNT$ items"
+  },
+  "issueSceneCountDetail": {
+    "message": "$COUNT$ issue scenes"
+  },
+  "noIssueScene": {
+    "message": "No issues marked"
+  },
+  "countEntries": {
+    "message": "$COUNT$ entries"
+  },
+  "redactedAndTruncatedBodies": {
+    "message": "$COUNT$ redacted, $COUNT2$ truncated"
+  },
+  "redactedBodies": {
+    "message": "$COUNT$ redacted"
+  },
+  "truncatedBodies": {
+    "message": "$COUNT$ truncated"
+  },
+  "frameworkFrames": {
+    "message": "$COUNT$ frames"
+  },
+  "noFrameworkDetected": {
+    "message": "No React/Vue component tree detected"
+  },
+  "healthNormal": {
+    "message": "Recording normally"
+  },
+  "healthUnrecoverable": {
+    "message": "Recording environment unrecoverable or storage failed"
+  },
+  "healthReconnecting": {
+    "message": "Reconnecting page capture..."
+  },
+  "healthVideoDisrupted": {
+    "message": "Video stream interrupted (capturing logs/events only)"
+  },
+  "healthStorageNearLimit": {
+    "message": "Storage space near quota limit (>=90%)"
+  },
+  "healthPartialDisruption": {
+    "message": "Console/Network capture interrupted (DevTools may be open)"
+  },
+  "exceedMaxOptions": {
+    "message": "... (Exceeds 30 items, $TOTAL$ total)",
+    "placeholders": {
+      "total": {
+        "content": "$1"
+      }
+    }
+  },
+  "noneSelected": {
+    "message": "None selected"
+  },
+  "selectOptionSummary": {
+    "message": "[Select: $SELECTED$ | Options: $OPTIONS$]",
+    "placeholders": {
+      "selected": {
+        "content": "$1"
+      },
+      "options": {
+        "content": "$2"
+      }
+    }
+  },
   "video": {
     "message": "Video"
   },
