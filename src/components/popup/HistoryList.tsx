@@ -6,6 +6,7 @@ import {
   type StorageOverview,
 } from "../../shared/protocol";
 import { t } from "../../shared/i18n";
+import { formatSessionDate } from "../../popup/session-date";
 
 /** 会话状态 → i18n key：历史卡片状态标签必须走双语文案，不能把内部枚举直接展示给用户 */
 const SESSION_STATUS_KEYS: Record<SessionStatus, string> = {
@@ -108,9 +109,7 @@ export const HistoryList = memo(function HistoryList({
         ) : (
           sessions.map((item) => {
             const { session } = item;
-            const date = new Date(
-              session.timeline.createdAtEpochMs
-            ).toLocaleString();
+            const date = formatSessionDate(session.timeline.createdAtEpochMs);
             const isContinuable = session.quality.issues.some(
               (entry) =>
                 entry.code.startsWith("SESSION_") ||
