@@ -82,3 +82,32 @@ test("i18n: 注入 en 字典时移除标记 tooltip 渲染为英文", () => {
     (globalThis as any).window = prev;
   }
 });
+
+test("selection-overlay 采集失败路径不再使用阻塞式原生 alert()", () => {
+  const source = readFileSync(SOURCE, "utf8");
+  assert.ok(
+    !source.includes("alert("),
+    "采集失败反馈应走扩展自身非阻塞 Toast，而非阻塞页面的原生 alert()"
+  );
+});
+
+test("selection-overlay 采集失败路径通过 onError 依赖上报错误", () => {
+  const source = readFileSync(SOURCE, "utf8");
+  assert.match(
+    source,
+    /this\.deps\.onError\(\s*t\(\s*"issueSceneCaptureFailed"/,
+    "失败分支应调用注入的 onError 回调并携带本地化错误文案"
+  );
+});
+
+test("interaction-collector 为选区采集失败接线了非阻塞 error 音色 Toast", () => {
+  const source = readFileSync(
+    resolve(process.cwd(), "src/entrypoints/content/interaction-collector.ts"),
+    "utf8"
+  );
+  assert.match(
+    source,
+    /onError:\s*\(message\)\s*=>\s*widget\.showToast\(message,\s*5_500,\s*"error"\)/,
+    "选区失败应复用导出失败的 error 音色 Toast 模式，而非原生对话框"
+  );
+});

@@ -39,6 +39,8 @@ export type SelectionOverlayDeps = {
     dataUrl: string | undefined
   ): void;
   onCancel(): void;
+  /** 采集失败的非阻塞反馈出口（toast 等）；不得回退到阻塞页面的原生对话框 */
+  onError(message: string): void;
   getEditorElement(): HTMLElement | undefined;
   shortcutKeyText: string;
 };
@@ -569,7 +571,7 @@ export class SelectionOverlay {
       )
       .then((response) => {
         if (!response?.ok || !response.scene) {
-          alert(
+          this.deps.onError(
             t("issueSceneCaptureFailed", [response?.error ?? t("unknownError")])
           );
           this.deps.onCancel();
@@ -578,7 +580,7 @@ export class SelectionOverlay {
         this.deps.onCaptureComplete(response.scene, response.dataUrl);
       })
       .catch((error) => {
-        alert(t("issueSceneCaptureFailed", [String(error)]));
+        this.deps.onError(t("issueSceneCaptureFailed", [String(error)]));
         this.deps.onCancel();
       });
   }
