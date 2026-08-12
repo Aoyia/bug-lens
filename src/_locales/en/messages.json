@@ -1418,5 +1418,26 @@
   },
   "clipExportNoVideo": {
     "message": "No recording available for this session, so no video clip can be exported."
+  },
+  "clipExportNoValidVideo": {
+    "message": "No valid video recording is available, so no clip can be exported."
+  },
+  "clipExportRangeInvalid": {
+    "message": "Invalid video clip time range."
+  },
+  "clipExportPreparing": {
+    "message": "Generating a 5s video clip, please wait…"
+  },
+  "clipExportCanvasFailed": {
+    "message": "Failed to initialize Canvas."
+  },
+  "clipExportDownloadStarted": {
+    "message": "MP4 video clip download started ($1$)"
+  },
+  "clipExportDownloadFailed": {
+    "message": "Download failed: $ERROR$"
+  },
+  "clipExportFailed": {
+    "message": "Failed to export video clip: $ERROR$"
   }
 }

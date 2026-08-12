@@ -1,3 +1,5 @@
+import { t } from "../shared/i18n.ts";
+
 export async function exportVideoClip(
   video: HTMLVideoElement,
   startTimeSec: number,
@@ -11,7 +13,7 @@ export async function exportVideoClip(
     isNaN(video.duration) ||
     video.duration <= 0
   ) {
-    onNotify("暂无有效视频录像，无法导出片段");
+    onNotify(t("clipExportNoValidVideo"));
     return;
   }
 
@@ -20,11 +22,11 @@ export async function exportVideoClip(
   const end = Math.min(duration, endTimeSec);
 
   if (end <= start) {
-    onNotify("视频剪辑时间区间无效");
+    onNotify(t("clipExportRangeInvalid"));
     return;
   }
 
-  onNotify("正在生成前后 5s 视频片段，请稍候…");
+  onNotify(t("clipExportPreparing"));
 
   const originalTime = video.currentTime;
   const originalPaused = video.paused;
@@ -36,7 +38,7 @@ export async function exportVideoClip(
   const ctx = canvas.getContext("2d");
 
   if (!ctx) {
-    onNotify("Canvas 初始化失败");
+    onNotify(t("clipExportCanvasFailed"));
     return;
   }
 
@@ -113,9 +115,9 @@ export async function exportVideoClip(
           a.click();
           a.remove();
         }
-        onNotify(`已成功触发下载 MP4 视频片段 (${finalFilename})`);
+        onNotify(t("clipExportDownloadStarted", finalFilename));
       } catch (err) {
-        onNotify(`下载失败：${String(err)}`);
+        onNotify(t("clipExportDownloadFailed", String(err)));
       } finally {
         setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
       }
@@ -154,6 +156,6 @@ export async function exportVideoClip(
   } catch (error) {
     video.playbackRate = originalRate;
     video.currentTime = originalTime;
-    onNotify(`导出视频片段失败：${String(error)}`);
+    onNotify(t("clipExportFailed", String(error)));
   }
 }
