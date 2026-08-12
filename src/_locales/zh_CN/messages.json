@@ -1120,7 +1120,7 @@
     "message": "开启/关闭 样式微调模式（提取详细 CSS 级联快照）"
   },
   "shotDisablePruning": {
-    "message": "开启/关闭 不剪枝模式（提取全页 DOM 上下文）"
+    "message": "开启/关闭 框内高保真模式（100%无损提取框内DOM、完整文本与组件状态）"
   },
   "shotUndo": {
     "message": "撤销 (Ctrl+Z / Cmd+Z)"
@@ -1435,12 +1435,27 @@
     "message": "Canvas 初始化失败"
   },
   "clipExportDownloadStarted": {
-    "message": "已成功触发下载 MP4 视频片段 ($1$)"
+    "message": "已成功触发下载 MP4 视频片段 ($1$)",
+    "placeholders": {
+      "1": {
+        "content": "$1"
+      }
+    }
   },
   "clipExportDownloadFailed": {
-    "message": "下载失败：$ERROR$"
+    "message": "下载失败：$ERROR$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
   },
   "clipExportFailed": {
-    "message": "导出视频片段失败：$ERROR$"
+    "message": "导出视频片段失败：$ERROR$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
   }
 }

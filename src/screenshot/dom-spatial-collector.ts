@@ -10,6 +10,8 @@ import type {
   GridItemContextInfo,
   LayoutContextInfo,
   RectBounds,
+  SelectOptionItem,
+  SelectStateSnapshot,
   TextOverflowInfo,
 } from "../domain/screenshot-payload.ts";
 import type { FrameworkProbeEntry } from "../shared/protocol.ts";
@@ -659,12 +661,333 @@ export function getDirectInnerText(
   return cleaned.length > maxLen ? `${cleaned.slice(0, maxLen)}...` : cleaned;
 }
 
+/** 提取 <select> 节点的完整 options 状态快照 */
+export function extractSelectState(
+  el: Element
+): SelectStateSnapshot | undefined {
+  if (el.tagName !== "SELECT") return undefined;
+  const selectEl = el as HTMLSelectElement;
+  const rawOptions = Array.from(selectEl.options || []);
+  if (rawOptions.length === 0) {
+    return {
+      selectedIndex: selectEl.selectedIndex ?? -1,
+      multiple: !!selectEl.multiple,
+      options: [],
+    };
+  }
+
+  const MAX_OPTIONS = 30;
+  const options: SelectOptionItem[] = rawOptions
+    .slice(0, MAX_OPTIONS)
+    .map((opt) => ({
+      value: opt.value || "",
+      text: (opt.text || opt.textContent || "").trim(),
+      selected: !!opt.selected,
+      disabled: opt.disabled || undefined,
+    }));
+
+  if (rawOptions.length > MAX_OPTIONS) {
+    options.push({
+      value: "...",
+      text: `... (超出 30 项，共有 ${rawOptions.length} 项)`,
+      selected: false,
+      disabled: true,
+    });
+  }
+
+  return {
+    selectedIndex: selectEl.selectedIndex ?? -1,
+    multiple: !!selectEl.multiple,
+    options,
+  };
+}
+
 /** 提取干净的 DOM 文本内容 (单行，限制长度) */
 export function cleanText(el: Element, maxLen = 60): string | undefined {
-  const raw = (el as HTMLElement).innerText || el.textContent || "";
+  if (el.tagName === "SELECT") {
+    const selectState = extractSelectState(el);
+    if (!selectState || selectState.options.length === 0) {
+      const val = (el as HTMLSelectElement).value || "";
+      return val ? `[Select: ${val}]` : undefined;
+    }
+    const selectedTexts = selectState.options
+      .filter((o) => o.selected)
+      .map((o) => o.text || o.value);
+    const selectedStr =
+      selectedTexts.length > 0 ? selectedTexts.join(", ") : "未选中";
+    const allOptStr = selectState.options
+      .map((o) => (o.selected ? `${o.text}*` : o.text))
+      .join(", ");
+    const fullSummary = `[Select: ${selectedStr} | 选项: ${allOptStr}]`;
+
+    return maxLen && Number.isFinite(maxLen) && fullSummary.length > maxLen
+      ? `${fullSummary.slice(0, maxLen)}...`
+      : fullSummary;
+  }
+
+  const isInput = el.tagName === "INPUT" || el.tagName === "TEXTAREA";
+  const raw = isInput
+    ? (el as HTMLInputElement).value ||
+      (el as HTMLInputElement).placeholder ||
+      ""
+    : (el as HTMLElement).innerText ||
+      el.textContent ||
+      el.getAttribute("aria-label") ||
+      el.getAttribute("alt") ||
+      "";
   const cleaned = raw.replace(/\s+/g, " ").trim();
   if (!cleaned) return undefined;
-  return cleaned.length > maxLen ? `${cleaned.slice(0, maxLen)}...` : cleaned;
+  return maxLen && Number.isFinite(maxLen) && cleaned.length > maxLen
+    ? `${cleaned.slice(0, maxLen)}...`
+    : cleaned;
+}
+
+/** 节点可见性检测 */
+export function checkElementVisibility(
+  el: Element
+): "visible" | "hidden_css" | "zero_size" {
+  if (typeof window === "undefined" || !el.getBoundingClientRect) {
+    return "visible";
+  }
+  const rect = el.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) {
+    if (typeof window.getComputedStyle === "function") {
+      const style = window.getComputedStyle(el);
+      if (
+        style.display === "none" ||
+        style.visibility === "hidden" ||
+        style.opacity === "0"
+      ) {
+        return "hidden_css";
+      }
+    }
+    return "zero_size";
+  }
+
+  if (typeof window.getComputedStyle === "function") {
+    const style = window.getComputedStyle(el);
+    if (
+      style.display === "none" ||
+      style.visibility === "hidden" ||
+      style.opacity === "0"
+    ) {
+      return "hidden_css";
+    }
+  }
+  return "visible";
+}
+
+export interface ElementExposureResult {
+  exposure: "exposed" | "obscured" | "clipped" | "hidden_css";
+  obscuredBy?: string;
+}
+
+/** 物理遮挡与视口露出生效算子 (Visual Overlap & Viewport Exposure Operator) */
+export function checkElementExposure(
+  el: Element,
+  bounds?: RectBounds
+): ElementExposureResult {
+  const vis = checkElementVisibility(el);
+  if (vis === "hidden_css" || vis === "zero_size") {
+    return { exposure: "hidden_css" };
+  }
+
+  if (
+    typeof document === "undefined" ||
+    typeof document.elementFromPoint !== "function"
+  ) {
+    return { exposure: "exposed" };
+  }
+
+  const b =
+    bounds ||
+    (el.getBoundingClientRect
+      ? el.getBoundingClientRect()
+      : { x: 0, y: 0, width: 0, height: 0 });
+  if (b.width <= 0 || b.height <= 0) {
+    return { exposure: "hidden_css" };
+  }
+
+  // 1. 视口与父级 overflow 裁剪判定
+  let parent = el.parentElement;
+  while (
+    parent &&
+    parent !== document.body &&
+    parent !== document.documentElement
+  ) {
+    if (
+      typeof window !== "undefined" &&
+      typeof window.getComputedStyle === "function"
+    ) {
+      const parentStyle = window.getComputedStyle(parent);
+      if (
+        parentStyle &&
+        (parentStyle.overflow === "hidden" ||
+          parentStyle.overflowX === "hidden" ||
+          parentStyle.overflowY === "hidden" ||
+          parentStyle.overflow === "clip")
+      ) {
+        if (typeof parent.getBoundingClientRect === "function") {
+          const pRect = parent.getBoundingClientRect();
+          if (
+            b.x + b.width <= pRect.left ||
+            b.x >= pRect.right ||
+            b.y + b.height <= pRect.top ||
+            b.y >= pRect.bottom
+          ) {
+            return { exposure: "clipped" };
+          }
+        }
+      }
+    }
+    parent = parent.parentElement;
+  }
+
+  // 2. 视口点击采样点测试 (Sampling points: Center, 25%, 75%)
+  const cx = Math.round(b.x + b.width / 2);
+  const cy = Math.round(b.y + b.height / 2);
+
+  const points = [
+    { x: cx, y: cy },
+    {
+      x: Math.round(b.x + b.width * 0.25),
+      y: Math.round(b.y + b.height * 0.25),
+    },
+    {
+      x: Math.round(b.x + b.width * 0.75),
+      y: Math.round(b.y + b.height * 0.75),
+    },
+  ];
+
+  let topEl: Element | null = null;
+  let exposedHitCount = 0;
+
+  const winWidth =
+    typeof window !== "undefined" && window.innerWidth
+      ? window.innerWidth
+      : 10000;
+  const winHeight =
+    typeof window !== "undefined" && window.innerHeight
+      ? window.innerHeight
+      : 10000;
+
+  for (const pt of points) {
+    if (pt.x < 0 || pt.y < 0 || pt.x > winWidth || pt.y > winHeight) {
+      continue;
+    }
+
+    const hit = document.elementFromPoint(pt.x, pt.y);
+    if (!hit) continue;
+
+    const isSelfHit =
+      hit === el ||
+      (typeof el.contains === "function" && el.contains(hit)) ||
+      (typeof hit.contains === "function" && hit.contains(el));
+
+    if (isSelfHit) {
+      exposedHitCount++;
+    } else if (!topEl) {
+      topEl = hit;
+    }
+  }
+
+  if (exposedHitCount > 0) {
+    return { exposure: "exposed" };
+  }
+
+  if (topEl) {
+    return {
+      exposure: "obscured",
+      obscuredBy: buildCssSelector(topEl),
+    };
+  }
+
+  return { exposure: "exposed" };
+}
+
+/** 节点的 Bug 异常与错误意图分析 */
+export function detectErrorSignal(el: Element): boolean {
+  const className =
+    (el.className && typeof el.className === "string" ? el.className : "") ||
+    "";
+  const id = el.id || "";
+  const role = el.getAttribute ? el.getAttribute("role") || "" : "";
+  const combined = `${className} ${id} ${role}`.toLowerCase();
+
+  const hasErrorKeyword =
+    /error|invalid|danger|warning|fail|disabled|alert|tooltip/.test(combined);
+  const hasAriaInvalid = el.getAttribute
+    ? el.getAttribute("aria-invalid") === "true"
+    : false;
+  return hasErrorKeyword || hasAriaInvalid;
+}
+
+/** 计算标准模式下节点的语义价值诊断分值 (Semantic Value Score) */
+export function calculateNodeSemanticScore(
+  el: Element,
+  duplicateCount = 0
+): number {
+  let score = 0;
+  const tag = el.tagName.toUpperCase();
+
+  // 1. 元素交互类型分
+  const isInteractive =
+    tag === "INPUT" ||
+    tag === "BUTTON" ||
+    tag === "SELECT" ||
+    tag === "TEXTAREA" ||
+    tag === "A" ||
+    (el.hasAttribute && el.hasAttribute("contenteditable")) ||
+    (el.getAttribute && el.getAttribute("role") === "button");
+
+  const isHeader =
+    /^H[1-6]$/.test(tag) ||
+    (el.getAttribute && el.getAttribute("role") === "heading");
+  const isMedia =
+    tag === "IMG" || tag === "SVG" || tag === "CANVAS" || tag === "VIDEO";
+  const isTextLeaf = hasOwnText(el);
+
+  if (isInteractive) score += 8;
+  else if (isHeader) score += 6;
+  else if (isMedia) score += 4;
+  else if (isTextLeaf) score += 4;
+  else score += 1;
+
+  // 2. 可见性与物理曝光状态打分
+  const exp = checkElementExposure(el);
+  const isErr = detectErrorSignal(el);
+
+  if (exp.exposure === "exposed") {
+    score += 5;
+  } else if (exp.exposure === "obscured" && isErr) {
+    // 被上层遮挡但带有 Bug 异常特征 (+3分)
+    score += 3;
+  } else if (exp.exposure === "obscured") {
+    // 普通被遮挡节点 (-6分)
+    score -= 6;
+  } else if (exp.exposure === "clipped" || exp.exposure === "hidden_css") {
+    score -= 5;
+  }
+
+  // 3. Bug 异常与错误特征 (+10分)
+  if (isErr) score += 10;
+
+  // 4. 定位符 (+4分)
+  if (
+    el.id ||
+    (el.hasAttribute && el.hasAttribute("data-testid")) ||
+    (el.hasAttribute && el.hasAttribute("name")) ||
+    (el.hasAttribute && el.hasAttribute("aria-label"))
+  ) {
+    score += 4;
+  }
+
+  // 5. 同质化衰减 (第 3 个起衰减 x0.3)
+  if (duplicateCount >= 2) {
+    score *= 0.3;
+  }
+
+  return score;
 }
 
 /** 是否含非空文本 */
@@ -730,9 +1053,18 @@ export async function collectSpatialDomTree(
       continue;
     }
     const bounds = boundsOf(el);
-    if (bounds.width <= 0 || bounds.height <= 0) continue;
-    if (disablePruning || isRectIntersecting(cropBounds, bounds))
+    const parentInCandidates =
+      el.parentElement && candidates.includes(el.parentElement);
+    if (
+      bounds.width > 0 &&
+      bounds.height > 0 &&
+      isRectIntersecting(cropBounds, bounds)
+    ) {
       candidates.push(el);
+    } else if (parentInCandidates && detectErrorSignal(el)) {
+      // 隐式报错/提示节点：父节点在框内，自身已被隐藏或为 0 尺寸
+      candidates.push(el);
+    }
   }
 
   const privacyMasks = annotations.filter((a) => a.type === "privacy");
@@ -780,17 +1112,39 @@ export async function collectSpatialDomTree(
     }
   }
 
-  // 3. 有效叶子：含非空文本的叶子元素（排除锚点，按文本长度取 top N）
-  const leafPool: Array<{ el: Element; textLen: number }> = [];
-  for (const el of candidates) {
-    if (anchorSet.has(el)) continue;
-    if (!hasOwnText(el)) continue;
-    const text = (el as HTMLElement).innerText?.trim() ?? "";
-    leafPool.push({ el, textLen: text.length });
+  const isHighFidelity = !!options.disablePruning;
+  const textMaxLen = isHighFidelity ? Number.POSITIVE_INFINITY : 60;
+  const styleAdjustmentMode =
+    (options.styleAdjustmentMode ?? true) || isHighFidelity;
+
+  // 3. 有效节点收集：高保真模式下不跑 hasOwnText，直接收集框内所有 candidates；标准模式跑多维打分精选
+  let leafEls: Element[] = [];
+  let truncated = false;
+
+  if (isHighFidelity) {
+    leafEls = candidates.filter((el) => !anchorSet.has(el));
+    truncated = false;
+  } else {
+    const selectorCounts = new Map<string, number>();
+    const scoredPool: Array<{ el: Element; score: number }> = [];
+
+    for (const el of candidates) {
+      if (anchorSet.has(el)) continue;
+      const classNameStr =
+        el.className && typeof el.className === "string" ? el.className : "";
+      const selectorKey = el.tagName + (classNameStr ? `.${classNameStr}` : "");
+      const count = selectorCounts.get(selectorKey) ?? 0;
+      selectorCounts.set(selectorKey, count + 1);
+
+      const score = calculateNodeSemanticScore(el, count);
+      if (score > 0) {
+        scoredPool.push({ el, score });
+      }
+    }
+    scoredPool.sort((a, b) => b.score - a.score);
+    leafEls = scoredPool.slice(0, MAX_LEAVES).map((i) => i.el);
+    truncated = scoredPool.length > MAX_LEAVES;
   }
-  leafPool.sort((a, b) => b.textLen - a.textLen);
-  const leafEls = leafPool.slice(0, MAX_LEAVES).map((i) => i.el);
-  const truncated = leafPool.length > MAX_LEAVES;
 
   // 4. SCA：锚点 + 叶子 的公共祖先
   const focusEls = [...anchorSet.keys(), ...leafEls];
@@ -824,8 +1178,6 @@ export async function collectSpatialDomTree(
     return path ? { componentName: path[0], componentPath: path } : undefined;
   };
 
-  const styleAdjustmentMode = options.styleAdjustmentMode ?? true;
-
   const ancestors: DomAncestorNode[] = Array.from(ancestorSet)
     .map((el) => ({ el, depth: domDepthRelativeTo(el, sca) }))
     .sort((a, b) => a.depth - b.depth)
@@ -841,8 +1193,9 @@ export async function collectSpatialDomTree(
   const anchors: DomAnchorNode[] = Array.from(anchorSet.entries()).map(
     ([el, intentFlags]) => {
       const bounds = boundsOf(el);
-      const text = cleanText(el);
+      const text = cleanText(el, textMaxLen);
       const comp = componentOf(el);
+      const exp = checkElementExposure(el, bounds);
       return {
         ...formatDomNodeSelectorFields(el),
         selectorPath: buildSelectorPath(el, sca),
@@ -853,6 +1206,11 @@ export async function collectSpatialDomTree(
           width: bounds.width,
           height: bounds.height,
         },
+        visibility: checkElementVisibility(el),
+        exposure: exp.exposure,
+        obscuredBy: exp.obscuredBy,
+        isErrorSignal: detectErrorSignal(el) || undefined,
+        selectState: extractSelectState(el),
         computedStyles: extractKeyComputedStyles(el, styleAdjustmentMode),
         boxModel: styleAdjustmentMode ? extractBoxModelGeometry(el) : undefined,
         layoutContext: styleAdjustmentMode
@@ -872,7 +1230,8 @@ export async function collectSpatialDomTree(
 
   const leaves: DomLeafNode[] = leafEls.map((el) => {
     const bounds = boundsOf(el);
-    const text = cleanText(el, 60);
+    const text = cleanText(el, textMaxLen);
+    const exp = checkElementExposure(el, bounds);
     return {
       tagName: el.tagName.toLowerCase(),
       id: el.id || undefined,
@@ -884,6 +1243,11 @@ export async function collectSpatialDomTree(
         width: bounds.width,
         height: bounds.height,
       },
+      visibility: checkElementVisibility(el),
+      exposure: exp.exposure,
+      obscuredBy: exp.obscuredBy,
+      isErrorSignal: detectErrorSignal(el) || undefined,
+      selectState: extractSelectState(el),
       componentName: componentOf(el)?.componentName,
       computedStyles: extractKeyComputedStyles(el, styleAdjustmentMode),
       layoutStyle: extractLayoutStyles(el),

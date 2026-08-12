@@ -226,7 +226,11 @@ export function createOverlayMarkup(): string {
           </button>
           <button data-tool="style-adjust" class="active" title="${t("shotStyleAdjust")}">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
+              <path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.4 2.4 0 0 1 0-3.4l2.6-2.6a2.4 2.4 0 0 1 3.4 0l12.6 12.6z"/>
+              <line x1="14.5" y1="12.5" x2="16.5" y2="10.5"/>
+              <line x1="11.5" y1="9.5" x2="13.5" y2="7.5"/>
+              <line x1="8.5" y1="6.5" x2="10.5" y2="4.5"/>
+              <line x1="17.5" y1="15.5" x2="19.5" y2="13.5"/>
             </svg>
           </button>
           <button data-tool="pruning-toggle" title="${t("shotDisablePruning")}">

@@ -1120,7 +1120,7 @@
     "message": "Toggle Style Adjustment Mode (extract CSS Cascade Snapshot)"
   },
   "shotDisablePruning": {
-    "message": "Toggle Disable Pruning Mode (include full page DOM context)"
+    "message": "Toggle High-Fidelity Mode (100% loss-free extraction of selection DOM, full text, and component state)"
   },
   "shotUndo": {
     "message": "Undo (Ctrl+Z / Cmd+Z)"
@@ -1435,12 +1435,27 @@
     "message": "Failed to initialize Canvas."
   },
   "clipExportDownloadStarted": {
-    "message": "MP4 video clip download started ($1$)"
+    "message": "MP4 video clip download started ($1$)",
+    "placeholders": {
+      "1": {
+        "content": "$1"
+      }
+    }
   },
   "clipExportDownloadFailed": {
-    "message": "Download failed: $ERROR$"
+    "message": "Download failed: $ERROR$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
   },
   "clipExportFailed": {
-    "message": "Failed to export video clip: $ERROR$"
+    "message": "Failed to export video clip: $ERROR$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
   }
 }

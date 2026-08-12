@@ -214,6 +214,20 @@ export interface LayoutContextInfo {
   stackingContext?: StackingContextInfo;
 }
 
+/** 下拉框选项元数据快照 */
+export interface SelectOptionItem {
+  value: string;
+  text: string;
+  selected: boolean;
+  disabled?: boolean;
+}
+
+export interface SelectStateSnapshot {
+  selectedIndex: number;
+  multiple: boolean;
+  options: SelectOptionItem[];
+}
+
 /** DOM 嵌套树节点（支持结构化层级与组件路径链） */
 export interface DomTreeNode {
   selector: string;
@@ -235,8 +249,19 @@ export interface DomTreeNode {
     isPrivacyRedacted?: boolean;
     textComment?: string;
   };
+
   /** 被折叠透传的无语义单子节点 Selector 链 */
   collapsedWrappers?: string[];
+  /** 可见性状态 */
+  visibility?: "visible" | "hidden_css" | "zero_size";
+  /** 视口物理曝光与遮挡检测状态 */
+  exposure?: "exposed" | "obscured" | "clipped" | "hidden_css";
+  /** 若节点被物理上层元素遮挡，记录遮挡目标的 CSS selector */
+  obscuredBy?: string;
+  /** 是否含有错误/异常意图特征 */
+  isErrorSignal?: boolean;
+  /** <select> 下拉框完整的 options 选中/未选中状态快照 */
+  selectState?: SelectStateSnapshot;
   children?: DomTreeNode[];
 }
 
@@ -264,6 +289,11 @@ export interface DomAnchorNode {
   componentName?: string;
   /** 框架组件链（最近组件到根，已处理为正向或标准继承链） */
   componentPath?: string[];
+  visibility?: "visible" | "hidden_css" | "zero_size";
+  exposure?: "exposed" | "obscured" | "clipped" | "hidden_css";
+  obscuredBy?: string;
+  isErrorSignal?: boolean;
+  selectState?: SelectStateSnapshot;
   intentFlags: {
     isArrowTarget?: boolean;
     isHighlightedFocus?: boolean;
@@ -272,7 +302,7 @@ export interface DomAnchorNode {
   };
 }
 
-/** 叶子节点：选区内含非空文本的有效叶子（轻量） */
+/** 叶子节点：选区内有效节点（包含文本/交互控件/媒体） */
 export interface DomLeafNode {
   tagName: string;
   id?: string;
@@ -285,6 +315,11 @@ export interface DomLeafNode {
   layoutStyle?: Record<string, string>;
   boxModel?: BoxModelGeometry;
   layoutContext?: LayoutContextInfo;
+  visibility?: "visible" | "hidden_css" | "zero_size";
+  exposure?: "exposed" | "obscured" | "clipped" | "hidden_css";
+  obscuredBy?: string;
+  isErrorSignal?: boolean;
+  selectState?: SelectStateSnapshot;
 }
 
 /** 祖先节点：锚点/叶子的去重祖先链（最轻量） */
