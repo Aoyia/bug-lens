@@ -22,6 +22,7 @@ import { copyTextToClipboard } from "../../preview/clipboard";
 import { useSessionState } from "../../hooks/useSessionState.ts";
 import { bindConfirmDialogDismiss } from "../../popup/confirm-dialog";
 import { resolvePopupEscape } from "../../popup/popup-escape";
+import { focusHistorySearchOnEntry } from "../../popup/history-search-focus";
 import { RecordPanel } from "./RecordPanel.tsx";
 import { OptionsGrid, type VideoQuality } from "./OptionsGrid.tsx";
 import { HistoryList } from "./HistoryList.tsx";
@@ -301,6 +302,17 @@ export function PopupApp() {
       void refreshHistory(debouncedSearchQuery);
     }
   }, [currentView, debouncedSearchQuery]);
+
+  // 进入历史视图时把焦点交给搜索框（主操作控件直达）：历史视图的核心任务
+  // 是检索会话，搜索框是唯一主输入控件，进入即聚焦可省去「点历史图标 → 再点
+  // 搜索框」的一次多余点击；同时让 popup-escape 的两段式语义（焦点在搜索框
+  // 且有关键词 → 第一下 Escape 清空搜索）成为进入历史视图的自然默认态。
+  useEffect(() => {
+    focusHistorySearchOnEntry({
+      currentView,
+      getSearchInput: () => document.getElementById("search"),
+    });
+  }, [currentView]);
 
   // 扩展内自定义确认弹窗的状态（替代浏览器原生 window.confirm）
   const [confirmModal, setConfirmModal] = useState<{
