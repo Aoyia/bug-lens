@@ -5,7 +5,7 @@ export const TEXT_ANNOTATION_FONT_FAMILY =
 /** 保持既有字符串值不变（向后兼容），供 canvas ctx.font 直接使用 */
 export const TEXT_ANNOTATION_FONT = `${TEXT_ANNOTATION_FONT_SIZE}px ${TEXT_ANNOTATION_FONT_FAMILY}`;
 export const TEXT_MIN_WIDTH = 80;
-export const TEXT_MAX_WIDTH = 320;
+export const TEXT_MAX_WIDTH = 600;
 export const TEXT_PADDING_X = 10;
 export const TEXT_PADDING_Y = 6;
 export const TEXT_LINE_HEIGHT = 18;
@@ -190,7 +190,7 @@ export function computeTextLayout(
     TEXT_MIN_WIDTH,
     Math.min(maxWidth, maxW + TEXT_PADDING_X * 2)
   );
-  const bgHeight = TEXT_PADDING_Y * 2 + lines.length * TEXT_LINE_HEIGHT;
+  const bgHeight = TEXT_PADDING_Y * 2 + lines.length * TEXT_LINE_HEIGHT + 2;
 
   return { lines, bgWidth, bgHeight };
 }

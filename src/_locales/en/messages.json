@@ -1119,6 +1119,9 @@
   "shotStyleAdjust": {
     "message": "Toggle Style Adjustment Mode (extract CSS Cascade Snapshot)"
   },
+  "shotDisablePruning": {
+    "message": "Toggle Disable Pruning Mode (include full page DOM context)"
+  },
   "shotUndo": {
     "message": "Undo (Ctrl+Z / Cmd+Z)"
   },

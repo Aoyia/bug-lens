@@ -31,7 +31,7 @@ export class ScreenshotOverlay {
 
   private currentTool: "select" | "rect" | "arrow" | "privacy" | "text" =
     "select";
-  private styleAdjustmentMode = false;
+  private styleAdjustmentMode = true;
 
   private viewportImage: HTMLImageElement | null = null;
   private cachedViewportDataUrl = "";
@@ -44,6 +44,7 @@ export class ScreenshotOverlay {
 
   /** 确认导出防重入守卫：Enter 连按或双击确认按钮时只进入一次 processScreenshot */
   private isConfirming = false;
+  private disablePruning = false;
 
   private readonly selectionController: SelectionController;
   private readonly annotationController: AnnotationController;
@@ -226,6 +227,18 @@ export class ScreenshotOverlay {
     // 工具栏事件委托
     const toolbar = wrapper.querySelector(".toolbar");
     if (toolbar) {
+      const styleBtn = toolbar.querySelector<HTMLButtonElement>(
+        'button[data-tool="style-adjust"]'
+      );
+      if (styleBtn) {
+        styleBtn.classList.toggle("active", this.styleAdjustmentMode);
+      }
+      const pruningBtn = toolbar.querySelector<HTMLButtonElement>(
+        'button[data-tool="pruning-toggle"]'
+      );
+      if (pruningBtn) {
+        pruningBtn.classList.toggle("active", this.disablePruning);
+      }
       toolbar.addEventListener("click", (e) => {
         const btn = (e.target as HTMLElement).closest("button");
         if (!btn) return;
@@ -237,6 +250,9 @@ export class ScreenshotOverlay {
         if (tool === "style-adjust") {
           this.styleAdjustmentMode = !this.styleAdjustmentMode;
           btn.classList.toggle("active", this.styleAdjustmentMode);
+        } else if (tool === "pruning-toggle") {
+          this.disablePruning = !this.disablePruning;
+          btn.classList.toggle("active", this.disablePruning);
         } else if (tool) {
           this.setTool(tool);
         } else if (action === "undo") {
@@ -288,7 +304,10 @@ export class ScreenshotOverlay {
     toolbar
       .querySelectorAll<HTMLButtonElement>("button[data-tool]")
       .forEach((b) => {
-        if (b.dataset.tool !== "style-adjust") {
+        if (
+          b.dataset.tool !== "style-adjust" &&
+          b.dataset.tool !== "pruning-toggle"
+        ) {
           b.classList.toggle("active", b.dataset.tool === tool);
         }
       });
@@ -657,6 +676,7 @@ export class ScreenshotOverlay {
         cropBounds: selection,
         annotations: this.annotationController.annotations,
         styleAdjustmentMode: this.styleAdjustmentMode,
+        disablePruning: this.disablePruning,
       });
 
       this.showToast(buildScreenshotToastMessage(promptInjectedWithPath));

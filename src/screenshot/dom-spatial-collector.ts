@@ -27,6 +27,8 @@ export interface DomSpatialCollectOptions {
   probeFramework?: FrameworkProbeFn;
   /** 开启样式微调模式：无损收集全量盒模型尺寸与弹性布局上下文 */
   styleAdjustmentMode?: boolean;
+  /** 关闭剪枝逻辑：收集全页 DOM 元素而不是仅收集与选区相交的元素 */
+  disablePruning?: boolean;
 }
 
 /** 红框/马赛克标注覆盖元素面积 ≥ 该比例才算"命中"（避免祖先级误标） */
@@ -235,7 +237,7 @@ export function shouldDropComputedStyle(key: string, value: string): boolean {
 /** 提取关键的布局与外观 Computed Styles（过滤默认值，锚点专用） */
 export function extractKeyComputedStyles(
   el: Element,
-  styleAdjustmentMode = false
+  styleAdjustmentMode = true
 ): Record<string, string> {
   if (typeof window === "undefined") return {};
   try {
@@ -696,6 +698,7 @@ export async function collectSpatialDomTree(
     annotations = [],
     rootElement = document.body,
     probeFramework,
+    disablePruning = false,
   } = options;
 
   // 1. 选区相交元素候选池
@@ -728,7 +731,8 @@ export async function collectSpatialDomTree(
     }
     const bounds = boundsOf(el);
     if (bounds.width <= 0 || bounds.height <= 0) continue;
-    if (isRectIntersecting(cropBounds, bounds)) candidates.push(el);
+    if (disablePruning || isRectIntersecting(cropBounds, bounds))
+      candidates.push(el);
   }
 
   const privacyMasks = annotations.filter((a) => a.type === "privacy");
@@ -820,7 +824,7 @@ export async function collectSpatialDomTree(
     return path ? { componentName: path[0], componentPath: path } : undefined;
   };
 
-  const styleAdjustmentMode = options.styleAdjustmentMode || false;
+  const styleAdjustmentMode = options.styleAdjustmentMode ?? true;
 
   const ancestors: DomAncestorNode[] = Array.from(ancestorSet)
     .map((el) => ({ el, depth: domDepthRelativeTo(el, sca) }))

@@ -35,6 +35,7 @@ export interface ProcessScreenshotOptions {
   annotations: AnnotationItem[];
   devicePixelRatio?: number;
   styleAdjustmentMode?: boolean;
+  disablePruning?: boolean;
 }
 
 /** 辅助将 Base64 数据转为 Image 对象 */
@@ -418,12 +419,15 @@ export async function processScreenshot(
   const croppedBase64 = canvas.toDataURL(imageType);
   const imageBlob = await canvasToBlob(canvas, imageType);
 
+  const styleAdjustmentMode = options.styleAdjustmentMode ?? true;
+
   // 3. 收集空间 DOM 结构树（经主世界探针读取 Vue/React 组件链）
   const spatialDom = await collectSpatialDomTree({
     cropBounds,
     annotations,
     probeFramework: probeFrameworkComponents,
-    styleAdjustmentMode: options.styleAdjustmentMode,
+    styleAdjustmentMode,
+    disablePruning: options.disablePruning,
   });
 
   // 4. 收集 Vue/React 组件的状态（Props / Data），存储到 environment.vueComponentStates 中
@@ -458,7 +462,7 @@ export async function processScreenshot(
 
   // 4.5 如果开启了样式微调模式，收集 CSS 级联快照，并通过 CDP 补全代码行号
   let cascadeIndex: any = undefined;
-  if (options.styleAdjustmentMode) {
+  if (styleAdjustmentMode) {
     try {
       cascadeIndex = collectCascadeIndex({
         bounds: cropBounds,

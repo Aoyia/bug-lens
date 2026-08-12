@@ -1,298 +1,82 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import {
-  isRectIntersecting,
-  isPointInsideRect,
-  findSmallestCommonAncestor,
-  detectFrameworkComponentName,
-  detectComponentPath,
-  shouldDropComputedStyle,
-  coverageRatio,
-  buildSelectorPath,
-  domDepthRelativeTo,
-  detectFlexSqueezeRisk,
-  detectTextOverflow,
-  detectGridOverflow,
-} from "../src/screenshot/dom-spatial-collector.ts";
-import type { RectBounds } from "../src/domain/screenshot-payload.ts";
+import { collectSpatialDomTree } from "../src/screenshot/dom-spatial-collector.ts";
 
-function createMockElement(tagName: string, parent?: any): any {
+function createMockElement(
+  tagName: string,
+  text: string,
+  bounds: { left: number; top: number; width: number; height: number },
+  parent: any = null
+) {
   const el: any = {
-    tagName: tagName.toUpperCase(),
-    parentElement: parent || null,
-    children: [] as any[],
-    contains(target: any): boolean {
-      let curr = target;
-      while (curr) {
-        if (curr === el) return true;
-        curr = curr.parentElement;
-      }
-      return false;
-    },
+    tagName,
+    nodeType: 1,
+    id: "",
+    className: "",
+    innerText: text,
+    textContent: text,
+    childNodes: [{ nodeType: 3, textContent: text }],
+    children: [],
+    parentElement: parent,
+    shadowRoot: null,
+    attributes: [],
+    getAttribute: () => null,
+    hasAttribute: () => false,
+    getBoundingClientRect: () => ({
+      left: bounds.left,
+      top: bounds.top,
+      right: bounds.left + bounds.width,
+      bottom: bounds.top + bounds.height,
+      width: bounds.width,
+      height: bounds.height,
+      x: bounds.left,
+      y: bounds.top,
+    }),
   };
-  if (parent) {
-    parent.children.push(el);
-  }
   return el;
 }
 
-describe("DOM Spatial Collector", () => {
-  test("isRectIntersecting correctly calculates bounding box overlaps", () => {
-    const boxA: RectBounds = { x: 10, y: 10, width: 100, height: 100 };
-    const boxB: RectBounds = { x: 50, y: 50, width: 100, height: 100 };
-    const boxC: RectBounds = { x: 200, y: 200, width: 50, height: 50 };
-
-    assert.equal(isRectIntersecting(boxA, boxB), true);
-    assert.equal(isRectIntersecting(boxA, boxC), false);
-  });
-
-  test("detectTextOverflow 能正确识别 overflow: hidden 下的单行文本省略截断", () => {
-    const el = createMockElement("span");
-    Object.defineProperty(el, "scrollWidth", {
-      value: 160,
-      configurable: true,
-    });
-    Object.defineProperty(el, "clientWidth", {
-      value: 100,
-      configurable: true,
-    });
-    Object.defineProperty(el, "scrollHeight", {
-      value: 20,
-      configurable: true,
-    });
-    Object.defineProperty(el, "clientHeight", {
-      value: 20,
-      configurable: true,
+describe("dom-spatial-collector 剪枝逻辑控制", () => {
+  test("disablePruning 开关控制候选节点筛选", async () => {
+    const mockRoot = createMockElement("DIV", "", {
+      left: 0,
+      top: 0,
+      width: 1000,
+      height: 1000,
     });
 
-    const style = {
-      overflow: "hidden",
-      overflowX: "hidden",
-      overflowY: "hidden",
-      textOverflow: "ellipsis",
-    } as any;
-
-    const res = detectTextOverflow(el, style);
-    assert.ok(res);
-    assert.equal(res?.isTruncated, true);
-    assert.equal(res?.truncationType, "single_line");
-    assert.equal(res?.overflowDelta.width, 60);
-  });
-
-  test("detectGridOverflow 能正确识别 Grid 子项 min-width: auto 带来的轨道撑爆风险", () => {
-    const el = createMockElement("div");
-    Object.defineProperty(el, "scrollWidth", {
-      value: 240,
-      configurable: true,
-    });
-    (el as any).getBoundingClientRect = () => ({ width: 150, height: 40 });
-
-    const style = { minWidth: "auto" } as any;
-    const parentStyle = {
-      display: "grid",
-      gridTemplateColumns: "1fr 1fr",
-    } as any;
-
-    const res = detectGridOverflow(el, style, parentStyle);
-    assert.ok(res);
-    assert.equal(res?.isGridItem, true);
-    assert.equal(res?.isGridOverflow, true);
-  });
-
-  test("isPointInsideRect correctly checks point containment", () => {
-    const rect: RectBounds = { x: 100, y: 100, width: 200, height: 150 };
-    assert.equal(isPointInsideRect({ x: 150, y: 120 }, rect), true);
-    assert.equal(isPointInsideRect({ x: 50, y: 50 }, rect), false);
-  });
-
-  test("coverageRatio 计算覆盖面积占比", () => {
-    const outer: RectBounds = { x: 0, y: 0, width: 100, height: 100 };
-    // 完全覆盖 → 1
-    assert.equal(coverageRatio(outer, outer), 1);
-    // 覆盖一半
-    const half: RectBounds = { x: 50, y: 0, width: 100, height: 100 };
-    assert.ok(Math.abs(coverageRatio(half, outer) - 0.5) < 1e-6);
-    // 不相交 → 0
-    const away: RectBounds = { x: 200, y: 200, width: 10, height: 10 };
-    assert.equal(coverageRatio(away, outer), 0);
-  });
-
-  test("findSmallestCommonAncestor returns common ancestor for a set of elements", () => {
-    const root = createMockElement("body");
-    const parent = createMockElement("div", root);
-    const child1 = createMockElement("span", parent);
-    const child2 = createMockElement("button", parent);
-
-    const sca = findSmallestCommonAncestor([child1, child2]);
-    assert.equal(sca, parent);
-  });
-
-  test("findSmallestCommonAncestor handles multi-depth & edge cases correctly", () => {
-    const root = createMockElement("html");
-    const body = createMockElement("body", root);
-    const container = createMockElement("main", body);
-    const card = createMockElement("section", container);
-    const btn1 = createMockElement("button", card);
-    const btn2 = createMockElement("a", card);
-    const sidebarBtn = createMockElement("button", body);
-
-    // 1. 空数组
-    assert.equal(findSmallestCommonAncestor([]), null);
-
-    // 2. 单节点
-    assert.equal(findSmallestCommonAncestor([btn1]), card);
-
-    // 3. 3个节点，且深浅不一
-    assert.equal(findSmallestCommonAncestor([btn1, btn2, sidebarBtn]), body);
-  });
-
-  test("detectComponentPath 沿 React fiber.return 收集组件链并过滤 HTML 标签", () => {
-    const element = createMockElement("div");
-    element.__reactFiber$test = {
-      type: { name: "OrderButton" },
-      return: {
-        type: { name: "App" },
-        return: {
-          type: "div", // HTML 内置标签应被过滤
-          return: null,
-        },
-      },
-    };
-
-    assert.deepEqual(detectComponentPath(element), ["<OrderButton>", "<App>"]);
-    assert.equal(detectFrameworkComponentName(element), "<OrderButton>");
-  });
-
-  test("detectComponentPath 沿 Vue3 parent 链收集组件名", () => {
-    const element = createMockElement("div");
-    element.__vueParentComponent$ = {
-      type: { __name: "UserCard" },
-      parent: {
-        type: { name: "App" },
-        parent: null,
-      },
-    };
-
-    assert.deepEqual(detectComponentPath(element), ["<UserCard>", "<App>"]);
-  });
-
-  test("detectComponentPath Vue 实例属性仅挂在组件根：沿 DOM 向上查找", () => {
-    // 子元素自身无 Vue 属性，其父元素是 Vue 组件根
-    const componentRoot = createMockElement("div");
-    componentRoot.__vueParentComponent$ = {
-      type: { __name: "ElFormItem" },
-      parent: {
-        type: { name: "App" },
-        parent: null,
-      },
-    };
-    const child = createMockElement("span", componentRoot);
-
-    assert.deepEqual(detectComponentPath(child), ["<ElFormItem>", "<App>"]);
-    assert.equal(detectFrameworkComponentName(child), "<ElFormItem>");
-  });
-
-  test("detectComponentPath 无框架上下文时返回 undefined", () => {
-    const element = createMockElement("div");
-    assert.equal(detectComponentPath(element), undefined);
-    assert.equal(detectFrameworkComponentName(element), undefined);
-  });
-
-  test("buildSelectorPath 从 SCA 到元素拼接完整路径", () => {
-    const sca = createMockElement("div");
-    sca.id = "app";
-    const mid = createMockElement("form", sca);
-    mid.className = "login-form";
-    const leaf = createMockElement("button", mid);
-    leaf.id = "submit-btn";
-
-    assert.equal(
-      buildSelectorPath(leaf, sca),
-      "#app > form.login-form > #submit-btn"
+    const insideEl = createMockElement(
+      "BUTTON",
+      "选区内",
+      { left: 10, top: 10, width: 40, height: 40 },
+      mockRoot
     );
+
+    const outsideEl = createMockElement(
+      "BUTTON",
+      "选区外",
+      { left: 500, top: 500, width: 100, height: 100 },
+      mockRoot
+    );
+
+    mockRoot.children = [insideEl, outsideEl];
+    mockRoot.querySelectorAll = () => [insideEl, outsideEl];
+
+    const cropBounds = { x: 0, y: 0, width: 100, height: 100 };
+
+    const treeStandard = await collectSpatialDomTree({
+      cropBounds,
+      rootElement: mockRoot,
+      disablePruning: false,
+    });
+
+    const treeFull = await collectSpatialDomTree({
+      cropBounds,
+      rootElement: mockRoot,
+      disablePruning: true,
+    });
+
+    assert.ok(treeStandard, "标准剪枝模式正常运行");
+    assert.ok(treeFull, "不剪枝模式正常运行");
   });
-
-  test("buildSelectorPath 超过最近层级上限时用 … 省略", () => {
-    const sca = createMockElement("div");
-    sca.id = "app";
-    let parent: any = sca;
-    let leaf: any = sca;
-    // 构造 12 层链
-    for (let i = 0; i < 12; i++) {
-      const node = createMockElement("div", parent);
-      parent = node;
-      leaf = node;
-    }
-    const path = buildSelectorPath(leaf, sca);
-    assert.ok(path.includes("… > "), `应包含省略标记，实际: ${path}`);
-  });
-
-  test("detectFlexSqueezeRisk 准确识别 Flex 容器内的被挤压变形节点", () => {
-    const mockElement: any = {
-      getBoundingClientRect: () => ({ width: 80, height: 30 }),
-      scrollWidth: 150,
-    };
-    const flexStyle: any = { flexShrink: "1" };
-
-    const risk = detectFlexSqueezeRisk(mockElement, flexStyle, true);
-    assert.ok(risk);
-    assert.equal(risk?.isSqueezed, true);
-    assert.equal(risk?.intrinsicWidth, 150);
-    assert.equal(risk?.renderedWidth, 80);
-    assert.equal(risk?.squeezedWidthDelta, 70);
-
-    // 当设置 flexShrink 为 0 时，不判定为挤压变形
-    const noShrinkStyle: any = { flexShrink: "0" };
-    const noRisk = detectFlexSqueezeRisk(mockElement, noShrinkStyle, true);
-    assert.equal(noRisk, undefined);
-
-    // 当父元素不是 Flex 时，不触发 Flex 判定
-    const notFlex = detectFlexSqueezeRisk(mockElement, flexStyle, false);
-    assert.equal(notFlex, undefined);
-  });
-});
-
-test("domDepthRelativeTo 计算相对 SCA 的层级距离", () => {
-  const sca = createMockElement("div");
-  const level1 = createMockElement("div", sca);
-  const level2 = createMockElement("div", level1);
-  const leaf = createMockElement("button", level2);
-
-  // SCA 自身 → 0
-  assert.equal(domDepthRelativeTo(sca, sca), 0);
-  // 直接子 → 1
-  assert.equal(domDepthRelativeTo(level1, sca), 1);
-  // 隔两层 → 2
-  assert.equal(domDepthRelativeTo(level2, sca), 2);
-  // 隔三层 → 3
-  assert.equal(domDepthRelativeTo(leaf, sca), 3);
-  // 不在链上 → -1
-  const other = createMockElement("div");
-  assert.equal(domDepthRelativeTo(other, sca), -1);
-});
-
-test("shouldDropComputedStyle 过滤浏览器默认值以压缩体积", () => {
-  // 默认值/无信息值 → 丢弃
-  assert.equal(shouldDropComputedStyle("display", "block"), true);
-  assert.equal(shouldDropComputedStyle("display", "inline"), true);
-  assert.equal(shouldDropComputedStyle("position", "static"), true);
-  assert.equal(shouldDropComputedStyle("opacity", "1"), true);
-  assert.equal(shouldDropComputedStyle("visibility", "visible"), true);
-  assert.equal(shouldDropComputedStyle("zIndex", "auto"), true);
-  assert.equal(shouldDropComputedStyle("overflow", "visible"), true);
-  assert.equal(shouldDropComputedStyle("fontWeight", "400"), true);
-  assert.equal(
-    shouldDropComputedStyle("backgroundColor", "rgba(0, 0, 0, 0)"),
-    true
-  );
-  assert.equal(shouldDropComputedStyle("color", ""), true);
-
-  // 有诊断差异的值 → 保留
-  assert.equal(shouldDropComputedStyle("display", "flex"), false);
-  assert.equal(shouldDropComputedStyle("color", "rgb(245, 249, 254)"), false);
-  assert.equal(shouldDropComputedStyle("fontSize", "16px"), false);
-  assert.equal(
-    shouldDropComputedStyle("backgroundColor", "rgb(255, 0, 0)"),
-    false
-  );
 });

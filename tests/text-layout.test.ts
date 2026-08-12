@@ -71,7 +71,7 @@ describe("computeTextLayout 换行规则（浏览器 word-wrap 语义）", () =>
   test("手动换行 \\n 保留：空行占一行行高", () => {
     const layout = computeTextLayout("a\n\nb");
     assert.deepEqual(layout.lines, ["a", "", "b"]);
-    assert.equal(layout.bgHeight, 12 + 3 * 18);
+    assert.equal(layout.bgHeight, 14 + 3 * 18);
   });
 
   test("长文本多行：每行宽不超 maxWidth，bgWidth 取最长行", () => {
@@ -93,7 +93,7 @@ describe("computeTextLayout 默认估算布局", () => {
   test("短英文文本宽度受 TEXT_MIN_WIDTH 兜底", () => {
     const layout = computeTextLayout("hi");
     assert.equal(layout.bgWidth, TEXT_MIN_WIDTH);
-    assert.equal(layout.bgHeight, 12 + 18); // 2*paddingY + 1 行
+    assert.equal(layout.bgHeight, 14 + 18); // 2*paddingY + 2px 容差 + 1 行
     assert.deepEqual(layout.lines, ["hi"]);
   });
 
