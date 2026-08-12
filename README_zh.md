@@ -51,7 +51,7 @@ graph LR
 
 ### 方式一：直接下载 Releases 安装包（推荐）
 
-1. 点击直接下载预编译插件包：[bug-lens-v0.4.0.zip](https://github.com/Aoyia/bug-lens/releases/download/v0.4.0/bug-lens-v0.4.0.zip)（或前往 [Releases 页面](https://github.com/Aoyia/bug-lens/releases/latest)）。
+1. 点击直接下载预编译插件包：[bug-lens-v0.6.0.zip](https://github.com/Aoyia/bug-lens/releases/download/v0.6.0/bug-lens-v0.6.0.zip)（或前往 [Releases 页面](https://github.com/Aoyia/bug-lens/releases/latest)）。
 2. 将下载的 ZIP 压缩包解压到本地任意目录。
 3. 打开 Chrome 扩展管理页 `chrome://extensions/`，开启右上角 **“开发者模式”**。
 4. 点击 **“加载已解压的扩展程序”**，选择刚刚解压的目录即可完成安装。
@@ -59,11 +59,15 @@ graph LR
 ### 方式二：从源码构建
 
 ```bash
-yarn install
-yarn build
+pnpm install
+pnpm run build
+# 打包生成发布 ZIP 包
+pnpm run package
 ```
 
 构建完成后，在 `chrome://extensions/` 中选择加载本项目的 `dist/` 目录。
+
+> **发布至 Chrome Web Store**：请参考 [CHROMEWEBSTORE.md](CHROMEWEBSTORE.md) 获取完整的商店文案、权限说明模板及发布流程。
 
 ---
 
