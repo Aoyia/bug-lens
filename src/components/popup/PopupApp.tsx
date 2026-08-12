@@ -656,7 +656,7 @@ export function PopupApp() {
                 className="btn-confirm-cancel"
                 onClick={() => setConfirmModal(null)}
               >
-                取消
+                {t("cancelShort")}
               </button>
               <button
                 className="btn-confirm-danger"
@@ -665,7 +665,7 @@ export function PopupApp() {
                   setConfirmModal(null);
                 }}
               >
-                确定
+                {t("expectedConfirm")}
               </button>
             </div>
           </div>

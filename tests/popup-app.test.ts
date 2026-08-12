@@ -95,6 +95,58 @@ test("PopupApp component tree i18n keys are 100% covered in locale bundles", () 
   }
 });
 
+test("确认弹窗（清空历史）按钮文案走 i18n，不硬编码中文", () => {
+  const popupApp = readFileSync(
+    resolve(process.cwd(), "src/components/popup/PopupApp.tsx"),
+    "utf8"
+  );
+  const zhDict = JSON.parse(
+    readFileSync(
+      resolve(process.cwd(), "src/_locales/zh_CN/messages.json"),
+      "utf8"
+    )
+  );
+  const enDict = JSON.parse(
+    readFileSync(
+      resolve(process.cwd(), "src/_locales/en/messages.json"),
+      "utf8"
+    )
+  );
+
+  // 提取自定义确认弹窗区域（从 overlay 容器到主布局结束）
+  const modalStart = popupApp.indexOf('className="confirm-overlay"');
+  assert.ok(modalStart !== -1, "PopupApp 应包含确认弹窗容器 confirm-overlay");
+  const modalEnd = popupApp.indexOf("</main>", modalStart);
+  assert.ok(modalEnd !== -1, "确认弹窗区域应能在 </main> 前截取到");
+  const modal = popupApp.slice(modalStart, modalEnd);
+
+  // 按钮必须复用 i18n key（与弹窗 message 一致的双语通道）
+  assert.ok(
+    modal.includes('{t("cancelShort")}'),
+    '取消按钮应使用 t("cancelShort") 而非硬编码中文'
+  );
+  assert.ok(
+    modal.includes('{t("expectedConfirm")}'),
+    '确定按钮应使用 t("expectedConfirm") 而非硬编码中文'
+  );
+
+  // 弹窗区域不得残留硬编码按钮文案
+  assert.ok(
+    !modal.includes(">取消<"),
+    "确认弹窗不应包含硬编码「取消」按钮文案"
+  );
+  assert.ok(
+    !modal.includes(">确定<"),
+    "确认弹窗不应包含硬编码「确定」按钮文案"
+  );
+
+  // 两个 key 必须在双语字典中都存在
+  for (const key of ["cancelShort", "expectedConfirm"]) {
+    assert.ok(key in zhDict, `i18n key '${key}' 缺失于 zh_CN/messages.json`);
+    assert.ok(key in enDict, `i18n key '${key}' 缺失于 en/messages.json`);
+  }
+});
+
 test("首次引导已迁移至 GitHub Pages 网页，扩展内不再内嵌引导（B1 演进）", () => {
   const popupApp = readFileSync(
     resolve(process.cwd(), "src/components/popup/PopupApp.tsx"),
