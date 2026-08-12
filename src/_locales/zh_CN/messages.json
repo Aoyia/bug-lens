@@ -1421,5 +1421,26 @@
   },
   "clipExportNoVideo": {
     "message": "当前会话无可用录像，无法导出视频片段"
+  },
+  "clipExportNoValidVideo": {
+    "message": "暂无有效视频录像，无法导出片段"
+  },
+  "clipExportRangeInvalid": {
+    "message": "视频剪辑时间区间无效"
+  },
+  "clipExportPreparing": {
+    "message": "正在生成前后 5s 视频片段，请稍候…"
+  },
+  "clipExportCanvasFailed": {
+    "message": "Canvas 初始化失败"
+  },
+  "clipExportDownloadStarted": {
+    "message": "已成功触发下载 MP4 视频片段 ($1$)"
+  },
+  "clipExportDownloadFailed": {
+    "message": "下载失败：$ERROR$"
+  },
+  "clipExportFailed": {
+    "message": "导出视频片段失败：$ERROR$"
   }
 }

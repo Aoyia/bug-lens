@@ -405,3 +405,36 @@ test("历史视图 footer 会话数在存储未就绪时显示加载提示而非
     "Storage count fallback must use t('loading') like the sibling storage-used span"
   );
 });
+
+test("进入历史视图必须把焦点交给搜索框（主操作控件直达）", () => {
+  const popupApp = readFileSync(
+    resolve(process.cwd(), "src/components/popup/PopupApp.tsx"),
+    "utf8"
+  );
+
+  // 第一性原理：历史视图的主操作控件是搜索框，视图进入时焦点应直达该控件，
+  // 免去「点历史图标 → 再点搜索框」的一次多余点击；同时让 popup-escape 的
+  // 两段式语义（焦点在搜索框 + 有关键词 → 第一下 Escape 清空搜索）成为
+  // 进入历史视图的自然默认态。接线必须存在且随 currentView 变化触发。
+  assert.match(
+    popupApp,
+    /import\s*\{[^}]*focusHistorySearchOnEntry[^}]*\}\s*from\s*["']\.\.\/\.\.\/popup\/history-search-focus["']/,
+    "PopupApp 必须从 history-search-focus 模块导入 focusHistorySearchOnEntry"
+  );
+
+  const callStart = popupApp.indexOf("focusHistorySearchOnEntry({");
+  assert.ok(callStart >= 0, "PopupApp 必须调用 focusHistorySearchOnEntry");
+  const callTail = popupApp.slice(callStart, callStart + 400);
+  assert.ok(
+    callTail.includes("currentView,") && callTail.includes("getSearchInput:"),
+    "聚焦调用必须传入 currentView 并解析搜索框"
+  );
+  assert.ok(
+    callTail.includes('document.getElementById("search")'),
+    "getSearchInput 必须解析到 #search 搜索框（与 popup-escape 的焦点判定同源）"
+  );
+  assert.ok(
+    /}, \[currentView\]\);/.test(callTail),
+    "聚焦 effect 必须以 currentView 为依赖（仅在视图切换时触发）"
+  );
+});

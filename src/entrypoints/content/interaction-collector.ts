@@ -204,6 +204,9 @@ if (existingController) {
       // 鼠标无法再次发起标记流程（只能依赖 Alt+S 快捷键）。
       widget.setIssueSelecting(false);
     },
+    // 采集失败反馈：复用导出失败的 error 音色 Toast 模式（非阻塞、不冻结页面），
+    // 挂件此刻仍挂载，toast 与「标记问题」按钮复位同时呈现，用户可立即重试
+    onError: (message) => widget.showToast(message, 5_500, "error"),
     getEditorElement: () => editor.element,
     shortcutKeyText: widget.shortcutKeyText,
   });
