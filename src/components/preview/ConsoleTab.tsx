@@ -1,6 +1,7 @@
 import { memo } from "preact/compat";
 import { useState, useCallback } from "preact/hooks";
 import type { ConsoleEntry, RecordingSession } from "../../shared/protocol.ts";
+import { formatElapsedEpochTime } from "../../domain/evidence-clock.ts";
 import { useFilteredList } from "../../hooks/useFilteredList.ts";
 import { filterConsoleEntries } from "../../preview/console-filter.ts";
 import { t } from "../../shared/i18n.ts";
@@ -25,6 +26,25 @@ export const ConsoleTab = memo(function ConsoleTab({
   onSeekVideo,
 }: ConsoleTabProps) {
   const [levelFilter, setLevelFilter] = useState("all");
+
+  // 行时间统一时间语言：优先显示相对录制起点的 MM:SS.mmm
+  // （与 NetworkTab / StreamTab / InteractionsTab 的证据时间线契约一致，
+  //  点击行 seek 视频时行时间必须与视频时间轴同基准）。
+  // 无起点或时间早于起点时回退到本地绝对时间，不丢信息、不抛异常。
+  const originEpochMs =
+    snapshot.session?.timeline.startedAtEpochMs ??
+    snapshot.session?.timeline.createdAtEpochMs;
+
+  const formatRowTime = useCallback(
+    (epochMs: number): string => {
+      if (originEpochMs != null) {
+        const relative = formatElapsedEpochTime(epochMs, originEpochMs);
+        if (relative !== undefined) return relative;
+      }
+      return new Date(epochMs).toLocaleTimeString();
+    },
+    [originEpochMs]
+  );
 
   const matchFn = useCallback(
     (entry: ConsoleEntry, query: string) => {
@@ -175,7 +195,7 @@ export const ConsoleTab = memo(function ConsoleTab({
                     </div>
                     <div className="console-row-right">
                       <span className="console-time">
-                        {new Date(entry.createdAt).toLocaleTimeString()}
+                        {formatRowTime(entry.createdAt)}
                       </span>
                       {editable ? (
                         <button
