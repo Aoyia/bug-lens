@@ -1,0 +1,115 @@
+name: CI & E2E Quality Gate
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-unittest:
+    name: Lint, Typecheck & Unit Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10.10.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: TypeScript Check
+        run: pnpm typecheck
+
+      - name: Run Unit Tests
+        run: pnpm test
+
+  e2e-testing:
+    name: Playwright Extension E2E (Headed with Xvfb)
+    runs-on: ubuntu-latest
+    needs: lint-and-unittest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10.10.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Browsers & System Dependencies
+        run: pnpm exec playwright install chromium --with-deps
+
+      - name: Install Xvfb & Linux Native GUI Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb xdotool
+
+      - name: Run Playwright E2E Tests
+        run: |
+          xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x24" pnpm test:e2e
+
+      - name: Upload E2E Artifacts on Failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-e2e-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
+  build-and-package:
+    name: Build & Package Zip
+    runs-on: ubuntu-latest
+    needs: lint-and-unittest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10.10.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Extension Zip
+        run: pnpm package
+
+      - name: Upload Zip Bundle Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bug-lens-extension-zip
+          path: dist-zip/
+          retention-days: 14
