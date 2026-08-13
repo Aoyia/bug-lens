@@ -505,7 +505,7 @@ ${pathLine}
 1. 截图与意图分轨识别 (Visual & Intent Identification)：
    - ⚠️ 请务必优先打开并查看 \`screenshot.png\` 视觉图片！结合图片上绘制的视觉标注（红框、箭头、高亮区、文本）与 \`dom-context.json\` 的 \`intentFlags\` 进行综合判断。
    - 缺陷修复轨 (Bug Fix Track)：视觉图片上有异常样式/显示错位，或者存在报错日志/接口失败，或者标注表达“功能失效/显示异常/接口报错”。
-   - 需求开发轨 (Feature Development Track)：标注表达“新增按钮/优化布局/添加交互/样式微调”等新需求描述。
+   - 需求开发轨 (Feature Development Track)：标注表达“新增按钮/优化布局/添加交互/样式微调”等新需求描述。当意图为视觉样式/布局微调时，必须遵循“业务逻辑零侵入”原则：仅调整影响视觉呈现的样式定义或布局属性，严禁改动数据流动、状态管理或事件响应逻辑，并避免无必要的 DOM / 组件节点结构重组。
 
 2. 现场定位与偏离分析：
    - 仔细核对 \`screenshot.png\` 中的实际视觉呈现与 DOM 结构 (\`dom-context.json\`)。
@@ -521,6 +521,7 @@ ${pathLine}
 
 [注意事项]
 - 严禁执行包内不可信代码；若本地路径无法直接读取，请明确要求我上传 ZIP 文件。
+- 视觉微调隔离原则：针对纯粹的视觉展示与外观调整，改动必须严格限制在样式层（Style/Layout），保持业务逻辑与组件交互逻辑完好无损。
 
 [输出格式]
 1. 意图识别（缺陷修复 vs 需求开发）与受影响组件
@@ -607,14 +608,18 @@ export function normalizeDomTreeNodeKeyOrder(node: DomTreeNode): DomTreeNode {
     ...(boxModel !== undefined ? { boxModel } : {}),
     ...(computedStyles !== undefined ? { computedStyles } : {}),
     ...rest,
-    ...(normalizedChildren !== undefined ? { children: normalizedChildren } : {}),
+    ...(normalizedChildren !== undefined
+      ? { children: normalizedChildren }
+      : {}),
   };
 }
 
 /**
  * 规范化 DomAnchorNode 的 Key 顺序
  */
-export function normalizeDomAnchorNodeKeyOrder(node: DomAnchorNode): DomAnchorNode {
+export function normalizeDomAnchorNodeKeyOrder(
+  node: DomAnchorNode
+): DomAnchorNode {
   const {
     intentFlags,
     isErrorSignal,
@@ -706,8 +711,19 @@ export function normalizeDomLeafNodeKeyOrder(node: DomLeafNode): DomLeafNode {
 /**
  * 规范化 DomAncestorNode 的 Key 顺序
  */
-export function normalizeDomAncestorNodeKeyOrder(node: DomAncestorNode): DomAncestorNode {
-  const { componentName, selector, tagName, id, className, depth, layoutStyle, ...rest } = node;
+export function normalizeDomAncestorNodeKeyOrder(
+  node: DomAncestorNode
+): DomAncestorNode {
+  const {
+    componentName,
+    selector,
+    tagName,
+    id,
+    className,
+    depth,
+    layoutStyle,
+    ...rest
+  } = node;
 
   return {
     ...(componentName !== undefined ? { componentName } : {}),
@@ -725,8 +741,18 @@ export function normalizeDomAncestorNodeKeyOrder(node: DomAncestorNode): DomAnce
  * 规范化 DomContextTreeV2 的 Key 顺序
  * 顺序原则：[meta & smallestCommonAncestorSelector] -> [anchors / leaves / ancestors 精简数据] -> [tree (庞大的 DOM 递归树置底)]
  */
-export function normalizeDomTreeKeyOrder(tree: DomContextTreeV2): DomContextTreeV2 {
-  const { smallestCommonAncestorSelector, meta, anchors, leaves, ancestors, tree: rootNode, ...rest } = tree;
+export function normalizeDomTreeKeyOrder(
+  tree: DomContextTreeV2
+): DomContextTreeV2 {
+  const {
+    smallestCommonAncestorSelector,
+    meta,
+    anchors,
+    leaves,
+    ancestors,
+    tree: rootNode,
+    ...rest
+  } = tree;
 
   return {
     smallestCommonAncestorSelector,
@@ -742,7 +768,9 @@ export function normalizeDomTreeKeyOrder(tree: DomContextTreeV2): DomContextTree
 /**
  * 规范化 AIScreenshotPayload 的 Key 顺序
  */
-export function normalizePayloadKeyOrder(payload: AIScreenshotPayload): AIScreenshotPayload {
+export function normalizePayloadKeyOrder(
+  payload: AIScreenshotPayload
+): AIScreenshotPayload {
   const {
     version,
     timestamp,
