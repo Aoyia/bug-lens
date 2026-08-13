@@ -808,6 +808,27 @@ export function checkElementVisibility(
 export interface ElementExposureResult {
   exposure: "exposed" | "obscured" | "clipped" | "hidden_css";
   obscuredBy?: string;
+  exposureRatio?: number;
+}
+
+/** 辅助函数：计算两个矩形的相交矩形 */
+function getIntersectingRect(a: RectBounds, b: RectBounds): RectBounds | null {
+  const x1 = Math.max(a.x, b.x);
+  const y1 = Math.max(a.y, b.y);
+  const x2 = Math.min(a.x + a.width, b.x + b.width);
+  const y2 = Math.min(a.y + a.height, b.y + b.height);
+
+  if (x2 <= x1 || y2 <= y1) return null;
+  return { x: x1, y: y1, width: x2 - x1, height: y2 - y1 };
+}
+
+/** 辅助函数：判断节点是否互为包含关系（即为目标元素自身或其子孙/祖先 DOM） */
+function isSelfOrRelated(target: Element, candidate: Element): boolean {
+  return (
+    target === candidate ||
+    (typeof target.contains === "function" && target.contains(candidate)) ||
+    (typeof candidate.contains === "function" && candidate.contains(target))
+  );
 }
 
 /** 物理遮挡与视口露出生效算子 (Visual Overlap & Viewport Exposure Operator) */
@@ -817,26 +838,68 @@ export function checkElementExposure(
 ): ElementExposureResult {
   const vis = checkElementVisibility(el);
   if (vis === "hidden_css" || vis === "zero_size") {
-    return { exposure: "hidden_css" };
+    return { exposure: "hidden_css", exposureRatio: 0 };
   }
 
   if (
     typeof document === "undefined" ||
-    typeof document.elementFromPoint !== "function"
+    (typeof document.elementFromPoint !== "function" &&
+      typeof (document as any).elementsFromPoint !== "function")
   ) {
-    return { exposure: "exposed" };
+    return { exposure: "exposed", exposureRatio: 1.0 };
   }
 
-  const b =
+  const rawBounds =
     bounds ||
     (el.getBoundingClientRect
-      ? el.getBoundingClientRect()
+      ? (() => {
+          const r = el.getBoundingClientRect();
+          return {
+            x: Math.round(r.left),
+            y: Math.round(r.top),
+            width: Math.round(r.width),
+            height: Math.round(r.height),
+          };
+        })()
       : { x: 0, y: 0, width: 0, height: 0 });
+
+  const b: RectBounds = {
+    x: rawBounds.x ?? (rawBounds as any).left ?? 0,
+    y: rawBounds.y ?? (rawBounds as any).top ?? 0,
+    width: rawBounds.width ?? 0,
+    height: rawBounds.height ?? 0,
+  };
+
   if (b.width <= 0 || b.height <= 0) {
-    return { exposure: "hidden_css" };
+    return { exposure: "hidden_css", exposureRatio: 0 };
   }
 
-  // 1. 视口与父级 overflow 裁剪判定
+  const totalArea = b.width * b.height;
+
+  // 1. 视口与祖先级 overflow 几何裁剪判定
+  let currentVisibleBounds: RectBounds = { ...b };
+  const viewportBounds: RectBounds = {
+    x: 0,
+    y: 0,
+    width:
+      typeof window !== "undefined" && window.innerWidth
+        ? window.innerWidth
+        : 10000,
+    height:
+      typeof window !== "undefined" && window.innerHeight
+        ? window.innerHeight
+        : 10000,
+  };
+
+  const vpIntersection = getIntersectingRect(
+    currentVisibleBounds,
+    viewportBounds
+  );
+  if (!vpIntersection) {
+    return { exposure: "clipped", exposureRatio: 0 };
+  }
+  currentVisibleBounds = vpIntersection;
+
   let parent = el.parentElement;
   while (
     parent &&
@@ -857,80 +920,142 @@ export function checkElementExposure(
       ) {
         if (typeof parent.getBoundingClientRect === "function") {
           const pRect = parent.getBoundingClientRect();
-          if (
-            b.x + b.width <= pRect.left ||
-            b.x >= pRect.right ||
-            b.y + b.height <= pRect.top ||
-            b.y >= pRect.bottom
-          ) {
-            return { exposure: "clipped" };
+          const parentBounds: RectBounds = {
+            x: Math.round(pRect.left),
+            y: Math.round(pRect.top),
+            width: Math.round(pRect.width),
+            height: Math.round(pRect.height),
+          };
+          const intersection = getIntersectingRect(
+            currentVisibleBounds,
+            parentBounds
+          );
+          if (!intersection) {
+            return {
+              exposure: "clipped",
+              exposureRatio: 0,
+              obscuredBy: buildCssSelector(parent),
+            };
           }
+          currentVisibleBounds = intersection;
         }
       }
     }
     parent = parent.parentElement;
   }
 
-  // 2. 视口点击采样点测试 (Sampling points: Center, 25%, 75%)
-  const cx = Math.round(b.x + b.width / 2);
-  const cy = Math.round(b.y + b.height / 2);
+  const unclippedArea =
+    currentVisibleBounds.width * currentVisibleBounds.height;
+  const unclippedRatio = unclippedArea / totalArea;
 
-  const points = [
-    { x: cx, y: cy },
-    {
-      x: Math.round(b.x + b.width * 0.25),
-      y: Math.round(b.y + b.height * 0.25),
-    },
-    {
-      x: Math.round(b.x + b.width * 0.75),
-      y: Math.round(b.y + b.height * 0.75),
-    },
-  ];
+  // 2. 多点采样 + pointer-events 穿透探针测试
+  const samples = 3;
+  const points: Array<{ x: number; y: number }> = [];
+  for (let row = 0; row < samples; row++) {
+    for (let col = 0; col < samples; col++) {
+      const px = Math.round(
+        currentVisibleBounds.x +
+          (currentVisibleBounds.width * (col + 0.5)) / samples
+      );
+      const py = Math.round(
+        currentVisibleBounds.y +
+          (currentVisibleBounds.height * (row + 0.5)) / samples
+      );
+      points.push({ x: px, y: py });
+    }
+  }
 
-  let topEl: Element | null = null;
-  let exposedHitCount = 0;
-
-  const winWidth =
-    typeof window !== "undefined" && window.innerWidth
-      ? window.innerWidth
-      : 10000;
-  const winHeight =
-    typeof window !== "undefined" && window.innerHeight
-      ? window.innerHeight
-      : 10000;
+  let selfHitCount = 0;
+  let validSampleCount = 0;
+  const blockerMap = new Map<Element, number>();
 
   for (const pt of points) {
-    if (pt.x < 0 || pt.y < 0 || pt.x > winWidth || pt.y > winHeight) {
+    if (
+      pt.x < 0 ||
+      pt.y < 0 ||
+      pt.x > viewportBounds.width ||
+      pt.y > viewportBounds.height
+    ) {
       continue;
     }
+    validSampleCount++;
 
-    const hit = document.elementFromPoint(pt.x, pt.y);
-    if (!hit) continue;
+    const getElements = (document as any).elementsFromPoint;
+    const hitElements: Element[] =
+      typeof getElements === "function"
+        ? getElements.call(document, pt.x, pt.y)
+        : document.elementFromPoint(pt.x, pt.y)
+          ? [document.elementFromPoint(pt.x, pt.y)!]
+          : [];
 
-    const isSelfHit =
-      hit === el ||
-      (typeof el.contains === "function" && el.contains(hit)) ||
-      (typeof hit.contains === "function" && hit.contains(el));
+    if (hitElements.length === 0) continue;
 
-    if (isSelfHit) {
-      exposedHitCount++;
-    } else if (!topEl) {
-      topEl = hit;
+    let isHitSelfAtPoint = false;
+    let pointBlocker: Element | null = null;
+
+    for (const candidate of hitElements) {
+      if (isSelfOrRelated(el, candidate)) {
+        isHitSelfAtPoint = true;
+        break;
+      }
+
+      const candStyle =
+        typeof window !== "undefined" &&
+        typeof window.getComputedStyle === "function"
+          ? window.getComputedStyle(candidate)
+          : null;
+
+      const hasVisualFill = candStyle
+        ? (candStyle.backgroundColor !== "rgba(0, 0, 0, 0)" &&
+            candStyle.backgroundColor !== "transparent") ||
+          candStyle.backgroundImage !== "none"
+        : false;
+
+      if (!candStyle || candStyle.pointerEvents !== "none" || hasVisualFill) {
+        pointBlocker = candidate;
+        break;
+      }
+    }
+
+    if (isHitSelfAtPoint) {
+      selfHitCount++;
+    } else if (pointBlocker) {
+      const count = blockerMap.get(pointBlocker) || 0;
+      blockerMap.set(pointBlocker, count + 1);
     }
   }
 
-  if (exposedHitCount > 0) {
-    return { exposure: "exposed" };
+  const pointExposureRatio =
+    validSampleCount > 0 ? selfHitCount / validSampleCount : 1.0;
+  const finalExposureRatio =
+    Math.round(unclippedRatio * pointExposureRatio * 100) / 100;
+
+  let primaryBlocker: Element | undefined;
+  let maxBlockCount = 0;
+  for (const [blocker, count] of blockerMap.entries()) {
+    if (count > maxBlockCount) {
+      maxBlockCount = count;
+      primaryBlocker = blocker;
+    }
   }
 
-  if (topEl) {
+  if (finalExposureRatio >= 0.25) {
+    return { exposure: "exposed", exposureRatio: finalExposureRatio };
+  }
+
+  if (unclippedRatio < 0.25) {
     return {
-      exposure: "obscured",
-      obscuredBy: buildCssSelector(topEl),
+      exposure: "clipped",
+      exposureRatio: finalExposureRatio,
+      obscuredBy: primaryBlocker ? buildCssSelector(primaryBlocker) : undefined,
     };
   }
 
-  return { exposure: "exposed" };
+  return {
+    exposure: "obscured",
+    exposureRatio: finalExposureRatio,
+    obscuredBy: primaryBlocker ? buildCssSelector(primaryBlocker) : undefined,
+  };
 }
 
 /** 节点的 Bug 异常与错误意图分析 */

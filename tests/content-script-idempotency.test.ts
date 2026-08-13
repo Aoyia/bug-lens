@@ -4,6 +4,7 @@ import {
   ensureScreenshotOverlayBridge,
   ensureErrorsTrackerStarted,
 } from "../src/entrypoints/content/content-bridge.ts";
+import { recentErrorsTracker } from "../src/screenshot/recent-errors-tracker.ts";
 
 /**
  * content script 幂等桥回归测试（P0/P2）：
@@ -151,6 +152,35 @@ describe("content script 幂等化（P0/P2）", () => {
       windowStub.__WEB_BUG_RECORDER_ERRORS_TRACKER_STARTED__,
       true,
       "window 标志应置位"
+    );
+  });
+
+  test("recentErrorsTracker 拦截器安全注册、防重与还原清理测试", () => {
+    const originalConsoleError = console.error;
+
+    // 1. 启动监听
+    recentErrorsTracker.startListening();
+    assert.notEqual(
+      console.error,
+      originalConsoleError,
+      "启动监听后 console.error 应被代理包装"
+    );
+
+    // 2. 模拟重复调用 startListening，验证幂等及防二次包装
+    const wrappedOnce = console.error;
+    recentErrorsTracker.startListening();
+    assert.equal(
+      console.error,
+      wrappedOnce,
+      "防重保护生效，console.error 不会被二次嵌套包装"
+    );
+
+    // 3. 停止监听，验证恢复
+    recentErrorsTracker.stopListening();
+    assert.equal(
+      console.error,
+      originalConsoleError,
+      "停止监听后应 100% 还原为原始 console.error"
     );
   });
 

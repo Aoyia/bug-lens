@@ -205,8 +205,62 @@ describe("dom-spatial-collector 物理遮挡与曝光判定", () => {
       const expResult = checkElementExposure(baseEl);
       assert.equal(expResult.exposure, "obscured");
       assert.ok(expResult.obscuredBy?.includes("modal-mask"));
+      assert.equal(expResult.exposureRatio, 0);
     } finally {
       (globalThis as any).document = origDoc;
+    }
+  });
+
+  test("checkElementExposure 支持 elementsFromPoint 物理栈与 pointer-events 穿透过滤", () => {
+    const baseEl = createMockElement("BUTTON", "目标按钮", {
+      left: 20,
+      top: 20,
+      width: 100,
+      height: 40,
+    });
+
+    const pointerNoneOverlay = createMockElement("DIV", "无视觉透明浮层", {
+      left: 0,
+      top: 0,
+      width: 500,
+      height: 500,
+    });
+
+    const origDoc = (globalThis as any).document;
+    const origWin = (globalThis as any).window;
+
+    (globalThis as any).document = {
+      ...(origDoc || {}),
+      elementsFromPoint: (x: number, y: number) => {
+        return [pointerNoneOverlay, baseEl];
+      },
+    };
+
+    (globalThis as any).window = {
+      ...(origWin || {}),
+      getComputedStyle: (el: any) => {
+        if (el === pointerNoneOverlay) {
+          return {
+            pointerEvents: "none",
+            backgroundColor: "transparent",
+            backgroundImage: "none",
+          };
+        }
+        return {
+          pointerEvents: "auto",
+          backgroundColor: "transparent",
+          backgroundImage: "none",
+        };
+      },
+    };
+
+    try {
+      const expResult = checkElementExposure(baseEl);
+      assert.equal(expResult.exposure, "exposed");
+      assert.equal(expResult.exposureRatio, 1);
+    } finally {
+      (globalThis as any).document = origDoc;
+      (globalThis as any).window = origWin;
     }
   });
 
