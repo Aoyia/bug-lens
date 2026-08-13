@@ -76,6 +76,10 @@
 .console-row:hover {
   background: rgba(0, 0, 0, 0.02);
 }
+.console-row:focus-visible {
+  outline: 2px solid #165dff;
+  outline-offset: -2px;
+}
 .console-row-left {
   display: flex;
   align-items: flex-start;
