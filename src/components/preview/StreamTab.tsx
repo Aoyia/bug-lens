@@ -201,10 +201,15 @@ export const StreamTab = memo(function StreamTab({
           <div className="stream-empty-text">{t("noStreamEvents")}</div>
         ) : (
           nodes.map((node) => {
-            const relTime =
+            // 相对时间优先（与 Console/Network/Interactions 的证据时间线契约一致）；
+            // 节点时间早于录制起点时 formatElapsedEpochTime 返回 undefined，
+            // 此时回退到本地绝对时间，避免时间列渲染成空白（不丢信息）。
+            const relative =
               originEpochMs != null
                 ? formatElapsedEpochTime(node.timestamp, originEpochMs)
-                : new Date(node.timestamp).toLocaleTimeString();
+                : undefined;
+            const relTime =
+              relative ?? new Date(node.timestamp).toLocaleTimeString();
             let badgeHtml = null;
             let contentHtml = null;
 
