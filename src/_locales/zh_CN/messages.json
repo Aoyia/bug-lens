@@ -126,6 +126,9 @@
   "takeScreenshot": {
     "message": "截图"
   },
+  "screenshotCapturing": {
+    "message": "正在截图…"
+  },
   "screenshotFailed": {
     "message": "截图触发失败，请重试"
   },

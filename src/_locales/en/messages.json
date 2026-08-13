@@ -126,6 +126,9 @@
   "takeScreenshot": {
     "message": "Screenshot"
   },
+  "screenshotCapturing": {
+    "message": "Capturing…"
+  },
   "screenshotFailed": {
     "message": "Failed to start screenshot, please retry"
   },
