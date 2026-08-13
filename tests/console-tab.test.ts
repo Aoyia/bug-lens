@@ -173,3 +173,21 @@ test("Console 日志行可点击暗示与 Network 行保持一致（cursor: poin
     ".network-row cursor: pointer must exist as the reference"
   );
 });
+
+test("ConsoleTab 删除按钮应当具备可访问性 aria-label 属性", () => {
+  const html = render(
+    h(ConsoleTab, {
+      snapshot: {
+        session: undefined,
+        all: mockConsoleEntries,
+        included: mockConsoleEntries,
+      },
+      editable: true,
+    })
+  );
+  assert.match(
+    html,
+    /aria-label="[^"]+"/,
+    "ConsoleTab 可编辑模式下的删除按钮应包含 aria-label 属性"
+  );
+});

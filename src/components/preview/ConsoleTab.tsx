@@ -218,6 +218,7 @@ export const ConsoleTab = memo(function ConsoleTab({
                         <button
                           className="item-delete-btn delete"
                           title={t("deleteFromExport")}
+                          aria-label={t("deleteFromExport")}
                           onClick={(e) => handleExclude(e, entry.id)}
                         >
                           <svg
