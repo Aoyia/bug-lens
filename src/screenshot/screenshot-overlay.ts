@@ -381,8 +381,12 @@ export class ScreenshotOverlay {
         this.deleteSelectedAnnotation();
       }
     } else if (!isEditingText) {
-      // 允许 Cmd / Ctrl 组合快捷键（如 Cmd+R 刷新页面、Cmd+W 关闭标签等）穿透给浏览器
-      if (e.metaKey || e.ctrlKey) {
+      // 允许 Cmd / Ctrl 组合快捷键（如 Cmd+R 刷新页面、Cmd+W 关闭标签等）及 F1-F12 功能键穿透给浏览器
+      if (
+        e.metaKey ||
+        e.ctrlKey ||
+        (e.key && e.key.length >= 2 && e.key.startsWith("F") && !isNaN(Number(e.key.slice(1))))
+      ) {
         return;
       }
       // 截图激活期间吞掉所有其余按键，避免网页全局快捷键被无意触发

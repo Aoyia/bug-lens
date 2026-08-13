@@ -28,6 +28,9 @@ describe("Screenshot ZIP Builder - 资源包压缩与解压验证", () => {
         leafCount: 0,
         maxDepth: 0,
       },
+      anchors: [],
+      leaves: [],
+      ancestors: [],
     },
     environment: {
       url: "https://example.com",

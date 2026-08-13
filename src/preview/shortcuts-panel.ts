@@ -35,6 +35,7 @@ export function bindShortcutsPanel(
       return;
     }
     if (keyEvent.key === "Escape" && !backdrop.hidden) {
+      keyEvent.preventDefault();
       keyEvent.stopPropagation();
       close();
     }
