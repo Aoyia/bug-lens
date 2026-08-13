@@ -79,7 +79,12 @@
     "message": "组件上下文"
   },
   "webmChunks": {
-    "message": "$COUNT$ 个 WebM 分片"
+    "message": "$COUNT$ 个 WebM 分片",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   },
   "videoNotCaptured": {
     "message": "未写入录像"
@@ -91,31 +96,77 @@
     "message": "未采集"
   },
   "screenshotDetailPartial": {
-    "message": "$COUNT$ 成功，$COUNT2$ 失败"
+    "message": "$COUNT$ 成功，$COUNT2$ 失败",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      },
+      "count2": {
+        "content": "$2"
+      }
+    }
   },
   "countItems": {
-    "message": "$COUNT$ 张"
+    "message": "$COUNT$ 张",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   },
   "issueSceneCountDetail": {
-    "message": "$COUNT$ 个问题现场"
+    "message": "$COUNT$ 个问题现场",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   },
   "noIssueScene": {
     "message": "未标记问题"
   },
   "countEntries": {
-    "message": "$COUNT$ 条"
+    "message": "$COUNT$ 条",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   },
   "redactedAndTruncatedBodies": {
-    "message": "$COUNT$ 条已脱敏，$COUNT2$ 条已截断"
+    "message": "$COUNT$ 条已脱敏，$COUNT2$ 条已截断",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      },
+      "count2": {
+        "content": "$2"
+      }
+    }
   },
   "redactedBodies": {
-    "message": "$COUNT$ 条已脱敏"
+    "message": "$COUNT$ 条已脱敏",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   },
   "truncatedBodies": {
-    "message": "$COUNT$ 条已截断"
+    "message": "$COUNT$ 条已截断",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   },
   "frameworkFrames": {
-    "message": "$COUNT$ 帧"
+    "message": "$COUNT$ 帧",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   },
   "noFrameworkDetected": {
     "message": "页面未识别到 React/Vue 组件树"

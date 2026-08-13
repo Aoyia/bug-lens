@@ -79,7 +79,12 @@
     "message": "Component Context"
   },
   "webmChunks": {
-    "message": "$COUNT$ WebM chunks"
+    "message": "$COUNT$ WebM chunks",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   },
   "videoNotCaptured": {
     "message": "No video recorded"
@@ -91,31 +96,77 @@
     "message": "Not captured"
   },
   "screenshotDetailPartial": {
-    "message": "$COUNT$ succeeded, $COUNT2$ failed"
+    "message": "$COUNT$ succeeded, $COUNT2$ failed",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      },
+      "count2": {
+        "content": "$2"
+      }
+    }
   },
   "countItems": {
-    "message": "$COUNT$ items"
+    "message": "$COUNT$ items",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   },
   "issueSceneCountDetail": {
-    "message": "$COUNT$ issue scenes"
+    "message": "$COUNT$ issue scenes",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   },
   "noIssueScene": {
     "message": "No issues marked"
   },
   "countEntries": {
-    "message": "$COUNT$ entries"
+    "message": "$COUNT$ entries",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   },
   "redactedAndTruncatedBodies": {
-    "message": "$COUNT$ redacted, $COUNT2$ truncated"
+    "message": "$COUNT$ redacted, $COUNT2$ truncated",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      },
+      "count2": {
+        "content": "$2"
+      }
+    }
   },
   "redactedBodies": {
-    "message": "$COUNT$ redacted"
+    "message": "$COUNT$ redacted",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   },
   "truncatedBodies": {
-    "message": "$COUNT$ truncated"
+    "message": "$COUNT$ truncated",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   },
   "frameworkFrames": {
-    "message": "$COUNT$ frames"
+    "message": "$COUNT$ frames",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   },
   "noFrameworkDetected": {
     "message": "No React/Vue component tree detected"

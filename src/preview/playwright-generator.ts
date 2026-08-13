@@ -4,6 +4,7 @@ import type {
   ConsoleEntry,
   NetworkEntry,
 } from "../shared/protocol";
+import { MAX_IDLE_GAP_THRESHOLD_MS } from "../recording/idle-monitor.ts";
 
 type GeneratorInput = {
   session: RecordingSession;
@@ -303,6 +304,11 @@ export function generatePlaywrightScript(input: GeneratorInput): string {
 
   for (const interaction of interactions) {
     const stepDelay = interaction.createdAt - lastTimestamp;
+    if (stepDelay >= MAX_IDLE_GAP_THRESHOLD_MS) {
+      l(
+        `  // [Idle Gap Compressed: ${(stepDelay / 60000).toFixed(1)} min idle/sleep gap detected before this step]`
+      );
+    }
     if (stepDelay > 400) {
       const pacedDelay = Math.min(Math.max(Math.round(stepDelay), 300), 2500);
       l(`  await page.waitForTimeout(${pacedDelay});`);

@@ -57,6 +57,7 @@
     "clipboardWrite",
     "debugger",
     "downloads",
+    "idle",
     "offscreen",
     "scripting",
     "storage",
