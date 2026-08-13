@@ -323,13 +323,6 @@ export class ScreenshotOverlay {
   }
 
   private handleKeyDown(e: KeyboardEvent): void {
-    // 放行浏览器刷新快捷键（Cmd/Ctrl+R、F5、Cmd/Ctrl+Shift+R）：
-    // 截图时用户可能需要刷新页面重新截取，刷新会重载页面并销毁 overlay。
-    const isRefreshShortcut =
-      e.key === "F5" ||
-      ((e.metaKey || e.ctrlKey) && (e.key === "r" || e.key === "R"));
-    if (isRefreshShortcut) return;
-
     const isEditingText = this.isEditingText();
 
     if (e.key === "Escape") {
@@ -388,6 +381,10 @@ export class ScreenshotOverlay {
         this.deleteSelectedAnnotation();
       }
     } else if (!isEditingText) {
+      // 允许 Cmd / Ctrl 组合快捷键（如 Cmd+R 刷新页面、Cmd+W 关闭标签等）穿透给浏览器
+      if (e.metaKey || e.ctrlKey) {
+        return;
+      }
       // 截图激活期间吞掉所有其余按键，避免网页全局快捷键被无意触发
       e.preventDefault();
       e.stopPropagation();
@@ -399,7 +396,7 @@ export class ScreenshotOverlay {
    * 编辑器/游戏）被截图操作触发。
    */
   private handleKeyUp(e: KeyboardEvent): void {
-    if (this.isEditingText()) return;
+    if (this.isEditingText() || e.metaKey || e.ctrlKey) return;
     e.preventDefault();
     e.stopPropagation();
   }
@@ -666,6 +663,11 @@ export class ScreenshotOverlay {
   async confirm(viewportDataUrl: string): Promise<void> {
     if (this.isConfirming) return;
     this.isConfirming = true;
+
+    // 确认后立即解绑全局事件监听，确保在后台异步 processScreenshot 导出期间（可长达数秒）
+    // 用户对页面的键盘控制权（如 Cmd+R 刷新页面）已完全恢复。
+    this.removeEventListeners();
+
     const selection = this.selectionController.selection;
     if (!selection) {
       this.isConfirming = false;
@@ -723,13 +725,14 @@ export class ScreenshotOverlay {
   }
 
   cancel(): void {
+    this.removeEventListeners();
     if (this.onCancelCallback) {
       this.onCancelCallback();
     }
     this.destroy();
   }
 
-  destroy(): void {
+  private removeEventListeners(): void {
     window.removeEventListener("keydown", this.handleKeyDown, true);
     window.removeEventListener("keyup", this.handleKeyUp, true);
     window.removeEventListener("contextmenu", this.handleContextMenu, true);
@@ -742,6 +745,10 @@ export class ScreenshotOverlay {
     window.removeEventListener("keydown", this.handlePreventScroll, {
       capture: true,
     } as any);
+  }
+
+  destroy(): void {
+    this.removeEventListeners();
     if (this.container && this.container.parentElement) {
       this.container.parentElement.removeChild(this.container);
     }

@@ -7,7 +7,7 @@
   "minimum_chrome_version": "125",
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Bug Lens",
+    "default_title": "__MSG_actionDefaultTitle__",
     "default_icon": {
       "16": "icons/icon_idle_16.png",
       "32": "icons/icon_idle_32.png",
@@ -31,7 +31,7 @@
         "linux": "Alt+R",
         "windows": "Alt+R"
       },
-      "description": "一键开始录制当前标签页"
+      "description": "__MSG_commandStartRecordingDescription__"
     },
     "take-screenshot": {
       "suggested_key": {
@@ -40,7 +40,7 @@
         "linux": "Alt+X",
         "windows": "Alt+X"
       },
-      "description": "一键拉框截图并收集 DOM 元素上下文"
+      "description": "__MSG_commandTakeScreenshotDescription__"
     }
   },
   "icons": {
@@ -57,7 +57,6 @@
     "clipboardWrite",
     "debugger",
     "downloads",
-    "idle",
     "offscreen",
     "scripting",
     "storage",

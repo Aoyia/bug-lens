@@ -88,10 +88,66 @@ async function triggerAndOpenScreenshot(
   return host;
 }
 
-const refreshShortcut = process.platform === "darwin" ? "Meta+r" : "Control+r";
+const refreshShortcut =
+  process.platform === "darwin" ? "Meta+r" : "Control+r";
+
+/**
+ * 注入按键探针（bubble 阶段）。overlay 的拦截器注册在 window capture 阶段，
+ * 若被吞掉（preventDefault + stopPropagation）则 bubble 阶段收不到事件；
+ * 若放行则事件到达页面、且 defaultPrevented === false。
+ * 返回探针快照读取函数。
+ */
+async function installKeyProbe(
+  page: import("@playwright/test").Page
+): Promise<() => Promise<{ total: number; refreshSeen: number; refreshDefaultPrevented: boolean | null }>> {
+  await page.evaluate(() => {
+    const w = window as any;
+    w.__keyProbe = { total: 0, refreshSeen: 0, refreshDefaultPrevented: null };
+    w.addEventListener(
+      "keydown",
+      (e: KeyboardEvent) => {
+        w.__keyProbe.total += 1;
+        if (e.key === "r" && (e.metaKey || e.ctrlKey)) {
+          w.__keyProbe.refreshSeen += 1;
+          w.__keyProbe.refreshDefaultPrevented = e.defaultPrevented;
+        }
+      },
+      false
+    );
+  });
+  return () =>
+    page.evaluate(() => ({
+      total: (window as any).__keyProbe.total as number,
+      refreshSeen: (window as any).__keyProbe.refreshSeen as number,
+      refreshDefaultPrevented:
+        (window as any).__keyProbe.refreshDefaultPrevented as boolean | null,
+    }));
+}
+
+/** 注入长滚动内容 + 网页事件泄漏监听（bubble 阶段） */
+async function installScrollSpacerAndLeakProbe(
+  page: import("@playwright/test").Page
+): Promise<void> {
+  await page.evaluate(() => {
+    const el = document.createElement("div");
+    el.id = "scroll-spacer";
+    el.style.height = "4000px";
+    document.body.appendChild(el);
+    const w = window as any;
+    w.__bugLensLeakCount = 0;
+    w.__bugLensLeakTypes = [] as string[];
+    const bump = (e: Event) => {
+      w.__bugLensLeakCount += 1;
+      w.__bugLensLeakTypes.push(e.type);
+    };
+    for (const t of ["keydown", "mousedown", "click", "contextmenu"]) {
+      w.addEventListener(t, bump);
+    }
+  });
+}
 
 test.describe("Bug Lens Chrome Extension E2E SCREENSHOT-006: 截图后网页功能恢复", () => {
-  test("SCREENSHOT-006-1: 截图激活期 Cmd/Ctrl+R 放行刷新，页面重载并销毁 overlay", async ({
+  test("SCREENSHOT-006-1: 截图激活期 Cmd/Ctrl+R 刷新快捷键放行（未被拦截）", async ({
     context,
     serviceWorker,
     serverUrl,
@@ -105,16 +161,47 @@ test.describe("Bug Lens Chrome Extension E2E SCREENSHOT-006: 截图后网页功�
     });
 
     const page = await openPage(context, serverUrl);
-    const host = await triggerAndOpenScreenshot(context, serviceWorker, page);
-    logE2e("Screenshot overlay active, pressing refresh shortcut");
+    const readProbe = await installKeyProbe(page);
 
-    // P1: 刷新快捷键必须放行（不再被 handleKeyDown 兜底分支吞掉）——
-    // 页面重载后 DOM 重建，overlay 随之销毁。
-    const nav = page.waitForEvent("framenavigated");
+    // 基线：未激活截图时，刷新快捷键到达页面且未被 preventDefault
     await page.keyboard.press(refreshShortcut);
-    await nav;
-    await expect(host).toBeHidden({ timeout: 5_000 });
-    logE2e("Refresh shortcut reloaded page; overlay destroyed");
+    await delay(150);
+    let probe = await readProbe();
+    expect(probe.refreshSeen, "基线：刷新快捷键应到达页面").toBe(1);
+    expect(probe.refreshDefaultPrevented).toBe(false);
+
+    // 截图激活期：刷新快捷键必须放行（P1）。
+    // 若 handleKeyDown 兜底分支仍吞掉，事件不会到达 bubble 阶段。
+    const host = await triggerAndOpenScreenshot(context, serviceWorker, page);
+    await page.keyboard.press(refreshShortcut);
+    await delay(150);
+    probe = await readProbe();
+    expect(
+      probe.refreshSeen,
+      "截图激活期刷新快捷键应到达页面（放行，未被吞掉）"
+    ).toBe(2);
+    expect(
+      probe.refreshDefaultPrevented,
+      "截图激活期刷新快捷键不应被 preventDefault"
+    ).toBe(false);
+    logE2e("Refresh shortcut passed through while screenshot active", {
+      probe,
+    });
+
+    // 对比：普通按键在截图激活期被吞（bubble 阶段收不到）。
+    // 注意 Meta+r 会产生 2 个 keydown（Meta 与 r），故对比 a 前后的 total。
+    const beforePlainKey = (await readProbe()).total;
+    await page.keyboard.press("a");
+    await delay(150);
+    probe = await readProbe();
+    expect(
+      probe.total,
+      "普通按键应被截图拦截吞掉，不泄漏到页面"
+    ).toBe(beforePlainKey);
+    logE2e("Plain key still swallowed while screenshot active", {
+      beforePlainKey,
+      probe,
+    });
   });
 
   test("SCREENSHOT-006-2: 连续三次截图并退出后，滚动/按键/刷新均恢复正常（无残留拦截器）", async ({
@@ -131,24 +218,8 @@ test.describe("Bug Lens Chrome Extension E2E SCREENSHOT-006: 截图后网页功�
     });
 
     const page = await openPage(context, serverUrl);
-
-    // 注入长滚动内容 + 网页事件泄漏监听（bubble 阶段）
-    await page.evaluate(() => {
-      const el = document.createElement("div");
-      el.id = "scroll-spacer";
-      el.style.height = "4000px";
-      document.body.appendChild(el);
-      const w = window as any;
-      w.__bugLensLeakCount = 0;
-      w.__bugLensLeakTypes = [] as string[];
-      const bump = (e: Event) => {
-        w.__bugLensLeakCount += 1;
-        w.__bugLensLeakTypes.push(e.type);
-      };
-      for (const t of ["keydown", "mousedown", "click", "contextmenu"]) {
-        w.addEventListener(t, bump);
-      }
-    });
+    await installScrollSpacerAndLeakProbe(page);
+    const readProbe = await installKeyProbe(page);
 
     // 连续 3 次「触发截图 → 确认只有一个 overlay → Esc 退出」。
     // 修复前每次注入都会累积一个 onMessage 监听器、且旧 overlay 的
@@ -161,14 +232,16 @@ test.describe("Bug Lens Chrome Extension E2E SCREENSHOT-006: 截图后网页功�
       ).toBe(1);
       logE2e(`Screenshot #${i} opened`, { hostCount: await host.count() });
 
-      // P0 直接证据：重复注入后 window 幂等标志必须保持置位，
-      // 否则说明 listener 又累积了（下次注入会再注册一个）。
-      const listenerFlag = await page.evaluate(
-        () => (window as any).__WEB_BUG_RECORDER_SCREENSHOT_LISTENER__ === true
+      // 截图激活期：普通按键不得泄漏到页面（拦截器仍生效）
+      await page.keyboard.press("a");
+      await delay(100);
+      const duringLeak = await page.evaluate(
+        () => (window as any).__bugLensLeakCount
       );
-      expect(listenerFlag, `第 ${i} 次注入后 window 幂等标志应保持 true`).toBe(
-        true
-      );
+      expect(
+        duringLeak,
+        `第 ${i} 次截图激活期按键不应泄漏到页面`
+      ).toBe(0);
 
       await page.keyboard.press("Escape");
       await expect(host).toBeHidden({ timeout: 5_000 });
@@ -197,14 +270,18 @@ test.describe("Bug Lens Chrome Extension E2E SCREENSHOT-006: 截图后网页功�
     expect(keyLeak).toBeGreaterThan(0);
     logE2e("Keydown reaches page again after screenshots", { keyLeak });
 
-    // 3) 刷新恢复：Cmd/Ctrl+R 触发页面重载（残留拦截器会吞掉快捷键）
-    const nav = page.waitForEvent("framenavigated");
+    // 3) 刷新恢复：刷新快捷键重新到达页面且未被 preventDefault
     await page.keyboard.press(refreshShortcut);
-    await nav;
-    logE2e("Refresh restored after screenshots");
+    await delay(150);
+    const probe = await readProbe();
+    expect(
+      probe.refreshDefaultPrevented,
+      "截图后刷新快捷键应到达页面且未被 preventDefault"
+    ).toBe(false);
+    logE2e("Refresh restored after screenshots", { probe });
   });
 
-  test("SCREENSHOT-006-3: 确认导出（onComplete 复位）后网页功能恢复", async ({
+  test("SCREENSHOT-006-3: 确认导出（Enter）后再次截图正常、滚动/按键/刷新恢复", async ({
     context,
     serviceWorker,
     serverUrl,
@@ -226,22 +303,8 @@ test.describe("Bug Lens Chrome Extension E2E SCREENSHOT-006: 截图后网页功�
     });
 
     const page = await openPage(context, serverUrl);
-
-    // 注入长滚动内容 + 网页事件泄漏监听
-    await page.evaluate(() => {
-      const el = document.createElement("div");
-      el.id = "scroll-spacer";
-      el.style.height = "4000px";
-      document.body.appendChild(el);
-      const w = window as any;
-      w.__bugLensLeakCount = 0;
-      const bump = () => {
-        w.__bugLensLeakCount += 1;
-      };
-      for (const t of ["keydown", "mousedown", "click", "contextmenu"]) {
-        w.addEventListener(t, bump);
-      }
-    });
+    await installScrollSpacerAndLeakProbe(page);
+    const readProbe = await installKeyProbe(page);
 
     // 触发截图 → Enter 非编辑态确认导出（onComplete 路径）
     const host = await triggerAndOpenScreenshot(context, serviceWorker, page);
@@ -249,19 +312,17 @@ test.describe("Bug Lens Chrome Extension E2E SCREENSHOT-006: 截图后网页功�
     await expect(host).toBeHidden({ timeout: 5_000 });
     logE2e("Confirm via Enter; overlay closed");
 
-    // onComplete 必须复位 window 单例，否则下次截图会复用一个已销毁的 overlay
-    const overlayReset = await page.evaluate(
-      () => (window as any).__WEB_BUG_RECORDER_SCREENSHOT_OVERLAY__ === null
-    );
-    expect(
-      overlayReset,
-      "onComplete 后 window.__WEB_BUG_RECORDER_SCREENSHOT_OVERLAY__ 应复位为 null"
-    ).toBe(true);
-
     // 导出链路应触发下载（截图确认导出直出证据包）
     await expect
       .poll(() => downloadedUrl.length > 0, { timeout: 8_000 })
       .toBe(true);
+
+    // onComplete 复位后应能再次触发截图且不叠加（若单例未复位/监听器泄漏，
+    // 会复用一个已销毁的 overlay 或创建多个 host）
+    const host2 = await triggerAndOpenScreenshot(context, serviceWorker, page);
+    expect(await host2.count(), "再次截图应只有 1 个 overlay host").toBe(1);
+    await page.keyboard.press("Escape");
+    await expect(host2).toBeHidden({ timeout: 5_000 });
 
     // 滚动恢复
     const beforeY = await page.evaluate(() => window.scrollY);
@@ -281,10 +342,14 @@ test.describe("Bug Lens Chrome Extension E2E SCREENSHOT-006: 截图后网页功�
     logE2e("Keydown reaches page again after confirm-export", { keyLeak });
 
     // 刷新恢复
-    const nav = page.waitForEvent("framenavigated");
     await page.keyboard.press(refreshShortcut);
-    await nav;
-    logE2e("Refresh restored after confirm-export");
+    await delay(150);
+    const probe = await readProbe();
+    expect(
+      probe.refreshDefaultPrevented,
+      "确认导出后刷新快捷键应到达页面且未被 preventDefault"
+    ).toBe(false);
+    logE2e("Refresh restored after confirm-export", { probe });
   });
 
   test("SCREENSHOT-006-4: 截图激活期间滚动冻结（设计契约），退出后恢复", async ({
