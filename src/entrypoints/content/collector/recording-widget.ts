@@ -313,13 +313,6 @@ export class RecordingWidget {
         .__wbr_btn:hover { background: #f76565 !important; }
         .__wbr_btn:active { background: #cb2727 !important; }
         .__wbr_timer { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important; font-size: 12px !important; color: #e5e6eb !important; font-weight: 600 !important; flex-shrink: 0 !important; }
-        /* 无障碍：尊重系统「减少动态效果」偏好。脉冲红点与保存 spinner 均为纯装饰性
-           无限动画，不承载任何状态信息（录制态由 REC 文案 + 红点颜色、保存态由文案传达），
-           关闭它们不会丢失语义，却能避免对前庭敏感 / 晕动症用户造成持续干扰。 */
-        @media (prefers-reduced-motion: reduce) {
-          .__wbr_dot { animation: none !important; }
-          .__wbr_spinner { animation: none !important; }
-        }
       </style>
       <span class="__wbr_drag_handle" title="${t("dragToMove")}">⋮⋮</span>
       <span class="__wbr_dot"></span>

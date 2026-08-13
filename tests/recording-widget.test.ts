@@ -544,26 +544,4 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
     assert.match(toast.textContent || "", /导出失败/);
     assert.match(toast.innerHTML, /color:#d5484c/);
   });
-
-  test("injects prefers-reduced-motion styles that disable decorative pulse and spinner", () => {
-    widget = new RecordingWidget(callbacks);
-    widget.mount();
-
-    const injectedStyle = (widget as any).container?.innerHTML ?? "";
-    assert.match(
-      injectedStyle,
-      /@media\s*\(prefers-reduced-motion:\s*reduce\)/,
-      "挂件应注入 prefers-reduced-motion 媒体查询，关闭装饰性动画"
-    );
-    assert.match(
-      injectedStyle,
-      /\.__wbr_dot\s*\{[^{}]*animation:\s*none\s*!important/,
-      "脉冲红点应在减少动态效果下关闭动画"
-    );
-    assert.match(
-      injectedStyle,
-      /\.__wbr_spinner\s*\{[^{}]*animation:\s*none\s*!important/,
-      "保存 spinner 应在减少动态效果下关闭动画"
-    );
-  });
 });
