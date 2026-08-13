@@ -1,4 +1,5 @@
 import { memo } from "preact/compat";
+import { useState } from "preact/hooks";
 import {
   message,
   type EvidenceSummary,
@@ -67,17 +68,24 @@ export const RecordPanel = memo(function RecordPanel({
   // 避免在 chrome://、file:// 等页面上出现"看似在录制实则无数据"的死角。
   const canCapture = isRecordableTabUrl(activeTab?.url);
 
+  // 截图是异步慢操作（后台 captureVisibleTab + 注入 overlay 完成前 popup 保持打开），
+  // 提交期间置位，用于禁用截图按钮并提供"正在截图"反馈，防止双击触发第二个截图 overlay。
+  const [capturing, setCapturing] = useState(false);
+
   const handleTakeScreenshot = () => {
     if (!activeTab?.id) {
       onError(t("failedToReadTab"));
       return;
     }
+    if (capturing) return;
+    setCapturing(true);
     chrome.runtime
       .sendMessage(message("screenshot/trigger", { tabId: activeTab.id }))
       .then(() => window.close())
       .catch((err) => {
         console.warn("Bug Lens: Failed trigger screenshot message", err);
         onError(t("screenshotFailed"));
+        setCapturing(false);
       });
   };
 
@@ -164,7 +172,7 @@ export const RecordPanel = memo(function RecordPanel({
               data-testid="take-screenshot-btn"
               className="action-btn secondary"
               onClick={handleTakeScreenshot}
-              disabled={!canCapture}
+              disabled={!canCapture || capturing}
               aria-label={t("takeScreenshot")}
               title={
                 canCapture
@@ -186,7 +194,9 @@ export const RecordPanel = memo(function RecordPanel({
                 <path d="M6 2v14a2 2 0 0 0 2 2h14"></path>
                 <path d="M18 22V8a2 2 0 0 0-2-2H2"></path>
               </svg>
-              <span>{t("takeScreenshot")}</span>
+              <span>
+                {capturing ? t("screenshotCapturing") : t("takeScreenshot")}
+              </span>
             </button>
           </>
         )}
