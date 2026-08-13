@@ -132,12 +132,17 @@ test("Preview 快捷键面板 - 8项键盘与鼠标行为验证", () => {
   // 3. 面板打开时按 `Escape` 关闭
   win.dispatchEvent({ type: "keydown", key: "?", preventDefault: () => {} });
   assert.equal(backdrop.hidden, false);
+  let escapePrevented = false;
   win.dispatchEvent({
     type: "keydown",
     key: "Escape",
+    preventDefault: () => {
+      escapePrevented = true;
+    },
     stopPropagation: () => {},
   });
   assert.equal(backdrop.hidden, true, "按 Escape 应关闭面板");
+  assert.equal(escapePrevented, true, "按 Escape 关闭面板时应阻止默认行为");
 
   // 4. 焦点位于 input、textarea 或 contenteditable 元素时，按 `?` 不应打开面板
   doc.activeElement = inputEl;

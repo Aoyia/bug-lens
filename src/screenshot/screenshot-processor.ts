@@ -1,5 +1,6 @@
 import {
   formatPayloadToMarkdown,
+  normalizePayloadKeyOrder,
   type AIScreenshotPayload,
   type AnnotationItem,
   type RectBounds,
@@ -499,8 +500,8 @@ export async function processScreenshot(
     }
   }
 
-  // 5. 组装完整 AIScreenshotPayload
-  const payload: AIScreenshotPayload = {
+  // 5. 组装完整 AIScreenshotPayload 并规范化 Key 顺序（确保意图/DOM在上，大图像/底层规则在下）
+  const payload: AIScreenshotPayload = normalizePayloadKeyOrder({
     version: "1.0",
     timestamp: Date.now(),
     cropBounds,
@@ -531,7 +532,7 @@ export async function processScreenshot(
       vueComponentStates:
         vueComponentStates.length > 0 ? vueComponentStates : undefined,
     },
-  };
+  });
 
   // 5. 先写入占位符提示词：发生在用户点击“完成”的手势窗口内，写入最可靠，
   //    确保用户在任何后续失败下都能拿到可用的 AI 提示词。

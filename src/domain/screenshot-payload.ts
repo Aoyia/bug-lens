@@ -552,6 +552,225 @@ export function formatPayloadToMarkdownForZip(
 }
 
 /**
+ * 规范化 DomTreeNode 的 Key 顺序。
+ * 顺序原则：[意图/组件] -> [定位/语义] -> [显隐/布局] -> [计算样式] -> [children (庞大的 DOM 递归树置底)]
+ */
+export function normalizeDomTreeNodeKeyOrder(node: DomTreeNode): DomTreeNode {
+  const {
+    intentFlags,
+    isErrorSignal,
+    componentName,
+    componentPath,
+    props,
+    data,
+    tagName,
+    id,
+    className,
+    selector,
+    innerText,
+    visibility,
+    exposure,
+    obscuredBy,
+    relativeRect,
+    layoutContext,
+    collapsedWrappers,
+    selectState,
+    boxModel,
+    computedStyles,
+    children,
+    ...rest
+  } = node;
+
+  const normalizedChildren = children
+    ? children.map(normalizeDomTreeNodeKeyOrder)
+    : undefined;
+
+  return {
+    ...(intentFlags !== undefined ? { intentFlags } : {}),
+    ...(isErrorSignal !== undefined ? { isErrorSignal } : {}),
+    ...(componentName !== undefined ? { componentName } : {}),
+    ...(componentPath !== undefined ? { componentPath } : {}),
+    ...(props !== undefined ? { props } : {}),
+    ...(data !== undefined ? { data } : {}),
+    tagName,
+    ...(id !== undefined ? { id } : {}),
+    ...(className !== undefined ? { className } : {}),
+    selector,
+    ...(innerText !== undefined ? { innerText } : {}),
+    ...(visibility !== undefined ? { visibility } : {}),
+    ...(exposure !== undefined ? { exposure } : {}),
+    ...(obscuredBy !== undefined ? { obscuredBy } : {}),
+    relativeRect,
+    ...(layoutContext !== undefined ? { layoutContext } : {}),
+    ...(collapsedWrappers !== undefined ? { collapsedWrappers } : {}),
+    ...(selectState !== undefined ? { selectState } : {}),
+    ...(boxModel !== undefined ? { boxModel } : {}),
+    ...(computedStyles !== undefined ? { computedStyles } : {}),
+    ...rest,
+    ...(normalizedChildren !== undefined ? { children: normalizedChildren } : {}),
+  };
+}
+
+/**
+ * 规范化 DomAnchorNode 的 Key 顺序
+ */
+export function normalizeDomAnchorNodeKeyOrder(node: DomAnchorNode): DomAnchorNode {
+  const {
+    intentFlags,
+    isErrorSignal,
+    componentName,
+    componentPath,
+    tagName,
+    id,
+    className,
+    selector,
+    selectorPath,
+    innerText,
+    visibility,
+    exposure,
+    obscuredBy,
+    relativeRect,
+    layoutContext,
+    selectState,
+    boxModel,
+    computedStyles,
+    ...rest
+  } = node;
+
+  return {
+    intentFlags,
+    ...(isErrorSignal !== undefined ? { isErrorSignal } : {}),
+    ...(componentName !== undefined ? { componentName } : {}),
+    ...(componentPath !== undefined ? { componentPath } : {}),
+    ...(tagName !== undefined ? { tagName } : {}),
+    ...(id !== undefined ? { id } : {}),
+    ...(className !== undefined ? { className } : {}),
+    selector,
+    selectorPath,
+    ...(innerText !== undefined ? { innerText } : {}),
+    ...(visibility !== undefined ? { visibility } : {}),
+    ...(exposure !== undefined ? { exposure } : {}),
+    ...(obscuredBy !== undefined ? { obscuredBy } : {}),
+    relativeRect,
+    ...(layoutContext !== undefined ? { layoutContext } : {}),
+    ...(selectState !== undefined ? { selectState } : {}),
+    ...(boxModel !== undefined ? { boxModel } : {}),
+    computedStyles,
+    ...rest,
+  };
+}
+
+/**
+ * 规范化 DomLeafNode 的 Key 顺序
+ */
+export function normalizeDomLeafNodeKeyOrder(node: DomLeafNode): DomLeafNode {
+  const {
+    isErrorSignal,
+    componentName,
+    tagName,
+    id,
+    selector,
+    innerText,
+    visibility,
+    exposure,
+    obscuredBy,
+    relativeRect,
+    layoutContext,
+    layoutStyle,
+    selectState,
+    boxModel,
+    computedStyles,
+    ...rest
+  } = node;
+
+  return {
+    ...(isErrorSignal !== undefined ? { isErrorSignal } : {}),
+    ...(componentName !== undefined ? { componentName } : {}),
+    tagName,
+    ...(id !== undefined ? { id } : {}),
+    selector,
+    ...(innerText !== undefined ? { innerText } : {}),
+    ...(visibility !== undefined ? { visibility } : {}),
+    ...(exposure !== undefined ? { exposure } : {}),
+    ...(obscuredBy !== undefined ? { obscuredBy } : {}),
+    relativeRect,
+    ...(layoutContext !== undefined ? { layoutContext } : {}),
+    ...(layoutStyle !== undefined ? { layoutStyle } : {}),
+    ...(selectState !== undefined ? { selectState } : {}),
+    ...(boxModel !== undefined ? { boxModel } : {}),
+    ...(computedStyles !== undefined ? { computedStyles } : {}),
+    ...rest,
+  };
+}
+
+/**
+ * 规范化 DomAncestorNode 的 Key 顺序
+ */
+export function normalizeDomAncestorNodeKeyOrder(node: DomAncestorNode): DomAncestorNode {
+  const { componentName, selector, tagName, id, className, depth, layoutStyle, ...rest } = node;
+
+  return {
+    ...(componentName !== undefined ? { componentName } : {}),
+    selector,
+    ...(tagName !== undefined ? { tagName } : {}),
+    ...(id !== undefined ? { id } : {}),
+    ...(className !== undefined ? { className } : {}),
+    depth,
+    ...(layoutStyle !== undefined ? { layoutStyle } : {}),
+    ...rest,
+  };
+}
+
+/**
+ * 规范化 DomContextTreeV2 的 Key 顺序
+ * 顺序原则：[meta & smallestCommonAncestorSelector] -> [anchors / leaves / ancestors 精简数据] -> [tree (庞大的 DOM 递归树置底)]
+ */
+export function normalizeDomTreeKeyOrder(tree: DomContextTreeV2): DomContextTreeV2 {
+  const { smallestCommonAncestorSelector, meta, anchors, leaves, ancestors, tree: rootNode, ...rest } = tree;
+
+  return {
+    smallestCommonAncestorSelector,
+    meta,
+    anchors: anchors ? anchors.map(normalizeDomAnchorNodeKeyOrder) : [],
+    leaves: leaves ? leaves.map(normalizeDomLeafNodeKeyOrder) : [],
+    ancestors: ancestors ? ancestors.map(normalizeDomAncestorNodeKeyOrder) : [],
+    ...rest,
+    ...(rootNode ? { tree: normalizeDomTreeNodeKeyOrder(rootNode) } : {}),
+  };
+}
+
+/**
+ * 规范化 AIScreenshotPayload 的 Key 顺序
+ */
+export function normalizePayloadKeyOrder(payload: AIScreenshotPayload): AIScreenshotPayload {
+  const {
+    version,
+    timestamp,
+    annotations,
+    annotationGroups,
+    domContextTree,
+    environment,
+    cropBounds,
+    cascadeIndex,
+    image,
+    ...rest
+  } = payload;
+
+  return {
+    version,
+    timestamp,
+    annotations,
+    annotationGroups,
+    domContextTree: normalizeDomTreeKeyOrder(domContextTree),
+    environment,
+    cropBounds,
+    ...(cascadeIndex !== undefined ? { cascadeIndex } : {}),
+    image,
+    ...rest,
+  };
+}
+
+/**
  * 生成多 MIME 剪切板使用的 HTML 节点字符串
  */
 export function formatPayloadToHtml(

@@ -4,6 +4,8 @@ import {
   formatPayloadToMarkdown,
   formatPayloadToMarkdownForZip,
   formatPayloadToHtml,
+  normalizePayloadKeyOrder,
+  normalizeDomTreeKeyOrder,
   type AIScreenshotPayload,
 } from "../src/domain/screenshot-payload.ts";
 
@@ -234,5 +236,25 @@ describe("Screenshot Payload Formatter", () => {
     assert.match(html, /<img src="data:image\/png;base64,/);
     assert.match(html, /<pre style="/);
     assert.match(html, /请作为高级 Frontend\/Fullstack 调试专家/);
+  });
+
+  test("normalizePayloadKeyOrder and normalizeDomTreeKeyOrder put tree / image at the very bottom", () => {
+    const normalizedPayload = normalizePayloadKeyOrder(mockPayload);
+    const payloadKeys = Object.keys(normalizedPayload);
+    assert.strictEqual(payloadKeys[0], "version");
+    assert.strictEqual(payloadKeys[1], "timestamp");
+    assert.strictEqual(payloadKeys[2], "annotations");
+    assert.strictEqual(payloadKeys[payloadKeys.length - 1], "image");
+
+    const normalizedTree = normalizeDomTreeKeyOrder(mockPayload.domContextTree);
+    const treeKeys = Object.keys(normalizedTree);
+    assert.strictEqual(treeKeys[0], "smallestCommonAncestorSelector");
+    assert.strictEqual(treeKeys[1], "meta");
+    assert.strictEqual(treeKeys[treeKeys.length - 1], "tree");
+
+    if (normalizedTree.tree) {
+      const nodeKeys = Object.keys(normalizedTree.tree);
+      assert.strictEqual(nodeKeys[nodeKeys.length - 1], "children");
+    }
   });
 });

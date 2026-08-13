@@ -1,6 +1,7 @@
 import { zipSync } from "fflate";
 import {
   formatPayloadToMarkdownForZip,
+  normalizeDomTreeKeyOrder,
   type AIScreenshotPayload,
 } from "../domain/screenshot-payload.ts";
 
@@ -61,7 +62,7 @@ export function buildScreenshotZipPackage(
     [imageFilename]: imageU8,
     "ai-prompt.md": stringToUint8Array(markdownPrompt),
     "dom-context.json": stringToUint8Array(
-      JSON.stringify(payload.domContextTree, null, 2)
+      JSON.stringify(normalizeDomTreeKeyOrder(payload.domContextTree), null, 2)
     ),
     "environment.json": stringToUint8Array(
       JSON.stringify(payload.environment, null, 2)
