@@ -323,6 +323,13 @@ export class ScreenshotOverlay {
   }
 
   private handleKeyDown(e: KeyboardEvent): void {
+    // 放行浏览器刷新快捷键（Cmd/Ctrl+R、F5、Cmd/Ctrl+Shift+R）：
+    // 截图时用户可能需要刷新页面重新截取，刷新会重载页面并销毁 overlay。
+    const isRefreshShortcut =
+      e.key === "F5" ||
+      ((e.metaKey || e.ctrlKey) && (e.key === "r" || e.key === "R"));
+    if (isRefreshShortcut) return;
+
     const isEditingText = this.isEditingText();
 
     if (e.key === "Escape") {

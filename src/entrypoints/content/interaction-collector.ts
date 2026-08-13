@@ -17,6 +17,12 @@ import { IssueEditor } from "./collector/issue-editor";
 import { ExpectedCaptureCard } from "./collector/expected-capture-card";
 import { DomObserver } from "./collector/dom-observer";
 import { InactivityMonitor } from "./collector/inactivity-monitor";
+import { ScreenshotOverlay } from "../../screenshot/screenshot-overlay";
+import { recentErrorsTracker } from "../../screenshot/recent-errors-tracker";
+import {
+  ensureErrorsTrackerStarted,
+  ensureScreenshotOverlayBridge,
+} from "./content-bridge";
 
 type ContentSession = {
   sessionId: string;
@@ -39,11 +45,11 @@ declare global {
   }
 }
 
-import { ScreenshotOverlay } from "../../screenshot/screenshot-overlay";
-import { recentErrorsTracker } from "../../screenshot/recent-errors-tracker";
-
-// 启动最近错误监听：为截图 overlay 提供"附带最近报错"的数据源
-recentErrorsTracker.startListening();
+// 启动最近错误监听（幂等）与截图 overlay 消息桥（幂等）：
+// executeScript 重复注入会重新求值本脚本、重建模块单例，故委托 content-bridge
+// 用 window 标志跨注入去重，避免累积监听器 / 重复包装 console.error，
+// 否则多次截图后残留 window 拦截器（刷新/滚动永久失效）。
+ensureErrorsTrackerStarted(() => recentErrorsTracker.startListening());
 
 // 截图 overlay 初始为关闭：content script 重新注入（页面刷新等）时刷新 background
 // 的互斥标志，避免截图 overlay 异常销毁后残留"截图中"状态卡住录制启动。
@@ -51,34 +57,12 @@ void chrome.runtime
   .sendMessage(message("content/screenshot-overlay-state", { open: false }))
   .catch(() => undefined);
 
-let screenshotOverlayInstance: ScreenshotOverlay | null = null;
-
-chrome.runtime.onMessage.addListener((msg, _sender, _sendResponse) => {
-  if (msg && msg.type === "TRIGGER_SCREENSHOT_OVERLAY" && msg.viewportDataUrl) {
-    // 单例复用：同一时刻只存在一个截图 overlay，关闭后可再次触发
-    if (!screenshotOverlayInstance) {
-      screenshotOverlayInstance = new ScreenshotOverlay();
-    }
-    // 截图 overlay 开闭状态上报 background，用于与视频录制互斥：
-    // 截图中拒绝启动录制，录制中拒绝触发截图。
-    const reportOverlayState = (open: boolean) => {
-      void chrome.runtime
-        .sendMessage(message("content/screenshot-overlay-state", { open }))
-        .catch(() => undefined);
-    };
-    reportOverlayState(true);
-    screenshotOverlayInstance.show({
-      viewportDataUrl: msg.viewportDataUrl,
-      onComplete: () => {
-        screenshotOverlayInstance = null;
-        reportOverlayState(false);
-      },
-      onCancel: () => {
-        screenshotOverlayInstance = null;
-        reportOverlayState(false);
-      },
-    });
-  }
+// 截图 overlay 消息桥（幂等注册）：重复注入只注册一次监听器，
+// overlay 实例由 content-bridge 在 window 上共享持有。
+ensureScreenshotOverlayBridge({
+  createOverlay: () => new ScreenshotOverlay(),
+  onMessage: (fn) => chrome.runtime.onMessage.addListener(fn),
+  sendMessage: (msg) => chrome.runtime.sendMessage(msg),
 });
 
 // 幂等重入：页面已存在本脚本安装的控制器（重复注入/多帧）时复用旧实例，

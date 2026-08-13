@@ -1403,6 +1403,89 @@ describe("V 快捷键切换选择工具", () => {
   });
 });
 
+// ---------- 浏览器刷新快捷键放行（截图激活期不吞 Cmd+R / F5） ----------
+describe("刷新快捷键放行", () => {
+  test("Cmd+R 放行：不 preventDefault/stopPropagation，交给浏览器刷新", () => {
+    const h = createHarness();
+    const anyOv = h.overlay as any;
+    const calls: string[] = [];
+    anyOv.handleKeyDown({
+      key: "r",
+      code: "KeyR",
+      type: "keydown",
+      metaKey: true,
+      ctrlKey: false,
+      preventDefault: () => calls.push("preventDefault"),
+      stopPropagation: () => calls.push("stopPropagation"),
+    });
+    assert.deepEqual(calls, [], "Cmd+R 应放行刷新，不拦截");
+  });
+
+  test("Ctrl+R 放行", () => {
+    const h = createHarness();
+    const anyOv = h.overlay as any;
+    const calls: string[] = [];
+    anyOv.handleKeyDown({
+      key: "R",
+      code: "KeyR",
+      type: "keydown",
+      metaKey: false,
+      ctrlKey: true,
+      preventDefault: () => calls.push("preventDefault"),
+      stopPropagation: () => calls.push("stopPropagation"),
+    });
+    assert.deepEqual(calls, [], "Ctrl+R 应放行刷新，不拦截");
+  });
+
+  test("F5 放行", () => {
+    const h = createHarness();
+    const anyOv = h.overlay as any;
+    const calls: string[] = [];
+    anyOv.handleKeyDown({
+      key: "F5",
+      code: "F5",
+      type: "keydown",
+      metaKey: false,
+      ctrlKey: false,
+      preventDefault: () => calls.push("preventDefault"),
+      stopPropagation: () => calls.push("stopPropagation"),
+    });
+    assert.deepEqual(calls, [], "F5 应放行刷新，不拦截");
+  });
+
+  test("普通按键仍被拦截（截图激活期吞掉其余按键）", () => {
+    const h = createHarness();
+    const anyOv = h.overlay as any;
+    const calls: string[] = [];
+    anyOv.handleKeyDown({
+      key: "a",
+      code: "KeyA",
+      type: "keydown",
+      metaKey: false,
+      ctrlKey: false,
+      preventDefault: () => calls.push("preventDefault"),
+      stopPropagation: () => calls.push("stopPropagation"),
+    });
+    assert.deepEqual(calls, ["preventDefault", "stopPropagation"]);
+  });
+
+  test("无修饰键的字母 r 不放行（避免误放行普通输入）", () => {
+    const h = createHarness();
+    const anyOv = h.overlay as any;
+    const calls: string[] = [];
+    anyOv.handleKeyDown({
+      key: "r",
+      code: "KeyR",
+      type: "keydown",
+      metaKey: false,
+      ctrlKey: false,
+      preventDefault: () => calls.push("preventDefault"),
+      stopPropagation: () => calls.push("stopPropagation"),
+    });
+    assert.deepEqual(calls, ["preventDefault", "stopPropagation"]);
+  });
+});
+
 describe("InlineTextEditor", () => {
   /** wrapper.children 中按 tagName 查找 textarea（首位是幂等注入的 <style>） */
   const findTextarea = (wrapper: any): any =>
