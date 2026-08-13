@@ -1,5 +1,5 @@
 import { execSync } from "node:child_process";
-import { readFileSync, existsSync, unlinkSync } from "node:fs";
+import { readFileSync, existsSync, unlinkSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
 const root = process.cwd();
@@ -26,7 +26,13 @@ const rawName =
     : "bug-lens";
 const nameSlug = rawName.toLowerCase().replace(/\s+/g, "-");
 const zipFilename = `${nameSlug}-v${version}.zip`;
-const outputPath = join(root, zipFilename);
+
+const outputDir = join(root, "dist-zip");
+if (!existsSync(outputDir)) {
+  mkdirSync(outputDir, { recursive: true });
+}
+
+const outputPath = join(outputDir, zipFilename);
 
 if (existsSync(outputPath)) {
   unlinkSync(outputPath);
