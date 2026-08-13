@@ -264,8 +264,44 @@ describe("Screenshot Payload Formatter", () => {
   });
 
   test("pruneAncestorElements 应当正确过滤包裹子节点的父容器", () => {
-    // 单元测试逻辑由 jsdom/mock node 验证逻辑支撑
     assert.strictEqual(typeof pruneAncestorElements, "function");
     assert.strictEqual(typeof findSmallestCommonAncestor, "function");
+
+    const makeNode = (name: string, children: any[] = []) => {
+      const node = {
+        nodeName: name,
+        contains: (other: any) => {
+          if (other === node) return true;
+          return children.some(
+            (c) => c === other || (c.contains && c.contains(other))
+          );
+        },
+        parentElement: null as any,
+      };
+      for (const child of children) {
+        child.parentElement = node;
+      }
+      return node as unknown as Element;
+    };
+
+    const button = makeNode("BUTTON");
+    const input = makeNode("INPUT");
+    const wrapper = makeNode("DIV", [button, input]);
+    const form = makeNode("FORM", [wrapper]);
+
+    // pruneAncestorElements 依然保持极小化叶节点收集逻辑
+    const pruned = pruneAncestorElements([form, button]);
+    assert.strictEqual(pruned.length, 1);
+    assert.strictEqual(pruned[0], button);
+
+    // 修复后：findSmallestCommonAncestor 不再被 prune 竞争影响
+    // 1. 包含父级 Form 和子级 Button 的场景，应该正确返回父级 Form，而不是降维提升到 wrapper
+    assert.strictEqual(findSmallestCommonAncestor([form, button]), form);
+
+    // 2. 真正的单节点场景，提升为其直接父节点
+    assert.strictEqual(findSmallestCommonAncestor([button]), wrapper);
+
+    // 3. 两个无父子关系的兄弟节点，返回它们的共同父节点 wrapper
+    assert.strictEqual(findSmallestCommonAncestor([button, input]), wrapper);
   });
 });

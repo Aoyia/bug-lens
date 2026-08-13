@@ -104,33 +104,42 @@ export function findSmallestCommonAncestor(
 ): Element | null {
   if (elements.length === 0) return null;
 
-  // 1. 净化节点集：过滤掉包含其他节点的祖先容器
-  const minimalEls = pruneAncestorElements(elements);
-  if (minimalEls.length === 0) return null;
-
-  // 2. 单节点场景：自动提升为其直接父节点（获取最小局部上下文），除非父节点无效
-  if (minimalEls.length === 1) {
-    const singleEl = minimalEls[0];
+  // 1. 真正的单节点场景：输入的原始节点只有一个，自动提升为其直接父节点（获取最小局部上下文）
+  if (elements.length === 1) {
+    const singleEl = elements[0];
     return singleEl.parentElement || singleEl;
   }
 
-  // 3. 多节点场景：计算 LCA
+  // 2. 检查 elements 集合中是否本身就存在一个能包含所有其他节点的“根容器”
+  for (const candidate of elements) {
+    if (
+      elements.every(
+        (el) =>
+          candidate === el ||
+          (typeof candidate.contains === "function" && candidate.contains(el))
+      )
+    ) {
+      return candidate;
+    }
+  }
+
+  // 3. 多节点场景：计算公共祖先链 LCA
   const ancestorSet = new Set<Element>();
-  let curr: Element | null = minimalEls[0];
+  let curr: Element | null = elements[0];
   while (curr) {
     ancestorSet.add(curr);
     curr = curr.parentElement;
   }
 
-  let commonAncestor: Element | null = minimalEls[1];
+  let commonAncestor: Element | null = elements[1];
   while (commonAncestor && !ancestorSet.has(commonAncestor)) {
     commonAncestor = commonAncestor.parentElement;
   }
 
   if (!commonAncestor) return null;
 
-  for (let i = 2; i < minimalEls.length; i++) {
-    const target = minimalEls[i];
+  for (let i = 2; i < elements.length; i++) {
+    const target = elements[i];
     while (
       commonAncestor &&
       typeof commonAncestor.contains === "function" &&
