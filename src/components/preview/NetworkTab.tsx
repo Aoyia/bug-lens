@@ -253,7 +253,15 @@ export const NetworkTab = memo(function NetworkTab({
                     key={entry.id}
                     className={`network-row ${statusClass} ${isSelected ? "selected" : ""}`}
                     data-network-id={entry.id}
+                    tabIndex={0}
+                    aria-current={isSelected ? "true" : undefined}
                     onClick={() => handleRowClick(entry.id, entry.createdAt)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        handleRowClick(entry.id, entry.createdAt);
+                      }
+                    }}
                   >
                     <span
                       className="col-time"
