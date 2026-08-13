@@ -58,7 +58,7 @@ export class IdleMonitor {
             onSystemResume?.({
               code: "SYSTEM_SUSPENDED_RESUMED",
               message: `System resumed from sleep (${(elapsed / 60000).toFixed(1)} min idle gap detected)`,
-              source: "recording",
+              source: "interaction",
               recoverable: true,
               occurredAt: now,
             });
