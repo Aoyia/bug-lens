@@ -81,29 +81,56 @@ export function coverageRatio(inner: RectBounds, outer: RectBounds): number {
   return overlap / Math.max(1, inner.width * inner.height);
 }
 
+/** 过滤焦点节点集：剔除属于其他节点父级/祖先的容器节点（只保留极小化末端节点） */
+export function pruneAncestorElements(elements: Element[]): Element[] {
+  if (elements.length <= 1) return [...elements];
+  const result = new Set<Element>(elements);
+
+  for (const a of elements) {
+    for (const b of elements) {
+      if (a !== b && typeof a.contains === "function" && a.contains(b)) {
+        result.delete(a);
+        break;
+      }
+    }
+  }
+
+  return Array.from(result);
+}
+
 /** 查找一组 DOM 节点的最小公共父节点 (Smallest Common Ancestor) */
 export function findSmallestCommonAncestor(
   elements: Element[]
 ): Element | null {
   if (elements.length === 0) return null;
-  if (elements.length === 1) return elements[0].parentElement || elements[0];
 
+  // 1. 净化节点集：过滤掉包含其他节点的祖先容器
+  const minimalEls = pruneAncestorElements(elements);
+  if (minimalEls.length === 0) return null;
+
+  // 2. 单节点场景：自动提升为其直接父节点（获取最小局部上下文），除非父节点无效
+  if (minimalEls.length === 1) {
+    const singleEl = minimalEls[0];
+    return singleEl.parentElement || singleEl;
+  }
+
+  // 3. 多节点场景：计算 LCA
   const ancestorSet = new Set<Element>();
-  let curr: Element | null = elements[0];
+  let curr: Element | null = minimalEls[0];
   while (curr) {
     ancestorSet.add(curr);
     curr = curr.parentElement;
   }
 
-  let commonAncestor: Element | null = elements[1];
+  let commonAncestor: Element | null = minimalEls[1];
   while (commonAncestor && !ancestorSet.has(commonAncestor)) {
     commonAncestor = commonAncestor.parentElement;
   }
 
   if (!commonAncestor) return null;
 
-  for (let i = 2; i < elements.length; i++) {
-    const target = elements[i];
+  for (let i = 2; i < minimalEls.length; i++) {
+    const target = minimalEls[i];
     while (
       commonAncestor &&
       typeof commonAncestor.contains === "function" &&
@@ -1147,13 +1174,16 @@ export async function collectSpatialDomTree(
     truncated = scoredPool.length > MAX_LEAVES;
   }
 
-  // 4. SCA：锚点 + 叶子 的公共祖先
-  const focusEls = [...anchorSet.keys(), ...leafEls];
+  // 4. SCA：求最小公共祖先（优先只基于极小化锚点；若无标注则基于极小化叶节点）
+  const anchorEls = Array.from(anchorSet.keys());
+  const scaTargetEls = anchorEls.length > 0 ? anchorEls : leafEls;
   const sca =
-    findSmallestCommonAncestor(focusEls) ||
+    findSmallestCommonAncestor(scaTargetEls) ||
     rootElement ||
-    (focusEls[0] ?? document.body);
+    (scaTargetEls[0] ?? document.body);
   const scaSelector = buildCssSelector(sca);
+
+  const focusEls = [...anchorSet.keys(), ...leafEls];
 
   // 5. 祖先链：锚点/叶子的去重祖先（含 SCA），depth 统一为相对 SCA 的距离
   const ancestorSet = new Set<Element>();
