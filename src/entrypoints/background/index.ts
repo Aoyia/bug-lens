@@ -10,6 +10,7 @@ import { IssueSceneCapture } from "../../recording/issue-scene-capture";
 import { createBackgroundRuntime, type BackgroundDeps } from "./runtime";
 import { registerBackgroundEvents } from "./events";
 import { applySessionEvent } from "./context";
+import { initDevReloader } from "./dev-reloader";
 
 const EXTENSION_VERSION = chrome.runtime.getManifest().version;
 const STOPPING_IDS_KEY = "bug-lens-stopping-ids";
@@ -91,3 +92,6 @@ const runtime = createBackgroundRuntime(deps);
 
 // chrome 事件注册（debugger / tabs / startup / installed / alarms / commands / onMessage）
 registerBackgroundEvents(runtime);
+
+// 启动开发模式自动热重载机制（仅开发环境生效）
+initDevReloader();

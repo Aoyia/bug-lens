@@ -2,12 +2,30 @@ import { build, context, transform } from "esbuild";
 import { cp, mkdir, rm, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { watch as watchFS } from "node:fs";
+import { WebSocketServer } from "ws";
 
 const root = resolve(process.cwd());
 const outdir = resolve(root, "dist");
 const isWatch = process.argv.includes("--watch");
 const isE2e =
   process.argv.includes("--e2e") || process.env.E2E_BUILD === "true";
+
+let wss = null;
+if (isWatch) {
+  wss = new WebSocketServer({ port: 8899 });
+  console.log(
+    "[dev-reloader] WebSocket server listening on ws://localhost:8899"
+  );
+}
+
+function notifyReload() {
+  if (!wss) return;
+  wss.clients.forEach((client) => {
+    if (client.readyState === 1) {
+      client.send("reload");
+    }
+  });
+}
 
 await rm(outdir, { recursive: true, force: true });
 await mkdir(outdir, { recursive: true });
@@ -114,6 +132,9 @@ if (isWatch) {
       minify: false,
       jsx: "automatic",
       jsxImportSource: "preact",
+      define: {
+        "process.env.NODE_ENV": '"development"',
+      },
       plugins: [
         {
           name: "rebuild-notify",
@@ -126,6 +147,7 @@ if (isWatch) {
                 );
               } else {
                 console.log(`[${time}] [watch] ${name}.js rebuild complete.`);
+                notifyReload();
               }
             });
           },
@@ -149,6 +171,7 @@ if (isWatch) {
           await copyStaticAssets();
           const time = new Date().toLocaleTimeString();
           console.log(`[${time}] [watch] Static assets updated (${filename}).`);
+          notifyReload();
         } catch (e) {
           console.error("[watch] Error updating static assets:", e);
         }
@@ -170,6 +193,9 @@ if (isWatch) {
       minify: true,
       jsx: "automatic",
       jsxImportSource: "preact",
+      define: {
+        "process.env.NODE_ENV": '"production"',
+      },
     });
   }
   await copyStaticAssets();
