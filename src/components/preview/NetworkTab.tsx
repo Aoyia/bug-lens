@@ -2,6 +2,7 @@ import { memo } from "preact/compat";
 import { useState, useCallback, useRef, useEffect } from "preact/hooks";
 import type { NetworkEntry, RecordingSession } from "../../shared/protocol.ts";
 import { formatElapsedEpochTime } from "../../domain/evidence-clock.ts";
+import { formatBytes } from "../../domain/byte-format.ts";
 import { generateCurlCommand } from "../../domain/curl-generator.ts";
 import {
   API_SNIPPET_TARGETS,
@@ -113,7 +114,7 @@ function renderNetworkDetailHtml(entry?: NetworkEntry): string {
       <div class="network-detail-header"><span>${t("requestDetails")}</span><button id="btn-copy-curl" class="btn-copy-curl" title="${t("copyAsCurl")}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span class="btn-copy-curl-text">${t("copyCurl")}</span></button></div>
       <div class="network-detail-url"><strong>${escapeHtml((entry.method || "GET").toUpperCase())}</strong> ${escapeHtml(entry.url)}</div>
       ${headerBlock}
-      <div class="network-detail-section"><details open><summary>${t("responseBodyHeader", escapeHtml(response?.mimeType || t("unknownMime")))} ${response?.byteLength != null ? `(${response.byteLength} B)` : ""}</summary><div class="network-detail-content">${body}</div></details></div>
+      <div class="network-detail-section"><details open><summary>${t("responseBodyHeader", escapeHtml(response?.mimeType || t("unknownMime")))} ${response?.byteLength != null ? `(${formatBytes(response.byteLength)})` : ""}</summary><div class="network-detail-content">${body}</div></details></div>
     </div>
   `;
 }
@@ -241,11 +242,12 @@ export const NetworkTab = memo(function NetworkTab({
                     : status >= 300
                       ? "status-3xx"
                       : "status-2xx";
-                const size = entry.response?.byteLength
-                  ? `${(entry.response.byteLength / 1024).toFixed(1)} KB`
-                  : entry.response
-                    ? "0 B"
-                    : "";
+                const size =
+                  entry.response?.byteLength != null
+                    ? formatBytes(entry.response.byteLength)
+                    : entry.response
+                      ? "0 B"
+                      : "";
                 const isSelected = entry.id === activeSelectedId;
 
                 return (
