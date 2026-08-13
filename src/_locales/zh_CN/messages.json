@@ -7,6 +7,18 @@
     "message": "捕获网页 Bug 现场证据的轻量级扩展工具。",
     "description": "The description of the extension"
   },
+  "actionDefaultTitle": {
+    "message": "Bug Lens",
+    "description": "扩展图标按钮的悬停提示标题"
+  },
+  "commandStartRecordingDescription": {
+    "message": "一键开始录制当前标签页",
+    "description": "开始录制命令快捷键的描述"
+  },
+  "commandTakeScreenshotDescription": {
+    "message": "一键拉框截图并收集 DOM 元素上下文",
+    "description": "拉框截图命令快捷键的描述"
+  },
   "history": {
     "message": "历史记录"
   },

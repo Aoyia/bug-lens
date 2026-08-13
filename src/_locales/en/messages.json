@@ -7,6 +7,18 @@
     "message": "Capture local evidence for web bugs lightweight tool.",
     "description": "The description of the extension"
   },
+  "actionDefaultTitle": {
+    "message": "Bug Lens",
+    "description": "The tooltip title of the extension action button"
+  },
+  "commandStartRecordingDescription": {
+    "message": "Start recording the current tab",
+    "description": "The description of the start recording command shortcut"
+  },
+  "commandTakeScreenshotDescription": {
+    "message": "Select an area to screenshot and collect DOM element context",
+    "description": "The description of the take screenshot command shortcut"
+  },
   "history": {
     "message": "History"
   },
