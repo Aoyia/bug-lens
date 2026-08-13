@@ -136,7 +136,20 @@ export const ConsoleTab = memo(function ConsoleTab({
                     key={entry.id}
                     className={`console-row console-row-${level}${entry.id === selectedId ? " selected" : ""}`}
                     data-id={entry.id}
+                    tabIndex={0}
+                    aria-current={
+                      entry.id === selectedId ? "true" : undefined
+                    }
                     onClick={() => handleRowClick(entry.id, entry.createdAt)}
+                    onKeyDown={(e) => {
+                      if (e.key !== "Enter" && e.key !== " ") return;
+                      // 行内删除按钮是独立可交互控件：聚焦删除按钮按 Enter/Space
+                      // 应走按钮自身的 delete 语义，而非冒泡触发行的 seek 选择。
+                      if ((e.target as HTMLElement | null)?.closest("button"))
+                        return;
+                      e.preventDefault();
+                      handleRowClick(entry.id, entry.createdAt);
+                    }}
                   >
                     <div className="console-row-left">
                       {level === "error" ? (
