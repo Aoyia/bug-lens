@@ -23,6 +23,7 @@ import {
   DEFAULT_RECORDING_OPTIONS,
   VIDEO_BITRATE_BY_COMPRESSION,
 } from "../../domain/storage-policy.ts";
+import { formatBytes } from "../../domain/byte-format.ts";
 import { useRpc } from "../../hooks/useRpc.ts";
 import { copyTextToClipboard } from "../../preview/clipboard";
 import { useSessionState } from "../../hooks/useSessionState.ts";
@@ -150,12 +151,6 @@ export function PopupApp() {
     const timer = window.setTimeout(() => setErrorText(""), 6000);
     return () => window.clearTimeout(timer);
   }, [errorText]);
-
-  const formatBytes = useCallback((bytes: number): string => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KiB`;
-    return `${(bytes / 1024 / 1024).toFixed(bytes >= 100 * 1024 * 1024 ? 0 : 1)} MiB`;
-  }, []);
 
   const activeEvidence = useCallback(
     (session?: RecordingSession): EvidenceSummary[] => {
