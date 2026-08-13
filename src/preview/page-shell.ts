@@ -25,8 +25,11 @@ export class PreviewPageShell {
 
   notify(message: string): void {
     const toast = this.root.querySelector<HTMLElement>("#toast-message")!;
-    toast.textContent = message;
+    // 先显示再写文案（对齐 privacy-badge 的顺序）：让 live region 先进入
+    // 无障碍树再更新内容，屏幕阅读器才能可靠播报本次通知；反序会导致
+    // 内容更新发生在 display:none 期间，播报被吞掉。
     toast.hidden = false;
+    toast.textContent = message;
     // 先清理上一次的隐藏定时器：Toast 承诺展示 2.5s，连续通知时旧定时器
     // 不得提前截断最新一条（与 PopupApp 错误提示 effect 的清理范式一致）。
     if (this.toastTimer !== undefined) {
