@@ -24,7 +24,7 @@ const rotr = (value: number, amount: number) =>
 
 /** 增量 SHA-256：供流式媒体导出逐块累计哈希，无需整包缓冲。 */
 export class Sha256 {
-  private readonly state = [...INITIAL];
+  private readonly state = INITIAL.slice();
   private readonly buffer = new Uint8Array(64);
   private buffered = 0;
   private byteLength = 0;

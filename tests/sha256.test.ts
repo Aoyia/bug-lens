@@ -48,6 +48,14 @@ test("SHA-256 async and sync produce identical results for arbitrary input", asy
   assert.match(asyncResult, /^[a-f0-9]{64}$/);
 });
 
+test("SHA-256 state copy on init avoids mutated array reference risks", () => {
+  const hasher1 = new Sha256();
+  const hasher2 = new Sha256();
+  hasher1.update(encoder.encode("test payload 1"));
+  hasher2.update(encoder.encode("test payload 2"));
+  assert.notEqual(hasher1.digestHex(), hasher2.digestHex());
+});
+
 test("SHA-256 rejects update after finalization", () => {
   const hasher = new Sha256();
   hasher.update(encoder.encode("data"));
