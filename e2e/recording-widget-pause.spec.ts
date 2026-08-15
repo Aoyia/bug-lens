@@ -155,4 +155,84 @@ test.describe("Bug Lens Recording Widget Compact Controls E2E", () => {
     });
     logE2e("Widget collapsed after mouse left");
   });
+
+  test("WIDGET-003: renders in English when user language preference is set to English and updates synchronously on language toggle", async ({
+    context,
+    serviceWorker,
+    mediaProbe,
+    openActionPopup,
+    serverUrl,
+  }) => {
+    // 1. 设置用户语言偏好为英文
+    await serviceWorker.evaluate(async () => {
+      await chrome.storage.sync.set({ user_language_preference: "en-US" });
+    });
+    logE2e("Set user_language_preference to en-US before recording");
+
+    // 2. 打开测试网页
+    let targetPage = context.pages()[0];
+    if (!targetPage) targetPage = await context.newPage();
+    await targetPage.goto(serverUrl);
+    await targetPage.bringToFront();
+    await targetPage.waitForFunction(() => document.hasFocus(), undefined, {
+      timeout: 2_000,
+    });
+
+    // 3. 启动录制
+    const startPopup = await openActionPopup(targetPage);
+    await startPopup.waitForSelector('[data-testid="record-panel"]');
+    const targetTabId = await startPopup.evaluate<number | undefined>(
+      "(async () => (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id)()"
+    );
+    expect(targetTabId).toBeTruthy();
+
+    await startPopup.click('[data-testid="start-recording-btn"]');
+    logE2e("Started recording via Action Popup with English preference");
+    await startPopup.dispose();
+
+    await targetPage.bringToFront();
+    const session = await mediaProbe.waitForSession(targetTabId!);
+    await mediaProbe.waitForActive(session.id, targetTabId!);
+
+    // 4. 断言：挂件上的所有文本必须是英文，绝不能出现中文
+    const widget = targetPage.locator("#__wbr_recording_widget__");
+    await widget.waitFor({ state: "visible", timeout: 5_000 });
+    await widget.hover(); // 展开挂件
+
+    const stopBtn = targetPage.locator("#__wbr_stop_btn__");
+    const issueBtn = targetPage.locator("#__wbr_issue_btn__");
+    const dragHandle = targetPage.locator(".__wbr_drag_handle");
+
+    await expect(stopBtn).toHaveText("Stop & Export");
+    await expect(issueBtn).toContainText("Mark Screenshot");
+    await expect(dragHandle).toHaveAttribute("title", "Drag to move");
+    logE2e(
+      "Widget verified in English: Stop & Export / Mark Screenshot / Drag to move"
+    );
+
+    // 5. 模拟在运行中切换语言为中文 (zh-CN)
+    await serviceWorker.evaluate(async () => {
+      await chrome.storage.sync.set({ user_language_preference: "zh-CN" });
+    });
+    await expect(stopBtn).toHaveText("结束并导出", { timeout: 3_000 });
+    await expect(issueBtn).toContainText("标记截图", { timeout: 3_000 });
+    await expect(dragHandle).toHaveAttribute("title", "拖拽移动位置", {
+      timeout: 3_000,
+    });
+    logE2e("Widget dynamically switched to Chinese upon storage update");
+
+    // 6. 再次切换回英文 (en-US)
+    await serviceWorker.evaluate(async () => {
+      await chrome.storage.sync.set({ user_language_preference: "en-US" });
+    });
+    await expect(stopBtn).toHaveText("Stop & Export", { timeout: 3_000 });
+    await expect(issueBtn).toContainText("Mark Screenshot", { timeout: 3_000 });
+    logE2e("Widget dynamically switched back to English");
+
+    // 7. 停止录制并完成导出
+    await stopBtn.click();
+    const exportedDownload = await mediaProbe.waitForExportDownload();
+    expect(exportedDownload.state).toBe("complete");
+    logE2e("Export completed cleanly after i18n testing");
+  });
 });

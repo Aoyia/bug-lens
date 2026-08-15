@@ -47,6 +47,16 @@ describe("i18n Sync and Translation", () => {
     assert.deepEqual(changes[1], { pref: "zh-CN", locale: "zh-CN" });
   });
 
+  test("initI18nPreference 在初始化完成时触发 onLanguagePreferenceChange", async () => {
+    let triggered = false;
+    const unsubscribe = onLanguagePreferenceChange(() => {
+      triggered = true;
+    });
+    await initI18nPreference();
+    assert.equal(triggered, true);
+    unsubscribe();
+  });
+
   test("t 函数使用 customDict 或 fallback 进行占位符插值", () => {
     const customDict = {
       greeting: { message: "Hello, $NAME$!" },

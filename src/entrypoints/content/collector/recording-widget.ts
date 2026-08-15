@@ -482,6 +482,8 @@ export class RecordingWidget {
         // 启动初始折叠倒计时
         this.resetCollapseTimer();
 
+        this.updateLanguage();
+
         this.refreshTimerDisplay();
         this.timerInterval = window.setInterval(
           () => this.refreshTimerDisplay(),

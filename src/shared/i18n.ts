@@ -136,6 +136,7 @@ export async function initI18nPreference(): Promise<LanguagePreference> {
   if (activePreference !== "auto") {
     await loadLocaleDict(activePreference);
   }
+  notifyLanguageListeners();
   return activePreference;
 }
 

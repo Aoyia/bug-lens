@@ -82,7 +82,9 @@
         "popup.html",
         "preview.html",
         "offscreen.html",
-        "permission.html"
+        "permission.html",
+        "_locales/*",
+        "_locales/*/*"
       ],
       "matches": ["<all_urls>"]
     }
