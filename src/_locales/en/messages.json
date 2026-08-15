@@ -1587,6 +1587,15 @@
       }
     }
   },
+  "issueSceneStorageLimitReached": {
+    "message": "Session storage limit reached; the original issue screenshot was not saved."
+  },
+  "issueSceneSavedWithoutScreenshot": {
+    "message": "No original screenshot; DOM and issue description were saved."
+  },
+  "annotationImageGenerationFailed": {
+    "message": "Annotation image generation failed"
+  },
   "recordingPreviewFallback": {
     "message": "Recording preview"
   },
