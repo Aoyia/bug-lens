@@ -641,6 +641,18 @@
   "screenshotModalAlt": {
     "message": "Screenshot full size"
   },
+  "fitShort": {
+    "message": "Fit"
+  },
+  "rotateShort": {
+    "message": "Rotate"
+  },
+  "copyShort": {
+    "message": "Copy"
+  },
+  "downloadShort": {
+    "message": "Download"
+  },
   "exportPreparing": {
     "message": "Preparing…"
   },

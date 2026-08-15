@@ -641,6 +641,18 @@
   "screenshotModalAlt": {
     "message": "截图大图"
   },
+  "fitShort": {
+    "message": "适应"
+  },
+  "rotateShort": {
+    "message": "旋转"
+  },
+  "copyShort": {
+    "message": "复制"
+  },
+  "downloadShort": {
+    "message": "下载"
+  },
   "exportPreparing": {
     "message": "正在准备…"
   },
