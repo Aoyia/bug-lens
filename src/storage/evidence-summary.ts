@@ -185,10 +185,10 @@ export function buildEvidenceSummary(
       count: frameworkStateCount,
       sizeBytes: 0,
       detail: !session.options.captureFrameworkState
-        ? "未采集"
+        ? t("notCaptured")
         : frameworkStateCount > 0
-          ? `${frameworkStateCount} 帧`
-          : "页面未识别到 React/Vue 组件树",
+          ? t("frameworkFrames", String(frameworkStateCount))
+          : t("noFrameworkDetected"),
     },
   ];
 }
