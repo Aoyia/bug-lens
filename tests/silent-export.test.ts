@@ -77,14 +77,29 @@ test("resolveSilentExportResult 捕获到异常时优先返回异常信息", () 
   });
 });
 
-test("buildSilentExportFailureEvent 产出可恢复的 export 来源 issue 事件", () => {
-  const event = buildSilentExportFailureEvent("下载被拒绝", "safe");
-  assert.equal(event.type, "capture-issue");
-  if (event.type !== "capture-issue") return;
-  assert.equal(event.issue.code, "SILENT_EXPORT_FAILED");
-  assert.equal(event.issue.source, "export");
-  assert.equal(event.issue.recoverable, true);
-  assert.match(event.issue.message, /静默导出失败/);
+test("buildSilentExportFailureEvent 产出可恢复的 export 来源 issue 事件（中英文）", async () => {
+  const { setUserLanguagePreference } = await import("../src/shared/i18n.ts");
+  await setUserLanguagePreference("zh-CN");
+  const eventZh = buildSilentExportFailureEvent("下载被拒绝", "safe");
+  assert.equal(eventZh.type, "capture-issue");
+  if (eventZh.type === "capture-issue") {
+    assert.equal(eventZh.issue.code, "SILENT_EXPORT_FAILED");
+    assert.equal(eventZh.issue.source, "export");
+    assert.equal(eventZh.issue.recoverable, true);
+    assert.match(eventZh.issue.message, /静默导出失败/);
+  }
+
+  await setUserLanguagePreference("en-US");
+  const eventEn = buildSilentExportFailureEvent("Download rejected", "safe");
+  assert.equal(eventEn.type, "capture-issue");
+  if (eventEn.type === "capture-issue") {
+    assert.equal(eventEn.issue.code, "SILENT_EXPORT_FAILED");
+    assert.equal(eventEn.issue.source, "export");
+    assert.equal(eventEn.issue.recoverable, true);
+    assert.match(eventEn.issue.message, /Silent export failed/);
+  }
+
+  await setUserLanguagePreference("auto");
 });
 
 test("buildSilentExportFailureEvent 在 safe 模式下对错误信息脱敏", () => {

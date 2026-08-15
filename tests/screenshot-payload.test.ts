@@ -105,7 +105,9 @@ describe("Screenshot Payload Formatter", () => {
     },
   };
 
-  test("formatPayloadToMarkdown generates valid Markdown with annotations and errors", () => {
+  test("formatPayloadToMarkdown generates valid Markdown with annotations and errors (Chinese)", async () => {
+    const { setUserLanguagePreference } = await import("../src/shared/i18n.ts");
+    await setUserLanguagePreference("zh-CN");
     const md = formatPayloadToMarkdown(mockPayload);
     assert.match(md, /请作为高级 Frontend\/Fullstack 调试专家/);
     assert.match(md, /https:\/\/example\.com\/checkout/);
@@ -113,6 +115,25 @@ describe("Screenshot Payload Formatter", () => {
     assert.match(md, /\(dpr: \d+\.\d{2}\)/);
     // 未提供路径时保留占位符，等待用户手动替换
     assert.match(md, /请将这里替换为导出的 ZIP 绝对路径/);
+  });
+
+  test("formatPayloadToMarkdown generates valid Markdown in English", async () => {
+    const { setUserLanguagePreference } = await import("../src/shared/i18n.ts");
+    await setUserLanguagePreference("en-US");
+    const md = formatPayloadToMarkdown(mockPayload);
+    assert.match(
+      md,
+      /Please act as a Senior Frontend\/Fullstack Debugging Expert/
+    );
+    assert.match(md, /https:\/\/example\.com\/checkout/);
+    assert.match(md, /1 console error\(s\) \| 1 failed network request\(s\)/);
+    assert.match(
+      md,
+      /File Path:\n\{Please replace this with the absolute path/
+    );
+
+    // Reset back
+    await setUserLanguagePreference("auto");
   });
 
   test("包含 cascadeIndex 时在 Markdown Prompt 中追加级联快照说明", () => {

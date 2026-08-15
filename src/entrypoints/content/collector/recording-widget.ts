@@ -596,7 +596,10 @@ export class RecordingWidget {
     }
   }
 
+  private isSelectingIssue = false;
+
   setIssueSelecting(selecting: boolean): void {
+    this.isSelectingIssue = selecting;
     const button =
       this.container?.querySelector<HTMLButtonElement>("#__wbr_issue_btn__");
     if (!button) return;
@@ -605,6 +608,28 @@ export class RecordingWidget {
       ? t("selecting")
       : `${t("markIssue")} (${this.shortcutKeyText})`;
     button.style.opacity = selecting ? ".72" : "1";
+  }
+
+  updateLanguage(): void {
+    if (!this.container) return;
+    const handle =
+      this.container.querySelector<HTMLElement>(".__wbr_drag_handle");
+    if (handle) handle.title = t("dragToMove");
+
+    const issueBtn =
+      this.container.querySelector<HTMLButtonElement>("#__wbr_issue_btn__");
+    if (issueBtn) {
+      issueBtn.title = `${t("shortcut")}: ${this.shortcutKeyText}`;
+      issueBtn.textContent = this.isSelectingIssue
+        ? t("selecting")
+        : `${t("markIssue")} (${this.shortcutKeyText})`;
+    }
+
+    const stopBtn =
+      this.container.querySelector<HTMLButtonElement>("#__wbr_stop_btn__");
+    if (stopBtn) {
+      stopBtn.textContent = t("stopRecording");
+    }
   }
 
   updatePauseState(paused: boolean): void {

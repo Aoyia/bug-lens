@@ -1,5 +1,9 @@
 import { isEnvelope, message } from "../../shared/protocol";
-import { t } from "../../shared/i18n";
+import {
+  initI18nPreference,
+  onLanguagePreferenceChange,
+  t,
+} from "../../shared/i18n";
 import { copyTextToClipboard } from "../../preview/clipboard";
 import {
   captureFrameworkState,
@@ -34,6 +38,9 @@ type ContentSession = {
 type ContentController = {
   refresh: (next: ContentSession | undefined) => void;
 };
+
+// 预先异步加载/初始化当前用户的语言偏好
+void initI18nPreference();
 
 // window 全局挂载符号：标记已安装/当前会话/控制器入口，
 // 供重复注入时幂等复用——检测到已有 CONTROLLER 即跳过重新初始化
@@ -156,6 +163,11 @@ if (existingController) {
     getPausedDurationMs(): number {
       return monitor.getPausedDurationMs();
     },
+  });
+
+  // 监听语言偏好变更并实时更新挂件文案
+  onLanguagePreferenceChange(() => {
+    widget.updateLanguage();
   });
 
   // 问题编辑器：编辑已捕获的场景快照，与选区流程分离

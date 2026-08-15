@@ -3,7 +3,7 @@ import type {
   AnnotationItem,
 } from "../domain/screenshot-payload.ts";
 import { processScreenshot } from "./screenshot-processor.ts";
-import { t } from "../shared/i18n.ts";
+import { initI18nPreference, t } from "../shared/i18n.ts";
 import { createOverlayMarkup } from "./overlay-template.ts";
 import {
   renderAnnotations as renderAnnotationsOnContext,
@@ -63,6 +63,7 @@ export class ScreenshotOverlay {
     this.handleKeyUp = this.handleKeyUp.bind(this);
 
     // 组合根：以依赖注入方式组装两个领域控制器，控制器之间无直接引用
+    void initI18nPreference();
     this.selectionController = new SelectionController({
       getShadowRoot: () => this.shadowRoot,
       getAnnotations: () => this.annotationController.annotations,
@@ -120,6 +121,7 @@ export class ScreenshotOverlay {
     onComplete: (payload: any) => void;
     onCancel?: () => void;
   }): void {
+    void initI18nPreference();
     this.cachedViewportDataUrl = options.viewportDataUrl;
     this.onCompleteCallback = options.onComplete;
     this.onCancelCallback = options.onCancel;
@@ -385,7 +387,10 @@ export class ScreenshotOverlay {
       if (
         e.metaKey ||
         e.ctrlKey ||
-        (e.key && e.key.length >= 2 && e.key.startsWith("F") && !isNaN(Number(e.key.slice(1))))
+        (e.key &&
+          e.key.length >= 2 &&
+          e.key.startsWith("F") &&
+          !isNaN(Number(e.key.slice(1))))
       ) {
         return;
       }

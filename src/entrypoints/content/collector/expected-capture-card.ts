@@ -1,4 +1,4 @@
-import { t } from "../../../shared/i18n";
+import { isEn, t } from "../../../shared/i18n";
 import type { ExpectedStatement } from "../../../shared/protocol";
 
 export type ExpectedCaptureCardDeps = {
@@ -287,7 +287,8 @@ export class ExpectedCaptureCard {
       this.applyChipStyle(chip, true);
     }
     if (this.inputElement) {
-      this.inputElement.value = [...this.selectedChips].join("；");
+      const separator = isEn() ? "; " : "；";
+      this.inputElement.value = [...this.selectedChips].join(separator);
     }
     this.resetAutoSkipTimer();
   }

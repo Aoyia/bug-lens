@@ -1,4 +1,5 @@
 import type { EnvironmentInfo } from "../shared/protocol";
+import { isEn } from "../shared/i18n.ts";
 
 /**
  * 采集页面主帧的运行环境快照（系统/浏览器/分辨率/视口）。
@@ -70,5 +71,7 @@ export function formatEnvironmentSummary(
   const browser = describeBrowserFromUserAgent(environment.userAgent);
   const screen = `${environment.screenWidth}×${environment.screenHeight}@${environment.devicePixelRatio}x`;
   const viewport = `${environment.viewportWidth}×${environment.viewportHeight}`;
-  return `${os} · ${browser} · ${environment.language} · 屏幕 ${screen} · 视口 ${viewport}`;
+  const screenLabel = isEn() ? "Screen" : "屏幕";
+  const viewportLabel = isEn() ? "Viewport" : "视口";
+  return `${os} · ${browser} · ${environment.language} · ${screenLabel} ${screen} · ${viewportLabel} ${viewport}`;
 }

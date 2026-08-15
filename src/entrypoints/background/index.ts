@@ -1,4 +1,5 @@
 import { db } from "../../storage/db";
+import { initI18nPreference } from "../../shared/i18n";
 import { setStorageBudgetListener } from "../../storage/storage-budget";
 import { StreamHealthMonitor } from "../../recording/stream-health-monitor";
 import { RecordingCoordinator } from "../../recording/recording-coordinator";
@@ -14,6 +15,10 @@ import { initDevReloader } from "./dev-reloader";
 
 const EXTENSION_VERSION = chrome.runtime.getManifest().version;
 const STOPPING_IDS_KEY = "bug-lens-stopping-ids";
+
+// 预先加载并初始化用户语言偏好
+void initI18nPreference();
+
 /** 录制健康状态机：汇总 content/cdp/media/storage 各采集流的健康度，驱动录制挂件状态与降级提示。 */
 const streamHealthMonitor = new StreamHealthMonitor();
 

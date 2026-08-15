@@ -19,6 +19,59 @@ declare global {
 
 let activePreference: LanguagePreference = "auto";
 const loadedDicts: Partial<Record<SupportedLocale, I18nDict>> = {};
+const languageListeners = new Set<
+  (pref: LanguagePreference, locale: SupportedLocale) => void
+>();
+
+function notifyLanguageListeners(): void {
+  const currentLocale = getLocale();
+  for (const listener of languageListeners) {
+    try {
+      listener(activePreference, currentLocale);
+    } catch {
+      // 避免单个监听器异常影响其他监听器
+    }
+  }
+}
+
+export function onLanguagePreferenceChange(
+  listener: (pref: LanguagePreference, locale: SupportedLocale) => void
+): () => void {
+  languageListeners.add(listener);
+  return () => {
+    languageListeners.delete(listener);
+  };
+}
+
+/**
+ * 监听 storage.sync 变更，实现多页面/Content Script/Popup 间的语言偏好热同步
+ */
+if (
+  typeof chrome !== "undefined" &&
+  chrome.storage &&
+  chrome.storage.onChanged
+) {
+  try {
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+      if (areaName === "sync" && changes.user_language_preference) {
+        const nextPref = changes.user_language_preference.newValue as
+          LanguagePreference | undefined;
+        if (nextPref) {
+          activePreference = nextPref;
+          if (nextPref !== "auto") {
+            void loadLocaleDict(nextPref).then(() => {
+              notifyLanguageListeners();
+            });
+          } else {
+            notifyLanguageListeners();
+          }
+        }
+      }
+    });
+  } catch {
+    // 忽略不受支持环境的异常
+  }
+}
 
 /**
  * 将任意原始区域标识（如 "zh_CN"、"zh-CN"、"zh"、"en"、"en_US"）归一化为标准 BCP-47 标签。
@@ -104,6 +157,7 @@ export async function setUserLanguagePreference(
   if (pref !== "auto") {
     await loadLocaleDict(pref);
   }
+  notifyLanguageListeners();
 }
 
 export function getLocale(): SupportedLocale {
@@ -142,18 +196,15 @@ function formatMessage(
 ): string {
   if (!substitutions) return template;
   const subs = Array.isArray(substitutions) ? substitutions : [substitutions];
-  let namedIndex = 0;
-  let msg = template.replace(
-    /\$(COUNT|BYTES|DAYS|MAX|CURRENT|TOTAL|SIZE|ERROR|SECONDS|ACTION|ELEMENT|KEY|TYPE|VALUE)\$/g,
-    () => {
-      const value = subs[namedIndex] ?? "";
-      namedIndex += 1;
-      return value;
-    }
-  );
-  msg = msg.replace(/\$(\d+)\$/g, (_match, index: string) => {
+  let msg = template.replace(/\$(\d+)\$/g, (_match, index: string) => {
     const value = subs[Number(index) - 1];
     return value ?? "";
+  });
+  let namedIndex = 0;
+  msg = msg.replace(/\$([A-Z_]+)\$/g, () => {
+    const value = subs[namedIndex] ?? "";
+    namedIndex += 1;
+    return value;
   });
   return msg;
 }

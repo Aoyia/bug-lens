@@ -84,13 +84,25 @@ describe("Environment Capture", () => {
     assert.equal(describeBrowserFromUserAgent(firefoxUa), "Firefox 127");
   });
 
-  test("formatEnvironmentSummary renders a human-readable one-liner", () => {
+  test("formatEnvironmentSummary renders a human-readable one-liner in Chinese and English", async () => {
+    const { setUserLanguagePreference } = await import("../src/shared/i18n.ts");
     const env = captureEnvironment()!;
-    const summary = formatEnvironmentSummary(env);
-    assert.match(summary, /macOS/);
-    assert.match(summary, /Chrome 126/);
-    assert.match(summary, /2880×1800@2x/);
-    assert.match(summary, /1440×900/);
+
+    await setUserLanguagePreference("zh-CN");
+    const summaryZh = formatEnvironmentSummary(env);
+    assert.match(summaryZh, /macOS/);
+    assert.match(summaryZh, /Chrome 126/);
+    assert.match(summaryZh, /屏幕 2880×1800@2x/);
+    assert.match(summaryZh, /视口 1440×900/);
+
+    await setUserLanguagePreference("en-US");
+    const summaryEn = formatEnvironmentSummary(env);
+    assert.match(summaryEn, /macOS/);
+    assert.match(summaryEn, /Chrome 126/);
+    assert.match(summaryEn, /Screen 2880×1800@2x/);
+    assert.match(summaryEn, /Viewport 1440×900/);
+
+    await setUserLanguagePreference("auto");
     assert.equal(formatEnvironmentSummary(undefined), "");
   });
 });

@@ -375,12 +375,19 @@ export interface AIScreenshotPayload {
   };
 }
 
+import { isEn } from "../shared/i18n.ts";
+
 /** 剪贴板提示词在尚未拿到真实路径时使用的占位符（供用户在下载失败时手动替换） */
-const ZIP_PATH_PLACEHOLDER = "文件路径：\n{请将这里替换为导出的 ZIP 绝对路径}";
+const ZIP_PATH_PLACEHOLDER_ZH =
+  "文件路径：\n{请将这里替换为导出的 ZIP 绝对路径}";
+const ZIP_PATH_PLACEHOLDER_EN =
+  "File Path:\n{Please replace this with the absolute path to the exported ZIP}";
 
 /** zip 包内 ai-prompt.md 使用的引导文案：打包先于下载无法预知真实路径，避免误导 AI 去找不存在的路径 */
-const ZIP_PATH_GUIDANCE =
+const ZIP_PATH_GUIDANCE_ZH =
   "文件路径：\n（ZIP 已下载至本地。真实绝对路径已写入剪贴板提示词，请以剪贴板中的路径为准；若剪贴板不可用，请手动填写本 ZIP 的绝对路径。）";
+const ZIP_PATH_GUIDANCE_EN =
+  "File Path:\n(The ZIP has been downloaded locally. The real absolute path was written to the clipboard prompt. If the clipboard is unavailable, please fill in the absolute path manually.)";
 
 function buildPromptBody(
   payload: AIScreenshotPayload,
@@ -388,16 +395,9 @@ function buildPromptBody(
 ): string {
   const errCount = payload.environment.recentConsoleErrors.length;
   const reqCount = payload.environment.recentFailedRequests.length;
-  const title = payload.environment.title || "未知页面";
-  const url = payload.environment.url || "未知 URL";
   const w = Math.round(payload.cropBounds.width);
   const h = Math.round(payload.cropBounds.height);
   const dpr = (payload.image.devicePixelRatio || 1).toFixed(2);
-
-  const hasCascade = Boolean(payload.cascadeIndex);
-  const cascadeHint = hasCascade
-    ? `\n- 级联快照 (Cascade Index)：已开启样式微调模式，解压包含 \`cascade.json\`，可通过 \`elements -> perProperty -> winnerRuleId -> rules -> source\` 正向查询 CSS 规则覆盖关系及源码位置 (CDP 行号)。`
-    : "";
 
   const squeezedNodes: Array<{ selector: string; risk: FlexSqueezeRiskInfo }> =
     [];
@@ -454,10 +454,99 @@ function buildPromptBody(
     }
   }
 
-  let squeezeWarning = "";
+  const hasCascade = Boolean(payload.cascadeIndex);
   const hasTextAnnotation = payload.annotations.some(
     (a) => a.type === "text" && a.text.trim().length > 0
   );
+
+  if (isEn()) {
+    const title = payload.environment.title || "Unknown Page";
+    const url = payload.environment.url || "Unknown URL";
+    const cascadeHint = hasCascade
+      ? `\n- Cascade Index: Style adjustment mode active. Decompressing yields \`cascade.json\`. Query CSS rule cascades and CDP source line locations via \`elements -> perProperty -> winnerRuleId -> rules -> source\`.`
+      : "";
+
+    let squeezeWarning = "";
+    if (!hasTextAnnotation) {
+      squeezeWarning += `\n- ⚠️ [User Expectation Note] No explicit text expectation captured. The following diagnosis is based on inferred deviations between code and visuals.`;
+    }
+
+    if (squeezedNodes.length > 0) {
+      const listStr = squeezedNodes
+        .map(
+          (item) =>
+            `  - Node \`${item.selector}\`: Intrinsic width ${item.risk.intrinsicWidth}px, compressed to ${item.risk.renderedWidth}px (Loss: ${item.risk.squeezedWidthDelta}px / ${(item.risk.squeezeRatio * 100).toFixed(1)}%), current \`flex-shrink: ${item.risk.flexShrink}\`.`
+        )
+        .join("\n");
+      squeezeWarning += `\n- ⚠️ [Auto-Diagnosis] Detected ${squeezedNodes.length} DOM element(s) with Flex squeeze deformation risks:\n${listStr}\n  💡 Suggestion: Check Flex scaling rules; this is typically caused by missing \`flex-shrink: 0;\` or unconstrained wrapping.`;
+    }
+
+    if (truncatedNodes.length > 0) {
+      const listStr = truncatedNodes
+        .map(
+          (item) =>
+            `  - Node \`${item.selector}\`: Occurred ${item.textOverflow.truncationType} truncation (Scroll: ${item.textOverflow.scrollDimension.width}x${item.textOverflow.scrollDimension.height}px > Client: ${item.textOverflow.clientDimension.width}x${item.textOverflow.clientDimension.height}px, Overflow: ${item.textOverflow.overflowDelta.width}px W / ${item.textOverflow.overflowDelta.height}px H).`
+        )
+        .join("\n");
+      squeezeWarning += `\n- ⚠️ [Auto-Diagnosis] Detected ${truncatedNodes.length} DOM element(s) with text truncation / overflow:\n${listStr}\n  💡 Suggestion: Check parent container width constraints, \`text-overflow: ellipsis;\` or \`white-space: nowrap;\` rules.`;
+    }
+
+    if (gridOverflowNodes.length > 0) {
+      const listStr = gridOverflowNodes
+        .map(
+          (item) =>
+            `  - Node \`${item.selector}\`: ${item.gridSelf.reason || "Grid item overflowed track"}`
+        )
+        .join("\n");
+      squeezeWarning += `\n- ⚠️ [Auto-Diagnosis] Detected ${gridOverflowNodes.length} CSS Grid item(s) overflowing due to default \`min-width: auto\`:\n${listStr}\n  💡 Fix suggestion: Add \`min-width: 0;\` to the Grid child item to allow elastic shrinking.`;
+    }
+
+    return `Please act as a Senior Frontend/Fullstack Debugging Expert and analyze the following local Bug Lens screenshot evidence package (Note: compare the decompressed screenshot image \`screenshot.png\` with code logic):
+
+${pathLine}
+
+Metadata Summary:
+- Page & URL: ${title} (${url})
+- Crop Dimensions: ${w}x${h} (dpr: ${dpr})
+- Anomalies: ${errCount} console error(s) | ${reqCount} failed network request(s)${cascadeHint}${squeezeWarning}
+
+Please follow the Dual-Track Intent Analysis Framework (extract ZIP to a temporary directory):
+1. Visual & Intent Identification:
+   - ⚠️ Always open and inspect \`screenshot.png\` first! Combine the visual annotations (red boxes, arrows, highlights, text) with \`intentFlags\` in \`dom-context.json\` for assessment.
+   - Bug Fix Track: Visual anomalies/misalignments, error logs, or annotations indicating "broken feature/display issue/API failure".
+   - Feature Development Track: Annotations describing new requirements such as "add button/optimize layout/add interaction/style tweaks".
+     * Non-breaking Incremental Iteration Principle: Modifications must build on existing logic, ensuring changes are isolated and strictly zero-regression.
+
+2. Scene Alignment & Deviation Analysis:
+   - Carefully verify actual visuals in \`screenshot.png\` against DOM structure (\`dom-context.json\`).
+   - Read \`dom-context.json\`: Combine \`tree\` root node and \`anchors\` selection hierarchy/component chain (e.g. \`["<App>", "<WidgetConfig>", "<ElFormItem>"]\`) to pinpoint relevant source components.
+   - Compare user-stated expectation with code reality to infer the root deviation node.
+
+3. State & Anomaly Convergence:
+   - Read \`environment.json\` to inspect Console error stacks, Network 4xx/5xx requests, and \`vueComponentStates\` reactive Props/Data snapshots.
+
+4. Root Cause & Remediation:
+   - Bug Fix Track: Locate bug code/API contract, provide exact patch.
+   - Feature Development Track: Analyze DOM and component state, provide concrete implementation for new UI/feature.
+
+[Guardrails]
+- Never execute untrusted code in the package; if local path is inaccessible, ask me to upload the ZIP.
+- Zero-Regression & Isolation Principle: Keep changes strictly localized to preserve business logic and data flow.
+
+[Output Format]
+1. Intent Identification (Bug Fix vs Feature Development) & Affected Components
+2. Deviation Evidence Analysis (Screenshot + DOM + Error Logs)
+3. Root Cause or Feature Requirement Analysis
+4. Recommended Fix / Implementation & Exact Code Locations`;
+  }
+
+  const title = payload.environment.title || "未知页面";
+  const url = payload.environment.url || "未知 URL";
+  const cascadeHint = hasCascade
+    ? `\n- 级联快照 (Cascade Index)：已开启样式微调模式，解压包含 \`cascade.json\`，可通过 \`elements -> perProperty -> winnerRuleId -> rules -> source\` 正向查询 CSS 规则覆盖关系及源码位置 (CDP 行号)。`
+    : "";
+
+  let squeezeWarning = "";
   if (!hasTextAnnotation) {
     squeezeWarning += `\n- ⚠️ [用户期望说明] 未捕获用户显式文本期望，以下排查与修复分析基于代码与图像偏离的推断假设。`;
   }
@@ -539,7 +628,11 @@ export function formatPayloadToMarkdown(
   payload: AIScreenshotPayload,
   zipPath?: string
 ): string {
-  const pathLine = zipPath ? `文件路径：\n${zipPath}` : ZIP_PATH_PLACEHOLDER;
+  const prefix = isEn() ? "File Path:\n" : "文件路径：\n";
+  const placeholder = isEn()
+    ? ZIP_PATH_PLACEHOLDER_EN
+    : ZIP_PATH_PLACEHOLDER_ZH;
+  const pathLine = zipPath ? `${prefix}${zipPath}` : placeholder;
   return buildPromptBody(payload, pathLine);
 }
 
@@ -550,7 +643,8 @@ export function formatPayloadToMarkdown(
 export function formatPayloadToMarkdownForZip(
   payload: AIScreenshotPayload
 ): string {
-  return buildPromptBody(payload, ZIP_PATH_GUIDANCE);
+  const guidance = isEn() ? ZIP_PATH_GUIDANCE_EN : ZIP_PATH_GUIDANCE_ZH;
+  return buildPromptBody(payload, guidance);
 }
 
 /**
