@@ -1239,21 +1239,55 @@
       }
 
       function copyRealPrompt() {
-        navigator.clipboard.writeText(RAW_REAL_PROMPT).then(function () {
-          var btnText = document.getElementById("copyBtnText");
-          if (btnText) {
-            btnText.textContent =
-              currentLang === "zh"
-                ? "已成功复制到剪贴板！"
-                : "Copied to Clipboard!";
-            setTimeout(function () {
-              btnText.textContent =
-                currentLang === "zh"
-                  ? "复制 AI 提示词给 Cursor / Claude"
-                  : "Copy AI Prompt for Cursor / Claude";
-            }, 2000);
+        var btnText = document.getElementById("copyBtnText");
+        var zh = currentLang === "zh";
+
+        function showResult(ok) {
+          if (!btnText) return;
+          btnText.textContent = ok
+            ? zh
+              ? "已成功复制到剪贴板！"
+              : "Copied to Clipboard!"
+            : zh
+              ? "复制失败，请手动选择上方文本复制"
+              : "Copy failed — select the text above manually";
+          setTimeout(function () {
+            btnText.textContent = zh
+              ? "复制 AI 提示词给 Cursor / Claude"
+              : "Copy AI Prompt for Cursor / Claude";
+          }, 2000);
+        }
+
+        function legacyCopy() {
+          var ta = document.createElement("textarea");
+          ta.value = RAW_REAL_PROMPT;
+          ta.setAttribute("readonly", "");
+          ta.style.position = "fixed";
+          ta.style.top = "-9999px";
+          document.body.appendChild(ta);
+          ta.select();
+          var ok = false;
+          try {
+            ok = document.execCommand("copy");
+          } catch (e) {
+            ok = false;
           }
-        });
+          document.body.removeChild(ta);
+          return ok;
+        }
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(RAW_REAL_PROMPT).then(
+            function () {
+              showResult(true);
+            },
+            function () {
+              showResult(legacyCopy());
+            }
+          );
+        } else {
+          showResult(legacyCopy());
+        }
       }
 
       (function () {
