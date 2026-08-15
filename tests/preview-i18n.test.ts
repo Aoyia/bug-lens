@@ -112,3 +112,33 @@ test("playwrightModal 文本与关闭按钮应具备完整双语国际化键值"
     assert.ok(dict.close?.message, `${locale} 缺少 close`);
   }
 });
+
+test("shortcutsPanel 快捷键速查面板各按键说明与 aria-label 应具备完整双语国际化键值", () => {
+  const requiredKeys = [
+    "shortcutsTitle",
+    "shortcutsCloseAria",
+    "shortcutSecVideo",
+    "shortcutPlayPause",
+    "shortcutBack5s",
+    "shortcutFwd5s",
+    "shortcutBack1s",
+    "shortcutFwd1s",
+    "shortcutFullscreen",
+    "shortcutDblclickVideo",
+    "shortcutSecImageViewer",
+    "shortcutPrevNext",
+    "shortcutZoomInOut",
+    "shortcutRotate",
+    "shortcutResetZoom",
+    "shortcutSecWorkspace",
+    "shortcutSwitchTab",
+    "shortcutTabFocusNote",
+    "shortcutShowPanel",
+  ];
+  for (const locale of ["zh_CN", "en"] as const) {
+    const dict = loadDict(locale);
+    for (const key of requiredKeys) {
+      assert.ok(dict[key]?.message, `${locale} 缺少快捷键国际化键: ${key}`);
+    }
+  }
+});
