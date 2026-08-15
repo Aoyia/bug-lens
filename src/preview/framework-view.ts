@@ -50,11 +50,11 @@ function renderTreeNode(node: FrameworkComponentNode, depth: number): string {
 
   if (node.props) {
     const count = Object.keys(node.props).length;
-    html += ` <span style="font-size:9px;color:#718096">${count} props</span>`;
+    html += ` <span style="font-size:9px;color:#718096">${t("fwPropsCount", [String(count)])}</span>`;
   }
   if (node.state) {
     const count = Object.keys(node.state).length;
-    html += ` <span style="font-size:9px;color:#718096">${count} state</span>`;
+    html += ` <span style="font-size:9px;color:#718096">${t("fwStateCount", [String(count)])}</span>`;
   }
 
   html += `</div>`;
