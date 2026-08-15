@@ -1340,11 +1340,18 @@
           },
         };
 
+        // 首次访问（无本地偏好）时按浏览器语言选择中文/英文，
+        // 让中英双语产品用访客自己的语言打招呼；手动切换后仍以 localStorage 为准。
+        function detectBrowserLang() {
+          var lang = (navigator.language || "").toLowerCase();
+          return lang.indexOf("zh") === 0 ? "zh" : "en";
+        }
+
         function getSavedLang() {
           return (
             localStorage.getItem("bl_lang") ||
             localStorage.getItem("bl-lang") ||
-            "en"
+            detectBrowserLang()
           );
         }
 
