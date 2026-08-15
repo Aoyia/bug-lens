@@ -1352,6 +1352,9 @@
   "videoUnreadable": {
     "message": "录像文件无法读取；交互和调试证据仍可查看。"
   },
+  "mediaRecorderFailed": {
+    "message": "媒体录制失败"
+  },
   "noMediaChunks": {
     "message": "没有可播放的媒体分片；交互和调试证据仍可查看。"
   },

@@ -1352,6 +1352,9 @@
   "videoUnreadable": {
     "message": "Video could not be read; interaction and debug evidence are still available."
   },
+  "mediaRecorderFailed": {
+    "message": "Media recording failed"
+  },
   "noMediaChunks": {
     "message": "No playable media chunks; interaction and debug evidence are still available."
   },
