@@ -201,6 +201,15 @@
   "healthPartialDisruption": {
     "message": "Console/Network capture interrupted (DevTools may be open)"
   },
+  "issueBrowserRestartInterrupted": {
+    "message": "Browser restart interrupted the recording. Existing evidence has been preserved."
+  },
+  "issueStartInterrupted": {
+    "message": "Recording start was interrupted. Evidence captured before the interruption has been preserved."
+  },
+  "issueMediaContextLost": {
+    "message": "No active media recording context was found after background recovery."
+  },
   "exceedMaxOptions": {
     "message": "... (Exceeds 30 items, $TOTAL$ total)",
     "placeholders": {

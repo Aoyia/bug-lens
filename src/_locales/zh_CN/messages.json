@@ -201,6 +201,15 @@
   "healthPartialDisruption": {
     "message": "控制台/网络日志采集中断 (DevTools可能已打开)"
   },
+  "issueBrowserRestartInterrupted": {
+    "message": "浏览器重启中断了录制，已保留现有证据。"
+  },
+  "issueStartInterrupted": {
+    "message": "录制启动过程被中断，已保留启动前证据。"
+  },
+  "issueMediaContextLost": {
+    "message": "后台恢复后未找到活动的媒体录制上下文。"
+  },
   "exceedMaxOptions": {
     "message": "... (超出 30 项，共有 $TOTAL$ 项)",
     "placeholders": {

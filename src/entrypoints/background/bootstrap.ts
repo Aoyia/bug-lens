@@ -5,6 +5,7 @@ import {
   type RecordingSession,
 } from "../../shared/protocol";
 import { applySessionEvent as reduceSession } from "../../domain/recording-session";
+import { t } from "../../shared/i18n";
 import type { BackgroundContext } from "./context";
 import type { SessionLifecycle } from "./lifecycle";
 
@@ -87,7 +88,7 @@ export function createBootstrapService(
       await recoverInterruptedSession(
         session,
         "SESSION_INTERRUPTED_BY_BROWSER_RESTART",
-        "浏览器重启中断了录制，已保留现有证据。"
+        t("issueBrowserRestartInterrupted")
       );
       return;
     }
@@ -101,7 +102,7 @@ export function createBootstrapService(
       await recoverInterruptedSession(
         session,
         "SESSION_START_INTERRUPTED",
-        "录制启动过程被中断，已保留启动前证据。"
+        t("issueStartInterrupted")
       );
       return;
     }
@@ -153,7 +154,7 @@ export function createBootstrapService(
           type: "capture-issue",
           issue: ctx.issue(
             "MEDIA_CONTEXT_LOST",
-            "后台恢复后未找到活动的媒体录制上下文。",
+            t("issueMediaContextLost"),
             "media",
             false
           ),
