@@ -49,6 +49,18 @@ graph LR
 
 <img src="docs/assets/popup-panel.png" width="380" alt="扩展控制面板" />
 
+### 3. 页面轻量吸附录制挂件
+
+录制期间在网页边缘提供无干扰挂件，支持快捷标记缺陷现场（`Option+S` / `Alt+S`）、实时录制时长显示以及一键直出结束导出（`Stop & Export`）。
+
+![页面录制挂件](docs/assets/in-page-recording-widget.png)
+
+### 4. 交互式证据预览与时间线排查
+
+录制完成后支持视频与时间线联动回放、控制台错误定位、网络请求正文解密与脱敏，以及导出前的非破坏性过滤。
+
+![证据预览与交互分析面板](docs/assets/evidence-preview-workspace.png)
+
 - **精准现场捕获**：高亮点击元素，捕获带有红色圆环轨迹的截图与原始干净截图。
 - **零服务端·安全离线**：导出纯静态 ZIP 报告，内含离线 `report.html`，数据完全本地化。
 - **AI 深度整合**：

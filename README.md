@@ -47,6 +47,18 @@ One-click session recording with full control over DOM snapshots, console logs, 
 
 <img src="docs/assets/popup-panel.png" width="380" alt="Extension Popup Panel" />
 
+### 3. In-Page Compact Recording Widget
+
+A non-intrusive floating widget docked at the edge of the web page during recording. Supports instant issue marking (`Option+S` / `Alt+S`), live timer display, and one-click silent export (`Stop & Export`).
+
+![In-Page Recording Widget](docs/assets/in-page-recording-widget.png)
+
+### 4. Interactive Evidence Preview & Timeline Inspection
+
+Inspect recorded sessions with video-timeline synchronization, sanitized network payloads, console error logs, and multi-track filtering before exporting.
+
+![Evidence Preview & Timeline Workspace](docs/assets/evidence-preview-workspace.png)
+
 - **Accurate Click & DOM Capture**: Automatically captures screenshots highlighting clicked elements with red visual rings alongside raw clean screenshots.
 - **Zero Backend & Privacy-First**: Exports self-contained, offline ZIP packages. Data remains 100% local with redaction modes for sensitive tokens/headers.
 - **Deep AI Integration**:
