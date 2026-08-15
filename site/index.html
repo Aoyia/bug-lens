@@ -170,6 +170,19 @@
         border-color: rgba(255, 255, 255, 0.2);
       }
 
+      /* 窄屏（手机）顶栏换行：避免导航与语言切换按钮被 overflow-x 裁剪 */
+      @media (max-width: 480px) {
+        .nav {
+          flex-wrap: wrap;
+          row-gap: 16px;
+        }
+        .nav-right {
+          width: 100%;
+          justify-content: space-between;
+          gap: 12px;
+        }
+      }
+
       /* Hero Section */
       .hero {
         padding: 70px 0 60px;
