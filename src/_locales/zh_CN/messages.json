@@ -546,6 +546,33 @@
   "waitingForAuth": {
     "message": "等待授权中…"
   },
+  "permissionStatusPleaseWait": {
+    "message": "请稍候"
+  },
+  "permissionStatusProcessing": {
+    "message": "正在处理"
+  },
+  "permissionStatusAuthIncomplete": {
+    "message": "授权未完成"
+  },
+  "permissionErrorNoPendingRequest": {
+    "message": "未找到待处理的录制请求，请重新在插件中发起。"
+  },
+  "permissionStatusPromptSelectAllow": {
+    "message": "请在浏览器提示框中选择“允许”…"
+  },
+  "permissionErrorNoAccess": {
+    "message": "未授予全站访问权限：无法开启录制。"
+  },
+  "permissionStatusGrantedStarting": {
+    "message": "已获授权，正在启动录制…"
+  },
+  "permissionStatusRecordingStartedClosing": {
+    "message": "录制已成功启动！正在关闭中转页…"
+  },
+  "permissionErrorStartFailed": {
+    "message": "启动录制失败"
+  },
   "copyAiPrompt": {
     "message": "✨ 复制 AI 提示词"
   },
