@@ -1657,5 +1657,42 @@
         "content": "$1"
       }
     }
+  },
+  "consoleStorageLimitReached": {
+    "message": "已达到会话存储上限，未保存更多 Console 日志。"
+  },
+  "debugEventWritePending": {
+    "message": "调试事件写入未完成：$REASON$",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
+  },
+  "networkBodyStorageLimitReached": {
+    "message": "已达到会话存储上限，未保存更多 Network 正文。"
+  },
+  "networkStorageLimitReached": {
+    "message": "已达到会话存储上限，未保存更多 Network 记录。"
+  },
+  "networkWritePending": {
+    "message": "Network 写入未完成：$REASON$",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
+  },
+  "requestFailed": {
+    "message": "请求失败"
+  },
+  "responseBodyIncomplete": {
+    "message": "录制结束前未收到完整响应或浏览器未提供正文"
+  },
+  "responseBodyTimeout": {
+    "message": "响应正文读取超过 3 秒"
+  },
+  "uncaughtException": {
+    "message": "未捕获异常"
   }
 }

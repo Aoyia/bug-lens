@@ -1657,5 +1657,42 @@
         "content": "$1"
       }
     }
+  },
+  "consoleStorageLimitReached": {
+    "message": "Session storage limit reached; additional Console logs were not saved."
+  },
+  "debugEventWritePending": {
+    "message": "Debug event write incomplete: $REASON$",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
+  },
+  "networkBodyStorageLimitReached": {
+    "message": "Session storage limit reached; additional Network response bodies were not saved."
+  },
+  "networkStorageLimitReached": {
+    "message": "Session storage limit reached; additional Network records were not saved."
+  },
+  "networkWritePending": {
+    "message": "Network write incomplete: $REASON$",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
+  },
+  "requestFailed": {
+    "message": "Request failed"
+  },
+  "responseBodyIncomplete": {
+    "message": "The response was not fully received before recording ended, or the browser did not provide the body."
+  },
+  "responseBodyTimeout": {
+    "message": "Response body read exceeded 3 seconds."
+  },
+  "uncaughtException": {
+    "message": "Uncaught exception"
   }
 }
