@@ -1694,5 +1694,41 @@
   },
   "uncaughtException": {
     "message": "未捕获异常"
+  },
+  "mediaAlreadyRecording": {
+    "message": "媒体录制已在进行中 (MEDIA_ALREADY_RECORDING)"
+  },
+  "mediaChunkWriteFailed": {
+    "message": "媒体分片写入失败：$REASON$",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
+  },
+  "mediaDataChunkWriteFailed": {
+    "message": "媒体数据块写入失败 (MEDIA_CHUNK_WRITE_FAILED:$REASONS$)",
+    "placeholders": {
+      "reasons": {
+        "content": "$1"
+      }
+    }
+  },
+  "mediaSessionMismatch": {
+    "message": "媒体会话不匹配 (MEDIA_SESSION_MISMATCH:$SESSION_ID$)",
+    "placeholders": {
+      "session_id": {
+        "content": "$1"
+      }
+    }
+  },
+  "mediaStopTimeout": {
+    "message": "停止媒体录制超时 (MEDIA_STOP_TIMEOUT)"
+  },
+  "mediaStorageLimitReached": {
+    "message": "已停止录像以遵守单会话大小限制。"
+  },
+  "mediaTrackEndedUnexpectedly": {
+    "message": "媒体轨道意外结束"
   }
 }

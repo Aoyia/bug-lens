@@ -1694,5 +1694,41 @@
   },
   "uncaughtException": {
     "message": "Uncaught exception"
+  },
+  "mediaAlreadyRecording": {
+    "message": "Media recording is already in progress (MEDIA_ALREADY_RECORDING)"
+  },
+  "mediaChunkWriteFailed": {
+    "message": "Media chunk write failed: $REASON$",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
+  },
+  "mediaDataChunkWriteFailed": {
+    "message": "Media data chunk write failed (MEDIA_CHUNK_WRITE_FAILED:$REASONS$)",
+    "placeholders": {
+      "reasons": {
+        "content": "$1"
+      }
+    }
+  },
+  "mediaSessionMismatch": {
+    "message": "Media session mismatch (MEDIA_SESSION_MISMATCH:$SESSION_ID$)",
+    "placeholders": {
+      "session_id": {
+        "content": "$1"
+      }
+    }
+  },
+  "mediaStopTimeout": {
+    "message": "Media recording stop timed out (MEDIA_STOP_TIMEOUT)"
+  },
+  "mediaStorageLimitReached": {
+    "message": "Recording stopped to comply with the single-session size limit."
+  },
+  "mediaTrackEndedUnexpectedly": {
+    "message": "Media track ended unexpectedly"
   }
 }
