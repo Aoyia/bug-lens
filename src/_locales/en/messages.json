@@ -638,6 +638,9 @@
   "copiedImageToast": {
     "message": "Copied image to clipboard"
   },
+  "screenshotModalAlt": {
+    "message": "Screenshot full size"
+  },
   "exportPreparing": {
     "message": "Preparing…"
   },
