@@ -159,12 +159,22 @@
       </main>
     </div>
 
-    <div id="image-modal" class="arco-preview-backdrop" hidden>
+    <div
+      id="image-modal"
+      class="arco-preview-backdrop"
+      hidden
+      role="dialog"
+      aria-modal="true"
+      aria-label="图片查看器"
+      data-i18n-aria="shortcutSecImageViewer"
+    >
       <button
         id="modal-close-btn"
         class="arco-preview-close-fixed"
         data-i18n-title="closeEsc"
+        data-i18n-aria="closeEsc"
         title="关闭 (ESC)"
+        aria-label="关闭图片查看器 (ESC)"
       >
         <svg
           width="16"
