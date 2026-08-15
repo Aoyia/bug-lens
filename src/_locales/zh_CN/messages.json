@@ -1730,5 +1730,8 @@
   },
   "mediaTrackEndedUnexpectedly": {
     "message": "媒体轨道意外结束"
+  },
+  "clipboardPermissionDenied": {
+    "message": "浏览器未授予剪贴板权限"
   }
 }

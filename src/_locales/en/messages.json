@@ -1730,5 +1730,8 @@
   },
   "mediaTrackEndedUnexpectedly": {
     "message": "Media track ended unexpectedly"
+  },
+  "clipboardPermissionDenied": {
+    "message": "The browser did not grant clipboard permission"
   }
 }
