@@ -7,6 +7,7 @@ import {
   sanitizeText,
 } from "../domain/privacy-policy.ts";
 import type { EvidenceRepository } from "../storage/db.ts";
+import { t } from "../shared/i18n.ts";
 import {
   message,
   RECORDING_STATUSES,
@@ -214,7 +215,7 @@ export class InteractionCapture {
         type: "capture-issue",
         issue: issue(
           "SESSION_STORAGE_LIMIT_REACHED",
-          "已达到会话存储上限，未保存更多交互证据。",
+          t("interactionStorageLimitReached"),
           "storage"
         ),
       });
@@ -276,7 +277,7 @@ export class InteractionCapture {
     try {
       if ((sender.frameId ?? 0) !== 0)
         throw new Error(
-          "FRAME_GEOMETRY_UNAVAILABLE: 该区域为内嵌页面（iframe），暂不支持点击截图，操作日志已记录"
+          `FRAME_GEOMETRY_UNAVAILABLE: ${t("iframeCaptureUnsupported")}`
         );
       await this.assertTargetTabIsActive(session);
       const dataUrl = await this.executeCaptureVisibleTab(
@@ -298,7 +299,7 @@ export class InteractionCapture {
         )
       );
       if (!annotated?.ok || typeof annotated.dataUrl !== "string")
-        throw new Error(annotated?.error || "截图标记失败");
+        throw new Error(annotated?.error || t("screenshotMarkFailed"));
       const assetId = `asset-interaction-${interaction.id}`;
       const bytes = dataUrlToArrayBuffer(annotated.dataUrl);
       const assetResult = await this.repository.saveEvidenceAssetWithinBudget({
@@ -317,7 +318,7 @@ export class InteractionCapture {
           type: "capture-issue",
           issue: issue(
             "SESSION_STORAGE_LIMIT_REACHED",
-            "已达到会话存储上限，未保存更多点击截图。",
+            t("screenshotStorageLimitReached"),
             "storage"
           ),
         });
@@ -333,7 +334,7 @@ export class InteractionCapture {
           type: "capture-issue",
           issue: issue(
             "SESSION_STORAGE_LIMIT_REACHED",
-            "已达到会话存储上限，未保存更多点击截图。",
+            t("screenshotStorageLimitReached"),
             "storage"
           ),
         });
@@ -352,7 +353,7 @@ export class InteractionCapture {
       // iframe 截图暂不支持：将开发者错误映射为面向用户的纯文案，避免展示内部前缀
       const isFrameGeometry = raw.includes("FRAME_GEOMETRY_UNAVAILABLE");
       const userMessage = isFrameGeometry
-        ? "该区域为内嵌页面（iframe），暂不支持点击截图，操作日志已记录"
+        ? t("iframeCaptureUnsupported")
         : safeError;
       const issueCode = isFrameGeometry
         ? "IFRAME_CAPTURE_UNSUPPORTED"
@@ -430,7 +431,7 @@ export class InteractionCapture {
     const activeTabs = await chrome.tabs.query(query);
     if (!activeTabs.some((tab) => tab.id === session.target.tabId)) {
       throw new Error(
-        "TARGET_TAB_NOT_ACTIVE: 当前激活标签页不是录制目标，已拒绝保存截图"
+        `TARGET_TAB_NOT_ACTIVE: ${t("targetTabNotActiveForScreenshot")}`
       );
     }
   }

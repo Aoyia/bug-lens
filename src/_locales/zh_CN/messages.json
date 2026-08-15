@@ -1576,6 +1576,21 @@
       "count": { "content": "$1" }
     }
   },
+  "interactionStorageLimitReached": {
+    "message": "已达到会话存储上限，未保存更多交互证据。"
+  },
+  "screenshotStorageLimitReached": {
+    "message": "已达到会话存储上限，未保存更多点击截图。"
+  },
+  "screenshotMarkFailed": {
+    "message": "截图标记失败"
+  },
+  "iframeCaptureUnsupported": {
+    "message": "该区域为内嵌页面（iframe），暂不支持点击截图，操作日志已记录"
+  },
+  "targetTabNotActiveForScreenshot": {
+    "message": "当前激活标签页不是录制目标，已拒绝保存截图"
+  },
   "removeSelectionMark": {
     "message": "移除该标记"
   },

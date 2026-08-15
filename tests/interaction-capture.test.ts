@@ -144,10 +144,10 @@ test("iframe 内交互的截图失败会给出用户可读文案与独立错误�
   );
   assert.ok(issueEvent, "iframe 截图失败应产生 capture-issue 事件");
   assert.equal(issueEvent.issue.code, "IFRAME_CAPTURE_UNSUPPORTED");
-  assert.match(
+  assert.equal(
     issueEvent.issue.message,
-    /内嵌页面/,
-    "错误文案应为用户可读文案而非开发者术语"
+    "iframeCaptureUnsupported",
+    "错误文案应走 i18n key 而非开发者术语"
   );
   assert.ok(
     !issueEvent.issue.message.includes("FRAME_GEOMETRY_UNAVAILABLE:"),

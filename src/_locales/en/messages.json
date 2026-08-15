@@ -1576,6 +1576,21 @@
       "count": { "content": "$1" }
     }
   },
+  "interactionStorageLimitReached": {
+    "message": "Session storage limit reached; additional interaction evidence was not saved."
+  },
+  "screenshotStorageLimitReached": {
+    "message": "Session storage limit reached; additional click screenshots were not saved."
+  },
+  "screenshotMarkFailed": {
+    "message": "Screenshot annotation failed"
+  },
+  "iframeCaptureUnsupported": {
+    "message": "This area is an embedded page (iframe); click screenshots are not supported yet. The action was logged."
+  },
+  "targetTabNotActiveForScreenshot": {
+    "message": "The active tab is not the recording target; the screenshot was not saved."
+  },
   "removeSelectionMark": {
     "message": "Remove this mark"
   },
