@@ -340,6 +340,9 @@
   "timeline": {
     "message": "Timeline"
   },
+  "timelineStream": {
+    "message": "Stream"
+  },
   "consoleLogs": {
     "message": "Console Logs"
   },

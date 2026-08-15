@@ -340,6 +340,9 @@
   "timeline": {
     "message": "操作时间轴"
   },
+  "timelineStream": {
+    "message": "全景瀑布流"
+  },
   "consoleLogs": {
     "message": "Console 日志"
   },
