@@ -997,6 +997,12 @@
   "labelViewport": {
     "message": "视口"
   },
+  "labelRole": {
+    "message": "角色"
+  },
+  "labelFrame": {
+    "message": "所在框架"
+  },
   "labelLocatorCandidates": {
     "message": "定位器候选"
   },

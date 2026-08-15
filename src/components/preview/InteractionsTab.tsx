@@ -462,7 +462,7 @@ export const InteractionsTab = memo(function InteractionsTab({
                         </td>
                       </tr>
                       <tr>
-                        <td className="td-label">Role</td>
+                        <td className="td-label">{t("labelRole")}</td>
                         <td className="td-value">{role}</td>
                       </tr>
                     </tbody>
@@ -487,7 +487,7 @@ export const InteractionsTab = memo(function InteractionsTab({
                         <td className="td-value">{viewport}</td>
                       </tr>
                       <tr>
-                        <td className="td-label">Frame</td>
+                        <td className="td-label">{t("labelFrame")}</td>
                         <td className="td-value">{frame}</td>
                       </tr>
                     </tbody>

@@ -997,6 +997,12 @@
   "labelViewport": {
     "message": "Viewport"
   },
+  "labelRole": {
+    "message": "Role"
+  },
+  "labelFrame": {
+    "message": "Frame"
+  },
   "labelLocatorCandidates": {
     "message": "Locator candidates"
   },
