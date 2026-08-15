@@ -1,4 +1,5 @@
 import type { CaptureIssue } from "../shared/protocol";
+import { t } from "../shared/i18n";
 
 export type IdleState = "active" | "idle" | "locked";
 
@@ -57,7 +58,10 @@ export class IdleMonitor {
           if (elapsed >= MAX_IDLE_GAP_THRESHOLD_MS) {
             onSystemResume?.({
               code: "SYSTEM_SUSPENDED_RESUMED",
-              message: `System resumed from sleep (${(elapsed / 60000).toFixed(1)} min idle gap detected)`,
+              message: t(
+                "issueSystemResumedFromSleep",
+                `${(elapsed / 60000).toFixed(1)}`
+              ),
               source: "interaction",
               recoverable: true,
               occurredAt: now,

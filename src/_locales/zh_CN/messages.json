@@ -210,6 +210,14 @@
   "issueMediaContextLost": {
     "message": "后台恢复后未找到活动的媒体录制上下文。"
   },
+  "issueSystemResumedFromSleep": {
+    "message": "系统从休眠中恢复（检测到 $MIN$ 分钟的空闲间隔）",
+    "placeholders": {
+      "min": {
+        "content": "$1"
+      }
+    }
+  },
   "exceedMaxOptions": {
     "message": "... (超出 30 项，共有 $TOTAL$ 项)",
     "placeholders": {

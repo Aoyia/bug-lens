@@ -210,6 +210,14 @@
   "issueMediaContextLost": {
     "message": "No active media recording context was found after background recovery."
   },
+  "issueSystemResumedFromSleep": {
+    "message": "System resumed from sleep ($MIN$ min idle gap detected)",
+    "placeholders": {
+      "min": {
+        "content": "$1"
+      }
+    }
+  },
   "exceedMaxOptions": {
     "message": "... (Exceeds 30 items, $TOTAL$ total)",
     "placeholders": {
