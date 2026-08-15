@@ -9,29 +9,29 @@
 
 ## ⚡ Highlights & Features
 
-### 1. Web Screenshot & AI Prompt Annotation
+### 1. Full-Context Safe Recording Panel
 
-Capture screen areas, measure pixel dimensions, draw arrows, and add notes to formulate precise visual bug reports and design modification prompts for AI.
-
-![Web Screenshot & Annotation Tool](docs/assets/screenshot-annotation.png)
-
-### 2. Full-Context Safe Recording Panel
-
-One-click session recording with full control over DOM snapshots, console logs, network request/response bodies, and framework state, with built-in data sanitization.
+One-click session recording with full control over DOM snapshots, console logs, network request/response bodies, and framework state, with built-in local data sanitization.
 
 <img src="docs/assets/popup-panel.png" width="380" alt="Extension Popup Panel" />
 
-### 3. In-Page Compact Recording Widget
+### 2. In-Page Compact Recording Widget
 
-A lightweight floating widget docked during recording. Supports instant issue marking (`Alt/Option+S`), live timer display, and one-click silent export.
+A lightweight floating widget docked during recording. Supports instant issue marking (`Alt/Option+S`), live timer display, and one-click silent export (`Stop & Export`).
 
 ![In-Page Recording Widget](docs/assets/in-page-recording-widget.png)
 
-### 4. Interactive Evidence Preview & Timeline Inspection
+### 3. Interactive Evidence Preview & Timeline Inspection
 
 Inspect recorded sessions with video-timeline synchronization, sanitized network payloads, console error logs, and multi-track filtering before exporting.
 
 ![Evidence Preview & Timeline Workspace](docs/assets/evidence-preview-workspace.png)
+
+### 4. Web Screenshot & AI Prompt Annotation
+
+Standalone screenshot capture with pixel dimension measurement, directional arrows, and bilingual notes to formulate precise visual bug reports and design modification prompts for AI.
+
+![Web Screenshot & Annotation Tool](docs/assets/screenshot-annotation.png)
 
 ---
 
