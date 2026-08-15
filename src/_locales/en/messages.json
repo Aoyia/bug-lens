@@ -1657,5 +1657,17 @@
         "content": "$1"
       }
     }
+  },
+  "playwrightModalTitle": {
+    "message": "Playwright Test Script Draft"
+  },
+  "playwrightModalSubtitle": {
+    "message": "This script is an AI-friendly draft and may require manual tuning before running"
+  },
+  "copyScript": {
+    "message": "Copy Script"
+  },
+  "close": {
+    "message": "Close"
   }
 }

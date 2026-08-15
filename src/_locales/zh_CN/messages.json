@@ -1657,5 +1657,17 @@
         "content": "$1"
       }
     }
+  },
+  "playwrightModalTitle": {
+    "message": "Playwright 测试脚本草稿"
+  },
+  "playwrightModalSubtitle": {
+    "message": "此脚本为 AI 友好草稿，可能需要人工调优后才能运行"
+  },
+  "copyScript": {
+    "message": "复制脚本"
+  },
+  "close": {
+    "message": "关闭"
   }
 }

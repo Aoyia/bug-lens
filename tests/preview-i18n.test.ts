@@ -102,3 +102,13 @@ test("previewDuration 占位符必须双语言齐全且可被 t() 替换", () =>
   );
   assert.equal(enResult, "32 sec");
 });
+
+test("playwrightModal 文本与关闭按钮应具备完整双语国际化键值", () => {
+  for (const locale of ["zh_CN", "en"] as const) {
+    const dict = loadDict(locale);
+    assert.ok(dict.playwrightModalTitle?.message, `${locale} 缺少 playwrightModalTitle`);
+    assert.ok(dict.playwrightModalSubtitle?.message, `${locale} 缺少 playwrightModalSubtitle`);
+    assert.ok(dict.copyScript?.message, `${locale} 缺少 copyScript`);
+    assert.ok(dict.close?.message, `${locale} 缺少 close`);
+  }
+});
