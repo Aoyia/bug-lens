@@ -9,11 +9,11 @@ export interface FrameworkStateTabProps {
   startedAtEpochMs?: number;
 }
 
-const TRIGGER_LABEL: Record<FrameworkStateEvidence["trigger"], string> = {
-  start: t("fwTriggerStart"),
-  interaction: t("fwTriggerInteraction"),
-  "issue-scene": t("fwTriggerIssueScene"),
-  resume: t("fwTriggerResume"),
+const TRIGGER_LABEL_KEYS: Record<FrameworkStateEvidence["trigger"], string> = {
+  start: "fwTriggerStart",
+  interaction: "fwTriggerInteraction",
+  "issue-scene": "fwTriggerIssueScene",
+  resume: "fwTriggerResume",
 };
 
 function renderJsonValue(value: unknown): string {
@@ -59,7 +59,7 @@ export const FrameworkStateTab = memo(function FrameworkStateTab({
           >
             <header className="framework-state-card-header">
               <span className="framework-state-trigger">
-                {TRIGGER_LABEL[state.trigger] ?? state.trigger}
+                {t(TRIGGER_LABEL_KEYS[state.trigger]) ?? state.trigger}
               </span>
               <time>
                 {elapsed ??

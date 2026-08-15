@@ -8,18 +8,22 @@ import type {
 } from "../../shared/protocol";
 import { t } from "../../shared/i18n.ts";
 
-const SEQUENCE_KIND_LABELS: Record<IssueSequenceInteraction["kind"], string> = {
-  click: t("kindClick"),
-  input: t("kindInput"),
-  change: t("kindChange"),
-  submit: t("kindSubmit"),
-  keydown: t("kindKeydown"),
-  navigation: t("kindNavigation"),
-  scroll: t("kindScroll"),
-  contextmenu: t("kindContextmenu"),
-  dblclick: t("kindDblclick"),
-  file: t("kindFile"),
+const SEQUENCE_KIND_KEYS: Record<IssueSequenceInteraction["kind"], string> = {
+  click: "kindClick",
+  input: "kindInput",
+  change: "kindChange",
+  submit: "kindSubmit",
+  keydown: "kindKeydown",
+  navigation: "kindNavigation",
+  scroll: "kindScroll",
+  contextmenu: "kindContextmenu",
+  dblclick: "kindDblclick",
+  file: "kindFile",
 };
+
+function sequenceKindLabel(kind: IssueSequenceInteraction["kind"]): string {
+  return t(SEQUENCE_KIND_KEYS[kind]) || kind;
+}
 
 function formatSequenceOffset(offsetMs: number): string {
   const seconds = offsetMs / 1000;
@@ -55,7 +59,7 @@ function describeSequenceInteraction(item: IssueSequenceInteraction): string {
 }
 
 function SequenceRow({ item }: { item: IssueSequenceInteraction }) {
-  const label = SEQUENCE_KIND_LABELS[item.kind] ?? item.kind;
+  const label = sequenceKindLabel(item.kind);
   return (
     <li className="issue-scene-sequence-row">
       <span className="issue-scene-sequence-offset">
