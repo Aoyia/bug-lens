@@ -3,7 +3,9 @@ dist/
 dist-zip/
 .DS_Store
 *.log
-docs
+docs/*
+!docs/assets/
+!docs/assets/**
 scripts/auto-commit.sh
 .agents
 plans
@@ -16,3 +18,5 @@ test-results/
 memory.md
 .workbuddy
 .skills-lock.json
+playwright-report/
+.random_sample*.py

@@ -35,6 +35,18 @@ graph LR
 
 ## Key Features
 
+### 1. Web Screenshot & AI Prompt Annotation
+
+Capture screen areas, measure pixel dimensions, draw pointer arrows, and add bilingual notes to formulate precise visual bug reports and design modification prompts for AI assistants.
+
+![Web Annotation & Screenshot Tool](docs/assets/screenshot-annotation.png)
+
+### 2. Comprehensive Context Capture & Safe Recording
+
+One-click session recording with full control over DOM snapshots, console logs, network payloads, framework state, and localized data sanitization modes.
+
+<img src="docs/assets/popup-panel.png" width="380" alt="Extension Popup Panel" />
+
 - **Accurate Click & DOM Capture**: Automatically captures screenshots highlighting clicked elements with red visual rings alongside raw clean screenshots.
 - **Zero Backend & Privacy-First**: Exports self-contained, offline ZIP packages. Data remains 100% local with redaction modes for sensitive tokens/headers.
 - **Deep AI Integration**:
