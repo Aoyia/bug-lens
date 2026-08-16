@@ -1,7 +1,7 @@
 import type { CaptureIssue, RecordingSession } from "../shared/protocol";
 import { sanitizeText } from "./privacy-policy";
 import type { RecordingSessionEvent } from "./recording-session";
-import { isEn } from "../shared/i18n";
+import { t } from "../shared/i18n";
 
 /**
  * offscreen/export-pack 消息的响应结构。
@@ -50,9 +50,7 @@ export function resolveSilentExportResult(
   if (packResult?.ok && packResult.blobUrl && packResult.filename) {
     return { ok: true };
   }
-  const defaultError = isEn()
-    ? "Export did not return a downloadable file"
-    : "导出未返回可下载文件";
+  const defaultError = t("silentExportNoDownloadableFile");
   return { ok: false, error: packResult?.error ?? defaultError };
 }
 
@@ -64,10 +62,9 @@ export function buildSilentExportFailureEvent(
   error: string,
   privacyMode: "safe" | "raw"
 ): RecordingSessionEvent {
-  const msgPrefix = isEn() ? "Silent export failed: " : "静默导出失败：";
   const issue: CaptureIssue = {
     code: "SILENT_EXPORT_FAILED",
-    message: sanitizeText(`${msgPrefix}${error}`, privacyMode),
+    message: sanitizeText(t("silentExportFailed", error), privacyMode),
     source: "export",
     recoverable: true,
     occurredAt: Date.now(),
