@@ -1,5 +1,5 @@
 import { message, type RecordingOptions } from "../../shared/protocol";
-import { applyI18n } from "../../shared/i18n";
+import { applyI18n, t } from "../../shared/i18n";
 
 applyI18n();
 
@@ -31,7 +31,7 @@ async function run(): Promise<void> {
   };
   const pendingRecordingRequest = storage.pendingRecordingRequest;
   if (!pendingRecordingRequest?.tabId || !pendingRecordingRequest?.options) {
-    setError("未找到待处理的录制请求，请重新在插件中发起。");
+    setError(t("permissionErrorNoPendingRequest"));
     return;
   }
 
@@ -41,7 +41,7 @@ async function run(): Promise<void> {
 
   grantBtn.addEventListener("click", async () => {
     grantBtn.hidden = true;
-    setStatus("请在浏览器提示框中选择“允许”…");
+    setStatus(t("permissionStatusPromptSelectAllow"));
 
     try {
       const granted = await chrome.permissions
@@ -49,12 +49,12 @@ async function run(): Promise<void> {
         .catch(() => false);
 
       if (!granted) {
-        setError("未授予全站访问权限：无法开启录制。");
+        setError(t("permissionErrorNoAccess"));
         await chrome.storage.local.remove("pendingRecordingRequest");
         return;
       }
 
-      setStatus("已获授权，正在启动录制…");
+      setStatus(t("permissionStatusGrantedStarting"));
       await chrome.storage.local.remove("pendingRecordingRequest");
 
       const response = await chrome.runtime.sendMessage(
@@ -71,10 +71,10 @@ async function run(): Promise<void> {
       );
 
       if (!response?.ok) {
-        throw new Error(response?.error || "启动录制失败");
+        throw new Error(response?.error || t("permissionErrorStartFailed"));
       }
 
-      setStatus("录制已成功启动！正在关闭中转页…");
+      setStatus(t("permissionStatusRecordingStartedClosing"));
       setTimeout(() => {
         window.close();
       }, 600);

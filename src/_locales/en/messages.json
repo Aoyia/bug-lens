@@ -563,6 +563,33 @@
   "waitingForAuth": {
     "message": "Waiting for authorization…"
   },
+  "permissionStatusPleaseWait": {
+    "message": "Please wait"
+  },
+  "permissionStatusProcessing": {
+    "message": "Processing"
+  },
+  "permissionStatusAuthIncomplete": {
+    "message": "Authorization incomplete"
+  },
+  "permissionErrorNoPendingRequest": {
+    "message": "No pending recording request found. Please initiate from the extension again."
+  },
+  "permissionStatusPromptSelectAllow": {
+    "message": "Please select 'Allow' in the browser prompt…"
+  },
+  "permissionErrorNoAccess": {
+    "message": "Full-site access permission was not granted: Cannot start recording."
+  },
+  "permissionStatusGrantedStarting": {
+    "message": "Permission granted, starting recording…"
+  },
+  "permissionStatusRecordingStartedClosing": {
+    "message": "Recording started successfully! Closing this page…"
+  },
+  "permissionErrorStartFailed": {
+    "message": "Failed to start recording"
+  },
   "copyAiPrompt": {
     "message": "✨ Copy AI Prompt"
   },
