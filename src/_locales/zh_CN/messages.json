@@ -1874,6 +1874,9 @@
   "shortcutPlayPause": {
     "message": "播放 / 暂停"
   },
+  "playPause": {
+    "message": "播放/暂停"
+  },
   "shortcutBack5s": {
     "message": "后退 5 秒"
   },

@@ -1874,6 +1874,9 @@
   "shortcutPlayPause": {
     "message": "Play / Pause"
   },
+  "playPause": {
+    "message": "Play/Pause"
+  },
   "shortcutBack5s": {
     "message": "Rewind 5s"
   },
