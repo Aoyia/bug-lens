@@ -1682,6 +1682,36 @@
   "issueSceneSavedWithoutScreenshot": {
     "message": "没有原始截图，已保存 DOM 和问题描述。"
   },
+  "issueFrameGeometryUnavailable": {
+    "message": "第一版问题现场只支持主 Frame"
+  },
+  "issueMetadataNotSaved": {
+    "message": "无法保存问题现场元数据"
+  },
+  "issueNarrativeNotSaved": {
+    "message": "无法保存问题描述"
+  },
+  "issueOriginalScreenshotNotSaved": {
+    "message": "原始截图未保存"
+  },
+  "issueSceneNotFound": {
+    "message": "找不到问题现场"
+  },
+  "issueSceneNotFoundAfterAnnotation": {
+    "message": "批注完成后找不到问题现场"
+  },
+  "issueSceneNotFoundAfterCapture": {
+    "message": "截图完成后找不到问题现场"
+  },
+  "issueScreenshotInvalid": {
+    "message": "截图数据格式无效"
+  },
+  "issueSessionRejected": {
+    "message": "当前问题现场请求不属于活动录制会话"
+  },
+  "issueTargetTabNotActive": {
+    "message": "当前激活标签页不是录制目标"
+  },
   "annotationImageGenerationFailed": {
     "message": "批注图片生成失败"
   },
