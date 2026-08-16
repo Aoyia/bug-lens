@@ -15,7 +15,7 @@ import type {
   TextOverflowInfo,
 } from "../domain/screenshot-payload.ts";
 import type { FrameworkProbeEntry } from "../shared/protocol.ts";
-import { t } from "../shared/i18n.ts";
+import { isEn, t } from "../shared/i18n.ts";
 
 /** 主世界框架探针：content script 隔离世界读不到 __vue__/__reactFiber$ 等 expando 属性，须注入页面主世界读取 */
 export interface FrameworkProbeFn {
@@ -424,7 +424,9 @@ export function detectFlexSqueezeRisk(
     squeezedWidthDelta: Math.round(squeezedWidthDelta),
     squeezeRatio: Math.round(squeezeRatio * 100) / 100,
     flexShrink,
-    reason: `固有内容宽为 ${Math.round(intrinsicWidth)}px，但因父元素 Flex 限制且 flex-shrink=${flexShrink}，被强制挤压损耗了 ${Math.round(squeezedWidthDelta)}px (${Math.round(squeezeRatio * 100)}%)`,
+    reason: isEn()
+      ? `Intrinsic width ${Math.round(intrinsicWidth)}px, but compressed by parent Flex constraints (flex-shrink=${flexShrink}), losing ${Math.round(squeezedWidthDelta)}px (${Math.round(squeezeRatio * 100)}%)`
+      : `固有内容宽为 ${Math.round(intrinsicWidth)}px，但因父元素 Flex 限制且 flex-shrink=${flexShrink}，被强制挤压损耗了 ${Math.round(squeezedWidthDelta)}px (${Math.round(squeezeRatio * 100)}%)`,
   };
 }
 
@@ -491,7 +493,9 @@ export function detectTextOverflow(
     scrollDimension: { width: scrollW, height: scrollH },
     clientDimension: { width: clientW, height: clientH },
     overflowDelta: { width: widthOverflowDelta, height: heightOverflowDelta },
-    reason: `元素发生 ${truncationType} 文本截断/溢出，实际内容尺寸 ${scrollW}x${scrollH}px，视区裁剪尺寸 ${clientW}x${clientH}px (损耗截断: ${widthOverflowDelta}px 宽 / ${heightOverflowDelta}px 高)`,
+    reason: isEn()
+      ? `Element has ${truncationType} text truncation/overflow, actual content size ${scrollW}x${scrollH}px, viewport-clipped size ${clientW}x${clientH}px (overflow: ${widthOverflowDelta}px wide / ${heightOverflowDelta}px high)`
+      : `元素发生 ${truncationType} 文本截断/溢出，实际内容尺寸 ${scrollW}x${scrollH}px，视区裁剪尺寸 ${clientW}x${clientH}px (损耗截断: ${widthOverflowDelta}px 宽 / ${heightOverflowDelta}px 高)`,
   };
 }
 
@@ -532,7 +536,9 @@ export function detectGridOverflow(
     gap: parentStyle.gap,
     isGridOverflow: isOverflowingGrid,
     reason: isOverflowingGrid
-      ? `Grid 项因默认 min-width: auto 被固有内容尺寸 (${htmlEl.scrollWidth}px) 撑爆，超出列轨道宽度 (${Math.round(rect.width)}px)。建议添加 min-width: 0;`
+      ? isEn()
+        ? `Grid item inflated by intrinsic content size (${htmlEl.scrollWidth}px) due to default min-width: auto, exceeding column track width (${Math.round(rect.width)}px). Add min-width: 0;`
+        : `Grid 项因默认 min-width: auto 被固有内容尺寸 (${htmlEl.scrollWidth}px) 撑爆，超出列轨道宽度 (${Math.round(rect.width)}px)。建议添加 min-width: 0;`
       : undefined,
   };
 }

@@ -6,6 +6,9 @@ import {
   detectErrorSignal,
   checkElementExposure,
   extractSelectState,
+  detectFlexSqueezeRisk,
+  detectTextOverflow,
+  detectGridOverflow,
 } from "../src/screenshot/dom-spatial-collector.ts";
 
 function createMockElement(
@@ -286,5 +289,71 @@ describe("dom-spatial-collector 物理遮挡与曝光判定", () => {
     assert.equal(state.options[0].selected, false);
     assert.equal(state.options[1].selected, true);
     assert.equal(state.options[2].disabled, true);
+  });
+
+  test("布局偏差 reason 随语言偏好输出中英文本地化内容", async () => {
+    const { setUserLanguagePreference } = await import("../src/shared/i18n.ts");
+
+    const squeezeEl: any = {
+      getBoundingClientRect: () => ({
+        left: 0,
+        top: 0,
+        width: 100,
+        height: 20,
+      }),
+      scrollWidth: 160,
+      offsetWidth: 100,
+    };
+    const flexStyle: any = { flexShrink: "1" };
+
+    const textEl: any = {
+      scrollWidth: 160,
+      clientWidth: 100,
+      scrollHeight: 20,
+      clientHeight: 20,
+    };
+    const textStyle: any = {
+      overflowX: "hidden",
+      overflowY: "hidden",
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      webkitLineClamp: "none",
+    };
+
+    const gridEl: any = {
+      getBoundingClientRect: () => ({ left: 0, top: 0, width: 80, height: 20 }),
+      scrollWidth: 200,
+    };
+    const gridStyle: any = { minWidth: "auto" };
+    const gridParentStyle: any = {
+      display: "grid",
+      gridTemplateColumns: "100px",
+      gridTemplateRows: "auto",
+      gap: "0px",
+    };
+
+    await setUserLanguagePreference("zh-CN");
+    assert.match(
+      detectFlexSqueezeRisk(squeezeEl, flexStyle, true)!.reason!,
+      /固有内容宽/
+    );
+    assert.match(detectTextOverflow(textEl, textStyle)!.reason!, /元素发生/);
+    assert.match(
+      detectGridOverflow(gridEl, gridStyle, gridParentStyle)!.reason!,
+      /Grid 项因默认/
+    );
+
+    await setUserLanguagePreference("en-US");
+    assert.match(
+      detectFlexSqueezeRisk(squeezeEl, flexStyle, true)!.reason!,
+      /Intrinsic width/
+    );
+    assert.match(detectTextOverflow(textEl, textStyle)!.reason!, /Element has/);
+    assert.match(
+      detectGridOverflow(gridEl, gridStyle, gridParentStyle)!.reason!,
+      /Grid item inflated/
+    );
+
+    await setUserLanguagePreference("auto");
   });
 });
