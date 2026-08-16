@@ -5,7 +5,7 @@ import { formatElapsedEpochTime } from "../../domain/evidence-clock.ts";
 import { useFilteredList } from "../../hooks/useFilteredList.ts";
 import { filterConsoleEntries } from "../../preview/console-filter.ts";
 import { handleFilterEscape } from "../../preview/filter-search.ts";
-import { t } from "../../shared/i18n.ts";
+import { t, getLocale } from "../../shared/i18n.ts";
 
 export interface ConsoleTabProps {
   snapshot: {
@@ -43,7 +43,7 @@ export const ConsoleTab = memo(function ConsoleTab({
         const relative = formatElapsedEpochTime(epochMs, originEpochMs);
         if (relative !== undefined) return relative;
       }
-      return new Date(epochMs).toLocaleTimeString();
+      return new Date(epochMs).toLocaleTimeString(getLocale());
     },
     [originEpochMs]
   );

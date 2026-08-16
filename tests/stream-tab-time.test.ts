@@ -3,6 +3,7 @@ import test from "node:test";
 import { h } from "preact";
 import render from "preact-render-to-string";
 import { StreamTab } from "../src/components/preview/StreamTab.tsx";
+import { getLocale } from "../src/shared/i18n.ts";
 import type {
   ConsoleEntry,
   RecordingOptions,
@@ -89,7 +90,7 @@ test("StreamTab 节点时间早于录制起点时回退到绝对时间，不显�
     startedAtEpochMs: ORIGIN,
   });
   const html = renderTab(session, entries);
-  const expected = new Date(createdAt).toLocaleTimeString();
+  const expected = new Date(createdAt).toLocaleTimeString(getLocale());
   assert.ok(
     html.includes(expected),
     `期望时间列回退到绝对时间 ${expected}，实际: ${html}`

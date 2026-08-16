@@ -102,3 +102,21 @@ test("previewDuration 占位符必须双语言齐全且可被 t() 替换", () =>
   );
   assert.equal(enResult, "32 sec");
 });
+
+test("framework-view 组件树节点属性与状态数量展示使用 i18n 字典", () => {
+  const zhDict = loadDict("zh_CN");
+  const enDict = loadDict("en");
+
+  assert.ok("fwPropsCount" in zhDict && "fwPropsCount" in enDict);
+  assert.ok("fwStateCount" in zhDict && "fwStateCount" in enDict);
+
+  const zhProps = zhDict.fwPropsCount.message.replace(/\$COUNT\$/, "3");
+  const enProps = enDict.fwPropsCount.message.replace(/\$COUNT\$/, "3");
+  assert.equal(zhProps, "3 属性");
+  assert.equal(enProps, "3 props");
+
+  const zhState = zhDict.fwStateCount.message.replace(/\$COUNT\$/, "2");
+  const enState = enDict.fwStateCount.message.replace(/\$COUNT\$/, "2");
+  assert.equal(zhState, "2 状态");
+  assert.equal(enState, "2 state");
+});

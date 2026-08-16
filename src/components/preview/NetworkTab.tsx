@@ -13,7 +13,7 @@ import { copyTextToClipboard } from "../../preview/clipboard.ts";
 import { handleFilterEscape } from "../../preview/filter-search.ts";
 import { escapeHtml, renderCodeBlockHtml } from "../../preview/rendering.ts";
 import { useFilteredList } from "../../hooks/useFilteredList.ts";
-import { t } from "../../shared/i18n.ts";
+import { t, getLocale } from "../../shared/i18n.ts";
 
 export interface NetworkTabProps {
   snapshot: {
@@ -269,7 +269,7 @@ export const NetworkTab = memo(function NetworkTab({
                       className="col-time"
                       title={t(
                         "absoluteTime",
-                        new Date(entry.createdAt).toLocaleString()
+                        new Date(entry.createdAt).toLocaleString(getLocale())
                       )}
                     >
                       {networkTime(entry, snapshot.session)}

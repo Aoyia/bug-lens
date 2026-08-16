@@ -7,7 +7,7 @@ import type {
   RecordingSession,
 } from "../../shared/protocol";
 import { formatElapsedEpochTime } from "../../domain/evidence-clock";
-import { t } from "../../shared/i18n.ts";
+import { t, getLocale } from "../../shared/i18n.ts";
 
 interface StreamTabProps {
   snapshot: {
@@ -209,7 +209,8 @@ export const StreamTab = memo(function StreamTab({
                 ? formatElapsedEpochTime(node.timestamp, originEpochMs)
                 : undefined;
             const relTime =
-              relative ?? new Date(node.timestamp).toLocaleTimeString();
+              relative ??
+              new Date(node.timestamp).toLocaleTimeString(getLocale());
             let badgeHtml = null;
             let contentHtml = null;
 

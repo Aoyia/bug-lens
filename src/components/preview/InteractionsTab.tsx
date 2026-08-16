@@ -11,7 +11,7 @@ import {
 import { formatElapsedEpochTime } from "../../domain/evidence-clock";
 
 import { copyTextToClipboard } from "../../preview/clipboard";
-import { t } from "../../shared/i18n.ts";
+import { t, getLocale } from "../../shared/i18n.ts";
 
 /**
  * 步骤卡片时间的统一时间语言：优先显示相对录制起点的 MM:SS.mmm
@@ -27,7 +27,7 @@ function formatStepTime(
     const relative = formatElapsedEpochTime(epochMs, originEpochMs);
     if (relative !== undefined) return relative;
   }
-  return new Date(epochMs).toLocaleTimeString();
+  return new Date(epochMs).toLocaleTimeString(getLocale());
 }
 
 function formatPlaywrightLocator(
@@ -325,7 +325,9 @@ export const InteractionsTab = memo(function InteractionsTab({
                 className="step-time"
                 title={t(
                   "absoluteTime",
-                  new Date(card.aggregatedMeta.startTime).toLocaleString()
+                  new Date(card.aggregatedMeta.startTime).toLocaleString(
+                    getLocale()
+                  )
                 )}
               >
                 {formatStepTime(card.aggregatedMeta.startTime, originEpochMs)}
@@ -337,7 +339,9 @@ export const InteractionsTab = memo(function InteractionsTab({
                     className="step-time"
                     title={t(
                       "absoluteTime",
-                      new Date(card.aggregatedMeta.endTime).toLocaleString()
+                      new Date(card.aggregatedMeta.endTime).toLocaleString(
+                        getLocale()
+                      )
                     )}
                   >
                     {formatStepTime(card.aggregatedMeta.endTime, originEpochMs)}
@@ -376,7 +380,9 @@ export const InteractionsTab = memo(function InteractionsTab({
                         <span
                           title={t(
                             "absoluteTime",
-                            new Date(child.createdAt).toLocaleString()
+                            new Date(child.createdAt).toLocaleString(
+                              getLocale()
+                            )
                           )}
                         >
                           {formatStepTime(child.createdAt, originEpochMs)}
@@ -462,7 +468,7 @@ export const InteractionsTab = memo(function InteractionsTab({
                         </td>
                       </tr>
                       <tr>
-                        <td className="td-label">Role</td>
+                        <td className="td-label">{t("labelRole")}</td>
                         <td className="td-value">{role}</td>
                       </tr>
                     </tbody>
@@ -487,7 +493,7 @@ export const InteractionsTab = memo(function InteractionsTab({
                         <td className="td-value">{viewport}</td>
                       </tr>
                       <tr>
-                        <td className="td-label">Frame</td>
+                        <td className="td-label">{t("labelFrame")}</td>
                         <td className="td-value">{frame}</td>
                       </tr>
                     </tbody>

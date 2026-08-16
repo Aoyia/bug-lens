@@ -3,6 +3,7 @@ import test from "node:test";
 import { h } from "preact";
 import render from "preact-render-to-string";
 import { ConsoleTab } from "../src/components/preview/ConsoleTab.tsx";
+import { getLocale } from "../src/shared/i18n.ts";
 import type {
   ConsoleEntry,
   RecordingOptions,
@@ -95,7 +96,7 @@ test("ConsoleTab 无会话时间原点时回退到绝对时间，不丢信息", 
   const createdAt = ORIGIN + 1_234;
   const entries = [mockEntry({ id: "c1", createdAt })];
   const html = renderTab(undefined, entries);
-  const expected = new Date(createdAt).toLocaleTimeString();
+  const expected = new Date(createdAt).toLocaleTimeString(getLocale());
   assert.ok(
     html.includes(expected),
     `期望回退绝对时间 ${expected}，实际: ${html}`
@@ -110,7 +111,7 @@ test("ConsoleTab 日志早于录制起点时回退到绝对时间，不显示负
     startedAtEpochMs: ORIGIN,
   });
   const html = renderTab(session, entries);
-  const expected = new Date(createdAt).toLocaleTimeString();
+  const expected = new Date(createdAt).toLocaleTimeString(getLocale());
   assert.ok(
     html.includes(expected),
     `期望回退绝对时间 ${expected}，实际: ${html}`
