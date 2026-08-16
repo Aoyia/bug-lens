@@ -9,6 +9,7 @@ import type {
   NetworkEntry,
   RecordingSession,
 } from "../shared/protocol";
+import { t } from "../shared/i18n";
 import type { db } from "../storage/db";
 import { normalizeExpected } from "../domain/issue-scene";
 import { PreviewController } from "./preview-controller";
@@ -320,7 +321,7 @@ export class PreviewSessionRuntime {
             response: {
               ...entry.response,
               bodyStatus: "unavailable" as const,
-              error: "RESPONSE_BODY_INCOMPLETE: 录制已结束，响应正文读取未完成",
+              error: `RESPONSE_BODY_INCOMPLETE: ${t("responseBodyIncomplete")}`,
             },
           }
         : entry
