@@ -2083,5 +2083,8 @@
   },
   "issueAnnotationImageNotSaved": {
     "message": "Annotated image not saved"
+  },
+  "failedToLoadSnapshot": {
+    "message": "Failed to generate report snapshot"
   }
 }

@@ -23,6 +23,7 @@ const HARDCODED_LITERALS = [
   '"Canvas 2D 绘图上下文不可用"',
   '"ISSUE_ORIGINAL_ASSET_MISSING: 找不到问题现场原始截图"',
   '"SESSION_STORAGE_LIMIT_REACHED: 批注图片未保存"',
+  '"FAILED_TO_LOAD_SNAPSHOT: 无法生成报告快照"',
 ];
 
 const OFFSCREEN_I18N_KEYS = [
@@ -30,6 +31,7 @@ const OFFSCREEN_I18N_KEYS = [
   "canvasContextUnavailable",
   "issueOriginalAssetMissing",
   "issueAnnotationImageNotSaved",
+  "failedToLoadSnapshot",
 ];
 
 const CJK = /[\u4e00-\u9fff]/;

@@ -2083,5 +2083,8 @@
   },
   "issueAnnotationImageNotSaved": {
     "message": "批注图片未保存"
+  },
+  "failedToLoadSnapshot": {
+    "message": "无法生成报告快照"
   }
 }

@@ -498,7 +498,7 @@ async function exportPack(payload: { sessionId: string }): Promise<{
   await runtime.load(payload.sessionId);
   const snapshot = runtime.getPackageSnapshot();
   if (!snapshot) {
-    throw new Error("FAILED_TO_LOAD_SNAPSHOT: 无法生成报告快照");
+    throw new Error(`FAILED_TO_LOAD_SNAPSHOT: ${t("failedToLoadSnapshot")}`);
   }
 
   const filename = `web-bug-report-${payload.sessionId.slice(0, 8)}.zip`;
