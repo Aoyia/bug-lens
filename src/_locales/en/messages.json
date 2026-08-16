@@ -384,6 +384,9 @@
   "idlePaused": {
     "message": "Paused (Idle)"
   },
+  "widgetPaused": {
+    "message": "Paused"
+  },
   "selecting": {
     "message": "Selecting…"
   },

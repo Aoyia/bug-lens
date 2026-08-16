@@ -1,7 +1,23 @@
 import { test, describe, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { RecordingWidget } from "../src/entrypoints/content/collector/recording-widget.ts";
 import { t } from "../src/shared/i18n.ts";
+
+const WIDGET_SOURCE = resolve(
+  process.cwd(),
+  "src/entrypoints/content/collector/recording-widget.ts"
+);
+
+function loadDict(locale: "zh_CN" | "en") {
+  return JSON.parse(
+    readFileSync(
+      resolve(process.cwd(), `src/_locales/${locale}/messages.json`),
+      "utf8"
+    )
+  ) as Record<string, { message: string }>;
+}
 
 describe("RecordingWidget - Drag and Auto-Collapse", () => {
   let widget: RecordingWidget;
@@ -484,10 +500,10 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
     pausedDurationMs = 4_000;
     (globalThis.window as any).triggerInterval();
 
-    // 应扣除 4 秒暂停时间：显示 00:06，左侧 Tag 显示 IDLE PAUSED
+    // 应扣除 4 秒暂停时间：显示 00:06，左侧 Tag 显示本地化闲置暂停文案
     assert.equal(timerDisplay.textContent, "00:06");
     const recTag = mockRootElement.querySelector("[data-wbr-rec-tag]");
-    assert.equal(recTag?.textContent, "IDLE PAUSED");
+    assert.equal(recTag?.textContent, t("idlePaused"));
   });
 
   test("setIssueSelecting(false) restores mark-issue button after a cancelled selection", () => {
@@ -543,5 +559,34 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
     assert.ok(toast, "Toast element should exist in DOM");
     assert.match(toast.textContent || "", /导出失败/);
     assert.match(toast.innerHTML, /color:#d5484c/);
+  });
+});
+
+describe("RecordingWidget - i18n", () => {
+  test("暂停状态标签不得硬编码英文文案，必须走 t()", () => {
+    const source = readFileSync(WIDGET_SOURCE, "utf8");
+    assert.ok(
+      !source.includes('"IDLE PAUSED"') && !source.includes("'IDLE PAUSED'"),
+      "recording-widget.ts 不得硬编码 'IDLE PAUSED'，应通过 t('idlePaused') 提供"
+    );
+    assert.ok(
+      !source.includes('"PAUSED"') && !source.includes("'PAUSED'"),
+      "recording-widget.ts 不得硬编码 'PAUSED'，应通过 t('widgetPaused') 提供"
+    );
+  });
+
+  test("暂停状态 i18n key 必须双语言齐全且 en 文案不得混入中文", () => {
+    const zhDict = loadDict("zh_CN");
+    const enDict = loadDict("en");
+    for (const key of ["idlePaused", "widgetPaused"] as const) {
+      assert.ok(key in zhDict, `i18n key '${key}' 缺失于 zh_CN/messages.json`);
+      assert.ok(key in enDict, `i18n key '${key}' 缺失于 en/messages.json`);
+      assert.ok(zhDict[key].message.trim().length > 0, `zh 文案 '${key}' 为空`);
+      assert.ok(enDict[key].message.trim().length > 0, `en 文案 '${key}' 为空`);
+      assert.ok(
+        !/[\u4e00-\u9fff]/.test(enDict[key].message),
+        `en 文案 '${key}' 不得混入中文`
+      );
+    }
   });
 });
