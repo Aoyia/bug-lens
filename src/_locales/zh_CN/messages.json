@@ -1849,5 +1849,74 @@
   },
   "noVideoPlayback": {
     "message": "本报告没有可播放的录像；交互和调试证据仍可查看。"
+  },
+  "playwrightModalTitle": {
+    "message": "Playwright 测试脚本草稿"
+  },
+  "playwrightModalSubtitle": {
+    "message": "此脚本为 AI 友好草稿，可能需要人工调优后才能运行"
+  },
+  "copyScript": {
+    "message": "复制脚本"
+  },
+  "close": {
+    "message": "关闭"
+  },
+  "shortcutsTitle": {
+    "message": "键盘快捷键"
+  },
+  "shortcutsCloseAria": {
+    "message": "关闭快捷键速查 (Esc)"
+  },
+  "shortcutSecVideo": {
+    "message": "视频播放器"
+  },
+  "shortcutPlayPause": {
+    "message": "播放 / 暂停"
+  },
+  "shortcutBack5s": {
+    "message": "后退 5 秒"
+  },
+  "shortcutFwd5s": {
+    "message": "前进 5 秒"
+  },
+  "shortcutBack1s": {
+    "message": "后退 1 秒（精细调节）"
+  },
+  "shortcutFwd1s": {
+    "message": "前进 1 秒（精细调节）"
+  },
+  "shortcutFullscreen": {
+    "message": "全屏 / 退出全屏"
+  },
+  "shortcutDblclickVideo": {
+    "message": " 视频"
+  },
+  "shortcutSecImageViewer": {
+    "message": "图片查看器"
+  },
+  "shortcutPrevNext": {
+    "message": "上 / 下一张"
+  },
+  "shortcutZoomInOut": {
+    "message": "放大 / 缩小"
+  },
+  "shortcutRotate": {
+    "message": "旋转"
+  },
+  "shortcutResetZoom": {
+    "message": "重置缩放"
+  },
+  "shortcutSecWorkspace": {
+    "message": "调试工作区"
+  },
+  "shortcutSwitchTab": {
+    "message": "切换 Tab"
+  },
+  "shortcutTabFocusNote": {
+    "message": "（Tab 焦点时）"
+  },
+  "shortcutShowPanel": {
+    "message": "显示此速查面板"
   }
 }

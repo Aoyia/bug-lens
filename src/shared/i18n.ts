@@ -304,4 +304,16 @@ export function applyI18n(
       }
     }
   });
+
+  const ariaElements =
+    container.querySelectorAll<HTMLElement>("[data-i18n-aria]");
+  ariaElements.forEach((el) => {
+    const key = el.getAttribute("data-i18n-aria");
+    if (key) {
+      const translated = t(key, undefined, customDict);
+      if (translated && translated !== key) {
+        el.setAttribute("aria-label", translated);
+      }
+    }
+  });
 }

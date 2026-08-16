@@ -254,7 +254,12 @@
         <div class="zen-right-panel">
           <div class="zen-tab-box">
             <!-- 极简 Segmented Tab Header -->
-            <div class="zen-tab-bar" role="tablist" aria-label="调试工作区">
+            <div
+              class="zen-tab-bar"
+              role="tablist"
+              aria-label="调试工作区"
+              data-i18n-aria="shortcutSecWorkspace"
+            >
               <div class="zen-tabs">
                 <button
                   class="zen-tab-btn active"
@@ -487,7 +492,9 @@
                       >
                         <path d="M3 3l7 18 3-7 7-3L3 3z"></path>
                       </svg>
-                      <span data-i18n="filterInteractions">交互步骤</span></label
+                      <span data-i18n="filterInteractions"
+                        >交互步骤</span
+                      ></label
                     >
                     <label class="stream-filter-label"
                       ><input
@@ -532,7 +539,9 @@
                           d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"
                         ></path>
                       </svg>
-                      <span data-i18n="networkRequests">Network 请求</span></label
+                      <span data-i18n="networkRequests"
+                        >Network 请求</span
+                      ></label
                     >
                     <label class="stream-filter-label error-chip"
                       ><input type="checkbox" id="stream-filter-error-only" />
@@ -550,7 +559,9 @@
                         <line x1="12" y1="8" x2="12" y2="12"></line>
                         <line x1="12" y1="16" x2="12.01" y2="16"></line>
                       </svg>
-                      <span data-i18n="errorOnlyFilter">仅看错误与异常</span></label
+                      <span data-i18n="errorOnlyFilter"
+                        >仅看错误与异常</span
+                      ></label
                     >
                   </div>
                 </div>
@@ -573,11 +584,13 @@
       role="dialog"
       aria-modal="true"
       aria-label="图片查看器"
+      data-i18n-aria="shortcutSecImageViewer"
     >
       <button
         id="modal-close-btn"
         class="arco-preview-close-fixed"
         data-i18n-title="closeEsc"
+        data-i18n-aria="closeEsc"
         title="关闭 (ESC)"
         aria-label="关闭图片查看器 (ESC)"
       >
@@ -814,93 +827,132 @@
     >
       <div class="shortcuts-panel">
         <h2 id="shortcuts-title">
-          键盘快捷键
-          <button id="shortcuts-close-btn" aria-label="关闭快捷键速查 (Esc)">
+          <span data-i18n="shortcutsTitle">键盘快捷键</span>
+          <button
+            id="shortcuts-close-btn"
+            aria-label="关闭快捷键速查 (Esc)"
+            data-i18n-aria="shortcutsCloseAria"
+          >
             ×
           </button>
         </h2>
 
         <div class="shortcuts-section">
-          <div class="shortcuts-section-title">视频播放器</div>
+          <div class="shortcuts-section-title" data-i18n="shortcutSecVideo">
+            视频播放器
+          </div>
           <div class="shortcut-row">
-            <span class="shortcut-desc">播放 / 暂停</span>
+            <span class="shortcut-desc" data-i18n="shortcutPlayPause"
+              >播放 / 暂停</span
+            >
             <span class="shortcut-keys"
               ><kbd class="shortcut-key">Space</kbd></span
             >
           </div>
           <div class="shortcut-row">
-            <span class="shortcut-desc">后退 5 秒</span>
+            <span class="shortcut-desc" data-i18n="shortcutBack5s"
+              >后退 5 秒</span
+            >
             <span class="shortcut-keys"><kbd class="shortcut-key">←</kbd></span>
           </div>
           <div class="shortcut-row">
-            <span class="shortcut-desc">前进 5 秒</span>
+            <span class="shortcut-desc" data-i18n="shortcutFwd5s"
+              >前进 5 秒</span
+            >
             <span class="shortcut-keys"><kbd class="shortcut-key">→</kbd></span>
           </div>
           <div class="shortcut-row">
-            <span class="shortcut-desc">后退 1 秒（精细调节）</span>
+            <span class="shortcut-desc" data-i18n="shortcutBack1s"
+              >后退 1 秒（精细调节）</span
+            >
             <span class="shortcut-keys"
               ><kbd class="shortcut-key">Shift</kbd> +
               <kbd class="shortcut-key">←</kbd></span
             >
           </div>
           <div class="shortcut-row">
-            <span class="shortcut-desc">前进 1 秒（精细调节）</span>
+            <span class="shortcut-desc" data-i18n="shortcutFwd1s"
+              >前进 1 秒（精细调节）</span
+            >
             <span class="shortcut-keys"
               ><kbd class="shortcut-key">Shift</kbd> +
               <kbd class="shortcut-key">→</kbd></span
             >
           </div>
           <div class="shortcut-row">
-            <span class="shortcut-desc">全屏 / 退出全屏</span>
+            <span class="shortcut-desc" data-i18n="shortcutFullscreen"
+              >全屏 / 退出全屏</span
+            >
             <span class="shortcut-keys"
-              ><kbd class="shortcut-key">双击</kbd> 视频</span
+              ><kbd class="shortcut-key" data-i18n="kindDblclick">双击</kbd
+              ><span data-i18n="shortcutDblclickVideo"> 视频</span></span
             >
           </div>
         </div>
 
         <div class="shortcuts-section">
-          <div class="shortcuts-section-title">图片查看器</div>
+          <div
+            class="shortcuts-section-title"
+            data-i18n="shortcutSecImageViewer"
+          >
+            图片查看器
+          </div>
           <div class="shortcut-row">
-            <span class="shortcut-desc">关闭</span>
+            <span class="shortcut-desc" data-i18n="close">关闭</span>
             <span class="shortcut-keys"
               ><kbd class="shortcut-key">Esc</kbd></span
             >
           </div>
           <div class="shortcut-row">
-            <span class="shortcut-desc">上 / 下一张</span>
+            <span class="shortcut-desc" data-i18n="shortcutPrevNext"
+              >上 / 下一张</span
+            >
             <span class="shortcut-keys"
               ><kbd class="shortcut-key">←</kbd> /
               <kbd class="shortcut-key">→</kbd></span
             >
           </div>
           <div class="shortcut-row">
-            <span class="shortcut-desc">放大 / 缩小</span>
+            <span class="shortcut-desc" data-i18n="shortcutZoomInOut"
+              >放大 / 缩小</span
+            >
             <span class="shortcut-keys"
               ><kbd class="shortcut-key">+</kbd> /
               <kbd class="shortcut-key">-</kbd></span
             >
           </div>
           <div class="shortcut-row">
-            <span class="shortcut-desc">旋转</span>
+            <span class="shortcut-desc" data-i18n="shortcutRotate">旋转</span>
             <span class="shortcut-keys"><kbd class="shortcut-key">R</kbd></span>
           </div>
           <div class="shortcut-row">
-            <span class="shortcut-desc">重置缩放</span>
+            <span class="shortcut-desc" data-i18n="shortcutResetZoom"
+              >重置缩放</span
+            >
             <span class="shortcut-keys"><kbd class="shortcut-key">0</kbd></span>
           </div>
         </div>
 
         <div class="shortcuts-section">
-          <div class="shortcuts-section-title">调试工作区</div>
+          <div class="shortcuts-section-title" data-i18n="shortcutSecWorkspace">
+            调试工作区
+          </div>
           <div class="shortcut-row">
-            <span class="shortcut-desc">切换 Tab</span>
+            <span class="shortcut-desc" data-i18n="shortcutSwitchTab"
+              >切换 Tab</span
+            >
             <span class="shortcut-keys"
               ><kbd class="shortcut-key">←</kbd> /
-              <kbd class="shortcut-key">→</kbd>（Tab 焦点时）</span
+              <kbd class="shortcut-key">→</kbd
+              ><span data-i18n="shortcutTabFocusNote"
+                >（Tab 焦点时）</span
+              ></span
             >
           </div>
           <div class="shortcut-row">
-            <span class="shortcut-desc">显示此速查面板</span>
+            <span class="shortcut-desc" data-i18n="shortcutShowPanel"
+              >显示此速查面板</span
+            >
             <span class="shortcut-keys"><kbd class="shortcut-key">?</kbd></span>
           </div>
         </div>
@@ -917,11 +969,20 @@
     >
       <div class="playwright-modal-content">
         <div class="playwright-modal-header">
-          <h2 id="playwright-modal-title">Playwright 测试脚本草稿</h2>
-          <span class="playwright-modal-subtitle"
+          <h2 id="playwright-modal-title" data-i18n="playwrightModalTitle">
+            Playwright 测试脚本草稿
+          </h2>
+          <span
+            class="playwright-modal-subtitle"
+            data-i18n="playwrightModalSubtitle"
             >此脚本为 AI 友好草稿，可能需要人工调优后才能运行</span
           >
-          <button id="playwright-modal-close" class="ghost" aria-label="关闭">
+          <button
+            id="playwright-modal-close"
+            class="ghost"
+            aria-label="关闭"
+            data-i18n-aria="close"
+          >
             ×
           </button>
         </div>
@@ -932,8 +993,16 @@
           ></pre>
         </div>
         <div class="playwright-modal-footer">
-          <button id="playwright-copy" class="secondary">复制脚本</button>
-          <button id="playwright-modal-close-btn" class="ghost">关闭</button>
+          <button id="playwright-copy" class="secondary" data-i18n="copyScript">
+            复制脚本
+          </button>
+          <button
+            id="playwright-modal-close-btn"
+            class="ghost"
+            data-i18n="close"
+          >
+            关闭
+          </button>
         </div>
       </div>
     </div>

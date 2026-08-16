@@ -129,3 +129,49 @@ test("framework-view 组件树节点属性与状态数量展示使用 i18n 字�
   assert.equal(zhState, "2 状态");
   assert.equal(enState, "2 state");
 });
+
+test("playwrightModal 文本与关闭按钮应具备完整双语国际化键值", () => {
+  for (const locale of ["zh_CN", "en"] as const) {
+    const dict = loadDict(locale);
+    assert.ok(
+      dict.playwrightModalTitle?.message,
+      `${locale} 缺少 playwrightModalTitle`
+    );
+    assert.ok(
+      dict.playwrightModalSubtitle?.message,
+      `${locale} 缺少 playwrightModalSubtitle`
+    );
+    assert.ok(dict.copyScript?.message, `${locale} 缺少 copyScript`);
+    assert.ok(dict.close?.message, `${locale} 缺少 close`);
+  }
+});
+
+test("shortcutsPanel 快捷键速查面板各按键说明与 aria-label 应具备完整双语国际化键值", () => {
+  const requiredKeys = [
+    "shortcutsTitle",
+    "shortcutsCloseAria",
+    "shortcutSecVideo",
+    "shortcutPlayPause",
+    "shortcutBack5s",
+    "shortcutFwd5s",
+    "shortcutBack1s",
+    "shortcutFwd1s",
+    "shortcutFullscreen",
+    "shortcutDblclickVideo",
+    "shortcutSecImageViewer",
+    "shortcutPrevNext",
+    "shortcutZoomInOut",
+    "shortcutRotate",
+    "shortcutResetZoom",
+    "shortcutSecWorkspace",
+    "shortcutSwitchTab",
+    "shortcutTabFocusNote",
+    "shortcutShowPanel",
+  ];
+  for (const locale of ["zh_CN", "en"] as const) {
+    const dict = loadDict(locale);
+    for (const key of requiredKeys) {
+      assert.ok(dict[key]?.message, `${locale} 缺少快捷键国际化键: ${key}`);
+    }
+  }
+});

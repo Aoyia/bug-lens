@@ -1849,5 +1849,74 @@
   },
   "noVideoPlayback": {
     "message": "No playable video in this report; interactions and debugging evidence are still available."
+  },
+  "playwrightModalTitle": {
+    "message": "Playwright Test Script Draft"
+  },
+  "playwrightModalSubtitle": {
+    "message": "This script is an AI-friendly draft and may require manual tuning before running"
+  },
+  "copyScript": {
+    "message": "Copy Script"
+  },
+  "close": {
+    "message": "Close"
+  },
+  "shortcutsTitle": {
+    "message": "Keyboard Shortcuts"
+  },
+  "shortcutsCloseAria": {
+    "message": "Close Shortcuts Panel (Esc)"
+  },
+  "shortcutSecVideo": {
+    "message": "Video Player"
+  },
+  "shortcutPlayPause": {
+    "message": "Play / Pause"
+  },
+  "shortcutBack5s": {
+    "message": "Rewind 5s"
+  },
+  "shortcutFwd5s": {
+    "message": "Forward 5s"
+  },
+  "shortcutBack1s": {
+    "message": "Rewind 1s (Fine)"
+  },
+  "shortcutFwd1s": {
+    "message": "Forward 1s (Fine)"
+  },
+  "shortcutFullscreen": {
+    "message": "Fullscreen / Exit Fullscreen"
+  },
+  "shortcutDblclickVideo": {
+    "message": " Video"
+  },
+  "shortcutSecImageViewer": {
+    "message": "Image Viewer"
+  },
+  "shortcutPrevNext": {
+    "message": "Prev / Next"
+  },
+  "shortcutZoomInOut": {
+    "message": "Zoom In / Out"
+  },
+  "shortcutRotate": {
+    "message": "Rotate"
+  },
+  "shortcutResetZoom": {
+    "message": "Reset Zoom"
+  },
+  "shortcutSecWorkspace": {
+    "message": "Debug Workspace"
+  },
+  "shortcutSwitchTab": {
+    "message": "Switch Tab"
+  },
+  "shortcutTabFocusNote": {
+    "message": " (When Tab Focused)"
+  },
+  "shortcutShowPanel": {
+    "message": "Show Shortcuts Panel"
   }
 }
