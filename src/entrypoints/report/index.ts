@@ -7,7 +7,7 @@ import type {
 } from "../../shared/protocol";
 import type { IssueScenePreview } from "../../preview/issue-scene-view";
 import { EvidenceReportView } from "../../preview/evidence-report-view";
-import { applyI18n, getLocale, t } from "../../shared/i18n";
+import { applyI18n, t } from "../../shared/i18n";
 import "../../shared/components/truncated-text";
 
 type StaticReportData = {
@@ -30,10 +30,6 @@ declare global {
 
 // 自动翻译离线 HTML DOM 节点
 applyI18n();
-
-if (typeof window !== "undefined") {
-  document.documentElement.lang = getLocale();
-}
 
 function loadReportData(): StaticReportData | undefined {
   if (typeof window !== "undefined") {
