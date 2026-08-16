@@ -294,7 +294,7 @@ async function annotateImage(
   try {
     const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
     const context = canvas.getContext("2d");
-    if (!context) throw new Error("Canvas 2D 绘图上下文不可用");
+    if (!context) throw new Error(t("canvasContextUnavailable"));
     context.drawImage(bitmap, 0, 0);
     // 交互点击坐标：按视口尺寸比例换算为图片像素坐标
     const x =
@@ -333,7 +333,9 @@ async function renderIssueImage(
 ): Promise<{ annotatedAssetId: string }> {
   const original = await db.getEvidenceAsset(payload.originalAssetId);
   if (!original)
-    throw new Error("ISSUE_ORIGINAL_ASSET_MISSING: 找不到问题现场原始截图");
+    throw new Error(
+      `ISSUE_ORIGINAL_ASSET_MISSING: ${t("issueOriginalAssetMissing")}`
+    );
   // 以原始问题现场截图为基础绘制批注
   const bitmap = await createImageBitmap(
     new Blob([original.bytes], { type: original.mimeType })
@@ -341,7 +343,7 @@ async function renderIssueImage(
   try {
     const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
     const context = canvas.getContext("2d");
-    if (!context) throw new Error("Canvas 2D 绘图上下文不可用");
+    if (!context) throw new Error(t("canvasContextUnavailable"));
     context.drawImage(bitmap, 0, 0);
     const x =
       bitmap.width * Math.min(1, Math.max(0, payload.annotation.point.xRatio));
@@ -477,7 +479,9 @@ async function renderIssueImage(
       createdAtEpochMs: Date.now(),
     });
     if (!stored.stored)
-      throw new Error("SESSION_STORAGE_LIMIT_REACHED: 批注图片未保存");
+      throw new Error(
+        `SESSION_STORAGE_LIMIT_REACHED: ${t("issueAnnotationImageNotSaved")}`
+      );
     return { annotatedAssetId: payload.annotatedAssetId };
   } finally {
     bitmap.close();

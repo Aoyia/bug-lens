@@ -2074,5 +2074,14 @@
   },
   "mediaRecorderErrorEvent": {
     "message": "媒体录制器错误"
+  },
+  "canvasContextUnavailable": {
+    "message": "Canvas 2D 绘图上下文不可用"
+  },
+  "issueOriginalAssetMissing": {
+    "message": "找不到问题现场原始截图"
+  },
+  "issueAnnotationImageNotSaved": {
+    "message": "批注图片未保存"
   }
 }

@@ -2074,5 +2074,14 @@
   },
   "mediaRecorderErrorEvent": {
     "message": "Media recorder error"
+  },
+  "canvasContextUnavailable": {
+    "message": "Canvas 2D drawing context unavailable"
+  },
+  "issueOriginalAssetMissing": {
+    "message": "Original issue scene screenshot not found"
+  },
+  "issueAnnotationImageNotSaved": {
+    "message": "Annotated image not saved"
   }
 }

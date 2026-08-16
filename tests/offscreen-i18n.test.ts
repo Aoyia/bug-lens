@@ -18,9 +18,19 @@ function loadDict(locale: "zh_CN" | "en") {
 }
 
 // 改动前存在于 offscreen/index.ts 的硬编码中文/英文用户可见错误文案
-const HARDCODED_LITERALS = ['"MediaRecorder error"'];
+const HARDCODED_LITERALS = [
+  '"MediaRecorder error"',
+  '"Canvas 2D 绘图上下文不可用"',
+  '"ISSUE_ORIGINAL_ASSET_MISSING: 找不到问题现场原始截图"',
+  '"SESSION_STORAGE_LIMIT_REACHED: 批注图片未保存"',
+];
 
-const OFFSCREEN_I18N_KEYS = ["mediaRecorderErrorEvent"];
+const OFFSCREEN_I18N_KEYS = [
+  "mediaRecorderErrorEvent",
+  "canvasContextUnavailable",
+  "issueOriginalAssetMissing",
+  "issueAnnotationImageNotSaved",
+];
 
 const CJK = /[\u4e00-\u9fff]/;
 
