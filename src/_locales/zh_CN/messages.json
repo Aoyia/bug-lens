@@ -1426,6 +1426,36 @@
   "mediaRecorderFailed": {
     "message": "媒体录制失败"
   },
+  "qualityIssueScenePartial": {
+    "message": "至少一个问题现场只完成了部分采集。"
+  },
+  "qualityMediaStreamIdFailed": {
+    "message": "未取得标签页媒体流，已进入降级录制。"
+  },
+  "cleanupMediaStopFailed": {
+    "message": "媒体停止失败：$ERROR$",
+    "placeholders": {
+      "error": { "content": "$1" }
+    }
+  },
+  "cleanupNetworkFinalizeFailed": {
+    "message": "Network 正文收尾失败：$ERROR$",
+    "placeholders": {
+      "error": { "content": "$1" }
+    }
+  },
+  "cleanupIssueSceneFinalizeFailed": {
+    "message": "问题现场收尾失败：$ERROR$",
+    "placeholders": {
+      "error": { "content": "$1" }
+    }
+  },
+  "cleanupQualityReconcileFailed": {
+    "message": "质量摘要重算失败：$ERROR$",
+    "placeholders": {
+      "error": { "content": "$1" }
+    }
+  },
   "noMediaChunks": {
     "message": "没有可播放的媒体分片；交互和调试证据仍可查看。"
   },
