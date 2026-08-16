@@ -2,7 +2,7 @@ import { memo } from "preact/compat";
 import type { FrameworkStateEvidence } from "../../shared/protocol";
 import { renderFrameworkSnapshot } from "../../preview/framework-view";
 import { formatElapsedEpochTime } from "../../domain/evidence-clock";
-import { t } from "../../shared/i18n.ts";
+import { t, getLocale } from "../../shared/i18n.ts";
 
 export interface FrameworkStateTabProps {
   states: FrameworkStateEvidence[];
@@ -63,7 +63,9 @@ export const FrameworkStateTab = memo(function FrameworkStateTab({
               </span>
               <time>
                 {elapsed ??
-                  new Date(state.capturedAtEpochMs).toLocaleTimeString()}
+                  new Date(state.capturedAtEpochMs).toLocaleTimeString(
+                    getLocale()
+                  )}
               </time>
               <span className="framework-state-url" title={state.page.url}>
                 {state.page.url}
