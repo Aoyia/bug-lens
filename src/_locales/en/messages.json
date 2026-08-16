@@ -19,6 +19,10 @@
     "message": "Select an area to screenshot and collect DOM element context",
     "description": "The description of the take screenshot command shortcut"
   },
+  "offscreenJustification": {
+    "message": "Record the selected tab, render issue scene screenshots, and export silent ZIP archives locally.",
+    "description": "Justification shown to the user for creating the offscreen document"
+  },
   "history": {
     "message": "History"
   },

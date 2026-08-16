@@ -19,6 +19,10 @@
     "message": "一键拉框截图并收集 DOM 元素上下文",
     "description": "拉框截图命令快捷键的描述"
   },
+  "offscreenJustification": {
+    "message": "录制当前标签页、渲染问题现场截图，并在本地静默打包导出 ZIP 归档。",
+    "description": "创建 offscreen 文档时向用户展示的用途说明"
+  },
   "history": {
     "message": "历史记录"
   },
