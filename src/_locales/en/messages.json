@@ -816,12 +816,6 @@
   "snippetTargetLabel": {
     "message": "Target format:"
   },
-  "copyFailed": {
-    "message": "Copy failed: $ERROR$",
-    "placeholders": {
-      "error": { "content": "$1" }
-    }
-  },
   "responseBodyHeader": {
     "message": "Response body · $CURRENT$",
     "placeholders": {

@@ -816,12 +816,6 @@
   "snippetTargetLabel": {
     "message": "目标格式:"
   },
-  "copyFailed": {
-    "message": "复制失败：$ERROR$",
-    "placeholders": {
-      "error": { "content": "$1" }
-    }
-  },
   "responseBodyHeader": {
     "message": "响应正文 · $CURRENT$",
     "placeholders": {
