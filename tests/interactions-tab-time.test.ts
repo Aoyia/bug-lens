@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { h } from "preact";
 import render from "preact-render-to-string";
 import { InteractionsTab } from "../src/components/preview/InteractionsTab.tsx";
@@ -126,4 +128,53 @@ test("InteractionsTab 时间早于录制起点时回退绝对时间且不崩溃"
   const html = renderTab(records, ORIGIN);
   assert.ok(!html.includes("00:00.000"), "早于起点的时间不应显示相对时间");
   assert.ok(html.length > 0, "渲染不应为空");
+});
+
+test("InteractionsTab 非顶层 frame 标签必须走 i18n（禁止硬编码 Frame #）", () => {
+  const source = readFileSync(
+    resolve(process.cwd(), "src/components/preview/InteractionsTab.tsx"),
+    "utf8"
+  );
+  const zhDict = JSON.parse(
+    readFileSync(
+      resolve(process.cwd(), "src/_locales/zh_CN/messages.json"),
+      "utf8"
+    )
+  );
+  const enDict = JSON.parse(
+    readFileSync(
+      resolve(process.cwd(), "src/_locales/en/messages.json"),
+      "utf8"
+    )
+  );
+
+  assert.ok(
+    !source.includes("`Frame #${"),
+    "InteractionsTab 不得硬编码 `Frame #${frameId}`，应通过 i18n 提供"
+  );
+  assert.ok(
+    source.includes('t("frameNumber"'),
+    "InteractionsTab 应使用 frameNumber key 渲染非顶层 frame 标签"
+  );
+
+  for (const key of ["frameNumber"]) {
+    assert.ok(key in zhDict, `i18n key '${key}' 缺失于 zh_CN/messages.json`);
+    assert.ok(key in enDict, `i18n key '${key}' 缺失于 en/messages.json`);
+    assert.ok(
+      !/[\u4e00-\u9fff]/.test(enDict[key].message),
+      `en 文案 '${key}' 不得混入中文`
+    );
+    assert.ok(
+      zhDict[key].message.includes("$COUNT$"),
+      `zh 文案 '${key}' 应包含 $COUNT$ 占位符`
+    );
+    assert.ok(
+      zhDict[key].placeholders?.count,
+      `zh '${key}' 缺少 count 占位符声明`
+    );
+    assert.ok(
+      enDict[key].placeholders?.count,
+      `en '${key}' 缺少 count 占位符声明`
+    );
+  }
 });

@@ -939,6 +939,12 @@
   "topLevelPage": {
     "message": "顶层页面"
   },
+  "frameNumber": {
+    "message": "框架 #$COUNT$",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
   "inputCharsRedacted": {
     "message": "已写入 $COUNT$ 字符 (脱敏)",
     "placeholders": {
