@@ -1,4 +1,5 @@
 import { openEvidenceDatabase, type StoreName } from "./indexed-db-schema.ts";
+import { t } from "../shared/i18n.ts";
 
 /**
  * 单事务删除会话及其全部证据：一次 readwrite 事务覆盖 10 个 store，
@@ -65,6 +66,6 @@ export async function deleteSessionAndEvidence(
     transaction.oncomplete = () => resolve(existed);
     transaction.onerror = () => reject(transaction.error);
     transaction.onabort = () =>
-      reject(transaction.error ?? new Error("会话删除事务已中止"));
+      reject(transaction.error ?? new Error(t("sessionDeleteAborted")));
   });
 }

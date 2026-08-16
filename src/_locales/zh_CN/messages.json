@@ -470,6 +470,9 @@
   "deleteFailed": {
     "message": "删除失败"
   },
+  "sessionDeleteAborted": {
+    "message": "会话删除事务已中止"
+  },
   "resumeFailed": {
     "message": "继续录制失败"
   },

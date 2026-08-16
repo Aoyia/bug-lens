@@ -470,6 +470,9 @@
   "deleteFailed": {
     "message": "Failed to delete"
   },
+  "sessionDeleteAborted": {
+    "message": "Session deletion transaction aborted"
+  },
   "resumeFailed": {
     "message": "Failed to resume recording"
   },
