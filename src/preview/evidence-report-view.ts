@@ -365,12 +365,12 @@ export class EvidenceReportView {
       {
         key: "console",
         value: snapshot.consoleEntries.included.length,
-        label: "Console",
+        label: t("console"),
       },
       {
         key: "network",
         value: snapshot.networkEntries.included.length,
-        label: "Network",
+        label: t("network"),
       },
       {
         key: "issues",
