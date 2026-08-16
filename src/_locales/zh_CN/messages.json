@@ -2049,5 +2049,13 @@
         "content": "$1"
       }
     }
+  },
+  "cleanupIssueSceneWriteFailed": {
+    "message": "问题现场写入未完成：$ERROR$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
   }
 }

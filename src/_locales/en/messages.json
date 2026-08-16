@@ -2049,5 +2049,13 @@
         "content": "$1"
       }
     }
+  },
+  "cleanupIssueSceneWriteFailed": {
+    "message": "Issue scene write incomplete: $ERROR$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
   }
 }

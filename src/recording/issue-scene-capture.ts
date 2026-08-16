@@ -94,7 +94,9 @@ export class IssueSceneCapture {
       const results = await Promise.allSettled([...this.pending]);
       for (const result of results)
         if (result.status === "rejected")
-          errors.push(`问题现场写入未完成：${String(result.reason)}`);
+          errors.push(
+            t("cleanupIssueSceneWriteFailed", String(result.reason))
+          );
     }
     return errors;
   }
