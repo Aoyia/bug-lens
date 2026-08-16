@@ -1237,6 +1237,12 @@
   "fwEmpty": {
     "message": "No React/Vue component state captured. No framework detected during recording, or framework state capture was disabled."
   },
+  "fwProps": {
+    "message": "Props"
+  },
+  "fwState": {
+    "message": "State"
+  },
   "fwPropsCount": {
     "message": "$COUNT$ props",
     "placeholders": {

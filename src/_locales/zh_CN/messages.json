@@ -1237,6 +1237,12 @@
   "fwEmpty": {
     "message": "未采集到 React/Vue 组件状态快照。录制时页面未识别到框架，或未开启框架状态采集。"
   },
+  "fwProps": {
+    "message": "属性"
+  },
+  "fwState": {
+    "message": "状态"
+  },
   "fwPropsCount": {
     "message": "$COUNT$ 属性",
     "placeholders": {

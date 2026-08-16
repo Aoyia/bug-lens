@@ -130,6 +130,47 @@ test("framework-view 组件树节点属性与状态数量展示使用 i18n 字�
   assert.equal(enState, "2 state");
 });
 
+test("framework-view 组件详情 Props/State 标签必须走 i18n 字典", () => {
+  const zhDict = loadDict("zh_CN");
+  const enDict = loadDict("en");
+
+  assert.ok("fwProps" in zhDict && "fwProps" in enDict);
+  assert.ok("fwState" in zhDict && "fwState" in enDict);
+  assert.ok(zhDict.fwProps.message.trim().length > 0);
+  assert.ok(enDict.fwProps.message.trim().length > 0);
+  assert.ok(zhDict.fwState.message.trim().length > 0);
+  assert.ok(enDict.fwState.message.trim().length > 0);
+  assert.ok(
+    !/[\u4e00-\u9fff]/.test(enDict.fwProps.message),
+    "en 文案 fwProps 不得混入中文"
+  );
+  assert.ok(
+    !/[\u4e00-\u9fff]/.test(enDict.fwState.message),
+    "en 文案 fwState 不得混入中文"
+  );
+
+  const source = readFileSync(
+    resolve(process.cwd(), "src/preview/framework-view.ts"),
+    "utf8"
+  );
+  assert.ok(
+    !source.includes(">Props:</span>"),
+    "framework-view.ts 不得硬编码 >Props:</span>"
+  );
+  assert.ok(
+    !source.includes(">State:</span>"),
+    "framework-view.ts 不得硬编码 >State:</span>"
+  );
+  assert.ok(
+    source.includes('t("fwProps")'),
+    'framework-view.ts 应使用 t("fwProps")'
+  );
+  assert.ok(
+    source.includes('t("fwState")'),
+    'framework-view.ts 应使用 t("fwState")'
+  );
+});
+
 test("playwrightModal 文本与关闭按钮应具备完整双语国际化键值", () => {
   for (const locale of ["zh_CN", "en"] as const) {
     const dict = loadDict(locale);
