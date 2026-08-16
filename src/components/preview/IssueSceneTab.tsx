@@ -6,7 +6,7 @@ import type {
   IssueSequenceConsoleEntry,
   IssueSequenceInteraction,
 } from "../../shared/protocol";
-import { t } from "../../shared/i18n.ts";
+import { t, getLocale } from "../../shared/i18n.ts";
 
 const SEQUENCE_KIND_KEYS: Record<IssueSequenceInteraction["kind"], string> = {
   click: "kindClick",
@@ -217,7 +217,9 @@ export const IssueSceneTab = memo(function IssueSceneTab({
               <div>
                 <span className="issue-scene-kicker">{t("sceneKicker")}</span>
                 <strong>
-                  {new Date(scene.observedAtEpochMs).toLocaleTimeString()}
+                  {new Date(scene.observedAtEpochMs).toLocaleTimeString(
+                    getLocale()
+                  )}
                 </strong>
                 <span className={`issue-scene-status ${scene.status}`}>
                   {status}
