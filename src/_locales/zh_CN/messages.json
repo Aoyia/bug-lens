@@ -2038,5 +2038,8 @@
   },
   "cannotDeleteActiveRecording": {
     "message": "不能删除正在录制的会话"
+  },
+  "mediaChunksEmptyOrCorrupt": {
+    "message": "媒体分片为空或已损坏"
   }
 }

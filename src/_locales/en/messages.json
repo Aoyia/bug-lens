@@ -2038,5 +2038,8 @@
   },
   "cannotDeleteActiveRecording": {
     "message": "Cannot delete a session that is currently recording"
+  },
+  "mediaChunksEmptyOrCorrupt": {
+    "message": "Media chunks are empty or corrupted"
   }
 }

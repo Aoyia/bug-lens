@@ -168,7 +168,7 @@ export class PreviewSessionRuntime {
         (entry) =>
           entry.chunk instanceof ArrayBuffer && entry.chunk.byteLength > 0
       );
-      if (!chunks.length) throw new Error("媒体分片为空或已损坏");
+      if (!chunks.length) throw new Error(t("mediaChunksEmptyOrCorrupt"));
       const rawBlob = new Blob(
         chunks.map((entry) => entry.chunk),
         { type: this.mediaMimeType }
