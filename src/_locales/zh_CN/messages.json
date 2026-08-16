@@ -1696,6 +1696,12 @@
       }
     }
   },
+  "unknownBrowser": {
+    "message": "未知浏览器"
+  },
+  "unknownOs": {
+    "message": "未知操作系统"
+  },
   "unknownDuration": {
     "message": "时长未知"
   },
