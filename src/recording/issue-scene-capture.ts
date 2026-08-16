@@ -10,6 +10,7 @@ import {
 import { sanitizeIssueScene, sanitizeText } from "../domain/privacy-policy.ts";
 import { db } from "../storage/db.ts";
 import { ensureOffscreenDocument } from "../shared/offscreen.ts";
+import { t } from "../shared/i18n.ts";
 import {
   message,
   RECORDING_STATUSES,
@@ -276,7 +277,7 @@ export class IssueSceneCapture {
               "partial",
               issue(
                 "SESSION_STORAGE_LIMIT_REACHED",
-                "已达到单会话存储上限，原始问题截图未保存。"
+                t("issueSceneStorageLimitReached")
               )
             )
       );
@@ -327,7 +328,7 @@ export class IssueSceneCapture {
           "partial",
           issue(
             "ISSUE_SCREENSHOT_UNAVAILABLE",
-            "没有原始截图，已保存 DOM 和问题描述。"
+            t("issueSceneSavedWithoutScreenshot")
           )
         )
       ) as Promise<IssueScene>;
@@ -363,7 +364,7 @@ export class IssueSceneCapture {
               "partial",
               issue(
                 "ISSUE_ANNOTATION_FAILED",
-                String(result?.error ?? "批注图片生成失败")
+                String(result?.error ?? t("annotationImageGenerationFailed"))
               )
             )
       );

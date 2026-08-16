@@ -18,6 +18,7 @@ import type { RecordingSessionEvent } from "../domain/recording-session.ts";
 import type { EvidenceRepository } from "../storage/db.ts";
 import { RECORDING_STATUSES } from "../shared/protocol.ts";
 import type { CaptureIssue, RecordingSession } from "../shared/protocol.ts";
+import { t } from "../shared/i18n.ts";
 
 type SessionEventWriter = (
   sessionId: string,
@@ -276,13 +277,13 @@ export class CdpEvidenceCollector {
       const results = await Promise.allSettled([...this.pendingHandlers]);
       for (const result of results)
         if (result.status === "rejected")
-          errors.push(`调试事件写入未完成：${String(result.reason)}`);
+          errors.push(t("debugEventWritePending", String(result.reason)));
     }
     for (let round = 0; round < 3 && this.eventQueues.size; round += 1) {
       const results = await Promise.allSettled([...this.eventQueues.values()]);
       for (const result of results)
         if (result.status === "rejected")
-          errors.push(`Network 写入未完成：${String(result.reason)}`);
+          errors.push(t("networkWritePending", String(result.reason)));
     }
     return errors;
   }
@@ -331,8 +332,7 @@ export class CdpEvidenceCollector {
           response: {
             ...current.response,
             bodyStatus: "unavailable",
-            error:
-              "RESPONSE_BODY_INCOMPLETE: 录制结束前未收到完整响应或浏览器未提供正文",
+            error: `RESPONSE_BODY_INCOMPLETE: ${t("responseBodyIncomplete")}`,
           },
         }))
       )
@@ -418,7 +418,7 @@ export class CdpEvidenceCollector {
       const result = await withTimeout(
         command,
         3_000,
-        "RESPONSE_BODY_TIMEOUT: 响应正文读取超过 3 秒"
+        `RESPONSE_BODY_TIMEOUT: ${t("responseBodyTimeout")}`
       );
       const rawBody = result.body ?? "";
       const base64Encoded = Boolean(result.base64Encoded);
@@ -439,7 +439,7 @@ export class CdpEvidenceCollector {
           type: "capture-issue",
           issue: captureIssue(
             "SESSION_STORAGE_LIMIT_REACHED",
-            "已达到会话存储上限，未保存更多 Network 正文。",
+            t("networkBodyStorageLimitReached"),
             "storage"
           ),
         });
@@ -510,7 +510,7 @@ export class CdpEvidenceCollector {
           type: "capture-issue",
           issue: captureIssue(
             "SESSION_STORAGE_LIMIT_REACHED",
-            "已达到会话存储上限，未保存更多 Console 日志。",
+            t("consoleStorageLimitReached"),
             "storage"
           ),
         });
@@ -541,7 +541,9 @@ export class CdpEvidenceCollector {
                 : Date.now(),
             level: "error",
             text:
-              details?.exception?.description ?? details?.text ?? "未捕获异常",
+              details?.exception?.description ??
+              details?.text ??
+              t("uncaughtException"),
             source: details?.url,
           },
           session.options.privacyMode
@@ -557,7 +559,7 @@ export class CdpEvidenceCollector {
           type: "capture-issue",
           issue: captureIssue(
             "SESSION_STORAGE_LIMIT_REACHED",
-            "已达到会话存储上限，未保存更多 Console 日志。",
+            t("consoleStorageLimitReached"),
             "storage"
           ),
         });
@@ -600,7 +602,7 @@ export class CdpEvidenceCollector {
           type: "capture-issue",
           issue: captureIssue(
             "SESSION_STORAGE_LIMIT_REACHED",
-            "已达到会话存储上限，未保存更多 Console 日志。",
+            t("consoleStorageLimitReached"),
             "storage"
           ),
         });
@@ -685,7 +687,7 @@ export class CdpEvidenceCollector {
             type: "capture-issue",
             issue: captureIssue(
               "SESSION_STORAGE_LIMIT_REACHED",
-              "已达到会话存储上限，未保存更多 Network 记录。",
+              t("networkStorageLimitReached"),
               "storage"
             ),
           });
@@ -780,7 +782,7 @@ export class CdpEvidenceCollector {
       const value = params as { errorText?: string; timestamp?: number };
       this.memoryCacheRequests.delete(`${tabId}:${requestId}`);
       const safeError = sanitizeText(
-        value.errorText ?? "请求失败",
+        value.errorText ?? t("requestFailed"),
         session.options.privacyMode
       );
       await this.enqueue(`${tabId}:${requestId}`, () =>

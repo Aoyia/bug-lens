@@ -5,6 +5,7 @@ import {
   type RuntimeMessage,
 } from "../../shared/protocol";
 import { sanitizeText } from "../../domain/privacy-policy";
+import { t } from "../../shared/i18n";
 import { validateStorageHealthUpdate } from "../../storage/storage-health-coordinator";
 import { runMainWorldFrameworkProbe } from "../../screenshot/main-world-probe";
 import type { BackgroundContext } from "./context";
@@ -93,7 +94,7 @@ export function createMessageRouter(
               issue: ctx.issue(
                 "MEDIA_RECORDER_FAILED",
                 sanitizeText(
-                  incoming.payload.error ?? "媒体录制失败",
+                  incoming.payload.error ?? t("mediaRecorderFailed"),
                   activeSession.options.privacyMode
                 ),
                 "media",

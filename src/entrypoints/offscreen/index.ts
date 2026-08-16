@@ -3,6 +3,7 @@ import {
   message,
   type RuntimeMessage,
 } from "../../shared/protocol";
+import { initI18nPreference, t } from "../../shared/i18n";
 import { db } from "../../storage/db";
 import { evaluateOffscreenStorageWrite } from "../../storage/storage-health-coordinator";
 import { PreviewSessionRuntime } from "../../preview/preview-session-runtime";
@@ -15,6 +16,9 @@ import {
   writeEvidenceArchive,
   type ArchiveFile,
 } from "../../export/export-pipeline";
+
+// 预先加载并初始化用户语言偏好，使 t() 在 offscreen 中与 background 保持一致
+void initI18nPreference();
 
 // ---- 录制状态（offscreen 生命周期内共享的模块级单例状态）----
 let recorder: MediaRecorder | undefined; // 当前 MediaRecorder 实例
@@ -61,7 +65,7 @@ async function startMedia(
 ): Promise<void> {
   // 幂等检查：已有录制进行中则拒绝重复启动
   if (recorder && recorder.state !== "inactive")
-    throw new Error("媒体录制已在进行中 (MEDIA_ALREADY_RECORDING)");
+    throw new Error(t("mediaAlreadyRecording"));
   // 重置会话级状态：新会话从分片 0 开始重新计数
   activeSessionId = payload.sessionId;
   sequence = 0;
@@ -145,8 +149,9 @@ async function startMedia(
                   {
                     sessionId,
                     state: "error",
-                    error:
-                      "SESSION_STORAGE_LIMIT_REACHED: 已停止录像以遵守单会话大小限制。",
+                    error: `SESSION_STORAGE_LIMIT_REACHED: ${t(
+                      "mediaStorageLimitReached"
+                    )}`,
                   },
                   sessionId,
                   "background"
@@ -164,7 +169,7 @@ async function startMedia(
                 {
                   sessionId,
                   state: "error",
-                  error: `媒体分片写入失败：${String(error)}`,
+                  error: t("mediaChunkWriteFailed", String(error)),
                 },
                 sessionId,
                 "background"
@@ -200,7 +205,7 @@ async function startMedia(
               {
                 sessionId: activeSessionId,
                 state: "error",
-                error: "媒体轨道意外结束",
+                error: t("mediaTrackEndedUnexpectedly"),
               },
               activeSessionId,
               "background"
@@ -223,9 +228,7 @@ async function startMedia(
 
 async function stopMedia(sessionId: string): Promise<void> {
   if (activeSessionId && activeSessionId !== sessionId)
-    throw new Error(
-      `媒体会话不匹配 (MEDIA_SESSION_MISMATCH:${activeSessionId})`
-    );
+    throw new Error(t("mediaSessionMismatch", activeSessionId));
   let stopError: unknown;
   try {
     if (recorder && recorder.state !== "inactive") {
@@ -236,7 +239,7 @@ async function stopMedia(sessionId: string): Promise<void> {
         }),
         // 最多等 5s，确保 MediaRecorder 产出最后一段分片
         5_000,
-        "停止媒体录制超时 (MEDIA_STOP_TIMEOUT)"
+        t("mediaStopTimeout")
       );
     }
   } catch (error) {
@@ -259,7 +262,10 @@ async function stopMedia(sessionId: string): Promise<void> {
   // 任一既有分片写入失败，则本次停止以 MEDIA_CHUNK_WRITE_FAILED 上报
   if (failures.length)
     throw new Error(
-      `媒体数据块写入失败 (MEDIA_CHUNK_WRITE_FAILED:${failures.map((failure) => String(failure.reason)).join("; ")})`
+      t(
+        "mediaDataChunkWriteFailed",
+        failures.map((failure) => String(failure.reason)).join("; ")
+      )
     );
 }
 

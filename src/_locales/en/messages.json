@@ -201,6 +201,23 @@
   "healthPartialDisruption": {
     "message": "Console/Network capture interrupted (DevTools may be open)"
   },
+  "issueBrowserRestartInterrupted": {
+    "message": "Browser restart interrupted the recording. Existing evidence has been preserved."
+  },
+  "issueStartInterrupted": {
+    "message": "Recording start was interrupted. Evidence captured before the interruption has been preserved."
+  },
+  "issueMediaContextLost": {
+    "message": "No active media recording context was found after background recovery."
+  },
+  "issueSystemResumedFromSleep": {
+    "message": "System resumed from sleep ($MIN$ min idle gap detected)",
+    "placeholders": {
+      "min": {
+        "content": "$1"
+      }
+    }
+  },
   "exceedMaxOptions": {
     "message": "... (Exceeds 30 items, $TOTAL$ total)",
     "placeholders": {
@@ -1370,6 +1387,9 @@
   "videoUnreadable": {
     "message": "Video could not be read; interaction and debug evidence are still available."
   },
+  "mediaRecorderFailed": {
+    "message": "Media recording failed"
+  },
   "noMediaChunks": {
     "message": "No playable media chunks; interaction and debug evidence are still available."
   },
@@ -1594,6 +1614,21 @@
       "count": { "content": "$1" }
     }
   },
+  "interactionStorageLimitReached": {
+    "message": "Session storage limit reached; additional interaction evidence was not saved."
+  },
+  "screenshotStorageLimitReached": {
+    "message": "Session storage limit reached; additional click screenshots were not saved."
+  },
+  "screenshotMarkFailed": {
+    "message": "Screenshot annotation failed"
+  },
+  "iframeCaptureUnsupported": {
+    "message": "This area is an embedded page (iframe); click screenshots are not supported yet. The action was logged."
+  },
+  "targetTabNotActiveForScreenshot": {
+    "message": "The active tab is not the recording target; the screenshot was not saved."
+  },
   "removeSelectionMark": {
     "message": "Remove this mark"
   },
@@ -1604,6 +1639,15 @@
         "content": "$1"
       }
     }
+  },
+  "issueSceneStorageLimitReached": {
+    "message": "Session storage limit reached; the original issue screenshot was not saved."
+  },
+  "issueSceneSavedWithoutScreenshot": {
+    "message": "No original screenshot; DOM and issue description were saved."
+  },
+  "annotationImageGenerationFailed": {
+    "message": "Annotation image generation failed"
   },
   "recordingPreviewFallback": {
     "message": "Recording preview"
@@ -1675,5 +1719,81 @@
         "content": "$1"
       }
     }
+  },
+  "consoleStorageLimitReached": {
+    "message": "Session storage limit reached; additional Console logs were not saved."
+  },
+  "debugEventWritePending": {
+    "message": "Debug event write incomplete: $REASON$",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
+  },
+  "networkBodyStorageLimitReached": {
+    "message": "Session storage limit reached; additional Network response bodies were not saved."
+  },
+  "networkStorageLimitReached": {
+    "message": "Session storage limit reached; additional Network records were not saved."
+  },
+  "networkWritePending": {
+    "message": "Network write incomplete: $REASON$",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
+  },
+  "requestFailed": {
+    "message": "Request failed"
+  },
+  "responseBodyIncomplete": {
+    "message": "The response was not fully received before recording ended, or the browser did not provide the body."
+  },
+  "responseBodyTimeout": {
+    "message": "Response body read exceeded 3 seconds."
+  },
+  "uncaughtException": {
+    "message": "Uncaught exception"
+  },
+  "mediaAlreadyRecording": {
+    "message": "Media recording is already in progress (MEDIA_ALREADY_RECORDING)"
+  },
+  "mediaChunkWriteFailed": {
+    "message": "Media chunk write failed: $REASON$",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
+  },
+  "mediaDataChunkWriteFailed": {
+    "message": "Media data chunk write failed (MEDIA_CHUNK_WRITE_FAILED:$REASONS$)",
+    "placeholders": {
+      "reasons": {
+        "content": "$1"
+      }
+    }
+  },
+  "mediaSessionMismatch": {
+    "message": "Media session mismatch (MEDIA_SESSION_MISMATCH:$SESSION_ID$)",
+    "placeholders": {
+      "session_id": {
+        "content": "$1"
+      }
+    }
+  },
+  "mediaStopTimeout": {
+    "message": "Media recording stop timed out (MEDIA_STOP_TIMEOUT)"
+  },
+  "mediaStorageLimitReached": {
+    "message": "Recording stopped to comply with the single-session size limit."
+  },
+  "mediaTrackEndedUnexpectedly": {
+    "message": "Media track ended unexpectedly"
+  },
+  "clipboardPermissionDenied": {
+    "message": "The browser did not grant clipboard permission"
   }
 }

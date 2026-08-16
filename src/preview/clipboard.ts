@@ -1,3 +1,5 @@
+import { t } from "../shared/i18n.ts";
+
 export async function copyTextToClipboard(
   value: string,
   root: Document = document
@@ -20,5 +22,5 @@ export async function copyTextToClipboard(
   textarea.select();
   const copied = root.execCommand("copy");
   textarea.remove();
-  if (!copied) throw new Error("浏览器未授予剪贴板权限");
+  if (!copied) throw new Error(t("clipboardPermissionDenied"));
 }

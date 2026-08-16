@@ -201,6 +201,23 @@
   "healthPartialDisruption": {
     "message": "控制台/网络日志采集中断 (DevTools可能已打开)"
   },
+  "issueBrowserRestartInterrupted": {
+    "message": "浏览器重启中断了录制，已保留现有证据。"
+  },
+  "issueStartInterrupted": {
+    "message": "录制启动过程被中断，已保留启动前证据。"
+  },
+  "issueMediaContextLost": {
+    "message": "后台恢复后未找到活动的媒体录制上下文。"
+  },
+  "issueSystemResumedFromSleep": {
+    "message": "系统从休眠中恢复（检测到 $MIN$ 分钟的空闲间隔）",
+    "placeholders": {
+      "min": {
+        "content": "$1"
+      }
+    }
+  },
   "exceedMaxOptions": {
     "message": "... (超出 30 项，共有 $TOTAL$ 项)",
     "placeholders": {
@@ -1370,6 +1387,9 @@
   "videoUnreadable": {
     "message": "录像文件无法读取；交互和调试证据仍可查看。"
   },
+  "mediaRecorderFailed": {
+    "message": "媒体录制失败"
+  },
   "noMediaChunks": {
     "message": "没有可播放的媒体分片；交互和调试证据仍可查看。"
   },
@@ -1594,6 +1614,21 @@
       "count": { "content": "$1" }
     }
   },
+  "interactionStorageLimitReached": {
+    "message": "已达到会话存储上限，未保存更多交互证据。"
+  },
+  "screenshotStorageLimitReached": {
+    "message": "已达到会话存储上限，未保存更多点击截图。"
+  },
+  "screenshotMarkFailed": {
+    "message": "截图标记失败"
+  },
+  "iframeCaptureUnsupported": {
+    "message": "该区域为内嵌页面（iframe），暂不支持点击截图，操作日志已记录"
+  },
+  "targetTabNotActiveForScreenshot": {
+    "message": "当前激活标签页不是录制目标，已拒绝保存截图"
+  },
   "removeSelectionMark": {
     "message": "移除该标记"
   },
@@ -1604,6 +1639,15 @@
         "content": "$1"
       }
     }
+  },
+  "issueSceneStorageLimitReached": {
+    "message": "已达到单会话存储上限，原始问题截图未保存。"
+  },
+  "issueSceneSavedWithoutScreenshot": {
+    "message": "没有原始截图，已保存 DOM 和问题描述。"
+  },
+  "annotationImageGenerationFailed": {
+    "message": "批注图片生成失败"
   },
   "recordingPreviewFallback": {
     "message": "录制预览"
@@ -1675,5 +1719,81 @@
         "content": "$1"
       }
     }
+  },
+  "consoleStorageLimitReached": {
+    "message": "已达到会话存储上限，未保存更多 Console 日志。"
+  },
+  "debugEventWritePending": {
+    "message": "调试事件写入未完成：$REASON$",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
+  },
+  "networkBodyStorageLimitReached": {
+    "message": "已达到会话存储上限，未保存更多 Network 正文。"
+  },
+  "networkStorageLimitReached": {
+    "message": "已达到会话存储上限，未保存更多 Network 记录。"
+  },
+  "networkWritePending": {
+    "message": "Network 写入未完成：$REASON$",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
+  },
+  "requestFailed": {
+    "message": "请求失败"
+  },
+  "responseBodyIncomplete": {
+    "message": "录制结束前未收到完整响应或浏览器未提供正文"
+  },
+  "responseBodyTimeout": {
+    "message": "响应正文读取超过 3 秒"
+  },
+  "uncaughtException": {
+    "message": "未捕获异常"
+  },
+  "mediaAlreadyRecording": {
+    "message": "媒体录制已在进行中 (MEDIA_ALREADY_RECORDING)"
+  },
+  "mediaChunkWriteFailed": {
+    "message": "媒体分片写入失败：$REASON$",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
+  },
+  "mediaDataChunkWriteFailed": {
+    "message": "媒体数据块写入失败 (MEDIA_CHUNK_WRITE_FAILED:$REASONS$)",
+    "placeholders": {
+      "reasons": {
+        "content": "$1"
+      }
+    }
+  },
+  "mediaSessionMismatch": {
+    "message": "媒体会话不匹配 (MEDIA_SESSION_MISMATCH:$SESSION_ID$)",
+    "placeholders": {
+      "session_id": {
+        "content": "$1"
+      }
+    }
+  },
+  "mediaStopTimeout": {
+    "message": "停止媒体录制超时 (MEDIA_STOP_TIMEOUT)"
+  },
+  "mediaStorageLimitReached": {
+    "message": "已停止录像以遵守单会话大小限制。"
+  },
+  "mediaTrackEndedUnexpectedly": {
+    "message": "媒体轨道意外结束"
+  },
+  "clipboardPermissionDenied": {
+    "message": "浏览器未授予剪贴板权限"
   }
 }
