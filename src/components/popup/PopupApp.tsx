@@ -14,9 +14,10 @@ import {
 } from "../../shared/protocol.ts";
 import {
   applyI18n,
-  t,
+  getLocale,
   initI18nPreference,
   setUserLanguagePreference,
+  t,
   type LanguagePreference,
 } from "../../shared/i18n.ts";
 import {
@@ -93,6 +94,7 @@ export function PopupApp() {
       const pref = await initI18nPreference();
       setLanguagePreference(pref);
       applyI18n();
+      document.documentElement.lang = getLocale();
     })();
     refreshRecord();
     void (async () => {
@@ -140,6 +142,7 @@ export function PopupApp() {
       setLanguagePreference(pref);
       await setUserLanguagePreference(pref);
       applyI18n();
+      document.documentElement.lang = getLocale();
       setI18nVersion((v) => v + 1);
     },
     []
