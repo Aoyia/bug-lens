@@ -1804,5 +1804,23 @@
   },
   "clipboardPermissionDenied": {
     "message": "The browser did not grant clipboard permission"
+  },
+  "reportDataMissing": {
+    "message": "Report data is missing"
+  },
+  "qualityComplete": {
+    "message": "Complete"
+  },
+  "qualityPartial": {
+    "message": "Partial degraded"
+  },
+  "qualityFailed": {
+    "message": "Failed"
+  },
+  "videoDecodeFailed": {
+    "message": "Video recording cannot be decoded; interactions and debugging evidence are still available."
+  },
+  "noVideoPlayback": {
+    "message": "No playable video in this report; interactions and debugging evidence are still available."
   }
 }

@@ -57,14 +57,14 @@ export class PreviewAiHandoff {
   async copyPrompt(): Promise<void> {
     await this.copy(
       this.options.getPrompt(this.options.getArtifact()?.filename),
-      t("promptCopied")
+      t("aiPromptCopied")
     );
   }
 
   async copyPath(): Promise<void> {
     const path = this.options.getArtifact()?.filename;
     if (!path) return;
-    await this.copy(path, t("pathCopied"));
+    await this.copy(path, t("zipPathCopied"));
   }
 
   async autoCopyPrompt(): Promise<boolean> {
@@ -75,7 +75,7 @@ export class PreviewAiHandoff {
         this.options.getPrompt(path),
         this.options.root
       );
-      this.options.notify(t("autoCopiedPrompt"));
+      this.options.notify(t("exportSuccessCopied"));
       return true;
     } catch {
       return false;

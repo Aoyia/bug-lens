@@ -1804,5 +1804,23 @@
   },
   "clipboardPermissionDenied": {
     "message": "浏览器未授予剪贴板权限"
+  },
+  "reportDataMissing": {
+    "message": "报告数据缺失"
+  },
+  "qualityComplete": {
+    "message": "完整"
+  },
+  "qualityPartial": {
+    "message": "部分降级"
+  },
+  "qualityFailed": {
+    "message": "失败"
+  },
+  "videoDecodeFailed": {
+    "message": "录像文件无法解码；交互和调试证据仍可查看。"
+  },
+  "noVideoPlayback": {
+    "message": "本报告没有可播放的录像；交互和调试证据仍可查看。"
   }
 }

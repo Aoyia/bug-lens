@@ -32,6 +32,15 @@ const NEW_KEYS = [
   "restoreLabelLogs",
   "restoreLabelRequests",
   "clipExportNoVideo",
+  "reportDataMissing",
+  "qualityComplete",
+  "qualityPartial",
+  "qualityFailed",
+  "videoDecodeFailed",
+  "noVideoPlayback",
+  "aiPromptCopied",
+  "zipPathCopied",
+  "exportSuccessCopied",
 ];
 
 // 硬编码中文用户可见文案（改动前存在于 evidence-report-view.ts 的字符串字面量）
