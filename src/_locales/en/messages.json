@@ -2041,5 +2041,13 @@
   },
   "mediaChunksEmptyOrCorrupt": {
     "message": "Media chunks are empty or corrupted"
+  },
+  "cleanupInteractionWriteFailed": {
+    "message": "Interaction write incomplete: $ERROR$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
   }
 }

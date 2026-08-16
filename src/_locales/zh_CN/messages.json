@@ -2041,5 +2041,13 @@
   },
   "mediaChunksEmptyOrCorrupt": {
     "message": "媒体分片为空或已损坏"
+  },
+  "cleanupInteractionWriteFailed": {
+    "message": "交互写入未完成：$ERROR$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
   }
 }

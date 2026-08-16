@@ -109,7 +109,9 @@ export class InteractionCapture {
       const results = await Promise.allSettled([...this.pending]);
       for (const result of results) {
         if (result.status === "rejected")
-          errors.push(`交互写入未完成：${String(result.reason)}`);
+          errors.push(
+            t("cleanupInteractionWriteFailed", String(result.reason))
+          );
       }
       if (!this.pending.size) break;
     }
