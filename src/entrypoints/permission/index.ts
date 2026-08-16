@@ -1,7 +1,8 @@
 import { message, type RecordingOptions } from "../../shared/protocol";
-import { applyI18n, t } from "../../shared/i18n";
+import { applyI18n, getLocale, t } from "../../shared/i18n";
 
 applyI18n();
+document.documentElement.lang = getLocale();
 
 const $ = <T extends HTMLElement>(selector: string) =>
   document.querySelector<T>(selector)!;
