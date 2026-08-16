@@ -2035,5 +2035,8 @@
   },
   "cannotStartWhileScreenshotActive": {
     "message": "截图进行中，不能启动视频录制（两者互斥）"
+  },
+  "cannotDeleteActiveRecording": {
+    "message": "不能删除正在录制的会话"
   }
 }

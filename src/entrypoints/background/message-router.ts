@@ -149,7 +149,7 @@ export function createMessageRouter(
         case "session/delete": {
           const active = await db.getActiveSession();
           if (active?.id === incoming.payload.sessionId)
-            throw new Error("不能删除正在录制的会话");
+            throw new Error(t("cannotDeleteActiveRecording"));
           return {
             ok: true,
             deleted: await db.deleteSession(incoming.payload.sessionId),

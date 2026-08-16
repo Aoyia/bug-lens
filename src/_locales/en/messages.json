@@ -2035,5 +2035,8 @@
   },
   "cannotStartWhileScreenshotActive": {
     "message": "Screenshot in progress; cannot start video recording (mutually exclusive)"
+  },
+  "cannotDeleteActiveRecording": {
+    "message": "Cannot delete a session that is currently recording"
   }
 }

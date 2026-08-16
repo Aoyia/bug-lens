@@ -147,7 +147,8 @@ test("路由: session/delete 删除录制中会话被拒绝", async () => {
     sender(1)
   )) as { ok: boolean; error: string };
   assert.equal(result.ok, false);
-  assert.ok(result.error.includes("不能删除正在录制的会话"));
+  // 错误文案走 i18n：测试环境 t() 返回 key 本身，不再硬编码中文
+  assert.ok(result.error.includes("cannotDeleteActiveRecording"));
 });
 
 test("路由: session/delete 删除历史会话成功", async () => {
