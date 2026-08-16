@@ -2071,5 +2071,8 @@
         "content": "$1"
       }
     }
+  },
+  "mediaRecorderErrorEvent": {
+    "message": "Media recorder error"
   }
 }

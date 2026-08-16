@@ -189,7 +189,7 @@ async function startMedia(
           {
             sessionId: activeSessionId,
             state: "error",
-            error: String(event.error ?? "MediaRecorder error"),
+            error: String(event.error ?? t("mediaRecorderErrorEvent")),
           },
           activeSessionId,
           "background"
