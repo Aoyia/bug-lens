@@ -15,6 +15,7 @@ import {
 } from "../../domain/silent-export";
 import { isEn, t } from "../../shared/i18n";
 import { ensureOffscreenDocument } from "../../shared/offscreen";
+import { t } from "../../shared/i18n";
 import type { BackgroundContext } from "./context";
 
 export type StartSessionPayload = Extract<
@@ -338,7 +339,7 @@ export function createSessionLifecycle(
   ): Promise<RecordingSession> {
     const previous = await db.getSession(sessionId);
     if (!previous)
-      throw new Error(`未找到中断会话 (SESSION_NOT_FOUND:${sessionId})`);
+      throw new Error(t("resumeSessionNotFound", sessionId));
     if (
       !previous.quality.issues.some(
         (entry) =>
@@ -346,12 +347,12 @@ export function createSessionLifecycle(
           entry.code === "MEDIA_CONTEXT_LOST"
       )
     ) {
-      throw new Error(`该会话未处于可继续状态`);
+      throw new Error(t("sessionNotContinuable"));
     }
     const tab = (
       await chrome.tabs.query({ active: true, currentWindow: true })
     )[0];
-    if (!tab?.id) throw new Error("无法读取当前标签页，无法继续录制");
+    if (!tab?.id) throw new Error(t("failedToReadTabForResume"));
     return startSession({
       tabId: tab.id,
       options: previous.options,

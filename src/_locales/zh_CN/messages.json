@@ -391,6 +391,14 @@
   "resumeRecording": {
     "message": "继续"
   },
+  "resumeSessionNotFound": {
+    "message": "未找到中断会话 (SESSION_NOT_FOUND: $ID$)",
+    "placeholders": {
+      "id": {
+        "content": "$1"
+      }
+    }
+  },
   "idlePaused": {
     "message": "闲置已暂停"
   },
@@ -458,6 +466,9 @@
   },
   "failedToReadTab": {
     "message": "无法读取标签页"
+  },
+  "failedToReadTabForResume": {
+    "message": "无法读取当前标签页，无法继续录制"
   },
   "unnamedTab": {
     "message": "未命名标签页"
@@ -1506,6 +1517,9 @@
   },
   "missingSessionId": {
     "message": "缺少会话 ID"
+  },
+  "sessionNotContinuable": {
+    "message": "该会话未处于可继续状态"
   },
   "sessionNotFound": {
     "message": "找不到会话"

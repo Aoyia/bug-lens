@@ -391,6 +391,14 @@
   "resumeRecording": {
     "message": "Resume"
   },
+  "resumeSessionNotFound": {
+    "message": "Interrupted session not found (SESSION_NOT_FOUND: $ID$)",
+    "placeholders": {
+      "id": {
+        "content": "$1"
+      }
+    }
+  },
   "idlePaused": {
     "message": "Paused (Idle)"
   },
@@ -458,6 +466,9 @@
   },
   "failedToReadTab": {
     "message": "Failed to read tab"
+  },
+  "failedToReadTabForResume": {
+    "message": "Could not read the current tab; cannot continue recording"
   },
   "unnamedTab": {
     "message": "Unnamed Tab"
@@ -1506,6 +1517,9 @@
   },
   "missingSessionId": {
     "message": "Missing session ID"
+  },
+  "sessionNotContinuable": {
+    "message": "This session is not in a resumable state"
   },
   "sessionNotFound": {
     "message": "Session not found"

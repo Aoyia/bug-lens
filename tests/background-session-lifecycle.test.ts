@@ -191,7 +191,8 @@ test("continueInterruptedSession: 无可恢复问题时拒绝续录", async () =
 
   await assert.rejects(
     runtime.continueInterruptedSession("sess-plain", "cmd-resume"),
-    /未处于可继续状态/
+    // 错误文案走 i18n：测试环境 t() 返回 key 本身，不再硬编码中文
+    /sessionNotContinuable/
   );
 });
 
