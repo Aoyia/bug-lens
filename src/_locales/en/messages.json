@@ -1918,5 +1918,8 @@
   },
   "shortcutShowPanel": {
     "message": "Show Shortcuts Panel"
+  },
+  "cannotStartWhileScreenshotActive": {
+    "message": "Screenshot in progress; cannot start video recording (mutually exclusive)"
   }
 }

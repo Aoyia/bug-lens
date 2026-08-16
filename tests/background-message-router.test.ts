@@ -75,7 +75,7 @@ test("路由: session/start 时截图 overlay 打开则拒绝", async () => {
     sender(42)
   )) as { ok: boolean; error: string };
   assert.equal(result.ok, false);
-  assert.ok(result.error.includes("互斥"));
+  assert.ok(result.error.includes("cannotStartWhileScreenshotActive"));
 });
 
 test("路由: content/hello 非录制会话返回 active:false", async () => {
