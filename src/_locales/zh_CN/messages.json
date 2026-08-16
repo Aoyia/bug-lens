@@ -1252,6 +1252,9 @@
   "fwGlobalState": {
     "message": "全局状态 (globalState)"
   },
+  "fwWebStorage": {
+    "message": "Web 存储"
+  },
   "fwWebStorageRedacted": {
     "message": "（安全模式，值已脱敏）"
   },
