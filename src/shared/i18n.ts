@@ -292,4 +292,16 @@ export function applyI18n(
       }
     }
   });
+
+  const altElements =
+    container.querySelectorAll<HTMLImageElement>("[data-i18n-alt]");
+  altElements.forEach((el) => {
+    const key = el.getAttribute("data-i18n-alt");
+    if (key) {
+      const translated = t(key, undefined, customDict);
+      if (translated && translated !== key) {
+        el.alt = translated;
+      }
+    }
+  });
 }
