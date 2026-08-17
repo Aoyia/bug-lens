@@ -645,7 +645,11 @@ export class RecordingWidget {
     }
     if (recTag) {
       const isIdle = paused && this.callbacks.isIdlePaused();
-      recTag.textContent = paused ? (isIdle ? "IDLE PAUSED" : "PAUSED") : "REC";
+      recTag.textContent = paused
+        ? isIdle
+          ? t("idlePaused")
+          : t("widgetPaused")
+        : "REC";
       recTag.style.color = paused ? "#ffc107" : "#fff";
     }
   }
