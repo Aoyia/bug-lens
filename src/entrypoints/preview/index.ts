@@ -9,12 +9,13 @@ import { highlightJs } from "../../preview/rendering";
 import { copyTextToClipboard } from "../../preview/clipboard";
 import { applyPrivacyBadge } from "../../preview/privacy-badge";
 import { bindPlaywrightModalClose } from "../../preview/playwright-modal";
-import { applyI18n, initI18nPreference, t } from "../../shared/i18n";
+import { applyI18n, getLocale, initI18nPreference, t } from "../../shared/i18n";
 import "../../shared/components/truncated-text";
 
 void (async () => {
   await initI18nPreference();
   applyI18n();
+  document.documentElement.lang = getLocale();
 })();
 
 const $ = <T extends HTMLElement>(selector: string) =>
@@ -44,6 +45,7 @@ if (
       void (async () => {
         await initI18nPreference();
         applyI18n();
+        document.documentElement.lang = getLocale();
         reportView.render();
       })();
     }
