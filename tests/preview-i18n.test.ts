@@ -216,3 +216,14 @@ test("shortcutsPanel 快捷键速查面板各按键说明与 aria-label 应具�
     }
   }
 });
+
+test("预览页 document lang 必须随当前 locale 同步", () => {
+  const source = readFileSync(
+    resolve(process.cwd(), "src/entrypoints/preview/index.ts"),
+    "utf8"
+  );
+  assert.ok(
+    source.includes("document.documentElement.lang = getLocale()"),
+    "preview/index.ts 应在初始化与语言切换后同步 document.documentElement.lang"
+  );
+});
