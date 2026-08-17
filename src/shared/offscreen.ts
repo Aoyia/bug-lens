@@ -1,3 +1,5 @@
+import { t } from "./i18n.ts";
+
 // 并发去重锁：同一时刻只允许一次 offscreen 文档创建流程
 let ensureLock: Promise<void> | undefined;
 
@@ -18,8 +20,7 @@ export async function ensureOffscreenDocument(
       await chrome.offscreen.createDocument({
         url: "offscreen.html",
         reasons,
-        justification:
-          "Record the selected tab, render issue scene screenshots, and export silent ZIP archives locally.",
+        justification: t("offscreenJustification"),
       });
     } finally {
       // 无论成败都释放锁，允许后续重新创建
