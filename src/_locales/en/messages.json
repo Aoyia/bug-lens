@@ -1705,6 +1705,12 @@
       }
     }
   },
+  "unknownBrowser": {
+    "message": "Browser unknown"
+  },
+  "unknownOs": {
+    "message": "Unknown OS"
+  },
   "unknownDuration": {
     "message": "Duration unknown"
   },

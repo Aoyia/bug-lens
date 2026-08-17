@@ -1,5 +1,5 @@
 import type { EnvironmentInfo } from "../shared/protocol";
-import { isEn } from "../shared/i18n.ts";
+import { isEn, t } from "../shared/i18n.ts";
 
 /**
  * 采集页面主帧的运行环境快照（系统/浏览器/分辨率/视口）。
@@ -45,7 +45,7 @@ export function describeOsFromUserAgent(userAgent: string): string {
   if (/iPhone|iPad|iPod/.test(ua)) return "iOS";
   if (/Linux/.test(ua)) return "Linux";
   if (/CrOS/.test(ua)) return "ChromeOS";
-  return "Unknown OS";
+  return t("unknownOs");
 }
 
 /** 从 userAgent 中解析浏览器名称与主要版本。 */
@@ -59,7 +59,7 @@ export function describeBrowserFromUserAgent(userAgent: string): string {
   if (chrome) return `Chrome ${chrome[1]}`;
   if (firefox) return `Firefox ${firefox[1]}`;
   if (safari) return `Safari ${safari[1]}`;
-  return "Browser unknown";
+  return t("unknownBrowser");
 }
 
 /** 生成供证据摘要/README 使用的一行环境描述。 */
