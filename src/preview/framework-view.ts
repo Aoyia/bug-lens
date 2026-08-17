@@ -80,10 +80,10 @@ function renderTargetDetails(node: FrameworkComponentNode): string {
 
   let html = `<div style="margin-top:6px;font-size:11px;background:#f8fafc;border:1px solid #e2e8f0;padding:6px;border-radius:4px">`;
   if (propsJson) {
-    html += `<div style="margin-bottom:4px"><span style="font-weight:600;color:#2d3748">Props:</span> <pre style="margin:2px 0;font-size:10px;background:#ffffff;padding:4px;border-radius:3px;max-height:80px;overflow:auto">${escapeStr(propsJson)}</pre></div>`;
+    html += `<div style="margin-bottom:4px"><span style="font-weight:600;color:#2d3748">${t("fwProps")}:</span> <pre style="margin:2px 0;font-size:10px;background:#ffffff;padding:4px;border-radius:3px;max-height:80px;overflow:auto">${escapeStr(propsJson)}</pre></div>`;
   }
   if (stateJson) {
-    html += `<div><span style="font-weight:600;color:#2d3748">State:</span> <pre style="margin:2px 0;font-size:10px;background:#ffffff;padding:4px;border-radius:3px;max-height:80px;overflow:auto">${escapeStr(stateJson)}</pre></div>`;
+    html += `<div><span style="font-weight:600;color:#2d3748">${t("fwState")}:</span> <pre style="margin:2px 0;font-size:10px;background:#ffffff;padding:4px;border-radius:3px;max-height:80px;overflow:auto">${escapeStr(stateJson)}</pre></div>`;
   }
   html += `</div>`;
   return html;
