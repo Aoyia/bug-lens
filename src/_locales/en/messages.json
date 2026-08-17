@@ -477,6 +477,9 @@
   "deleteFailed": {
     "message": "Failed to delete"
   },
+  "sessionDeleteAborted": {
+    "message": "Session deletion transaction aborted"
+  },
   "resumeFailed": {
     "message": "Failed to resume recording"
   },
@@ -959,6 +962,12 @@
   },
   "topLevelPage": {
     "message": "Top-level page"
+  },
+  "frameNumber": {
+    "message": "Frame #$COUNT$",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
   },
   "inputCharsRedacted": {
     "message": "Written $COUNT$ characters (redacted)",

@@ -185,7 +185,7 @@ export const InteractionsTab = memo(function InteractionsTab({
         const frame =
           primary.page.frameId === 0
             ? t("topLevelPage")
-            : `Frame #${primary.page.frameId}`;
+            : t("frameNumber", String(primary.page.frameId));
         const locators = element.locators || [];
 
         // 计算文本/输入展示内容
