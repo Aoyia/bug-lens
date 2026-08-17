@@ -89,7 +89,7 @@ export const FrameworkStateTab = memo(function FrameworkStateTab({
             {state.webStorage ? (
               <div className="framework-state-section">
                 <div className="framework-state-section-title">
-                  Web Storage
+                  {t("fwWebStorage")}
                   {state.webStorage.redactedValues
                     ? t("fwWebStorageRedacted")
                     : ""}

@@ -1288,6 +1288,9 @@
   "fwGlobalState": {
     "message": "Global state (globalState)"
   },
+  "fwWebStorage": {
+    "message": "Web Storage"
+  },
   "fwWebStorageRedacted": {
     "message": " (safe mode, values redacted)"
   },
