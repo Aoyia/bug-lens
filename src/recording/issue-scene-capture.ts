@@ -51,7 +51,8 @@ function dataUrlBytes(dataUrl: string): {
   mimeType: "image/png";
 } {
   const comma = dataUrl.indexOf(",");
-  if (comma < 0) throw new Error("ISSUE_SCREENSHOT_INVALID: 截图数据格式无效");
+  if (comma < 0)
+    throw new Error(`ISSUE_SCREENSHOT_INVALID: ${t("issueScreenshotInvalid")}`);
   const encoded = dataUrl.slice(comma + 1);
   const binary = atob(encoded);
   const bytes = new Uint8Array(binary.length);
@@ -146,13 +147,11 @@ export class IssueSceneCapture {
       session.target.tabId !== sender.tab?.id ||
       session.nonce !== nonce
     ) {
-      throw new Error(
-        "ISSUE_SESSION_REJECTED: 当前问题现场请求不属于活动录制会话"
-      );
+      throw new Error(`ISSUE_SESSION_REJECTED: ${t("issueSessionRejected")}`);
     }
     if ((sender.frameId ?? 0) !== 0)
       throw new Error(
-        "FRAME_GEOMETRY_UNAVAILABLE: 第一版问题现场只支持主 Frame"
+        `FRAME_GEOMETRY_UNAVAILABLE: ${t("issueFrameGeometryUnavailable")}`
       );
     return session;
   }
@@ -165,7 +164,9 @@ export class IssueSceneCapture {
       query.windowId = session.target.windowId;
     const tabs = await chrome.tabs.query(query);
     if (!tabs.some((tab) => tab.id === session.target.tabId))
-      throw new Error("TARGET_TAB_NOT_ACTIVE: 当前激活标签页不是录制目标");
+      throw new Error(
+        `TARGET_TAB_NOT_ACTIVE: ${t("issueTargetTabNotActive")}`
+      );
   }
 
   /**
@@ -227,7 +228,9 @@ export class IssueSceneCapture {
     const sanitized = sanitizeIssueScene(base, session.options.privacyMode);
     const metadataWrite = await db.saveIssueSceneWithinBudget(sanitized);
     if (!metadataWrite.stored)
-      throw new Error("SESSION_STORAGE_LIMIT_REACHED: 无法保存问题现场元数据");
+      throw new Error(
+        `SESSION_STORAGE_LIMIT_REACHED: ${t("issueMetadataNotSaved")}`
+      );
 
     try {
       await this.assertTargetTabIsActive(session);
@@ -271,7 +274,9 @@ export class IssueSceneCapture {
                 ...current,
                 screenshot: {
                   status: "partial",
-                  issue: "SESSION_STORAGE_LIMIT_REACHED: 原始截图未保存",
+                  issue: `SESSION_STORAGE_LIMIT_REACHED: ${t(
+                    "issueOriginalScreenshotNotSaved"
+                  )}`,
                 },
               },
               "partial",
@@ -282,7 +287,9 @@ export class IssueSceneCapture {
             )
       );
       if (!next)
-        throw new Error("ISSUE_SCENE_NOT_FOUND: 截图完成后找不到问题现场");
+        throw new Error(
+          `ISSUE_SCENE_NOT_FOUND: ${t("issueSceneNotFoundAfterCapture")}`
+        );
       return { scene: next, dataUrl };
     } catch (error) {
       const next = await db.updateIssueScene(sceneId, (current) =>
@@ -313,14 +320,16 @@ export class IssueSceneCapture {
     const session = await this.getAcceptedSession(payload.nonce, sender);
     const current = await db.getIssueScene(payload.issueSceneId);
     if (!current || current.sessionId !== session.id)
-      throw new Error("ISSUE_SCENE_NOT_FOUND: 找不到问题现场");
+      throw new Error(`ISSUE_SCENE_NOT_FOUND: ${t("issueSceneNotFound")}`);
     const committed = sanitizeIssueScene(
       withIssueNarrative(current, payload.narrative, payload.annotation),
       session.options.privacyMode
     );
     const saved = await db.saveIssueSceneWithinBudget(committed);
     if (!saved.stored)
-      throw new Error("SESSION_STORAGE_LIMIT_REACHED: 无法保存问题描述");
+      throw new Error(
+        `SESSION_STORAGE_LIMIT_REACHED: ${t("issueNarrativeNotSaved")}`
+      );
     if (!committed.screenshot.originalAssetId)
       return db.updateIssueScene(committed.id, (scene) =>
         markIssueSceneResult(
@@ -369,7 +378,9 @@ export class IssueSceneCapture {
             )
       );
       if (!next)
-        throw new Error("ISSUE_SCENE_NOT_FOUND: 批注完成后找不到问题现场");
+        throw new Error(
+          `ISSUE_SCENE_NOT_FOUND: ${t("issueSceneNotFoundAfterAnnotation")}`
+        );
       return next;
     } catch (error) {
       const next = await db.updateIssueScene(committed.id, (scene) =>

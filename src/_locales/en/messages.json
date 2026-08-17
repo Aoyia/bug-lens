@@ -1739,6 +1739,36 @@
   "issueSceneSavedWithoutScreenshot": {
     "message": "No original screenshot; DOM and issue description were saved."
   },
+  "issueFrameGeometryUnavailable": {
+    "message": "Issue scene capture only supports the main frame for now."
+  },
+  "issueMetadataNotSaved": {
+    "message": "Issue scene metadata was not saved"
+  },
+  "issueNarrativeNotSaved": {
+    "message": "Issue description was not saved"
+  },
+  "issueOriginalScreenshotNotSaved": {
+    "message": "Original screenshot was not saved"
+  },
+  "issueSceneNotFound": {
+    "message": "Issue scene not found"
+  },
+  "issueSceneNotFoundAfterAnnotation": {
+    "message": "Issue scene not found after annotation"
+  },
+  "issueSceneNotFoundAfterCapture": {
+    "message": "Issue scene not found after screenshot capture"
+  },
+  "issueScreenshotInvalid": {
+    "message": "Screenshot data format is invalid"
+  },
+  "issueSessionRejected": {
+    "message": "The issue scene request does not belong to an active recording session"
+  },
+  "issueTargetTabNotActive": {
+    "message": "The active tab is not the recording target"
+  },
   "annotationImageGenerationFailed": {
     "message": "Annotation image generation failed"
   },
