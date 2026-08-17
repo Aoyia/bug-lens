@@ -749,6 +749,17 @@
   "exportCanceled": {
     "message": "已取消导出"
   },
+  "silentExportFailed": {
+    "message": "静默导出失败：$ERROR$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "silentExportNoDownloadableFile": {
+    "message": "导出未返回可下载文件"
+  },
   "offlineReportTitle": {
     "message": "Bug Lens 离线报告"
   },

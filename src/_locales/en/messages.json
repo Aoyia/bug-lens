@@ -749,6 +749,17 @@
   "exportCanceled": {
     "message": "Export canceled"
   },
+  "silentExportFailed": {
+    "message": "Silent export failed: $ERROR$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "silentExportNoDownloadableFile": {
+    "message": "Export did not return a downloadable file"
+  },
   "offlineReportTitle": {
     "message": "Bug Lens Offline Report"
   },

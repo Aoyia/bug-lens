@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { afterEach, beforeEach, test } from "node:test";
 
 import {
   buildSilentExportFailureEvent,
@@ -8,6 +10,46 @@ import {
   resolveSilentExportResult,
   type SilentExportPackResult,
 } from "../src/domain/silent-export.ts";
+
+const SOURCE = resolve(process.cwd(), "src/domain/silent-export.ts");
+
+function loadDict(locale: "zh_CN" | "en") {
+  return JSON.parse(
+    readFileSync(
+      resolve(process.cwd(), `src/_locales/${locale}/messages.json`),
+      "utf8"
+    )
+  ) as Record<string, { message: string }>;
+}
+
+// i18n：注入真实 locale 字典，让 t() 返回实际文案而非 key
+function installBundle(locale: "zh-CN" | "en-US") {
+  const dict = loadDict(locale === "zh-CN" ? "zh_CN" : "en");
+  (globalThis as Record<string, unknown>).window = {
+    __WEB_BUG_REPORT_I18N__: { locale, dict },
+  };
+}
+
+beforeEach(() => installBundle("zh-CN"));
+
+afterEach(() => {
+  delete (globalThis as Record<string, unknown>).window;
+});
+
+test("silent-export 的用户可见文案必须走 i18n（禁止硬编码中英文）", () => {
+  const source = readFileSync(SOURCE, "utf8");
+  for (const literal of [
+    "导出未返回可下载文件",
+    "Export did not return a downloadable file",
+    "静默导出失败：",
+    "Silent export failed: ",
+  ]) {
+    assert.ok(
+      !source.includes(`"${literal}"`) && !source.includes(`'${literal}'`),
+      `silent-export.ts 不得硬编码 '${literal}'，应通过 t() 提供`
+    );
+  }
+});
 
 test("静默导出只有后台明确成功时才允许展示成功提示", () => {
   assert.equal(
@@ -77,9 +119,7 @@ test("resolveSilentExportResult 捕获到异常时优先返回异常信息", () 
   });
 });
 
-test("buildSilentExportFailureEvent 产出可恢复的 export 来源 issue 事件（中英文）", async () => {
-  const { setUserLanguagePreference } = await import("../src/shared/i18n.ts");
-  await setUserLanguagePreference("zh-CN");
+test("buildSilentExportFailureEvent 产出可恢复的 export 来源 issue 事件（中英文）", () => {
   const eventZh = buildSilentExportFailureEvent("下载被拒绝", "safe");
   assert.equal(eventZh.type, "capture-issue");
   if (eventZh.type === "capture-issue") {
@@ -89,7 +129,7 @@ test("buildSilentExportFailureEvent 产出可恢复的 export 来源 issue 事�
     assert.match(eventZh.issue.message, /静默导出失败/);
   }
 
-  await setUserLanguagePreference("en-US");
+  installBundle("en-US");
   const eventEn = buildSilentExportFailureEvent("Download rejected", "safe");
   assert.equal(eventEn.type, "capture-issue");
   if (eventEn.type === "capture-issue") {
@@ -98,8 +138,6 @@ test("buildSilentExportFailureEvent 产出可恢复的 export 来源 issue 事�
     assert.equal(eventEn.issue.recoverable, true);
     assert.match(eventEn.issue.message, /Silent export failed/);
   }
-
-  await setUserLanguagePreference("auto");
 });
 
 test("buildSilentExportFailureEvent 在 safe 模式下对错误信息脱敏", () => {
