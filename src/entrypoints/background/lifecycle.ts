@@ -13,6 +13,7 @@ import {
   resolveSilentExportResult,
   type SilentExportPackResult,
 } from "../../domain/silent-export";
+import { isEn, t } from "../../shared/i18n";
 import { ensureOffscreenDocument } from "../../shared/offscreen";
 import type { BackgroundContext } from "./context";
 
@@ -121,7 +122,7 @@ export function createSessionLifecycle(
         type: "capture-issue",
         issue: ctx.issue(
           "ISSUE_SCENE_PARTIAL",
-          "至少一个问题现场只完成了部分采集。",
+          t("qualityIssueScenePartial"),
           "issue-scene"
         ),
       });
@@ -245,7 +246,7 @@ export function createSessionLifecycle(
             ctx.issue(
               "MEDIA_RECORDER_FAILED",
               sanitizeText(
-                mediaResponse?.error ?? "媒体录制启动失败",
+                mediaResponse?.error ?? t("mediaRecorderFailed"),
                 options.privacyMode
               ),
               "media",
@@ -256,7 +257,7 @@ export function createSessionLifecycle(
         issues.push(
           ctx.issue(
             "MEDIA_STREAM_ID_FAILED",
-            "未取得标签页媒体流，已进入降级录制。",
+            t("qualityMediaStreamIdFailed"),
             "media",
             false
           )
@@ -402,7 +403,9 @@ export function createSessionLifecycle(
         .catch((error) => ({ ok: false, error: String(error) }));
       if (mediaResponse?.ok === false)
         cleanupErrors.push(
-          `媒体停止失败：${mediaResponse.error ?? "未知错误"}`
+          t("cleanupMediaStopFailed", [
+            mediaResponse.error ?? t("unknownError"),
+          ])
         );
 
       cleanupErrors.push(...(await interactionCapture.drain()));
@@ -412,15 +415,21 @@ export function createSessionLifecycle(
       await cdpCollector
         .finalizeNetworkBodies(stopping)
         .catch((error) =>
-          cleanupErrors.push(`Network 正文收尾失败：${String(error)}`)
+          cleanupErrors.push(
+            t("cleanupNetworkFinalizeFailed", [String(error)])
+          )
         );
       await issueSceneCapture
         .finalizeUnfinished(session.id)
         .catch((error) =>
-          cleanupErrors.push(`问题现场收尾失败：${String(error)}`)
+          cleanupErrors.push(
+            t("cleanupIssueSceneFinalizeFailed", [String(error)])
+          )
         );
       await reconcileSessionQuality(session.id).catch((error) =>
-        cleanupErrors.push(`质量摘要重算失败：${String(error)}`)
+        cleanupErrors.push(
+          t("cleanupQualityReconcileFailed", [String(error)])
+        )
       );
     } finally {
       await cdpCollector.detach(session.target.tabId);
@@ -441,7 +450,10 @@ export function createSessionLifecycle(
     const cleanupIssue = cleanupErrors.length
       ? ctx.issue(
           "SESSION_STOP_PARTIAL",
-          sanitizeText(cleanupErrors.join("；"), session.options.privacyMode),
+          sanitizeText(
+            cleanupErrors.join(isEn() ? "; " : "；"),
+            session.options.privacyMode
+          ),
           "storage"
         )
       : undefined;
@@ -501,7 +513,7 @@ export function createSessionLifecycle(
             ...reduceSession(
               current,
               buildSilentExportFailureEvent(
-                silentExportResult.error ?? "未知错误",
+                silentExportResult.error ?? t("unknownError"),
                 current.options.privacyMode
               )
             ),

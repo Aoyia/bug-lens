@@ -1435,6 +1435,36 @@
   "mediaRecorderFailed": {
     "message": "Media recording failed"
   },
+  "qualityIssueScenePartial": {
+    "message": "At least one issue scene was only partially captured."
+  },
+  "qualityMediaStreamIdFailed": {
+    "message": "Could not obtain the tab media stream; continuing in degraded recording mode."
+  },
+  "cleanupMediaStopFailed": {
+    "message": "Media stop failed: $ERROR$",
+    "placeholders": {
+      "error": { "content": "$1" }
+    }
+  },
+  "cleanupNetworkFinalizeFailed": {
+    "message": "Network body finalization failed: $ERROR$",
+    "placeholders": {
+      "error": { "content": "$1" }
+    }
+  },
+  "cleanupIssueSceneFinalizeFailed": {
+    "message": "Issue scene finalization failed: $ERROR$",
+    "placeholders": {
+      "error": { "content": "$1" }
+    }
+  },
+  "cleanupQualityReconcileFailed": {
+    "message": "Quality reconciliation failed: $ERROR$",
+    "placeholders": {
+      "error": { "content": "$1" }
+    }
+  },
   "noMediaChunks": {
     "message": "No playable media chunks; interaction and debug evidence are still available."
   },
