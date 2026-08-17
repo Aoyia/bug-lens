@@ -1,6 +1,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import {
+  applyI18n,
   getLanguagePreference,
   getLocale,
   initI18nPreference,
@@ -73,5 +74,29 @@ describe("i18n Sync and Translation", () => {
       t("indexedParam", ["foo", "bar"], customDict),
       "Param 1: foo, Param 2: bar"
     );
+  });
+
+  test("applyI18n 同步 document.documentElement.lang 与当前 locale 一致", async () => {
+    const originalDocument = (globalThis as any).document;
+    const langHolder = { lang: "" };
+    (globalThis as any).document = {
+      documentElement: langHolder,
+      querySelectorAll: () => [],
+    };
+    const container = {
+      querySelectorAll: () => [],
+    };
+    try {
+      await setUserLanguagePreference("en-US");
+      applyI18n(container as any);
+      assert.equal(langHolder.lang, "en-US");
+
+      await setUserLanguagePreference("zh-CN");
+      applyI18n(container as any);
+      assert.equal(langHolder.lang, "zh-CN");
+    } finally {
+      await setUserLanguagePreference("auto");
+      (globalThis as any).document = originalDocument;
+    }
   });
 });

@@ -256,6 +256,11 @@ export function applyI18n(
   container: HTMLElement | Document = document,
   customDict?: I18nDict
 ): void {
+  // 同步文档语言元数据（<html lang>），保证读屏发音、浏览器词典与 :lang() 选择器
+  // 与界面语言一致；离线报告页面同样依赖此函数完成初始化同步。
+  if (typeof document !== "undefined") {
+    document.documentElement.lang = getLocale();
+  }
   // 批量翻译容器内带 data-i18n / data-i18n-ph / data-i18n-title 属性的元素
   const elements = container.querySelectorAll<HTMLElement>("[data-i18n]");
   elements.forEach((el) => {
