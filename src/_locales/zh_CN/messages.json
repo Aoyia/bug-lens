@@ -369,6 +369,12 @@
   "issueScenes": {
     "message": "问题现场"
   },
+  "evidenceBatchWriteAborted": {
+    "message": "证据批量写入事务已中止"
+  },
+  "evidenceBatchWriteError": {
+    "message": "证据批量写入事务出错"
+  },
   "evidenceSummary": {
     "message": "证据概览"
   },

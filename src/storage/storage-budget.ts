@@ -1,6 +1,7 @@
 import { estimateBytes } from "../domain/storage-policy.ts";
 import type { RecordingSession } from "../shared/protocol.ts";
 import { openEvidenceDatabase, type StoreName } from "./indexed-db-schema.ts";
+import { t } from "../shared/i18n.ts";
 
 export type BudgetWriteResult = {
   stored: boolean;
@@ -216,7 +217,7 @@ async function executeBatchPut(items: PendingBatchItem<any>[]): Promise<void> {
     };
 
     transaction.onerror = () => {
-      const err = transaction.error ?? new Error("证据批量写入事务出错");
+      const err = transaction.error ?? new Error(t("evidenceBatchWriteError"));
       // 仅当尚无单项错误被上报时统一兜底 reject，避免同一批次重复拒绝
       if (!hasError) {
         for (const item of items) {
@@ -227,7 +228,7 @@ async function executeBatchPut(items: PendingBatchItem<any>[]): Promise<void> {
     };
 
     transaction.onabort = () => {
-      const err = transaction.error ?? new Error("证据批量写入事务已中止");
+      const err = transaction.error ?? new Error(t("evidenceBatchWriteAborted"));
       if (!hasError) {
         for (const item of items) {
           item.reject(err);

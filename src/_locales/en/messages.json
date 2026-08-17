@@ -369,6 +369,12 @@
   "issueScenes": {
     "message": "Issue Scenes"
   },
+  "evidenceBatchWriteAborted": {
+    "message": "Evidence batch write transaction aborted"
+  },
+  "evidenceBatchWriteError": {
+    "message": "Evidence batch write transaction error"
+  },
   "evidenceSummary": {
     "message": "Evidence Summary"
   },
