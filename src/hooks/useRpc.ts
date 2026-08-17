@@ -4,6 +4,7 @@ import {
   type RuntimeMessage,
   type RuntimeMessageResponseMap,
 } from "../shared/protocol.ts";
+import { t } from "../shared/i18n.ts";
 
 type MessageOf<T extends RuntimeMessage["type"]> = Extract<
   RuntimeMessage,
@@ -48,7 +49,7 @@ export function useRpc() {
           const errorVal = (response as { error?: unknown }).error;
           return {
             ok: false,
-            error: typeof errorVal === "string" ? errorVal : "Unknown error",
+            error: typeof errorVal === "string" ? errorVal : t("unknownError"),
           };
         }
         return { ok: true, data: response as RuntimeMessageResponseMap[T] };
