@@ -614,6 +614,9 @@
   "generatePlaywright": {
     "message": "生成 Playwright 脚本"
   },
+  "generatePlaywrightTitle": {
+    "message": "生成 Playwright 自动化测试脚本草稿"
+  },
   "loadingMedia": {
     "message": "正在读取媒体分片…"
   },
@@ -1873,6 +1876,9 @@
   },
   "shortcutPlayPause": {
     "message": "播放 / 暂停"
+  },
+  "playPause": {
+    "message": "播放/暂停"
   },
   "shortcutBack5s": {
     "message": "后退 5 秒"

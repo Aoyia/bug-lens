@@ -614,6 +614,9 @@
   "generatePlaywright": {
     "message": "Generate Playwright Script"
   },
+  "generatePlaywrightTitle": {
+    "message": "Generate a Playwright automation test script draft"
+  },
   "loadingMedia": {
     "message": "Loading media chunks…"
   },
@@ -1873,6 +1876,9 @@
   },
   "shortcutPlayPause": {
     "message": "Play / Pause"
+  },
+  "playPause": {
+    "message": "Play/Pause"
   },
   "shortcutBack5s": {
     "message": "Rewind 5s"
