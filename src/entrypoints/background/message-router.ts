@@ -120,7 +120,7 @@ export function createMessageRouter(
         case "session/start":
           // 截图与视频录制互斥：截图 overlay 打开时拒绝启动录制
           if (ctx.isScreenshotOverlayOpen.get())
-            throw new Error("截图进行中，不能启动视频录制（两者互斥）");
+            throw new Error(t("cannotStartWhileScreenshotActive"));
           return {
             ok: true,
             session: await lifecycle.start(incoming.payload),

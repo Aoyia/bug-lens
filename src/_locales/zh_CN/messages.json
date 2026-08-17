@@ -1969,5 +1969,8 @@
   },
   "shortcutShowPanel": {
     "message": "显示此速查面板"
+  },
+  "cannotStartWhileScreenshotActive": {
+    "message": "截图进行中，不能启动视频录制（两者互斥）"
   }
 }
