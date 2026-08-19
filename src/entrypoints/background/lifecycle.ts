@@ -15,7 +15,6 @@ import {
 } from "../../domain/silent-export";
 import { isEn, t } from "../../shared/i18n";
 import { ensureOffscreenDocument } from "../../shared/offscreen";
-import { t } from "../../shared/i18n";
 import type { BackgroundContext } from "./context";
 
 export type StartSessionPayload = Extract<
@@ -338,8 +337,7 @@ export function createSessionLifecycle(
     commandId: string
   ): Promise<RecordingSession> {
     const previous = await db.getSession(sessionId);
-    if (!previous)
-      throw new Error(t("resumeSessionNotFound", sessionId));
+    if (!previous) throw new Error(t("resumeSessionNotFound", sessionId));
     if (
       !previous.quality.issues.some(
         (entry) =>
@@ -416,9 +414,7 @@ export function createSessionLifecycle(
       await cdpCollector
         .finalizeNetworkBodies(stopping)
         .catch((error) =>
-          cleanupErrors.push(
-            t("cleanupNetworkFinalizeFailed", [String(error)])
-          )
+          cleanupErrors.push(t("cleanupNetworkFinalizeFailed", [String(error)]))
         );
       await issueSceneCapture
         .finalizeUnfinished(session.id)
@@ -428,9 +424,7 @@ export function createSessionLifecycle(
           )
         );
       await reconcileSessionQuality(session.id).catch((error) =>
-        cleanupErrors.push(
-          t("cleanupQualityReconcileFailed", [String(error)])
-        )
+        cleanupErrors.push(t("cleanupQualityReconcileFailed", [String(error)]))
       );
     } finally {
       await cdpCollector.detach(session.target.tabId);

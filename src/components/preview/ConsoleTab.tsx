@@ -6,6 +6,7 @@ import { useFilteredList } from "../../hooks/useFilteredList.ts";
 import { filterConsoleEntries } from "../../preview/console-filter.ts";
 import { handleFilterEscape } from "../../preview/filter-search.ts";
 import { t, getLocale } from "../../shared/i18n.ts";
+import { formatTime } from "../../shared/intl-formatter.ts";
 
 export interface ConsoleTabProps {
   snapshot: {
@@ -43,7 +44,7 @@ export const ConsoleTab = memo(function ConsoleTab({
         const relative = formatElapsedEpochTime(epochMs, originEpochMs);
         if (relative !== undefined) return relative;
       }
-      return new Date(epochMs).toLocaleTimeString(getLocale());
+      return formatTime(epochMs, undefined, getLocale());
     },
     [originEpochMs]
   );
@@ -137,9 +138,7 @@ export const ConsoleTab = memo(function ConsoleTab({
                     className={`console-row console-row-${level}${entry.id === selectedId ? " selected" : ""}`}
                     data-id={entry.id}
                     tabIndex={0}
-                    aria-current={
-                      entry.id === selectedId ? "true" : undefined
-                    }
+                    aria-current={entry.id === selectedId ? "true" : undefined}
                     onClick={() => handleRowClick(entry.id, entry.createdAt)}
                     onKeyDown={(e) => {
                       if (e.key !== "Enter" && e.key !== " ") return;

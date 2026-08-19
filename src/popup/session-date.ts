@@ -1,4 +1,5 @@
 import { getLocale } from "../shared/i18n.ts";
+import { formatDateTime } from "../shared/intl-formatter.ts";
 
 /**
  * Popup 历史列表会话日期格式化（纯函数，便于单测）。
@@ -13,5 +14,5 @@ export function formatSessionDate(
   epochMs: number,
   locale: string = getLocale()
 ): string {
-  return new Date(epochMs).toLocaleString(locale);
+  return formatDateTime(epochMs, undefined, locale);
 }

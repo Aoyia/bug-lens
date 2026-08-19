@@ -1,6 +1,7 @@
 import type { InteractionRecord } from "../shared/protocol";
 import type { IssueScenePreview } from "./issue-scene-view";
 import { getLocale, t } from "../shared/i18n.ts";
+import { formatTime } from "../shared/intl-formatter.ts";
 
 type ViewerImageItem = {
   id: string;
@@ -86,7 +87,7 @@ export class ImageViewer {
           id,
           title: t("issueSceneTitle", [
             String(sceneIndex + 1),
-            new Date(scene.observedAtEpochMs).toLocaleTimeString(getLocale()),
+            formatTime(scene.observedAtEpochMs, undefined, getLocale()),
             candidate.mode === "annotated"
               ? t("imageModeAnnotated")
               : t("imageModeOriginal"),

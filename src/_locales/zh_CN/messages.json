@@ -4,7 +4,7 @@
     "description": "The name of the extension"
   },
   "extensionDescription": {
-    "message": "捕获网页 Bug 现场证据的轻量级扩展工具。",
+    "message": "一键捕获网页端控制台、网络请求与交互时序，生成结构化上下文，专为 Cursor、Claude 等 AI 助手排查 Bug 设计。",
     "description": "The description of the extension"
   },
   "actionDefaultTitle": {

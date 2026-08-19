@@ -10,8 +10,9 @@ import { PreviewSessionRuntime } from "../../preview/preview-session-runtime";
 import {
   buildEvidencePackage,
   buildAiPrompt,
-  type StaticReportAssets,
 } from "../../preview/evidence-package";
+import { loadStaticReportAssets } from "../../preview/static-report-assets";
+import { buildExportManifest } from "../../export/export-manifest";
 import {
   writeEvidenceArchive,
   type ArchiveFile,
@@ -502,12 +503,7 @@ async function exportPack(payload: { sessionId: string }): Promise<{
   }
 
   const filename = `web-bug-report-${payload.sessionId.slice(0, 8)}.zip`;
-  const reportAssets: StaticReportAssets = {
-    html: "",
-    script: "",
-    styles: "",
-    icon: new Uint8Array(0),
-  };
+  const reportAssets = await loadStaticReportAssets();
 
   // 构建证据包文件清单（截图、录制分片、元数据等）
   const packageFiles = buildEvidencePackage(snapshot, reportAssets);
@@ -526,6 +522,16 @@ async function exportPack(payload: { sessionId: string }): Promise<{
     sessionId: payload.sessionId,
     mediaSource: db,
     sink,
+    createManifest: (integrity) => ({
+      name: "manifest.json",
+      data: new TextEncoder().encode(
+        JSON.stringify(
+          buildExportManifest(snapshot.session, integrity),
+          null,
+          2
+        )
+      ),
+    }),
   });
 
   const zipBlob = new Blob(zipChunks as BlobPart[], {

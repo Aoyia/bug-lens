@@ -3,6 +3,7 @@ import type { FrameworkStateEvidence } from "../../shared/protocol";
 import { renderFrameworkSnapshot } from "../../preview/framework-view";
 import { formatElapsedEpochTime } from "../../domain/evidence-clock";
 import { t, getLocale } from "../../shared/i18n.ts";
+import { formatTime } from "../../shared/intl-formatter.ts";
 
 export interface FrameworkStateTabProps {
   states: FrameworkStateEvidence[];
@@ -63,9 +64,7 @@ export const FrameworkStateTab = memo(function FrameworkStateTab({
               </span>
               <time>
                 {elapsed ??
-                  new Date(state.capturedAtEpochMs).toLocaleTimeString(
-                    getLocale()
-                  )}
+                  formatTime(state.capturedAtEpochMs, undefined, getLocale())}
               </time>
               <span className="framework-state-url" title={state.page.url}>
                 {state.page.url}

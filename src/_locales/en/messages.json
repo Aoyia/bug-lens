@@ -4,7 +4,7 @@
     "description": "The name of the extension"
   },
   "extensionDescription": {
-    "message": "A lightweight browser extension to capture in-situ evidence for web bugs.",
+    "message": "Capture browser bug context (Console, Network, User Actions) and export structured prompts for Cursor, Claude Code, and AI assistants.",
     "description": "The description of the extension"
   },
   "actionDefaultTitle": {

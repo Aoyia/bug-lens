@@ -194,12 +194,52 @@ test.describe("Bug Lens Chrome Extension E2E User Journey", () => {
     // 验证证据包已真实落盘且为合法 ZIP（静默导出不打开 Preview，直接产出证据包）
     const archivePath = exportedDownload.filename;
     expect(archivePath).toBeTruthy();
-    const { readFileSync } = await import("node:fs");
-    const zipHeader = readFileSync(archivePath).subarray(0, 4);
+    const { readFileSync, mkdtempSync, mkdirSync, writeFileSync } =
+      await import("node:fs");
+    const path = await import("node:path");
+    const os = await import("node:os");
+    const { unzipSync } = await import("fflate");
+
+    const zipBuffer = readFileSync(archivePath);
+    const zipHeader = zipBuffer.subarray(0, 4);
     expect(zipHeader.toString("latin1").startsWith("PK")).toBe(true);
-    logE2e("Silent export archive landed on disk", {
+
+    const unzipped = unzipSync(new Uint8Array(zipBuffer));
+    expect(unzipped["README.md"]).toBeDefined();
+    expect(unzipped["AI_PROMPT.md"]).toBeDefined();
+    expect(unzipped["report.html"]).toBeDefined();
+    expect(unzipped["report.html"]!.byteLength).toBeGreaterThan(500);
+    expect(unzipped["assets/report.js"]).toBeDefined();
+    expect(unzipped["assets/report.js"]!.byteLength).toBeGreaterThan(0);
+    expect(unzipped["assets/report.css"]).toBeDefined();
+    expect(unzipped["assets/report.css"]!.byteLength).toBeGreaterThan(0);
+    expect(unzipped["assets/icon_idle.png"]).toBeDefined();
+    expect(unzipped["assets/icon_idle.png"]!.byteLength).toBeGreaterThan(0);
+    expect(unzipped["data/session-data.js"]).toBeDefined();
+    expect(unzipped["data/network-details.js"]).toBeDefined();
+
+    // 验证解压后离线报告可直接在无服务器环境下本地打开并正确渲染
+    const extractDir = mkdtempSync(
+      path.join(os.tmpdir(), "playwright-silent-export-")
+    );
+    for (const [key, data] of Object.entries(unzipped)) {
+      const targetPath = path.join(extractDir, key);
+      mkdirSync(path.dirname(targetPath), { recursive: true });
+      writeFileSync(targetPath, data);
+    }
+    const offlineReportUrl = `file://${path.join(extractDir, "report.html")}`;
+    const reportPage = await context.newPage();
+    await reportPage.goto(offlineReportUrl, {
+      waitUntil: "domcontentloaded",
+    });
+    await expect(reportPage.locator("#title")).toHaveText(
+      evidence.session?.target.initialTitle ?? ""
+    );
+    await reportPage.close();
+
+    logE2e("Silent export archive and offline report.html verified", {
       path: archivePath,
-      header: zipHeader.toString("latin1"),
+      htmlBytes: unzipped["report.html"]!.byteLength,
     });
 
     // --- 三、停止后的资源清理断言 ---

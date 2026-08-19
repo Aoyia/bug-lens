@@ -12,6 +12,7 @@ import { formatElapsedEpochTime } from "../../domain/evidence-clock";
 
 import { copyTextToClipboard } from "../../preview/clipboard";
 import { t, getLocale } from "../../shared/i18n.ts";
+import { formatDateTime, formatTime } from "../../shared/intl-formatter.ts";
 
 /**
  * 步骤卡片时间的统一时间语言：优先显示相对录制起点的 MM:SS.mmm
@@ -27,7 +28,7 @@ function formatStepTime(
     const relative = formatElapsedEpochTime(epochMs, originEpochMs);
     if (relative !== undefined) return relative;
   }
-  return new Date(epochMs).toLocaleTimeString(getLocale());
+  return formatTime(epochMs, undefined, getLocale());
 }
 
 function formatPlaywrightLocator(
@@ -325,7 +326,9 @@ export const InteractionsTab = memo(function InteractionsTab({
                 className="step-time"
                 title={t(
                   "absoluteTime",
-                  new Date(card.aggregatedMeta.startTime).toLocaleString(
+                  formatDateTime(
+                    card.aggregatedMeta.startTime,
+                    undefined,
                     getLocale()
                   )
                 )}
@@ -339,7 +342,9 @@ export const InteractionsTab = memo(function InteractionsTab({
                     className="step-time"
                     title={t(
                       "absoluteTime",
-                      new Date(card.aggregatedMeta.endTime).toLocaleString(
+                      formatDateTime(
+                        card.aggregatedMeta.endTime,
+                        undefined,
                         getLocale()
                       )
                     )}
@@ -380,7 +385,9 @@ export const InteractionsTab = memo(function InteractionsTab({
                         <span
                           title={t(
                             "absoluteTime",
-                            new Date(child.createdAt).toLocaleString(
+                            formatDateTime(
+                              child.createdAt,
+                              undefined,
                               getLocale()
                             )
                           )}

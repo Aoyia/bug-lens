@@ -14,6 +14,10 @@ import { handleFilterEscape } from "../../preview/filter-search.ts";
 import { escapeHtml, renderCodeBlockHtml } from "../../preview/rendering.ts";
 import { useFilteredList } from "../../hooks/useFilteredList.ts";
 import { t, getLocale } from "../../shared/i18n.ts";
+import {
+  formatDateTime,
+  formatTimeWithMs,
+} from "../../shared/intl-formatter.ts";
 
 export interface NetworkTabProps {
   snapshot: {
@@ -36,8 +40,7 @@ function networkTime(entry: NetworkEntry, session?: RecordingSession): string {
       ? undefined
       : formatElapsedEpochTime(entry.createdAt, originEpochMs);
   if (relativeTime) return relativeTime;
-  const date = new Date(entry.createdAt);
-  return `${date.toLocaleTimeString([], { hour12: false })}.${String(date.getMilliseconds()).padStart(3, "0")}`;
+  return formatTimeWithMs(entry.createdAt, getLocale());
 }
 
 function renderNetworkDetailHtml(entry?: NetworkEntry): string {
@@ -269,7 +272,7 @@ export const NetworkTab = memo(function NetworkTab({
                       className="col-time"
                       title={t(
                         "absoluteTime",
-                        new Date(entry.createdAt).toLocaleString(getLocale())
+                        formatDateTime(entry.createdAt, undefined, getLocale())
                       )}
                     >
                       {networkTime(entry, snapshot.session)}
