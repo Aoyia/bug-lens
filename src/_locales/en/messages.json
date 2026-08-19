@@ -60,7 +60,7 @@
     "message": "Feed to AI"
   },
   "workflowAiHint": {
-    "message": "Auto-copies prompt on completion, paste directly into AI"
+    "message": "Auto-copies prompt on completion, paste directly into Cursor / Claude etc."
   },
   "config": {
     "message": "Settings"

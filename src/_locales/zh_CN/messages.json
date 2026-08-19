@@ -60,7 +60,7 @@
     "message": "喂给 AI"
   },
   "workflowAiHint": {
-    "message": "录制结束自动复制 Prompt，直接粘贴到 Cursor / Claude"
+    "message": "录制结束自动复制 Prompt，直接粘贴到 Cursor / Claude 等 AI"
   },
   "config": {
     "message": "配置"
