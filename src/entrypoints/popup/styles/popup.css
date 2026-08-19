@@ -432,6 +432,181 @@ button.action-btn.start:disabled:hover {
   background: linear-gradient(135deg, var(--bl-primary) 0%, #0e42d2 100%);
 }
 
+/* Workflow Guide Card (新手 5 次 AI 科技感微流光引导卡片) */
+.workflow-guide {
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: linear-gradient(
+    120deg,
+    #f2f7ff 0%,
+    #f4f6fe 25%,
+    #f6f1fe 50%,
+    #f4f6fe 75%,
+    #f2f7ff 100%
+  );
+  background-size: 250% 100%;
+  animation:
+    guide-appear 0.3s cubic-bezier(0.16, 1, 0.3, 1) both,
+    guide-shimmer 6s ease-in-out infinite;
+  border: 1px solid rgba(22, 93, 255, 0.18);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
+@keyframes guide-appear {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes guide-shimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.workflow-steps {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.workflow-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.step-num {
+  width: 16px;
+  height: 16px;
+  line-height: 16px;
+  text-align: center;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary) 0%, #305eff 100%);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(22, 93, 255, 0.25);
+}
+
+.step-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-main);
+  white-space: nowrap;
+}
+
+.step-kbd {
+  font-family: inherit;
+  font-size: 9.5px;
+  color: var(--ink-sub);
+  background: #ffffff;
+  border: 1px solid rgba(22, 93, 255, 0.25);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  border-radius: 3px;
+  padding: 0 3px;
+  line-height: 14px;
+  height: 14px;
+  display: inline-block;
+  font-weight: 600;
+}
+
+.step-arrow {
+  color: var(--primary);
+  font-size: 10px;
+  opacity: 0.6;
+  user-select: none;
+  display: inline-block;
+  animation: arrow-pulse 2.2s ease-in-out infinite;
+}
+
+.step-arrow:nth-of-type(1) {
+  animation-delay: 0s;
+}
+
+.step-arrow:nth-of-type(2) {
+  animation-delay: 0.45s;
+}
+
+@keyframes arrow-pulse {
+  0%,
+  100% {
+    transform: translateX(0);
+    opacity: 0.45;
+  }
+  50% {
+    transform: translateX(2.5px);
+    opacity: 1;
+    color: #0e42d2;
+  }
+}
+
+.workflow-hint {
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px dashed rgba(22, 93, 255, 0.16);
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.hint-pill {
+  background: linear-gradient(135deg, var(--primary) 0%, #722ed1 100%);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 0 5px;
+  border-radius: 3px;
+  line-height: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  letter-spacing: 0.3px;
+  margin-top: 1px;
+  animation: ai-tag-glow 2.8s ease-in-out infinite alternate;
+}
+
+@keyframes ai-tag-glow {
+  0% {
+    box-shadow: 0 0 0 rgba(22, 93, 255, 0);
+  }
+  100% {
+    box-shadow:
+      0 0 8px rgba(22, 93, 255, 0.45),
+      0 0 3px rgba(114, 46, 209, 0.35);
+  }
+}
+
+.hint-text {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-main);
+  line-height: 1.45;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workflow-guide,
+  .step-arrow,
+  .hint-pill {
+    animation: none !important;
+  }
+}
+
 /* Search Wrapper */
 .search-wrapper {
   position: relative;

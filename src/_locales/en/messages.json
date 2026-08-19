@@ -50,6 +50,18 @@
   "defaultSafeCollection": {
     "message": "Default · Safe Full Capture"
   },
+  "workflowStepStart": {
+    "message": "Start Record"
+  },
+  "workflowStepReproduce": {
+    "message": "Reproduce"
+  },
+  "workflowStepPromptAi": {
+    "message": "Feed to AI"
+  },
+  "workflowAiHint": {
+    "message": "Auto-copies prompt on completion, paste directly into AI"
+  },
   "config": {
     "message": "Settings"
   },

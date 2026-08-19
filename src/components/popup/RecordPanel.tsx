@@ -16,6 +16,8 @@ const isMac =
 /** 全局录制与截图快捷键 */
 const recordShortcut = isMac ? "Option+R" : "Alt+R";
 const screenshotShortcut = isMac ? "Option+X" : "Alt+X";
+const recordShortcutBadge = isMac ? "⌥R" : "Alt+R";
+const screenshotShortcutBadge = isMac ? "⌥X" : "Alt+X";
 
 /**
  * 采集契约：与 background 快捷键入口（startRecordingViaShortcut /
@@ -35,6 +37,8 @@ interface RecordPanelProps {
   ready: boolean;
   /** 录制启动流程进行中（异步提交 pending）：禁用开始按钮并显示启动反馈 */
   starting: boolean;
+  /** 是否展示新手 3 步工作流认知卡片（基于 storage 计数最多展示 5 次） */
+  showWorkflowGuide?: boolean;
   timerText: string;
   getStatusText: () => string;
   activeEvidence: (session?: RecordingSession) => EvidenceSummary[];
@@ -53,6 +57,7 @@ export const RecordPanel = memo(function RecordPanel({
   active,
   ready,
   starting,
+  showWorkflowGuide = false,
   timerText,
   getStatusText,
   activeEvidence,
@@ -253,6 +258,37 @@ export const RecordPanel = memo(function RecordPanel({
           </>
         )}
       </div>
+
+      {!active && !ready && showWorkflowGuide && (
+        <div className="workflow-guide" data-testid="workflow-guide">
+          <div className="workflow-steps">
+            <div className="workflow-step">
+              <span className="step-num">1</span>
+              <span className="step-label">{t("workflowStepStart")}</span>
+              <kbd className="step-kbd">{recordShortcutBadge}</kbd>
+            </div>
+            <span className="step-arrow" aria-hidden="true">
+              ➔
+            </span>
+            <div className="workflow-step">
+              <span className="step-num">2</span>
+              <span className="step-label">{t("workflowStepReproduce")}</span>
+              <kbd className="step-kbd">{screenshotShortcutBadge}</kbd>
+            </div>
+            <span className="step-arrow" aria-hidden="true">
+              ➔
+            </span>
+            <div className="workflow-step">
+              <span className="step-num">3</span>
+              <span className="step-label">{t("workflowStepPromptAi")}</span>
+            </div>
+          </div>
+          <div className="workflow-hint">
+            <span className="hint-pill">AI</span>
+            <span className="hint-text">{t("workflowAiHint")}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 });

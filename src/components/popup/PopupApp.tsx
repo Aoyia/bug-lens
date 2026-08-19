@@ -36,6 +36,7 @@ import { OptionsGrid, type VideoQuality } from "./OptionsGrid.tsx";
 import { HistoryList } from "./HistoryList.tsx";
 
 const HISTORY_SEARCH_DEBOUNCE_MS = 300;
+const MAX_WORKFLOW_GUIDE_VIEWS = 5;
 
 export function PopupApp() {
   const { send } = useRpc();
@@ -59,6 +60,8 @@ export function PopupApp() {
   // 启动录制是异步慢操作（权限检查/取流/内容脚本注入）：提交期间置位，
   // 用于禁用开始按钮并提供"正在启动"反馈，防止重复点击触发二次启动。
   const [starting, setStarting] = useState<boolean>(false);
+  // 新手 3 步工作流认知卡片展示门控：基于 local storage 计数前 5 次展示
+  const [showWorkflowGuide, setShowWorkflowGuide] = useState<boolean>(false);
 
   // 录制选项状态
   const [captureVideo, setCaptureVideo] = useState<boolean>(true);
@@ -102,9 +105,22 @@ export function PopupApp() {
         // 首次引导已迁移至 GitHub Pages 网页（安装后自动打开），扩展内不再内嵌引导
         const stored = (await chrome.storage.local.get([
           "last-recording-options",
+          "workflowGuideViewCount",
         ])) as {
           "last-recording-options"?: Partial<RecordingOptions>;
+          workflowGuideViewCount?: number;
         };
+        // 认知卡片前 5 次打开展示门控
+        const viewCount =
+          typeof stored?.workflowGuideViewCount === "number"
+            ? stored.workflowGuideViewCount
+            : 0;
+        if (viewCount < MAX_WORKFLOW_GUIDE_VIEWS) {
+          setShowWorkflowGuide(true);
+          void chrome.storage.local
+            .set({ workflowGuideViewCount: viewCount + 1 })
+            .catch(() => undefined);
+        }
         // 回填上次录制选项，保证 Popup 与全局快捷键使用一致的配置
         const last = stored?.["last-recording-options"];
         if (last) {
@@ -657,6 +673,7 @@ export function PopupApp() {
           ready={previewReady}
           timerText={timerText}
           starting={starting}
+          showWorkflowGuide={showWorkflowGuide}
           getStatusText={getStatusText}
           activeEvidence={activeEvidence}
           evidenceLabel={evidenceLabel}

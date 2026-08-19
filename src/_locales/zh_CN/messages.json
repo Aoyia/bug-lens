@@ -50,6 +50,18 @@
   "defaultSafeCollection": {
     "message": "默认 · 安全全量采集"
   },
+  "workflowStepStart": {
+    "message": "启动录制"
+  },
+  "workflowStepReproduce": {
+    "message": "复现圈选"
+  },
+  "workflowStepPromptAi": {
+    "message": "喂给 AI"
+  },
+  "workflowAiHint": {
+    "message": "录制结束自动复制 Prompt，直接粘贴到 Cursor / Claude"
+  },
   "config": {
     "message": "配置"
   },

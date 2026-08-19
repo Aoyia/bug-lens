@@ -438,3 +438,74 @@ test("进入历史视图必须把焦点交给搜索框（主操作控件直达�
     "聚焦 effect 必须以 currentView 为依赖（仅在视图切换时触发）"
   );
 });
+
+test("PopupApp 闲置态展示 3 步工作流心智卡片，并经由 storage 计数至多展示 5 次", () => {
+  const popupApp = readFileSync(
+    resolve(process.cwd(), "src/components/popup/PopupApp.tsx"),
+    "utf8"
+  );
+  const recordPanel = readFileSync(
+    resolve(process.cwd(), "src/components/popup/RecordPanel.tsx"),
+    "utf8"
+  );
+  const popupCss = readFileSync(
+    resolve(process.cwd(), "src/entrypoints/popup/styles/popup.css"),
+    "utf8"
+  );
+
+  // 1. PopupApp 必须定义 MAX_WORKFLOW_GUIDE_VIEWS = 5 门控阈值并读取/更新 workflowGuideViewCount
+  assert.match(
+    popupApp,
+    /MAX_WORKFLOW_GUIDE_VIEWS\s*=\s*5/,
+    "PopupApp 必须定义至多展示 5 次的门控常量"
+  );
+  assert.match(
+    popupApp,
+    /workflowGuideViewCount/,
+    "PopupApp 必须在 local storage 中读写 workflowGuideViewCount"
+  );
+  assert.match(
+    popupApp,
+    /showWorkflowGuide=\{showWorkflowGuide\}/,
+    "PopupApp 必须将 showWorkflowGuide 状态传递给 RecordPanel"
+  );
+
+  // 2. RecordPanel 必须在 !active && !ready && showWorkflowGuide 时渲染 workflow-guide
+  assert.match(
+    recordPanel,
+    /showWorkflowGuide/,
+    "RecordPanel 必须声明 showWorkflowGuide prop"
+  );
+  assert.match(
+    recordPanel,
+    /className="workflow-guide"/,
+    "RecordPanel 必须包含 className='workflow-guide' 容器"
+  );
+  assert.match(
+    recordPanel,
+    /t\("workflowStepStart"\)/,
+    "引导卡片步骤 1 必须使用 t('workflowStepStart')"
+  );
+  assert.match(
+    recordPanel,
+    /t\("workflowStepReproduce"\)/,
+    "引导卡片步骤 2 必须使用 t('workflowStepReproduce')"
+  );
+  assert.match(
+    recordPanel,
+    /t\("workflowStepPromptAi"\)/,
+    "引导卡片步骤 3 必须使用 t('workflowStepPromptAi')"
+  );
+  assert.match(
+    recordPanel,
+    /t\("workflowAiHint"\)/,
+    "引导卡片必须使用 t('workflowAiHint') 交付说明"
+  );
+
+  // 3. CSS 样式必须定义 .workflow-guide
+  assert.match(
+    popupCss,
+    /\.workflow-guide\s*\{/,
+    "popup.css 必须包含 .workflow-guide 样式规则"
+  );
+});
