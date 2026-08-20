@@ -1498,10 +1498,10 @@
     "message": "一键清空标注"
   },
   "screenshotToastWithPath": {
-    "message": "已下载 ZIP 并复制 AI 提示词（含本地绝对路径）！"
+    "message": "[ZIP] 截图证据包已下载完成\nAI Prompt 已复制（含路径），在 Cursor / Claude 中按 ⌘V 粘贴排查"
   },
   "screenshotToastWithoutPath": {
-    "message": "已下载 ZIP 并复制 AI 提示词，请在提示词中手动填入 ZIP 路径"
+    "message": "[ZIP] 截图证据包已下载完成\nAI Prompt 已复制，直接在 Cursor / Claude 中按 ⌘V 粘贴排查"
   },
   "waitForEvidenceLoad": {
     "message": "请先等待证据预览加载完成。"

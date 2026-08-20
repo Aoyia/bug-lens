@@ -129,4 +129,34 @@ describe("i18n Sync and Translation", () => {
       "en exportSuccessCopied 应同时包含 ZIP 下载与 Cursor/Claude 粘贴指引"
     );
   });
+
+  test("截图导出 Toast 提示文案同样包含双行结构与 Cursor/Claude 粘贴排查指引", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const zhDict = JSON.parse(
+      fs.readFileSync(
+        path.resolve(process.cwd(), "src/_locales/zh_CN/messages.json"),
+        "utf8"
+      )
+    );
+    const enDict = JSON.parse(
+      fs.readFileSync(
+        path.resolve(process.cwd(), "src/_locales/en/messages.json"),
+        "utf8"
+      )
+    );
+
+    assert.ok(
+      zhDict.screenshotToastWithPath.message.includes("\n") &&
+        zhDict.screenshotToastWithPath.message.includes("Cursor") &&
+        zhDict.screenshotToastWithPath.message.includes("Claude"),
+      "zh_CN screenshotToastWithPath 应采用双行结构并包含 Cursor/Claude 粘贴指引"
+    );
+    assert.ok(
+      enDict.screenshotToastWithPath.message.includes("\n") &&
+        enDict.screenshotToastWithPath.message.includes("Cursor") &&
+        enDict.screenshotToastWithPath.message.includes("Claude"),
+      "en screenshotToastWithPath 应采用双行结构并包含 Cursor/Claude 粘贴指引"
+    );
+  });
 });

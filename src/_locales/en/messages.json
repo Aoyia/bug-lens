@@ -1498,10 +1498,10 @@
     "message": "Clear all annotations"
   },
   "screenshotToastWithPath": {
-    "message": "ZIP downloaded and AI prompt copied (with absolute path)!"
+    "message": "[ZIP] Screenshot evidence downloaded\nAI Prompt copied (with path), paste with ⌘V in Cursor / Claude to diagnose"
   },
   "screenshotToastWithoutPath": {
-    "message": "ZIP downloaded and AI prompt copied; fill in the ZIP path manually in the prompt"
+    "message": "[ZIP] Screenshot evidence downloaded\nAI Prompt copied, paste with ⌘V in Cursor / Claude to diagnose"
   },
   "waitForEvidenceLoad": {
     "message": "Please wait for the evidence preview to finish loading."

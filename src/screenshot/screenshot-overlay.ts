@@ -621,7 +621,8 @@ export class ScreenshotOverlay {
     if (existing) existing.remove();
 
     const toast = document.createElement("div");
-    toast.id = "__bug_lens_screenshot_toast__";
+    const isDualLine = message.includes("\n");
+    toast.id = "__wbr_screenshot_toast__";
     toast.setAttribute("data-wbr-ignore", "true");
     toast.style.cssText = `
       position: fixed !important;
@@ -634,11 +635,10 @@ export class ScreenshotOverlay {
       backdrop-filter: blur(16px) !important;
       border: 1px solid rgba(0, 0, 0, 0.08) !important;
       color: #1d2129 !important;
-      padding: 6px 16px !important;
-      border-radius: 6px !important;
-      font-size: 13px !important;
-      font-weight: 500 !important;
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+      padding: ${isDualLine ? "10px 18px" : "6px 16px"} !important;
+      border-radius: 8px !important;
+      font-size: 13.5px !important;
+      box-shadow: 0 16px 42px -6px rgba(0, 0, 0, 0.18), 0 6px 16px -2px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04) !important;
       display: flex !important;
       align-items: center !important;
       gap: 8px !important;
@@ -647,8 +647,6 @@ export class ScreenshotOverlay {
       opacity: 0 !important;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
     `;
-
-    const isDualLine = message.includes("\n");
     let contentHtml = "";
     if (isDualLine) {
       const [title, ...rest] = message.split("\n");
