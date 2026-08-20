@@ -26,6 +26,7 @@ const rotr = (value: number, amount: number) =>
 export class Sha256 {
   private readonly state = INITIAL.slice();
   private readonly buffer = new Uint8Array(64);
+  private readonly words = new Uint32Array(64);
   private buffered = 0;
   private byteLength = 0;
   private finished = false;
@@ -83,7 +84,7 @@ export class Sha256 {
   }
 
   private process(block: Uint8Array): void {
-    const words = new Uint32Array(64);
+    const words = this.words;
     // 将 64 字节消息块拆为 16 个 32 位大端字
     for (let index = 0; index < 16; index += 1)
       words[index] =

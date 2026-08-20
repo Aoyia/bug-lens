@@ -49,6 +49,7 @@ export async function writeEvidenceArchive(input: {
   sink: ArchiveSink;
   onProgress?: (progress: ExportProgress) => void;
   createManifest?: (files: ArchiveEntryIntegrity) => ArchiveFile;
+  precomputedMediaIntegrity?: { byteLength: number; sha256: string };
 }): Promise<ExportProgress> {
   // 背压队列：sink 写入速度慢于 zip 产出时按序排队，防止乱序与内存堆积
   let outputQueue: Promise<void> = Promise.resolve();
@@ -100,9 +101,9 @@ export async function writeEvidenceArchive(input: {
     );
 
     for (const { file, hash } of fileHashes) {
-      // 文本可压缩用 Deflate 最高档；媒体已是压缩格式走 PassThrough，避免二次压缩耗时
+      // 文本用 Deflate 快速压缩档（level 1），避免 level 9 对大 JSON 的无谓 CPU 损耗；媒体走 PassThrough
       const entry = isTextFile(file.name)
-        ? new ZipDeflate(file.name, { level: 9 })
+        ? new ZipDeflate(file.name, { level: 1 })
         : new ZipPassThrough(file.name);
       zip.add(entry);
       entry.push(file.data, true);
@@ -114,6 +115,8 @@ export async function writeEvidenceArchive(input: {
     let mediaEntry: ZipPassThrough | undefined;
     let mediaHash: Sha256 | undefined;
     let mediaBytes = 0;
+    const usePrecomputed = Boolean(input.precomputedMediaIntegrity);
+
     await input.mediaSource.iterateMediaChunks(
       input.sessionId,
       async (record) => {
@@ -126,27 +129,32 @@ export async function writeEvidenceArchive(input: {
           mediaEntry = new ZipPassThrough("media/recording.webm");
           zip.add(mediaEntry);
           progress.entriesWritten += 1;
-          // 分片流式回读时用增量哈希累积，避免整包缓冲媒体数据
-          mediaHash = new Sha256();
+          if (!usePrecomputed) {
+            // 分片流式回读时用增量哈希累积，避免整包缓冲媒体数据
+            mediaHash = new Sha256();
+          }
         }
         const bytes = new Uint8Array(record.chunk);
         mediaEntry.push(bytes, false); // 非末片，暂不结束条目
-        mediaHash!.update(bytes);
+        if (!usePrecomputed) {
+          mediaHash!.update(bytes);
+        }
         mediaBytes += bytes.byteLength;
         progress.mediaChunksWritten += 1;
         await flushOutput();
       }
     );
     mediaEntry?.push(new Uint8Array(), true); // 空块收尾，通知 fflate 结束媒体条目
-    if (mediaEntry && mediaHash)
-      integrity["media/recording.webm"] = {
+    if (mediaEntry) {
+      integrity["media/recording.webm"] = input.precomputedMediaIntegrity ?? {
         byteLength: mediaBytes,
-        sha256: mediaHash.digestHex(),
+        sha256: mediaHash ? mediaHash.digestHex() : "",
       };
+    }
     if (input.createManifest) {
       const manifest = input.createManifest(integrity);
       const entry = isTextFile(manifest.name)
-        ? new ZipDeflate(manifest.name, { level: 9 })
+        ? new ZipDeflate(manifest.name, { level: 1 })
         : new ZipPassThrough(manifest.name);
       zip.add(entry);
       entry.push(manifest.data, true);

@@ -20,7 +20,13 @@ async function loadAsset(path: string): Promise<Response> {
   return response;
 }
 
-export async function loadStaticReportAssets(): Promise<StaticReportAssets> {
+const assetsCache = new Map<string, Promise<StaticReportAssets>>();
+
+export function clearStaticReportAssetsCache(): void {
+  assetsCache.clear();
+}
+
+async function loadStaticReportAssetsUncached(): Promise<StaticReportAssets> {
   const locale = getLocale();
   const localeFolder = locale === "en-US" ? "en" : "zh_CN";
   const [html, script, icon, localeMessages, ...styles] = await Promise.all([
@@ -45,4 +51,25 @@ export async function loadStaticReportAssets(): Promise<StaticReportAssets> {
     localeMessages,
     styles: styles.join("\n"),
   };
+}
+
+export function loadStaticReportAssets(): Promise<StaticReportAssets> {
+  const version =
+    typeof chrome !== "undefined" && chrome.runtime?.getManifest
+      ? chrome.runtime.getManifest()?.version || "0.0.0"
+      : "0.0.0";
+  const locale = getLocale();
+  const cacheKey = `${version}_${locale}`;
+
+  const cached = assetsCache.get(cacheKey);
+  if (cached) return cached;
+
+  const loadPromise = loadStaticReportAssetsUncached().catch((error) => {
+    // 失败时不缓存错误，允许后续重试
+    assetsCache.delete(cacheKey);
+    throw error;
+  });
+
+  assetsCache.set(cacheKey, loadPromise);
+  return loadPromise;
 }

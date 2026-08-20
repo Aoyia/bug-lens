@@ -17,6 +17,7 @@ import {
   writeEvidenceArchive,
   type ArchiveFile,
 } from "../../export/export-pipeline";
+import { Sha256 } from "../../export/sha256";
 
 // 预先加载并初始化用户语言偏好，使 t() 在 offscreen 中与 background 保持一致
 void initI18nPreference();
@@ -30,6 +31,12 @@ let activeSessionId: string | undefined; // 当前录制中的会话 ID
 let storageWarningSent = false; // 单会话存储上限告警是否已上报
 let recordingBlocked = false; // 存储拒写后置位，阻止继续录制
 const pendingWrites = new Set<Promise<void>>(); // 进行中的分片写入，停止录制时需等待清空
+let activeMediaHash: Sha256 | undefined; // 录制期间实时累加的视频 SHA-256 哈希
+let activeMediaBytes = 0; // 录制期间实时累加的视频字节数
+const precomputedMediaIntegrityMap = new Map<
+  string,
+  { byteLength: number; sha256: string }
+>();
 
 function withTimeout<T>(
   promise: Promise<T>,
@@ -72,6 +79,8 @@ async function startMedia(
   sequence = 0;
   storageWarningSent = false;
   recordingBlocked = false;
+  activeMediaHash = new Sha256();
+  activeMediaBytes = 0;
   // 采集整个标签页：chromeMediaSource: "tab" + tabCapture 提供的 streamId
   const constraints: MediaStreamConstraints = {
     video: {
@@ -117,6 +126,10 @@ async function startMedia(
       write = event.data
         .arrayBuffer()
         .then(async (buffer) => {
+          // 实时累加 SHA-256 哈希与字节数，省去导出时的重复全量计算
+          activeMediaHash?.update(new Uint8Array(buffer));
+          activeMediaBytes += buffer.byteLength;
+
           // 分片 ID 按 (sessionId:sequence) 命名，保证有序且可精确去重
           const result = await db.saveMediaChunkWithinBudget({
             id: `${sessionId}:${chunkSequence}`,
@@ -221,6 +234,8 @@ async function startMedia(
     capturedStream = undefined;
     recorder = undefined;
     activeSessionId = undefined;
+    activeMediaHash = undefined;
+    activeMediaBytes = 0;
     await playbackContext?.close().catch(() => undefined);
     playbackContext = undefined;
     throw error;
@@ -251,12 +266,23 @@ async function stopMedia(sessionId: string): Promise<void> {
   const failures = writes.filter(
     (result): result is PromiseRejectedResult => result.status === "rejected"
   );
+
+  // 记录该会话实时累加的最终媒体完整性校验哈希
+  if (activeMediaHash && sessionId) {
+    precomputedMediaIntegrityMap.set(sessionId, {
+      byteLength: activeMediaBytes,
+      sha256: activeMediaHash.digestHex(),
+    });
+  }
+
   capturedStream?.getTracks().forEach((track) => track.stop());
   await playbackContext?.close().catch(() => undefined);
   playbackContext = undefined;
   capturedStream = undefined;
   recorder = undefined;
   activeSessionId = undefined;
+  activeMediaHash = undefined;
+  activeMediaBytes = 0;
   storageWarningSent = false;
   recordingBlocked = false;
   if (stopError) throw stopError;
@@ -494,54 +520,63 @@ async function exportPack(payload: { sessionId: string }): Promise<{
   blobUrl: string;
   filename: string;
 }> {
-  // 静默导出打包：加载会话 → 构建证据包 → 压缩 zip → 生成 Blob URL
-  const runtime = new PreviewSessionRuntime(db);
-  await runtime.load(payload.sessionId);
-  const snapshot = runtime.getPackageSnapshot();
-  if (!snapshot) {
-    throw new Error(`FAILED_TO_LOAD_SNAPSHOT: ${t("failedToLoadSnapshot")}`);
+  try {
+    // 静默导出打包：加载会话（forExport 模式跳过多余 Blob URL）→ 构建证据包 → 压缩 zip → 生成 Blob URL
+    const runtime = new PreviewSessionRuntime(db);
+    await runtime.load(payload.sessionId, { forExport: true });
+    const snapshot = runtime.getPackageSnapshot();
+    if (!snapshot) {
+      throw new Error(`FAILED_TO_LOAD_SNAPSHOT: ${t("failedToLoadSnapshot")}`);
+    }
+
+    const filename = `web-bug-report-${payload.sessionId.slice(0, 8)}.zip`;
+    const reportAssets = await loadStaticReportAssets();
+
+    // 构建证据包文件清单（截图、录制分片、元数据等）
+    const packageFiles = buildEvidencePackage(snapshot, reportAssets);
+    const zipChunks: Uint8Array[] = [];
+    const sink = {
+      write: async (chunk: Uint8Array) => {
+        zipChunks.push(chunk);
+      },
+      close: async () => {},
+      abort: async () => {},
+    };
+
+    const precomputedMediaIntegrity = precomputedMediaIntegrityMap.get(
+      payload.sessionId
+    );
+
+    // 压缩为 zip 并分块写入内存，避免一次性占用过大内存
+    await writeEvidenceArchive({
+      files: packageFiles as ArchiveFile[],
+      sessionId: payload.sessionId,
+      mediaSource: db,
+      sink,
+      precomputedMediaIntegrity,
+      createManifest: (integrity) => ({
+        name: "manifest.json",
+        data: new TextEncoder().encode(
+          JSON.stringify(
+            buildExportManifest(snapshot.session, integrity),
+            null,
+            2
+          )
+        ),
+      }),
+    });
+
+    const zipBlob = new Blob(zipChunks as BlobPart[], {
+      type: "application/zip",
+    });
+    // 生成可下载的 Blob URL，交由后台侧触发下载
+    const blobUrl = URL.createObjectURL(zipBlob);
+    const prompt = buildAiPrompt(snapshot, filename);
+
+    return { prompt, blobUrl, filename };
+  } finally {
+    precomputedMediaIntegrityMap.delete(payload.sessionId);
   }
-
-  const filename = `web-bug-report-${payload.sessionId.slice(0, 8)}.zip`;
-  const reportAssets = await loadStaticReportAssets();
-
-  // 构建证据包文件清单（截图、录制分片、元数据等）
-  const packageFiles = buildEvidencePackage(snapshot, reportAssets);
-  const zipChunks: Uint8Array[] = [];
-  const sink = {
-    write: async (chunk: Uint8Array) => {
-      zipChunks.push(chunk);
-    },
-    close: async () => {},
-    abort: async () => {},
-  };
-
-  // 压缩为 zip 并分块写入内存，避免一次性占用过大内存
-  await writeEvidenceArchive({
-    files: packageFiles as ArchiveFile[],
-    sessionId: payload.sessionId,
-    mediaSource: db,
-    sink,
-    createManifest: (integrity) => ({
-      name: "manifest.json",
-      data: new TextEncoder().encode(
-        JSON.stringify(
-          buildExportManifest(snapshot.session, integrity),
-          null,
-          2
-        )
-      ),
-    }),
-  });
-
-  const zipBlob = new Blob(zipChunks as BlobPart[], {
-    type: "application/zip",
-  });
-  // 生成可下载的 Blob URL，交由后台侧触发下载
-  const blobUrl = URL.createObjectURL(zipBlob);
-  const prompt = buildAiPrompt(snapshot, filename);
-
-  return { prompt, blobUrl, filename };
 }
 
 chrome.runtime.onMessage.addListener((raw: unknown) => {

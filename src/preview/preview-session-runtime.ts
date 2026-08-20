@@ -62,18 +62,48 @@ export class PreviewSessionRuntime {
     return this.mediaChunkCount;
   }
 
-  async load(sessionId: string): Promise<void> {
+  async load(
+    sessionId: string,
+    options?: { forExport?: boolean }
+  ): Promise<void> {
     this.sessionId = sessionId;
-    this.session = await this.storage.getSession(sessionId);
-    if (!this.session) return;
+    const forExport = Boolean(options?.forExport);
 
-    const migrated = migrateSessionForExport(this.session);
-    if (migrated !== this.session) {
-      this.session = migrated;
+    // 并行读取所有 IDB 基础数据，大幅降低总 I/O 等待耗时
+    const [
+      rawSession,
+      allAssetsRaw,
+      rawInteractions,
+      exportSelection,
+      rawConsole,
+      networkEntries,
+      rawIssueScenes,
+      frameworkStates,
+      mediaSummary,
+    ] = await Promise.all([
+      this.storage.getSession(sessionId),
+      this.storage.getEvidenceAssetsForSession?.(sessionId) ??
+        Promise.resolve([]),
+      this.storage.getInteractions(sessionId),
+      this.storage.getExportSelection(sessionId),
+      this.storage.getConsole(sessionId),
+      this.storage.getNetwork(sessionId),
+      this.storage.getIssueScenes(sessionId),
+      this.storage.getFrameworkStates(sessionId),
+      this.storage.getMediaSummary(sessionId),
+    ]);
+
+    if (!rawSession) return;
+
+    let session = rawSession;
+    const migrated = migrateSessionForExport(session);
+    if (migrated !== session) {
+      session = migrated;
       await this.storage.saveSession(migrated);
     }
-    const allAssets =
-      (await this.storage.getEvidenceAssetsForSession?.(sessionId)) ?? [];
+    this.session = session;
+
+    const allAssets = allAssetsRaw ?? [];
     this.issueAssets = allAssets.filter(
       (a) => a.kind === "issue-original" || a.kind === "issue-annotated"
     );
@@ -81,11 +111,12 @@ export class PreviewSessionRuntime {
       (a) => a.kind === "interaction-screenshot"
     );
 
-    this.interactions = (await this.storage.getInteractions(sessionId))
+    this.interactions = rawInteractions
       .filter((item) => item.status !== "cancelled")
       .sort((left, right) => left.createdAt - right.createdAt)
       .map((item) => {
-        if (item.screenshot.status === "captured") {
+        // 导出场景无需为截图生成用于 UI 渲染的 Blob URL，避免多余内存分配与泄露
+        if (!forExport && item.screenshot.status === "captured") {
           const asset = this.interactionAssets.find(
             (a) =>
               a.id === item.screenshot.assetId || a.interactionId === item.id
@@ -102,27 +133,26 @@ export class PreviewSessionRuntime {
         }
         return item;
       });
-    this.selection.loadSelection(
-      await this.storage.getExportSelection(sessionId)
-    );
-    this.consoleEntries = (await this.storage.getConsole(sessionId)).sort(
+
+    this.selection.loadSelection(exportSelection);
+    this.consoleEntries = rawConsole.sort(
       (left, right) => left.createdAt - right.createdAt
     );
-    this.networkEntries = await this.storage.getNetwork(sessionId);
-    this.issueScenes = (await this.storage.getIssueScenes(sessionId)).map(
-      (scene) =>
-        scene.narrative
-          ? {
-              ...scene,
-              narrative: {
-                ...scene.narrative,
-                // 兼容旧版 string 形态的期望陈述，避免预览/导出时静默丢失
-                expected: normalizeExpected(scene.narrative.expected),
-              },
-            }
-          : scene
+    this.networkEntries = networkEntries;
+    this.issueScenes = rawIssueScenes.map((scene) =>
+      scene.narrative
+        ? {
+            ...scene,
+            narrative: {
+              ...scene.narrative,
+              // 兼容旧版 string 形态的期望陈述，避免预览/导出时静默丢失
+              expected: normalizeExpected(scene.narrative.expected),
+            },
+          }
+        : scene
     );
-    this.frameworkStates = await this.storage.getFrameworkStates(sessionId);
+    this.frameworkStates = frameworkStates;
+
     if (!this.issueAssets.length) {
       this.issueAssets = (
         await Promise.all(
@@ -132,31 +162,36 @@ export class PreviewSessionRuntime {
         )
       ).flat();
     }
-    this.issueScenePreviews = this.issueScenes.map((scene) => {
-      const assets = this.issueAssets.filter(
-        (asset) => asset.issueSceneId === scene.id
-      );
-      const original = assets.find((asset) => asset.kind === "issue-original");
-      const annotated = assets.find(
-        (asset) => asset.kind === "issue-annotated"
-      );
-      return {
-        scene,
-        originalSource: original
-          ? URL.createObjectURL(
-              new Blob([original.bytes], { type: original.mimeType })
-            )
-          : undefined,
-        annotatedSource: annotated
-          ? URL.createObjectURL(
-              new Blob([annotated.bytes], { type: annotated.mimeType })
-            )
-          : undefined,
-      };
-    });
+
+    this.issueScenePreviews = forExport
+      ? []
+      : this.issueScenes.map((scene) => {
+          const assets = this.issueAssets.filter(
+            (asset) => asset.issueSceneId === scene.id
+          );
+          const original = assets.find(
+            (asset) => asset.kind === "issue-original"
+          );
+          const annotated = assets.find(
+            (asset) => asset.kind === "issue-annotated"
+          );
+          return {
+            scene,
+            originalSource: original
+              ? URL.createObjectURL(
+                  new Blob([original.bytes], { type: original.mimeType })
+                )
+              : undefined,
+            annotatedSource: annotated
+              ? URL.createObjectURL(
+                  new Blob([annotated.bytes], { type: annotated.mimeType })
+                )
+              : undefined,
+          };
+        });
+
     await this.finalizePendingNetworkBodies();
 
-    const mediaSummary = await this.storage.getMediaSummary(sessionId);
     this.mediaChunkCount = mediaSummary.count;
     this.mediaMimeType = mediaSummary.mimeType || "video/webm";
   }

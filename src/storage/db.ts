@@ -602,7 +602,7 @@ export const db = {
   iterateMediaChunks: async (
     sessionId: string,
     visitor: (chunk: MediaChunkRecord) => void | Promise<void>,
-    batchSize = 16
+    batchSize = 128
   ) => {
     // 以 afterSequence 为游标分批拉取录像分片，逐片交给 visitor 处理后翻页，
     // 避免把大体积媒体数据一次性读入内存（导出/打包场景专用）
