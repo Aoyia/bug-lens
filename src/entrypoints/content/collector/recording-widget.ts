@@ -18,11 +18,15 @@ export class RecordingWidget {
   private autoCollapseTimer: number | undefined;
   private isDragging = false;
   private isHovering = false;
+  private isBubbleShowing = false;
+  private bubbleElement?: HTMLElement;
+  private bubbleTimer?: number;
   private cleanupCollapseListeners?: () => void;
   private _isSaving = false;
   private readonly callbacks: WidgetCallbacks;
   private readonly isMac: boolean;
   readonly shortcutKeyText: string;
+  readonly stopShortcutKeyText: string;
 
   get isSaving(): boolean {
     return this._isSaving;
@@ -37,64 +41,8 @@ export class RecordingWidget {
           navigator.platform || navigator.userAgent
         )
       );
-    this.shortcutKeyText = this.isMac ? "Option+S" : "Alt+S";
-  }
-
-  showToast(
-    message: string,
-    durationMs = 2800,
-    tone: ToastTone = "success"
-  ): void {
-    const existing = document.querySelector("#__wbr_toast__");
-    if (existing) existing.remove();
-
-    const toast = document.createElement("div");
-    toast.id = "__wbr_toast__";
-    toast.setAttribute("data-wbr-ignore", "true");
-    toast.style.cssText = `
-      position: fixed !important;
-      top: 16px !important;
-      left: 50% !important;
-      transform: translateX(-50%) translateY(-10px) !important;
-      z-index: 2147483647 !important;
-      background: #ffffff !important;
-      -webkit-backdrop-filter: blur(16px) !important;
-      backdrop-filter: blur(16px) !important;
-      border: 1px solid rgba(0, 0, 0, 0.08) !important;
-      color: #1d2129 !important;
-      padding: 6px 16px !important;
-      border-radius: 6px !important;
-      font-size: 13px !important;
-      font-weight: 500 !important;
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.05) !important;
-      display: flex !important;
-      align-items: center !important;
-      gap: 8px !important;
-      pointer-events: none !important;
-      transition: opacity 0.2s ease, transform 0.2s ease !important;
-      opacity: 0 !important;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-    `;
-
-    const icon = tone === "error" ? "!" : "✓";
-    const iconColor = tone === "error" ? "#d5484c" : "#00b42a";
-    toast.innerHTML = `<span style="color:${iconColor};font-size:16px;">${icon}</span> <span>${message}</span>`;
-    document.body.appendChild(toast);
-
-    const rAF =
-      typeof requestAnimationFrame === "function"
-        ? requestAnimationFrame
-        : (fn: FrameRequestCallback) => setTimeout(fn, 0);
-    rAF(() => {
-      toast.style.opacity = "1";
-      toast.style.transform = "translateX(-50%) translateY(0)";
-    });
-
-    setTimeout(() => {
-      toast.style.opacity = "0";
-      toast.style.transform = "translateX(-50%) translateY(-10px)";
-      setTimeout(() => toast.remove(), 200);
-    }, durationMs);
+    this.shortcutKeyText = this.isMac ? "⌥S" : "Alt+S";
+    this.stopShortcutKeyText = this.isMac ? "⇧⌘Y" : "Ctrl+Shift+Y";
   }
 
   /**
@@ -320,8 +268,8 @@ export class RecordingWidget {
       <span id="__wbr_timer_display__" class="__wbr_timer">00:00</span>
       <div class="__wbr_btn_group">
         <span id="__wbr_health_msg__" style="font-size:11px;color:#ffc107;display:none;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title=""></span>
-        <button id="__wbr_issue_btn__" class="__wbr_btn" style="background:#b42318;" title="${t("shortcut")}: ${this.shortcutKeyText}">${t("markIssue")} (${this.shortcutKeyText})</button>
-        <button id="__wbr_stop_btn__" class="__wbr_btn">${t("stopRecording")}</button>
+        <button id="__wbr_issue_btn__" class="__wbr_btn" style="background:#b42318;" title="${t("widgetToolbarIssueTooltip", [this.shortcutKeyText])}">${t("markIssue")} (${this.shortcutKeyText})</button>
+        <button id="__wbr_stop_btn__" class="__wbr_btn" title="${t("widgetToolbarStopTooltip", [this.stopShortcutKeyText])}">${t("stopRecording")}</button>
       </div>
     `;
 
@@ -398,6 +346,7 @@ export class RecordingWidget {
               root.style.setProperty("right", rightPx, "important");
               root.style.setProperty("bottom", "auto", "important");
               root.style.setProperty("left", "auto", "important");
+              this.syncBubblePosition(root);
             };
 
             const onMouseUp = () => {
@@ -489,6 +438,8 @@ export class RecordingWidget {
           () => this.refreshTimerDisplay(),
           1000
         );
+
+        this.checkAndShowInitialBubble(root);
       } else {
         window.addEventListener("DOMContentLoaded", attach, { once: true });
       }
@@ -496,8 +447,196 @@ export class RecordingWidget {
     attach();
   }
 
+  private syncBubblePosition(root: HTMLElement): void {
+    if (!this.bubbleElement) return;
+    const rect = root.getBoundingClientRect();
+    const winWidth = window.innerWidth || document.documentElement.clientWidth;
+    const winHeight =
+      window.innerHeight || document.documentElement.clientHeight;
+    const right = Math.max(8, winWidth - rect.right);
+    const bottom = winHeight - rect.top + 8;
+    this.bubbleElement.style.setProperty("right", `${right}px`, "important");
+    this.bubbleElement.style.setProperty("bottom", `${bottom}px`, "important");
+    this.bubbleElement.style.setProperty("top", "auto", "important");
+    this.bubbleElement.style.setProperty("left", "auto", "important");
+  }
+
+  private async checkAndShowInitialBubble(root: HTMLElement): Promise<void> {
+    try {
+      if (typeof chrome !== "undefined" && chrome.storage?.local) {
+        const stored = (await chrome.storage.local.get([
+          "hasSeenWidgetBubble",
+        ])) as {
+          hasSeenWidgetBubble?: boolean;
+        };
+        if (stored?.hasSeenWidgetBubble) return;
+      } else if (typeof localStorage !== "undefined") {
+        if (localStorage.getItem("__wbr_widget_bubble_seen__")) return;
+      }
+    } catch {
+      return;
+    }
+
+    this.showGuideBubble(root);
+  }
+
+  private showGuideBubble(root: HTMLElement): void {
+    if (this.bubbleElement || !document.body) return;
+
+    this.isBubbleShowing = true;
+    this.keepExpanded();
+
+    const bubble = document.createElement("div");
+    bubble.id = "__wbr_widget_bubble__";
+    bubble.className = "__wbr_widget_bubble__";
+    bubble.setAttribute("data-wbr-ignore", "true");
+    bubble.setAttribute("role", "status");
+    bubble.setAttribute("aria-live", "polite");
+
+    const shortcutHtml = `<kbd style="background:#ffffff !important;color:#1d2129 !important;padding:1px 4px !important;border-radius:3px !important;font-weight:600 !important;font-size:10px !important;box-shadow:0 1px 2px rgba(0,0,0,0.2) !important;font-family:inherit !important;display:inline-block !important;line-height:14px !important;height:14px !important;vertical-align:baseline !important;">${this.shortcutKeyText}</kbd>`;
+    const rawGuideText = t("widgetBubbleGuide", ["__SHORTCUT_PLACEHOLDER__"]);
+    const guideHtml = rawGuideText.includes("__SHORTCUT_PLACEHOLDER__")
+      ? rawGuideText.replace("__SHORTCUT_PLACEHOLDER__", shortcutHtml)
+      : rawGuideText;
+
+    bubble.innerHTML = `
+      <style>
+        #__wbr_widget_bubble__ {
+          position: fixed !important;
+          z-index: 2147483647 !important;
+          max-width: 320px !important;
+          background: rgba(20, 24, 31, 0.94) !important;
+          backdrop-filter: blur(16px) !important;
+          -webkit-backdrop-filter: blur(16px) !important;
+          border: 1px solid rgba(255, 255, 255, 0.18) !important;
+          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.36), 0 0 0 1px rgba(22, 93, 255, 0.22) !important;
+          color: #ffffff !important;
+          border-radius: 8px !important;
+          padding: 8px 12px !important;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+          font-size: 12px !important;
+          line-height: 1.45 !important;
+          display: flex !important;
+          flex-direction: row !important;
+          align-items: flex-start !important;
+          gap: 8px !important;
+          pointer-events: auto !important;
+          cursor: pointer !important;
+          user-select: none !important;
+          opacity: 0 !important;
+          transform: translateY(6px) !important;
+          transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), transform 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        }
+        #__wbr_widget_bubble__.__wbr_bubble_visible__ {
+          opacity: 1 !important;
+          transform: translateY(0) !important;
+        }
+        #__wbr_widget_bubble_arrow__ {
+          position: absolute !important;
+          bottom: -5px !important;
+          right: 28px !important;
+          width: 8px !important;
+          height: 8px !important;
+          background: rgba(20, 24, 31, 0.94) !important;
+          transform: rotate(45deg) !important;
+          border-right: 1px solid rgba(255, 255, 255, 0.18) !important;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.18) !important;
+        }
+        .__wbr_bubble_close__ {
+          color: rgba(255, 255, 255, 0.5) !important;
+          font-size: 14px !important;
+          line-height: 1 !important;
+          padding: 0 0 0 4px !important;
+          cursor: pointer !important;
+          border: none !important;
+          background: transparent !important;
+          flex-shrink: 0 !important;
+          margin-top: 1px !important;
+        }
+        .__wbr_bubble_close__:hover {
+          color: #ffffff !important;
+        }
+        .__wbr_bubble_got_it__ {
+          margin-top: 6px !important;
+          display: inline-block !important;
+          background: #165DFF !important;
+          color: #ffffff !important;
+          font-size: 11px !important;
+          line-height: 1 !important;
+          font-weight: 500 !important;
+          padding: 4px 8px !important;
+          border-radius: 4px !important;
+          border: none !important;
+          cursor: pointer !important;
+          transition: background 0.15s ease !important;
+        }
+        .__wbr_bubble_got_it__:hover {
+          background: #3884FF !important;
+        }
+      </style>
+      <span style="font-size:14px;line-height:1.2;flex-shrink:0;">💡</span>
+      <div style="flex:1;min-width:0;color:#ffffff;font-size:11.5px;line-height:1.45;">
+        <div>${guideHtml}</div>
+        <button class="__wbr_bubble_got_it__">${t("widgetBubbleGotIt")}</button>
+      </div>
+      <button class="__wbr_bubble_close__" aria-label="Close">×</button>
+      <div id="__wbr_widget_bubble_arrow__"></div>
+    `;
+
+    document.body.appendChild(bubble);
+    this.bubbleElement = bubble;
+    this.syncBubblePosition(root);
+
+    const rAF =
+      typeof requestAnimationFrame === "function"
+        ? requestAnimationFrame
+        : (fn: FrameRequestCallback) => setTimeout(fn, 0);
+    rAF(() => {
+      bubble.classList.add("__wbr_bubble_visible__");
+    });
+
+    bubble.addEventListener("click", (e) => {
+      e?.stopPropagation?.();
+      this.dismissGuideBubble();
+    });
+  }
+
+  private dismissGuideBubble(): void {
+    if (this.bubbleTimer) {
+      window.clearTimeout(this.bubbleTimer);
+      this.bubbleTimer = undefined;
+    }
+    if (!this.bubbleElement) return;
+
+    const el = this.bubbleElement;
+    this.bubbleElement = undefined;
+    this.isBubbleShowing = false;
+
+    el.classList.remove("__wbr_bubble_visible__");
+    window.setTimeout(() => {
+      el.remove();
+    }, 250);
+
+    this.resetCollapseTimer();
+
+    try {
+      if (typeof chrome !== "undefined" && chrome.storage?.local) {
+        void chrome.storage.local
+          .set({ hasSeenWidgetBubble: true })
+          .catch(() => undefined);
+      }
+      if (typeof localStorage !== "undefined") {
+        localStorage.setItem("__wbr_widget_bubble_seen__", "true");
+      }
+    } catch {}
+  }
+
   private resetCollapseTimer(): void {
     if (this._isSaving) return;
+    if (this.isBubbleShowing) {
+      this.keepExpanded();
+      return;
+    }
     if (this.autoCollapseTimer) {
       window.clearTimeout(this.autoCollapseTimer);
       this.autoCollapseTimer = undefined;
@@ -527,6 +666,15 @@ export class RecordingWidget {
   unmount(): void {
     this._isSaving = false;
     this.isHovering = false;
+    this.isBubbleShowing = false;
+    if (this.bubbleTimer) {
+      window.clearTimeout(this.bubbleTimer);
+      this.bubbleTimer = undefined;
+    }
+    if (this.bubbleElement) {
+      this.bubbleElement.remove();
+      this.bubbleElement = undefined;
+    }
     if (this.timerInterval) {
       clearInterval(this.timerInterval);
       this.timerInterval = undefined;
@@ -684,5 +832,99 @@ export class RecordingWidget {
         msgEl.textContent = "";
       }
     }
+  }
+
+  showToast(
+    message: string,
+    durationMs: number = 4000,
+    tone: "normal" | "error" = "normal"
+  ): void {
+    const existing = document.querySelector("#__wbr_toast__");
+    if (existing) existing.remove();
+
+    const toast = document.createElement("div");
+    toast.id = "__wbr_toast__";
+    toast.setAttribute("data-wbr-ignore", "true");
+    toast.style.cssText = `
+      position: fixed !important;
+      top: 16px !important;
+      left: 50% !important;
+      transform: translateX(-50%) translateY(-10px) !important;
+      z-index: 2147483647 !important;
+      background: #ffffff !important;
+      -webkit-backdrop-filter: blur(16px) !important;
+      backdrop-filter: blur(16px) !important;
+      border: 1px solid rgba(0, 0, 0, 0.08) !important;
+      color: #1d2129 !important;
+      padding: 8px 18px !important;
+      border-radius: 8px !important;
+      font-size: 13.5px !important;
+      font-weight: 500 !important;
+      box-shadow: 0 16px 42px -6px rgba(0, 0, 0, 0.18), 0 6px 16px -2px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04) !important;
+      display: flex !important;
+      align-items: flex-start !important;
+      gap: 10px !important;
+      pointer-events: auto !important;
+      transition: opacity 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+      opacity: 0 !important;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    `;
+
+    const isDualLine = message.includes("\n");
+    let contentHtml = "";
+    if (isDualLine) {
+      const [title, ...rest] = message.split("\n");
+      const desc = rest.join("\n");
+      const kbdRegex = /(⌘V|Ctrl\+V)/g;
+      const descHtml = desc.replace(
+        kbdRegex,
+        `<kbd style="display:inline-flex!important;align-items:center!important;justify-content:center!important;padding:0 4px!important;min-width:20px!important;height:16px!important;font-size:10px!important;font-family:inherit!important;font-weight:600!important;color:#4e5969!important;background:#f2f3f5!important;border:1px solid #e5e6eb!important;border-radius:3px!important;vertical-align:baseline!important;margin:0 2px!important;">$1</kbd>`
+      );
+      contentHtml = `
+        <div style="display:flex!important;flex-direction:column!important;gap:2px!important;align-items:flex-start!important;text-align:left!important;">
+          <div style="font-size:13.5px!important;font-weight:600!important;color:#1d2129!important;line-height:1.4!important;">${title}</div>
+          <div style="font-size:12px!important;font-weight:400!important;color:#86909c!important;line-height:1.4!important;">${descHtml}</div>
+        </div>
+      `;
+    } else {
+      contentHtml = `<span style="line-height:1.4!important;">${message}</span>`;
+    }
+
+    const icon = tone === "error" ? "!" : "✓";
+    const iconColor = tone === "error" ? "#d5484c" : "#00b42a";
+    toast.innerHTML = `<span style="color:${iconColor};font-size:16px;font-weight:700;line-height:1;margin-top:${isDualLine ? "2px" : "0"};align-self:${isDualLine ? "flex-start" : "center"};">${icon}</span> ${contentHtml}`;
+    document.body.appendChild(toast);
+
+    const rAF =
+      typeof requestAnimationFrame === "function"
+        ? requestAnimationFrame
+        : (fn: FrameRequestCallback) => setTimeout(fn, 0);
+
+    rAF(() => {
+      toast.style.opacity = "1";
+      toast.style.transform = "translateX(-50%) translateY(0)";
+    });
+
+    let hideTimeout: number | undefined;
+    const startHideTimer = () => {
+      hideTimeout = window.setTimeout(() => {
+        toast.style.opacity = "0";
+        toast.style.transform = "translateX(-50%) translateY(-10px)";
+        setTimeout(() => toast.remove(), 200);
+      }, durationMs);
+    };
+
+    toast.addEventListener("mouseenter", () => {
+      if (hideTimeout) {
+        window.clearTimeout(hideTimeout);
+        hideTimeout = undefined;
+      }
+    });
+
+    toast.addEventListener("mouseleave", () => {
+      startHideTimer();
+    });
+
+    startHideTimer();
   }
 }

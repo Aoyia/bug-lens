@@ -99,4 +99,34 @@ describe("i18n Sync and Translation", () => {
       (globalThis as any).document = originalDocument;
     }
   });
+
+  test("导出成功 Toast 提示文案包含 ZIP 下载与 Cursor/Claude 粘贴排查指引 (方案2)", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const zhDict = JSON.parse(
+      fs.readFileSync(
+        path.resolve(process.cwd(), "src/_locales/zh_CN/messages.json"),
+        "utf8"
+      )
+    );
+    const enDict = JSON.parse(
+      fs.readFileSync(
+        path.resolve(process.cwd(), "src/_locales/en/messages.json"),
+        "utf8"
+      )
+    );
+
+    assert.ok(
+      zhDict.exportSuccessCopied.message.includes("ZIP") &&
+        zhDict.exportSuccessCopied.message.includes("Cursor") &&
+        zhDict.exportSuccessCopied.message.includes("Claude"),
+      "zh_CN exportSuccessCopied 应同时包含 ZIP 下载与 Cursor/Claude 粘贴指引"
+    );
+    assert.ok(
+      enDict.exportSuccessCopied.message.includes("ZIP") &&
+        enDict.exportSuccessCopied.message.includes("Cursor") &&
+        enDict.exportSuccessCopied.message.includes("Claude"),
+      "en exportSuccessCopied 应同时包含 ZIP 下载与 Cursor/Claude 粘贴指引"
+    );
+  });
 });

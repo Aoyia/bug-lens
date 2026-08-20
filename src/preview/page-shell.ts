@@ -25,20 +25,64 @@ export class PreviewPageShell {
 
   notify(message: string): void {
     const toast = this.root.querySelector<HTMLElement>("#toast-message")!;
-    // 先显示再写文案（对齐 privacy-badge 的顺序）：让 live region 先进入
-    // 无障碍树再更新内容，屏幕阅读器才能可靠播报本次通知；反序会导致
-    // 内容更新发生在 display:none 期间，播报被吞掉。
     toast.hidden = false;
-    toast.textContent = message;
-    // 先清理上一次的隐藏定时器：Toast 承诺展示 2.5s，连续通知时旧定时器
-    // 不得提前截断最新一条（与 PopupApp 错误提示 effect 的清理范式一致）。
+
+    // 清理上一次的隐藏定时器
     if (this.toastTimer !== undefined) {
       window.clearTimeout(this.toastTimer);
-    }
-    this.toastTimer = window.setTimeout(() => {
       this.toastTimer = undefined;
-      toast.hidden = true;
-    }, 2500);
+    }
+
+    // 支持双行渲染 (用换行符 \n 区分主标题与副标题)
+    if (message.includes("\n")) {
+      const [title, desc] = message.split("\n");
+      const iconSvg = `<svg class="toast-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00b42a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+      const safeTitle = (title || "")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+      const safeDesc = (desc || "")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/(⌘V|Ctrl\+V)/g, '<kbd class="toast-kbd">$1</kbd>');
+
+      toast.innerHTML = `
+        ${iconSvg}
+        <div class="toast-content">
+          <div class="toast-title">${safeTitle}</div>
+          <div class="toast-desc">${safeDesc}</div>
+        </div>
+      `;
+    } else {
+      toast.textContent = message;
+    }
+
+    const startHideTimer = () => {
+      this.toastTimer = window.setTimeout(() => {
+        this.toastTimer = undefined;
+        toast.hidden = true;
+      }, 4000);
+    };
+
+    startHideTimer();
+
+    // 绑定悬停暂停计时机制 (只绑定一次)
+    if (
+      !(toast as unknown as { _hasHoverBound?: boolean })._hasHoverBound &&
+      typeof toast.addEventListener === "function"
+    ) {
+      (toast as unknown as { _hasHoverBound?: boolean })._hasHoverBound = true;
+      toast.addEventListener("mouseenter", () => {
+        if (this.toastTimer !== undefined) {
+          window.clearTimeout(this.toastTimer);
+          this.toastTimer = undefined;
+        }
+      });
+      toast.addEventListener("mouseleave", () => {
+        if (!toast.hidden && this.toastTimer === undefined) {
+          startHideTimer();
+        }
+      });
+    }
   }
 
   selectTab(tabName: PreviewTab | string): void {

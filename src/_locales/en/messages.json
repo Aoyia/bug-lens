@@ -317,13 +317,13 @@
     "message": "Dismiss"
   },
   "stopRecording": {
-    "message": "Stop & Export"
+    "message": "Stop & Export AI Prompt"
   },
   "saving": {
     "message": "Saving..."
   },
   "stopAndExport": {
-    "message": "Stop & Export"
+    "message": "Stop & Export AI Prompt"
   },
   "stopAndDiscard": {
     "message": "Discard Recording"
@@ -416,6 +416,36 @@
   },
   "widgetPaused": {
     "message": "Paused"
+  },
+  "widgetBubbleGuide": {
+    "message": "Recording active: Interact normally to reproduce, press $KEY$ to capture issue area, click ⏹ to export AI Prompt",
+    "placeholders": {
+      "key": {
+        "content": "$1"
+      }
+    }
+  },
+  "widgetToolbarIssueTooltip": {
+    "message": "Capture Issue Area ($KEY$)",
+    "placeholders": {
+      "key": {
+        "content": "$1"
+      }
+    }
+  },
+  "widgetToolbarStopTooltip": {
+    "message": "Stop Recording & Copy AI Prompt ($KEY$)",
+    "placeholders": {
+      "key": {
+        "content": "$1"
+      }
+    }
+  },
+  "widgetToolbarStopTooltipNoKey": {
+    "message": "Stop Recording & Copy AI Prompt"
+  },
+  "widgetBubbleGotIt": {
+    "message": "Start reproducing"
   },
   "selecting": {
     "message": "Selecting…"
@@ -762,7 +792,7 @@
     }
   },
   "exportSuccessCopied": {
-    "message": "ZIP downloaded, AI prompt automatically copied to clipboard!"
+    "message": "[ZIP] Evidence package downloaded\nAI Prompt copied, paste with ⌘V in Cursor / Claude to diagnose"
   },
   "exportSuccessCanCopy": {
     "message": "ZIP downloaded, AI prompt ready to copy"
@@ -1575,7 +1605,7 @@
     "message": "Fullscreen (double-click video)"
   },
   "aiPromptCopied": {
-    "message": "AI prompt copied"
+    "message": "AI Prompt copied\nPaste with ⌘V in Cursor / Claude to diagnose"
   },
   "zipPathCopied": {
     "message": "ZIP absolute path copied"

@@ -648,9 +648,29 @@ export class ScreenshotOverlay {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
     `;
 
+    const isDualLine = message.includes("\n");
+    let contentHtml = "";
+    if (isDualLine) {
+      const [title, ...rest] = message.split("\n");
+      const desc = rest.join("\n");
+      const kbdRegex = /(⌘V|Ctrl\+V)/g;
+      const descHtml = desc.replace(
+        kbdRegex,
+        `<kbd style="display:inline-flex!important;align-items:center!important;justify-content:center!important;padding:0 4px!important;min-width:20px!important;height:16px!important;font-size:10px!important;font-family:inherit!important;font-weight:600!important;color:#4e5969!important;background:#f2f3f5!important;border:1px solid #e5e6eb!important;border-radius:3px!important;vertical-align:baseline!important;margin:0 2px!important;">$1</kbd>`
+      );
+      contentHtml = `
+        <div style="display:flex!important;flex-direction:column!important;gap:2px!important;align-items:flex-start!important;text-align:left!important;">
+          <div style="font-size:13.5px!important;font-weight:600!important;color:#1d2129!important;line-height:1.4!important;">${title}</div>
+          <div style="font-size:12px!important;font-weight:400!important;color:#86909c!important;line-height:1.4!important;">${descHtml}</div>
+        </div>
+      `;
+    } else {
+      contentHtml = `<span style="line-height:1.4!important;">${message}</span>`;
+    }
+
     const icon = tone === "error" ? "!" : "✓";
     const iconColor = tone === "error" ? "#d5484c" : "#00b42a";
-    toast.innerHTML = `<span style="color:${iconColor};font-size:16px;">${icon}</span> <span>${message}</span>`;
+    toast.innerHTML = `<span style="color:${iconColor};font-size:16px;font-weight:700;line-height:1;margin-top:${isDualLine ? "2px" : "0"};align-self:${isDualLine ? "flex-start" : "center"};">${icon}</span> ${contentHtml}`;
     document.body.appendChild(toast);
 
     const rAF =

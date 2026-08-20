@@ -137,42 +137,94 @@ button.arco-toolbar-btn.copied {
   color: #00b42a !important;
 }
 
-/* Toast Notification (顶部悬浮·白底禅意风格) */
+/* Toast Notification (顶部悬浮·白底双行立体浮空卡片) */
 .toast {
   position: fixed;
-  top: 16px;
+  top: 20px;
   left: 50%;
   transform: translateX(-50%);
   background: #ffffff;
-  -webkit-backdrop-filter: blur(16px);
-  backdrop-filter: blur(16px);
-  border: 1px solid var(--zen-border, rgba(0, 0, 0, 0.08));
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(0, 0, 0, 0.08);
   color: var(--zen-text-main, #1d2129);
-  padding: 6px 16px;
-  border-radius: var(--zen-radius-btn, 2px);
-  font-size: var(--font-sm, 12px);
-  font-weight: 500;
+  padding: 10px 20px;
+  border-radius: 8px;
   box-shadow:
-    0 4px 16px rgba(0, 0, 0, 0.1),
-    0 1px 3px rgba(0, 0, 0, 0.05);
+    0 16px 42px -6px rgba(0, 0, 0, 0.18),
+    0 6px 16px -2px rgba(0, 0, 0, 0.08),
+    0 0 0 1px rgba(0, 0, 0, 0.04);
   z-index: 10000;
   display: flex;
   align-items: center;
-  gap: 8px;
-  pointer-events: none;
-  animation: zen-toast-in 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  gap: 12px;
+  pointer-events: auto;
+  cursor: default;
+  user-select: none;
+  animation: zen-toast-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+.toast:hover {
+  box-shadow:
+    0 20px 48px -6px rgba(0, 0, 0, 0.22),
+    0 8px 20px -2px rgba(0, 0, 0, 0.1),
+    0 0 0 1px rgba(0, 0, 0, 0.06);
 }
 .toast[hidden] {
   display: none;
 }
+.toast-icon {
+  flex-shrink: 0;
+  color: #00b42a;
+}
+.toast-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+}
+.toast-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--zen-text-main, #1d2129);
+  line-height: 1.4;
+  letter-spacing: 0.2px;
+}
+.toast-desc {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--zen-text-muted, #86909c);
+  line-height: 1.4;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.toast-kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  min-width: 22px;
+  height: 18px;
+  font-size: 11px;
+  font-family: inherit;
+  font-weight: 600;
+  color: #4e5969;
+  background: #f2f3f5;
+  border: 1px solid #e5e6eb;
+  border-radius: 3px;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.05);
+}
 
 @keyframes zen-toast-in {
   from {
-    transform: translate(-50%, -12px);
+    transform: translate(-50%, -20px) scale(0.96);
     opacity: 0;
   }
   to {
-    transform: translate(-50%, 0);
+    transform: translate(-50%, 0) scale(1);
     opacity: 1;
   }
 }

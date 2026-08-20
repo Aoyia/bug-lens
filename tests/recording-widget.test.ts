@@ -90,6 +90,7 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
     };
 
     const stopBtn = {
+      title: "",
       addEventListener(type: string, fn: Function) {
         addListener(this, type, fn);
       },
@@ -103,6 +104,7 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
 
     const issueBtn = {
       disabled: false,
+      title: "",
       textContent: "",
       style: { opacity: "1" },
       addEventListener(type: string, fn: Function) {
@@ -223,10 +225,27 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
         if (sel === "#__wbr_recording_widget__") return mockRootElement;
         const found = appendedElements.find((e) => e.id && `#${e.id}` === sel);
         if (found) return found;
-        return null;
+        return mockRootElement.querySelector(sel);
       },
       addEventListener() {},
     };
+
+    const localStorageMock = {
+      getItem(key: string) {
+        return storageMap.get(key) || null;
+      },
+      setItem(key: string, val: string) {
+        storageMap.set(key, String(val));
+      },
+      removeItem(key: string) {
+        storageMap.delete(key);
+      },
+      clear() {
+        storageMap.clear();
+      },
+    };
+
+    storageMap.set("__wbr_widget_bubble_seen__", "true");
 
     let timeoutIdSeq = 1000;
     const pendingTimeouts = new Map<number, Function>();
@@ -234,13 +253,17 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
     const mockWindow: any = {
       innerWidth: 1200,
       innerHeight: 800,
+      __WEB_BUG_REPORT_I18N__: {
+        locale: "zh-CN",
+        dict: loadDict("zh_CN"),
+      },
       setInterval(fn: Function) {
         intervalCallback = fn;
         return 1;
       },
       clearInterval() {},
       setTimeout(fn: Function, ms: number) {
-        if (ms === 1500) {
+        if (ms === 1500 || ms === 8000 || ms === 250) {
           const id = ++timeoutIdSeq;
           pendingTimeouts.set(id, fn);
           return id;
@@ -263,6 +286,16 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
           fn();
         }
       },
+      triggerBubbleTimer() {
+        const ids = [...pendingTimeouts.keys()];
+        for (const id of ids) {
+          const fn = pendingTimeouts.get(id);
+          if (fn) {
+            pendingTimeouts.delete(id);
+            fn();
+          }
+        }
+      },
       triggerInterval() {
         if (intervalCallback) intervalCallback();
       },
@@ -281,6 +314,11 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
     });
     Object.defineProperty(globalThis, "sessionStorage", {
       value: sessionStorageMock,
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(globalThis, "localStorage", {
+      value: localStorageMock,
       configurable: true,
       writable: true,
     });
@@ -560,6 +598,85 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
     assert.match(toast.textContent || "", /导出失败/);
     assert.match(toast.innerHTML, /color:#d5484c/);
   });
+
+  test("录制挂件 showToast 支持双行渲染", () => {
+    widget = new RecordingWidget(callbacks);
+    widget.showToast("主标题\n副标题 (按 ⌘V 粘贴)");
+    const toast = document.querySelector("#__wbr_toast__") as HTMLElement;
+    assert.ok(toast, "页面必须渲染 #__wbr_toast__");
+    assert.ok(toast.innerHTML.includes("主标题"), "Toast 应包含主标题");
+    assert.ok(toast.innerHTML.includes("副标题"), "Toast 应包含副标题");
+    assert.ok(
+      toast.innerHTML.includes("<kbd"),
+      "Toast 中的快捷键应被包装为 kbd 键帽"
+    );
+  });
+
+  test("首次挂载录制悬浮条时展示跟随轻气泡，且气泡展示期间保持展开", () => {
+    storageMap.delete("__wbr_widget_bubble_seen__");
+    widget = new RecordingWidget(callbacks);
+    widget.mount();
+
+    const bubble = document.querySelector(
+      "#__wbr_widget_bubble__"
+    ) as HTMLElement;
+    assert.ok(bubble, "首次录制必须在 DOM 中挂载提示气泡");
+    assert.match(bubble.textContent || "", /正在录制/);
+    assert.match(bubble.textContent || "", /⌥S|Option\+S|Alt\+S/);
+
+    // 气泡展示期间，即使触发折叠倒计时也不折叠
+    (globalThis.window as any).triggerCollapseTimer();
+    assert.equal(
+      mockRootElement.classList.contains("__wbr_collapsed__"),
+      false,
+      "气泡展示期间悬浮条必须保持展开态"
+    );
+  });
+
+  test("气泡不自动消失，只有用户点击关闭或确认才关闭并记录已看标记", () => {
+    storageMap.delete("__wbr_widget_bubble_seen__");
+    widget = new RecordingWidget(callbacks);
+    widget.mount();
+
+    let bubble = document.querySelector(
+      "#__wbr_widget_bubble__"
+    ) as HTMLElement;
+    assert.ok(bubble, "挂载初始必须有气泡");
+
+    // 不论触发多少次常规计时器，气泡都不得自动消失
+    (globalThis.window as any).triggerBubbleTimer();
+    bubble = document.querySelector("#__wbr_widget_bubble__") as HTMLElement;
+    assert.ok(bubble, "气泡不得自动消失");
+
+    // 用户点击气泡上的关闭/我知道了
+    bubble.dispatchEvent({ type: "click" });
+    // 触发 250ms 淡出移除计时
+    (globalThis.window as any).triggerBubbleTimer();
+
+    bubble = document.querySelector("#__wbr_widget_bubble__") as HTMLElement;
+    assert.equal(bubble, null, "用户点击后气泡必须从 DOM 移除");
+    assert.equal(storageMap.get("__wbr_widget_bubble_seen__"), "true");
+  });
+
+  test("点击气泡立即关闭并记录已看标记", () => {
+    storageMap.delete("__wbr_widget_bubble_seen__");
+    widget = new RecordingWidget(callbacks);
+    widget.mount();
+
+    const bubble = document.querySelector(
+      "#__wbr_widget_bubble__"
+    ) as HTMLElement;
+    assert.ok(bubble, "挂载初始必须有气泡");
+
+    // 点击气泡
+    bubble.dispatchEvent({ type: "click" });
+    // 触发 250ms 淡出移除计时
+    (globalThis.window as any).triggerBubbleTimer();
+
+    const bubbleAfter = document.querySelector("#__wbr_widget_bubble__");
+    assert.equal(bubbleAfter, null, "点击气泡后应立即淡出销毁");
+    assert.equal(storageMap.get("__wbr_widget_bubble_seen__"), "true");
+  });
 });
 
 describe("RecordingWidget - i18n", () => {
@@ -575,10 +692,17 @@ describe("RecordingWidget - i18n", () => {
     );
   });
 
-  test("暂停状态 i18n key 必须双语言齐全且 en 文案不得混入中文", () => {
+  test("悬浮条与气泡 i18n key 必须双语言齐全且 en 文案不得混入中文", () => {
     const zhDict = loadDict("zh_CN");
     const enDict = loadDict("en");
-    for (const key of ["idlePaused", "widgetPaused"] as const) {
+    for (const key of [
+      "idlePaused",
+      "widgetPaused",
+      "widgetBubbleGuide",
+      "widgetBubbleGotIt",
+      "widgetToolbarIssueTooltip",
+      "widgetToolbarStopTooltip",
+    ] as const) {
       assert.ok(key in zhDict, `i18n key '${key}' 缺失于 zh_CN/messages.json`);
       assert.ok(key in enDict, `i18n key '${key}' 缺失于 en/messages.json`);
       assert.ok(zhDict[key].message.trim().length > 0, `zh 文案 '${key}' 为空`);
@@ -588,5 +712,28 @@ describe("RecordingWidget - i18n", () => {
         `en 文案 '${key}' 不得混入中文`
       );
     }
+  });
+
+  test("悬浮条圈选与停止按钮具有强化的 Tooltip 语义与快捷键提示", () => {
+    const source = readFileSync(WIDGET_SOURCE, "utf8");
+    assert.ok(
+      source.includes(
+        't("widgetToolbarIssueTooltip", [this.shortcutKeyText])'
+      ) || source.includes('t("widgetToolbarIssueTooltip"'),
+      "悬浮条 📷 按钮必须使用 widgetToolbarIssueTooltip 并注入快捷键"
+    );
+    assert.ok(
+      source.includes(
+        't("widgetToolbarStopTooltip", [this.stopShortcutKeyText])'
+      ) || source.includes('t("widgetToolbarStopTooltip"'),
+      "悬浮条 ⏹ 按钮必须使用 widgetToolbarStopTooltip 并注入快捷键"
+    );
+  });
+
+  test("新手引导气泡按钮文案必须为行动驱动型 '开始操作'", () => {
+    const zhDict = loadDict("zh_CN");
+    const enDict = loadDict("en");
+    assert.equal(zhDict.widgetBubbleGotIt.message, "开始操作");
+    assert.match(enDict.widgetBubbleGotIt.message, /Start|Reproduce/i);
   });
 });

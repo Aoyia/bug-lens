@@ -65,7 +65,7 @@ test("PreviewPageShell.notify 连续调用会重置隐藏定时器，不被旧�
   }
 });
 
-test("PreviewPageShell.notify 单次通知仍按 2.5s 展示后隐藏", () => {
+test("PreviewPageShell.notify 单次通知按 4.0s 展示后隐藏，且支持换行/结构化分层", () => {
   const pendingTimers: Array<{ id: number; fn: () => void }> = [];
   let nextTimerId = 1;
   const fakeWindow = {
@@ -83,7 +83,12 @@ test("PreviewPageShell.notify 单次通知仍按 2.5s 展示后隐藏", () => {
   const prevWindow = globalScope.window;
   globalScope.window = fakeWindow;
 
-  const toast = { textContent: "", hidden: true };
+  const toast = {
+    textContent: "",
+    innerHTML: "",
+    hidden: true,
+    addEventListener: () => {},
+  };
   const doc = {
     querySelector: (selector: string) =>
       selector === "#toast-message" ? toast : null,
@@ -93,13 +98,58 @@ test("PreviewPageShell.notify 单次通知仍按 2.5s 展示后隐藏", () => {
 
   try {
     const shell = new PreviewPageShell(doc, () => {});
-    shell.notify("单条通知");
-    assert.equal(toast.textContent, "单条通知");
+    shell.notify("首行标题\n次行副标题");
     assert.equal(toast.hidden, false);
+    assert.ok(toast.innerHTML.includes("首行标题"));
+    assert.ok(toast.innerHTML.includes("次行副标题"));
     assert.equal(pendingTimers.length, 1);
 
     pendingTimers[0]!.fn();
     assert.equal(toast.hidden, true);
+  } finally {
+    globalScope.window = prevWindow;
+  }
+});
+
+test("PreviewPageShell.notify 支持 aiPromptCopied 双行提示", () => {
+  const pendingTimers: Array<{ id: number; fn: () => void }> = [];
+  let nextTimerId = 1;
+  const fakeWindow = {
+    setTimeout: (fn: () => void) => {
+      const id = nextTimerId++;
+      pendingTimers.push({ id, fn });
+      return id;
+    },
+    clearTimeout: (id: number) => {
+      const idx = pendingTimers.findIndex((t) => t.id === id);
+      if (idx >= 0) pendingTimers.splice(idx, 1);
+    },
+  };
+  const globalScope = globalThis as Record<string, unknown>;
+  const prevWindow = globalScope.window;
+  globalScope.window = fakeWindow;
+
+  const toast = {
+    textContent: "",
+    innerHTML: "",
+    hidden: true,
+    addEventListener: () => {},
+  };
+  const doc = {
+    querySelector: (selector: string) =>
+      selector === "#toast-message" ? toast : null,
+    querySelectorAll: () => [],
+    addEventListener: () => {},
+  } as unknown as Document;
+
+  try {
+    const shell = new PreviewPageShell(doc, () => {});
+    shell.notify(
+      "AI Prompt 已复制\n直接在 Cursor / Claude 中按 ⌘V 粘贴即可排查"
+    );
+    assert.equal(toast.hidden, false);
+    assert.ok(toast.innerHTML.includes("AI Prompt 已复制"));
+    assert.ok(toast.innerHTML.includes("toast-kbd"));
   } finally {
     globalScope.window = prevWindow;
   }

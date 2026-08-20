@@ -317,13 +317,13 @@
     "message": "关闭"
   },
   "stopRecording": {
-    "message": "结束并导出"
+    "message": "结束并导出 AI Prompt"
   },
   "saving": {
     "message": "保存中..."
   },
   "stopAndExport": {
-    "message": "结束并导出"
+    "message": "结束并导出 AI Prompt"
   },
   "stopAndDiscard": {
     "message": "结束并丢弃"
@@ -416,6 +416,36 @@
   },
   "widgetPaused": {
     "message": "已暂停"
+  },
+  "widgetBubbleGuide": {
+    "message": "正在录制：正常操作复现 Bug，按 $KEY$ 圈选异常区域，完成后点 ⏹ 导出 AI Prompt",
+    "placeholders": {
+      "key": {
+        "content": "$1"
+      }
+    }
+  },
+  "widgetToolbarIssueTooltip": {
+    "message": "圈选异常区域 ($KEY$)",
+    "placeholders": {
+      "key": {
+        "content": "$1"
+      }
+    }
+  },
+  "widgetToolbarStopTooltip": {
+    "message": "结束录制并复制 AI Prompt ($KEY$)",
+    "placeholders": {
+      "key": {
+        "content": "$1"
+      }
+    }
+  },
+  "widgetToolbarStopTooltipNoKey": {
+    "message": "结束录制并复制 AI Prompt"
+  },
+  "widgetBubbleGotIt": {
+    "message": "开始操作"
   },
   "selecting": {
     "message": "选择中…"
@@ -762,7 +792,7 @@
     }
   },
   "exportSuccessCopied": {
-    "message": "ZIP 下载完成，AI 提示词已自动复制到剪贴板！"
+    "message": "[ZIP] 证据包已下载完成\nAI Prompt 已复制，直接在 Cursor / Claude 中按 ⌘V 粘贴排查"
   },
   "exportSuccessCanCopy": {
     "message": "ZIP 下载完成，可复制 AI 提示词"
@@ -1575,7 +1605,7 @@
     "message": "全屏 (双击视频)"
   },
   "aiPromptCopied": {
-    "message": "AI 提示词已复制"
+    "message": "AI Prompt 已复制\n直接在 Cursor / Claude 中按 ⌘V 粘贴即可排查"
   },
   "zipPathCopied": {
     "message": "ZIP 绝对路径已复制"

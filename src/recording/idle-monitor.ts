@@ -1,5 +1,5 @@
 import type { CaptureIssue } from "../shared/protocol";
-import { t } from "../shared/i18n";
+import { t } from "../shared/i18n.js";
 
 export type IdleState = "active" | "idle" | "locked";
 
