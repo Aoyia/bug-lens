@@ -65,6 +65,9 @@
   "config": {
     "message": "配置"
   },
+  "configLockedDuringRecording": {
+    "message": "录制进行中，配置已锁定（停止录制后可修改）"
+  },
   "language": {
     "message": "界面语言"
   },
@@ -585,7 +588,7 @@
     "message": "音频依附于录像；请先开启录像。"
   },
   "rawModeWarning": {
-    "message": "原始模式会保留未脱敏的页面和调试数据。仅在获准且会人工检查的场景使用。"
+    "message": "表单输入、接口与状态将保持明文"
   },
   "privacyModeSafe": {
     "message": "安全模式"

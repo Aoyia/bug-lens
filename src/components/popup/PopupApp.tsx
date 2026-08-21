@@ -91,6 +91,8 @@ export function PopupApp() {
   const [historyLoading, setHistoryLoading] = useState<boolean>(false);
   // 单调递增请求序号：防抖查询与视图切换可能重叠，只采纳最新一次请求的结果
   const historyRequestIdRef = useRef(0);
+  // 录制配置加载守卫：防止初始化前 React 默认值覆盖已存盘的用户配置
+  const optionsLoadedRef = useRef(false);
 
   useEffect(() => {
     void (async () => {
@@ -149,9 +151,44 @@ export function PopupApp() {
         }
       } catch {
         // 存储不可用时静默跳过引导与选项回填
+      } finally {
+        optionsLoadedRef.current = true;
       }
     })();
   }, []);
+
+  // 配置修改即存盘（Auto-save on Change）：用户在 Popup 中切换任意选项即时持久化，
+  // 避免未触发录制直接关闭弹窗导致配置丢失，并确保全局快捷键始终同步最新选择。
+  useEffect(() => {
+    if (!optionsLoadedRef.current) return;
+    const options: RecordingOptions = {
+      captureVideo,
+      captureAudio: captureVideo ? captureAudio : false,
+      captureScreenshots,
+      captureConsole,
+      captureNetwork,
+      captureNetworkBodies: captureNetwork ? captureNetworkBodies : false,
+      captureFrameworkState,
+      privacyMode,
+      mediaTimesliceMs: DEFAULT_RECORDING_OPTIONS.mediaTimesliceMs,
+      videoBitsPerSecond: VIDEO_BITRATE_BY_COMPRESSION[videoQuality],
+      maxSessionBytes: DEFAULT_RECORDING_OPTIONS.maxSessionBytes,
+      maxResponseBodyBytes: DEFAULT_RECORDING_OPTIONS.maxResponseBodyBytes,
+    };
+    void chrome.storage.local
+      .set({ "last-recording-options": options })
+      .catch(() => undefined);
+  }, [
+    captureVideo,
+    captureAudio,
+    captureScreenshots,
+    captureConsole,
+    captureNetwork,
+    captureNetworkBodies,
+    captureFrameworkState,
+    privacyMode,
+    videoQuality,
+  ]);
 
   const handleSetLanguagePreference = useCallback(
     async (pref: LanguagePreference) => {

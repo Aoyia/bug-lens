@@ -63,16 +63,16 @@ export class ExpectedCaptureCard {
     root.setAttribute("data-wbr-ignore", "true");
     Object.assign(root.style, {
       position: "fixed",
-      top: "76px",
+      top: "clamp(72px, 22vh, 180px)",
       left: "50%",
       transform: "translateX(-50%)",
-      zIndex: "2147483645",
+      zIndex: "2147483647",
       width: "min(calc(100vw - 32px), 460px)",
-      background: "rgba(255,255,255,0.97)",
+      background: "rgba(255,255,255,0.98)",
       border: "1px solid #e5e6eb",
-      borderRadius: "4px",
-      boxShadow: "0 8px 30px rgba(0,0,0,0.18)",
-      padding: "12px 14px",
+      borderRadius: "8px",
+      boxShadow: "0 12px 36px rgba(0,0,0,0.22), 0 0 0 1px rgba(0,0,0,0.04)",
+      padding: "14px 16px",
       fontFamily:
         '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif',
       display: "flex",
@@ -235,32 +235,16 @@ export class ExpectedCaptureCard {
   // ─── Private ───
 
   /**
-   * 就近定位：默认锚定鼠标右下方并做视口钳制，让卡片"从点击处长出来"。
-   * 仅在锚点缺失（如快捷键触发）或视口放不下面板时，回退顶部居中。
+   * 视窗黄金分割处居中定位（Spotlight 风格）：
+   * 统一在屏幕上方黄金视线（约 22vh）居中弹出，确保焦点居中且绝对不与右下角录制挂件重叠遮挡。
    */
-  private positionCard(anchor?: { x: number; y: number }): void {
+  private positionCard(_anchor?: { x: number; y: number }): void {
     const root = this.cardElement;
     if (!root) return;
-    const cardWidth = root.offsetWidth || 460;
-    const cardHeight = root.offsetHeight || 180;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const canFit = cardWidth <= vw - 16 && cardHeight <= vh - 16;
-    if (!anchor || !canFit) {
-      Object.assign(root.style, {
-        top: "76px",
-        left: "50%",
-        transform: "translateX(-50%)",
-      });
-      return;
-    }
-    const gap = 14;
-    const left = Math.max(8, Math.min(vw - cardWidth - 8, anchor.x + gap));
-    const top = Math.max(8, Math.min(vh - cardHeight - 8, anchor.y + gap));
     Object.assign(root.style, {
-      top: `${top}px`,
-      left: `${left}px`,
-      transform: "none",
+      top: "clamp(72px, 22vh, 180px)",
+      left: "50%",
+      transform: "translateX(-50%)",
     });
   }
 

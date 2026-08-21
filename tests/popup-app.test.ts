@@ -509,3 +509,91 @@ test("PopupApp 闲置态展示 3 步工作流心智卡片，并经由 storage �
     "popup.css 必须包含 .workflow-guide 样式规则"
   );
 });
+
+test("OptionsGrid 录制锁定态：提供 not-allowed 禁用光标、视觉分层与 Hover Tooltip 提示", () => {
+  const optionsGrid = readFileSync(
+    resolve(process.cwd(), "src/components/popup/OptionsGrid.tsx"),
+    "utf8"
+  );
+  const popupCss = readFileSync(
+    resolve(process.cwd(), "src/entrypoints/popup/styles/popup.css"),
+    "utf8"
+  );
+  const zhDict = JSON.parse(
+    readFileSync(
+      resolve(process.cwd(), "src/_locales/zh_CN/messages.json"),
+      "utf8"
+    )
+  );
+  const enDict = JSON.parse(
+    readFileSync(
+      resolve(process.cwd(), "src/_locales/en/messages.json"),
+      "utf8"
+    )
+  );
+
+  // 1. OptionsGrid 必须定义 lockedTitle 并绑定至 options/selects
+  assert.match(
+    optionsGrid,
+    /lockedTitle\s*=\s*controlsLocked\s*\?\s*t\("configLockedDuringRecording"\)\s*:\s*undefined/,
+    "OptionsGrid 必须在 controlsLocked 时计算 configLockedDuringRecording 悬停提示"
+  );
+  assert.match(
+    optionsGrid,
+    /title=\{lockedTitle\}/,
+    "OptionsGrid 必须将 lockedTitle 绑定至配置项"
+  );
+
+  // 2. 双语字典中必须存在 configLockedDuringRecording key
+  assert.ok(
+    "configLockedDuringRecording" in zhDict,
+    "zh_CN/messages.json 必须包含 configLockedDuringRecording"
+  );
+  assert.ok(
+    "configLockedDuringRecording" in enDict,
+    "en/messages.json 必须包含 configLockedDuringRecording"
+  );
+
+  // 3. CSS 必须定义禁用光标与视觉弱化样式
+  assert.match(
+    popupCss,
+    /\.scope-chip:has\(input:disabled\)/,
+    "popup.css 必须包含 .scope-chip:has(input:disabled) 规则"
+  );
+  assert.match(
+    popupCss,
+    /cursor:\s*not-allowed/,
+    "popup.css 必须提供 cursor: not-allowed"
+  );
+});
+
+test("PopupApp 录制配置即时自动持久化：具备加载守卫与变更自动存盘", () => {
+  const popupApp = readFileSync(
+    resolve(process.cwd(), "src/components/popup/PopupApp.tsx"),
+    "utf8"
+  );
+
+  // 1. 必须具备初始化守卫 optionsLoadedRef，防止初始默认值覆盖已存盘配置
+  assert.match(
+    popupApp,
+    /optionsLoadedRef\s*=\s*useRef\(false\)/,
+    "PopupApp 必须使用 optionsLoadedRef 记录初始化加载状态"
+  );
+  assert.match(
+    popupApp,
+    /optionsLoadedRef\.current\s*=\s*true/,
+    "PopupApp 读取 local storage 后必须标记 optionsLoadedRef.current = true"
+  );
+
+  // 2. 必须具备自动存盘 useEffect，监听配置项并存入 last-recording-options
+  assert.match(
+    popupApp,
+    /if\s*\(\!optionsLoadedRef\.current\)\s*return/,
+    "自动存盘 effect 必须在未完成初始化时提前返回"
+  );
+  assert.match(
+    popupApp,
+    /chrome\.storage\.local\s*\.\s*set\(\{\s*["']last-recording-options["']:\s*options\s*\}\)/,
+    "必须将更新后的 options 即时写入 chrome.storage.local"
+  );
+});

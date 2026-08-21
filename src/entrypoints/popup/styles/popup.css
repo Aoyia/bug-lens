@@ -334,6 +334,32 @@ body {
   outline: none;
   cursor: pointer;
 }
+/* 禁用态与录制锁定态交互反馈：光标统一 not-allowed，透明度弱化，且保持选中项的只读对比度 */
+.scope-chip:has(input:disabled),
+.scope-chip input[type="checkbox"]:disabled,
+.privacy-select:disabled,
+.video-quality-row:has(:disabled) {
+  cursor: not-allowed;
+}
+
+.scope-chip:has(input:disabled),
+.privacy-select:disabled,
+.video-quality-row:has(:disabled) .video-quality-label {
+  opacity: 0.55;
+}
+
+.scope-chip:has(input:checked:disabled) {
+  background: var(--bl-primary-light, rgba(22, 93, 255, 0.08));
+  color: var(--ink-sub);
+  border-color: rgba(22, 93, 255, 0.2);
+  opacity: 0.7;
+}
+
+.privacy-select:disabled {
+  background: #f0f1f4;
+  color: var(--ink-sub);
+  border-color: rgba(0, 0, 0, 0.05);
+}
 .video-quality-row {
   display: flex;
   align-items: center;

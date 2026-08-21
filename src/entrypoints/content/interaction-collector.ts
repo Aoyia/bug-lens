@@ -163,6 +163,9 @@ if (existingController) {
     getPausedDurationMs(): number {
       return monitor.getPausedDurationMs();
     },
+    getSessionId(): string | undefined {
+      return session?.sessionId;
+    },
   });
 
   // 监听语言偏好变更并实时更新挂件文案
@@ -174,12 +177,14 @@ if (existingController) {
   const editor = new IssueEditor({
     getSession: () => session,
     onClose(restoreWidget) {
+      widget.setIssueSelecting(false);
       if (restoreWidget && session) widget.mount();
     },
     onReselect() {
       beginIssueSelection();
     },
     onStopAfterCommit() {
+      widget.setIssueSelecting(false);
       widget.unmount();
     },
     isMac,
@@ -338,9 +343,7 @@ if (existingController) {
     // 同步到 window 挂载符号，供调试与重复注入时读取
     window.__WEB_BUG_RECORDER_SESSION__ = next;
     if (next) {
-      // 仅当真正开始新会话（从无会话变为有会话）时重置挂件位置；
-      // 同一会话内标记问题后重挂载（编辑器关闭/选区取消）保留用户拖拽的位置
-      if (!hadSession) widget.resetPosition();
+      // 挂件会基于 sessionId 判定是否恢复已保存的拖拽位置；若换了新会话则自动使用默认位置
       widget.mount();
       if (health) widget.updateHealth(health);
       monitor.start();

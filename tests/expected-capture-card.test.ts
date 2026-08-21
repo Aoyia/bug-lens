@@ -247,3 +247,24 @@ test("速记卡：interaction-collector 为速记卡接线了 onCancel", () => {
     "collector 应通过 onCancel 复位标记按钮且不进入选择"
   );
 });
+
+test("速记卡：在视窗黄金分割处居中弹出，避免与录制挂件重叠遮挡", () => {
+  const cardSource = readFileSync(
+    resolve(
+      process.cwd(),
+      "src/entrypoints/content/collector/expected-capture-card.ts"
+    ),
+    "utf8"
+  );
+  assert.match(
+    cardSource,
+    /top:\s*["']clamp\(72px,\s*22vh,\s*180px\)["']/,
+    "速记卡应在黄金分割视线处定位"
+  );
+  assert.match(cardSource, /left:\s*["']50%["']/, "速记卡应水平居中");
+  assert.match(
+    cardSource,
+    /transform:\s*["']translateX\(-50%\)["']/,
+    "速记卡应通过 transform 水平居中"
+  );
+});

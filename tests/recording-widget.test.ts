@@ -481,6 +481,57 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
     );
   });
 
+  test("restores position if sessionId matches (e.g., page reload during same session)", () => {
+    sessionStorage.setItem(
+      "__wbr_widget_pos__",
+      JSON.stringify({ sessionId: "session-123", right: "150px", top: "180px" })
+    );
+
+    widget = new RecordingWidget({
+      ...callbacks,
+      getSessionId: () => "session-123",
+    });
+    widget.mount();
+
+    assert.equal(
+      mockRootElement.style.top,
+      "180px",
+      "Widget should restore position for matching sessionId"
+    );
+    assert.equal(
+      mockRootElement.style.right,
+      "150px",
+      "Widget should restore position for matching sessionId"
+    );
+  });
+
+  test("does NOT restore position if sessionId differs (new session started)", () => {
+    mockRootElement.style.top = "";
+    mockRootElement.style.right = "";
+
+    sessionStorage.setItem(
+      "__wbr_widget_pos__",
+      JSON.stringify({ sessionId: "old-session", right: "150px", top: "180px" })
+    );
+
+    widget = new RecordingWidget({
+      ...callbacks,
+      getSessionId: () => "new-session",
+    });
+    widget.mount();
+
+    assert.equal(
+      mockRootElement.style.top,
+      "",
+      "Widget should ignore saved position from different session"
+    );
+    assert.equal(
+      mockRootElement.style.right,
+      "",
+      "Widget should ignore saved position from different session"
+    );
+  });
+
   test("setSavingState(false) restores interactive state after a failed stop", () => {
     const startMs = Date.now() - 10_000; // 已录制 10 秒
     widget = new RecordingWidget({
@@ -572,6 +623,33 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
       `${t("markIssue")} (${widget.shortcutKeyText})`
     );
     assert.equal(issueBtn.style.opacity, "1");
+  });
+
+  test("unmount and re-mount automatically clears isSelectingIssue state", () => {
+    widget = new RecordingWidget(callbacks);
+    widget.mount();
+
+    widget.setIssueSelecting(true);
+    widget.unmount();
+    widget.mount();
+
+    const issueBtn = mockRootElement.querySelector(
+      "#__wbr_issue_btn__"
+    ) as unknown as {
+      disabled: boolean;
+      textContent: string;
+      style: { opacity: string };
+    };
+    assert.equal(
+      issueBtn.disabled,
+      false,
+      "Re-mounted widget button must not be disabled"
+    );
+    assert.equal(
+      issueBtn.textContent,
+      `${t("markIssue")} (${widget.shortcutKeyText})`,
+      "Re-mounted widget button must restore default text"
+    );
   });
 
   test("shows toast notification with zen light style consistent with preview page", () => {

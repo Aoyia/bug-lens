@@ -144,26 +144,44 @@ body {
   max-width: 100%;
 }
 
-/* 常驻隐私模式角标 Privacy Mode Badge */
+/* 常驻隐私模式内联元信息 Privacy Mode Inline Meta */
 .privacy-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   flex-shrink: 0;
   font-size: var(--font-xs);
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1;
-  padding: 4px 9px;
-  border-radius: 999px;
+  padding: 0;
+  border-radius: 0;
+  border: none;
+  background: transparent;
   white-space: nowrap;
+  color: var(--zen-text-muted);
+  cursor: help;
+}
+.privacy-badge::before {
+  content: "";
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 .privacy-badge.is-safe {
-  color: var(--zen-text-sub);
-  background: rgba(47, 158, 110, 0.1);
-  border: 1px solid rgba(47, 158, 110, 0.35);
+  color: var(--zen-text-muted);
+}
+.privacy-badge.is-safe::before {
+  background: #10b981;
 }
 .privacy-badge.is-raw {
-  color: #ffffff;
+  color: var(--zen-danger, #d5484c);
+  font-weight: 600;
+}
+.privacy-badge.is-raw::before {
   background: var(--zen-danger, #d5484c);
-  border: 1px solid rgba(213, 72, 76, 0.6);
-  box-shadow: 0 0 0 3px rgba(213, 72, 76, 0.16);
+  box-shadow: 0 0 0 2px rgba(213, 72, 76, 0.2);
 }
 
 .zen-titlebar-right {

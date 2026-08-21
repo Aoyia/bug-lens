@@ -8,6 +8,7 @@ export type WidgetCallbacks = {
   getStartedAtEpochMs(): number;
   isIdlePaused(): boolean;
   getPausedDurationMs?(): number;
+  getSessionId?(): string | undefined;
 };
 
 type ToastTone = "success" | "error";
@@ -47,7 +48,7 @@ export class RecordingWidget {
 
   /**
    * 新录制会话开始时调用：清除已保存的拖拽位置，挂件回到默认位置。
-   * 与 restoreSavedPosition 配合：同一会话内重挂载（标记问题后返回）保留用户拖拽的位置，
+   * 与 restoreSavedPosition 配合：同一会话内重挂载（标记问题后返回/页面刷新）保留用户拖拽的位置，
    * 仅真正开始新会话时重置，避免挂件反复跳回默认位置遮挡页面内容。
    */
   resetPosition(): void {
@@ -55,7 +56,47 @@ export class RecordingWidget {
       if (typeof sessionStorage !== "undefined") {
         sessionStorage.removeItem("__wbr_widget_pos__");
       }
+      if (typeof chrome !== "undefined" && chrome.storage?.local) {
+        void chrome.storage.local
+          .remove("__wbr_widget_pos__")
+          .catch(() => undefined);
+      }
     } catch {}
+  }
+
+  /**
+   * 应用位置并做视口边界钳制（right/top 定位）。
+   */
+  private applyPosition(
+    root: HTMLElement,
+    saved: { sessionId?: string; right?: string; top?: string }
+  ): boolean {
+    const currentSessionId = this.callbacks.getSessionId?.();
+    if (
+      saved.sessionId &&
+      currentSessionId &&
+      saved.sessionId !== currentSessionId
+    ) {
+      return false;
+    }
+    const rightPx = Number.parseFloat(saved?.right ?? "");
+    const topPx = Number.parseFloat(saved?.top ?? "");
+    if (!Number.isFinite(rightPx) || !Number.isFinite(topPx)) return false;
+
+    const winWidth = window.innerWidth || document.documentElement.clientWidth;
+    const winHeight =
+      window.innerHeight || document.documentElement.clientHeight;
+    const rect = root.getBoundingClientRect();
+    const maxRight = Math.max(0, winWidth - rect.width);
+    const maxTop = Math.max(0, winHeight - rect.height);
+    const right = Math.min(Math.max(0, rightPx), maxRight);
+    const top = Math.min(Math.max(0, topPx), maxTop);
+
+    root.style.setProperty("top", `${top}px`, "important");
+    root.style.setProperty("right", `${right}px`, "important");
+    root.style.setProperty("bottom", "auto", "important");
+    root.style.setProperty("left", "auto", "important");
+    return true;
   }
 
   /**
@@ -64,28 +105,28 @@ export class RecordingWidget {
    */
   private restoreSavedPosition(root: HTMLElement): void {
     try {
-      if (typeof sessionStorage === "undefined") return;
-      const raw = sessionStorage.getItem("__wbr_widget_pos__");
-      if (!raw) return;
-      const saved = JSON.parse(raw) as { right?: string; top?: string };
-      const rightPx = Number.parseFloat(saved?.right ?? "");
-      const topPx = Number.parseFloat(saved?.top ?? "");
-      if (!Number.isFinite(rightPx) || !Number.isFinite(topPx)) return;
-
-      const winWidth =
-        window.innerWidth || document.documentElement.clientWidth;
-      const winHeight =
-        window.innerHeight || document.documentElement.clientHeight;
-      const rect = root.getBoundingClientRect();
-      const maxRight = Math.max(0, winWidth - rect.width);
-      const maxTop = Math.max(0, winHeight - rect.height);
-      const right = Math.min(Math.max(0, rightPx), maxRight);
-      const top = Math.min(Math.max(0, topPx), maxTop);
-
-      root.style.setProperty("top", `${top}px`, "important");
-      root.style.setProperty("right", `${right}px`, "important");
-      root.style.setProperty("bottom", "auto", "important");
-      root.style.setProperty("left", "auto", "important");
+      let restored = false;
+      if (typeof sessionStorage !== "undefined") {
+        const raw = sessionStorage.getItem("__wbr_widget_pos__");
+        if (raw) {
+          const saved = JSON.parse(raw) as {
+            sessionId?: string;
+            right?: string;
+            top?: string;
+          };
+          restored = this.applyPosition(root, saved);
+        }
+      }
+      if (!restored && typeof chrome !== "undefined" && chrome.storage?.local) {
+        void chrome.storage.local
+          .get(["__wbr_widget_pos__"])
+          .then((res) => {
+            if (res?.__wbr_widget_pos__ && this.container === root) {
+              this.applyPosition(root, res.__wbr_widget_pos__);
+            }
+          })
+          .catch(() => undefined);
+      }
     } catch {
       // 存储不可用或数据损坏时静默回退默认位置
     }
@@ -355,15 +396,22 @@ export class RecordingWidget {
               window.removeEventListener("mouseup", onMouseUp);
 
               try {
+                const currentSessionId = this.callbacks.getSessionId?.();
+                const savedPos = {
+                  sessionId: currentSessionId,
+                  right: root.style.right,
+                  top: root.style.top,
+                };
                 if (typeof sessionStorage !== "undefined") {
-                  const savedPos = {
-                    right: root.style.right,
-                    top: root.style.top,
-                  };
                   sessionStorage.setItem(
                     "__wbr_widget_pos__",
                     JSON.stringify(savedPos)
                   );
+                }
+                if (typeof chrome !== "undefined" && chrome.storage?.local) {
+                  void chrome.storage.local
+                    .set({ __wbr_widget_pos__: savedPos })
+                    .catch(() => undefined);
                 }
               } catch {}
 
@@ -431,6 +479,7 @@ export class RecordingWidget {
         // 启动初始折叠倒计时
         this.resetCollapseTimer();
 
+        this.setIssueSelecting(false);
         this.updateLanguage();
 
         this.refreshTimerDisplay();
@@ -667,6 +716,7 @@ export class RecordingWidget {
     this._isSaving = false;
     this.isHovering = false;
     this.isBubbleShowing = false;
+    this.isSelectingIssue = false;
     if (this.bubbleTimer) {
       window.clearTimeout(this.bubbleTimer);
       this.bubbleTimer = undefined;

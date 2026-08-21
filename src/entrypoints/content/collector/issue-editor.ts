@@ -216,8 +216,8 @@ export class IssueEditor {
           <svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor"><circle cx="3" cy="3" r="1.5"/><circle cx="7" cy="3" r="1.5"/><circle cx="3" cy="8" r="1.5"/><circle cx="7" cy="8" r="1.5"/><circle cx="3" cy="13" r="1.5"/><circle cx="7" cy="13" r="1.5"/></svg>
         </div>
         <div style="flex:1"></div>
-        <button data-issue-save class="__wbr_issue_action" style="display:inline-flex;align-items:center;gap:4px;background:#165dff;color:#ffffff;border:1px solid #165dff;border-radius:2px;height:34px;padding:0 16px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">${t("issueSaveContinue")}</button>
-        <button data-issue-save-stop class="__wbr_issue_action" style="display:inline-flex;align-items:center;gap:4px;background:transparent;color:#86909c;border:1px solid #e5e6eb;border-radius:2px;height:28px;padding:0 8px;font-size:12px;font-weight:400;cursor:pointer;white-space:nowrap" title="${t("issueSaveStopTitle")}">${t("issueSaveStop")}</button>
+        <button data-issue-save class="__wbr_issue_action" style="display:inline-flex;align-items:center;gap:4px;background:#165dff;color:#ffffff;border:1px solid #165dff;border-radius:2px;height:32px;padding:0 14px;font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap">${t("issueSaveContinue")}</button>
+        <button data-issue-save-stop class="__wbr_issue_action" style="display:inline-flex;align-items:center;gap:4px;background:#f2f3f5;color:#4e5969;border:1px solid #e5e6eb;border-radius:2px;height:32px;padding:0 12px;font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap" title="${t("issueSaveStopTitle")}">${t("issueSaveStop")}</button>
       </div>
       <div data-issue-error style="color:#b42318;font-size:12px;padding:6px 10px;border-radius:2px;background:#fde3df;border:1px solid #f99f95;display:none"></div>
     </div>`;

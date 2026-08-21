@@ -54,6 +54,10 @@ export const OptionsGrid = memo(function OptionsGrid({
   onSetPrivacyMode,
   onSetLanguagePreference,
 }: OptionsGridProps) {
+  const lockedTitle = controlsLocked
+    ? t("configLockedDuringRecording")
+    : undefined;
+
   return (
     <div>
       <div className="inline-config">
@@ -82,7 +86,7 @@ export const OptionsGrid = memo(function OptionsGrid({
       {advancedOpen && (
         <div id="advanced-options" className="advanced-panel">
           <div className="scopes-grid">
-            <label className="scope-chip">
+            <label className="scope-chip" title={lockedTitle}>
               <input
                 id="video"
                 type="checkbox"
@@ -95,7 +99,13 @@ export const OptionsGrid = memo(function OptionsGrid({
               />
               <span>{t("video")}</span>
             </label>
-            <label className="scope-chip">
+            <label
+              className="scope-chip"
+              title={
+                lockedTitle ??
+                (!captureVideo ? t("audioNeedsVideo") : undefined)
+              }
+            >
               <input
                 id="audio"
                 type="checkbox"
@@ -105,7 +115,7 @@ export const OptionsGrid = memo(function OptionsGrid({
               />
               <span>{t("audio")}</span>
             </label>
-            <label className="scope-chip">
+            <label className="scope-chip" title={lockedTitle}>
               <input
                 id="screenshots"
                 type="checkbox"
@@ -117,7 +127,7 @@ export const OptionsGrid = memo(function OptionsGrid({
               />
               <span>{t("clickScreenshots")}</span>
             </label>
-            <label className="scope-chip">
+            <label className="scope-chip" title={lockedTitle}>
               <input
                 id="console"
                 type="checkbox"
@@ -127,7 +137,7 @@ export const OptionsGrid = memo(function OptionsGrid({
               />
               <span>{t("console")}</span>
             </label>
-            <label className="scope-chip">
+            <label className="scope-chip" title={lockedTitle}>
               <input
                 id="network"
                 type="checkbox"
@@ -141,7 +151,7 @@ export const OptionsGrid = memo(function OptionsGrid({
               />
               <span>{t("network")}</span>
             </label>
-            <label className="scope-chip">
+            <label className="scope-chip" title={lockedTitle}>
               <input
                 id="bodies"
                 type="checkbox"
@@ -153,7 +163,7 @@ export const OptionsGrid = memo(function OptionsGrid({
               />
               <span>{t("responseBodies")}</span>
             </label>
-            <label className="scope-chip">
+            <label className="scope-chip" title={lockedTitle}>
               <input
                 id="framework-state"
                 type="checkbox"
@@ -171,6 +181,7 @@ export const OptionsGrid = memo(function OptionsGrid({
             className="privacy-select"
             value={privacyMode}
             disabled={controlsLocked}
+            title={lockedTitle}
             onChange={(e) =>
               onSetPrivacyMode(e.currentTarget.value as "safe" | "raw")
             }
@@ -184,13 +195,14 @@ export const OptionsGrid = memo(function OptionsGrid({
             </div>
           )}
           {captureVideo && (
-            <label className="video-quality-row">
+            <label className="video-quality-row" title={lockedTitle}>
               <span className="video-quality-label">{t("videoQuality")}</span>
               <select
                 id="video-quality"
                 className="privacy-select"
                 value={videoQuality}
                 disabled={controlsLocked}
+                title={lockedTitle}
                 onChange={(e) =>
                   onSetVideoQuality(e.currentTarget.value as VideoQuality)
                 }
@@ -201,13 +213,14 @@ export const OptionsGrid = memo(function OptionsGrid({
               </select>
             </label>
           )}
-          <label className="video-quality-row">
+          <label className="video-quality-row" title={lockedTitle}>
             <span className="video-quality-label">{t("language")}</span>
             <select
               id="language-preference"
               className="privacy-select"
               value={languagePreference}
               disabled={controlsLocked}
+              title={lockedTitle}
               onChange={(e) =>
                 onSetLanguagePreference(
                   e.currentTarget.value as LanguagePreference

@@ -65,6 +65,9 @@
   "config": {
     "message": "Settings"
   },
+  "configLockedDuringRecording": {
+    "message": "Locked during recording (editable after stopping)"
+  },
   "language": {
     "message": "Language"
   },
@@ -585,7 +588,7 @@
     "message": "Audio depends on video recording; please enable video first."
   },
   "rawModeWarning": {
-    "message": "Raw mode preserves unsanitized page and debugging data. Only use in authorized scenarios with manual review."
+    "message": "Form inputs, APIs, and state will remain unredacted."
   },
   "privacyModeSafe": {
     "message": "Safe mode"
