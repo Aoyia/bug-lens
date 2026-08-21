@@ -248,7 +248,8 @@ body {
 }
 .config-text {
   font-size: 11px;
-  color: var(--ink-muted);
+  color: var(--ink-sub);
+  font-weight: 500;
 }
 .toggle-options-btn {
   display: inline-flex;
@@ -299,15 +300,23 @@ body {
 .scope-chip {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 3.5px;
   font-size: 11px;
   color: var(--ink-sub);
   cursor: pointer;
   padding: 3px 5px;
+  height: 24px;
+  box-sizing: border-box;
   background: #f4f5f7;
   border-radius: var(--radius-sm);
   border: 1px solid transparent;
   transition: all 0.12s ease;
+  white-space: nowrap;
+}
+.scope-chip span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .scope-chip:has(input:checked) {
   background: var(--bl-primary-light, rgba(22, 93, 255, 0.06));
@@ -378,14 +387,14 @@ body {
   min-width: 0;
 }
 .raw-mode-inline-warning {
-  margin-top: 6px;
-  padding: 6px 8px;
-  font-size: 11px;
-  line-height: 1.5;
-  color: #b45309;
-  background: #fffbeb;
-  border: 1px solid #fde68a;
-  border-radius: var(--radius-sm);
+  margin: 3px 0 1px;
+  padding: 0 2px;
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: #d97706;
+  background: transparent;
+  border: none;
+  text-align: right;
 }
 
 /* Shutter Action Button */

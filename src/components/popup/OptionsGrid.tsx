@@ -1,8 +1,6 @@
 import { memo } from "preact/compat";
 import { t, type LanguagePreference } from "../../shared/i18n";
 
-export type VideoQuality = "quality" | "balanced" | "small";
-
 interface OptionsGridProps {
   controlsLocked: boolean;
   advancedOpen: boolean;
@@ -13,7 +11,6 @@ interface OptionsGridProps {
   captureNetwork: boolean;
   captureNetworkBodies: boolean;
   captureFrameworkState: boolean;
-  videoQuality: VideoQuality;
   privacyMode: "safe" | "raw";
   languagePreference: LanguagePreference;
   onToggleAdvanced: () => void;
@@ -24,7 +21,6 @@ interface OptionsGridProps {
   onSetCaptureNetwork: (val: boolean) => void;
   onSetCaptureNetworkBodies: (val: boolean) => void;
   onSetCaptureFrameworkState: (val: boolean) => void;
-  onSetVideoQuality: (val: VideoQuality) => void;
   onSetPrivacyMode: (mode: "safe" | "raw") => void;
   onSetLanguagePreference: (pref: LanguagePreference) => void;
 }
@@ -39,7 +35,6 @@ export const OptionsGrid = memo(function OptionsGrid({
   captureNetwork,
   captureNetworkBodies,
   captureFrameworkState,
-  videoQuality,
   privacyMode,
   languagePreference,
   onToggleAdvanced,
@@ -50,7 +45,6 @@ export const OptionsGrid = memo(function OptionsGrid({
   onSetCaptureNetwork,
   onSetCaptureNetworkBodies,
   onSetCaptureFrameworkState,
-  onSetVideoQuality,
   onSetPrivacyMode,
   onSetLanguagePreference,
 }: OptionsGridProps) {
@@ -176,42 +170,26 @@ export const OptionsGrid = memo(function OptionsGrid({
               <span>{t("frameworkStates")}</span>
             </label>
           </div>
-          <select
-            id="privacy"
-            className="privacy-select"
-            value={privacyMode}
-            disabled={controlsLocked}
-            title={lockedTitle}
-            onChange={(e) =>
-              onSetPrivacyMode(e.currentTarget.value as "safe" | "raw")
-            }
-          >
-            <option value="safe">{t("safeMode")}</option>
-            <option value="raw">{t("rawMode")}</option>
-          </select>
+          <label className="video-quality-row" title={lockedTitle}>
+            <span className="video-quality-label">{t("privacyModeLabel")}</span>
+            <select
+              id="privacy"
+              className="privacy-select"
+              value={privacyMode}
+              disabled={controlsLocked}
+              title={lockedTitle}
+              onChange={(e) =>
+                onSetPrivacyMode(e.currentTarget.value as "safe" | "raw")
+              }
+            >
+              <option value="safe">{t("safeMode")}</option>
+              <option value="raw">{t("rawMode")}</option>
+            </select>
+          </label>
           {privacyMode === "raw" && (
             <div className="raw-mode-inline-warning" role="note">
               {t("rawModeWarning")}
             </div>
-          )}
-          {captureVideo && (
-            <label className="video-quality-row" title={lockedTitle}>
-              <span className="video-quality-label">{t("videoQuality")}</span>
-              <select
-                id="video-quality"
-                className="privacy-select"
-                value={videoQuality}
-                disabled={controlsLocked}
-                title={lockedTitle}
-                onChange={(e) =>
-                  onSetVideoQuality(e.currentTarget.value as VideoQuality)
-                }
-              >
-                <option value="quality">{t("videoQualityHigh")}</option>
-                <option value="balanced">{t("videoQualityBalanced")}</option>
-                <option value="small">{t("videoQualitySmall")}</option>
-              </select>
-            </label>
           )}
           <label className="video-quality-row" title={lockedTitle}>
             <span className="video-quality-label">{t("language")}</span>

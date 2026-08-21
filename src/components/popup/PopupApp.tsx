@@ -32,7 +32,7 @@ import { bindConfirmDialogDismiss } from "../../popup/confirm-dialog";
 import { resolvePopupEscape } from "../../popup/popup-escape";
 import { focusHistorySearchOnEntry } from "../../popup/history-search-focus";
 import { RecordPanel } from "./RecordPanel.tsx";
-import { OptionsGrid, type VideoQuality } from "./OptionsGrid.tsx";
+import { OptionsGrid } from "./OptionsGrid.tsx";
 import { HistoryList } from "./HistoryList.tsx";
 
 const HISTORY_SEARCH_DEBOUNCE_MS = 300;
@@ -73,7 +73,6 @@ export function PopupApp() {
     useState<boolean>(true);
   const [captureFrameworkState, setCaptureFrameworkState] =
     useState<boolean>(true);
-  const [videoQuality, setVideoQuality] = useState<VideoQuality>("balanced");
   const [privacyMode, setPrivacyMode] = useState<"safe" | "raw">("safe");
   const [languagePreference, setLanguagePreference] =
     useState<LanguagePreference>("auto");
@@ -142,12 +141,6 @@ export function PopupApp() {
             setCaptureFrameworkState(last.captureFrameworkState);
           if (last.privacyMode === "safe" || last.privacyMode === "raw")
             setPrivacyMode(last.privacyMode);
-          const bitrate = last.videoBitsPerSecond;
-          if (bitrate === VIDEO_BITRATE_BY_COMPRESSION.quality) {
-            setVideoQuality("quality");
-          } else if (bitrate === VIDEO_BITRATE_BY_COMPRESSION.small) {
-            setVideoQuality("small");
-          }
         }
       } catch {
         // 存储不可用时静默跳过引导与选项回填
@@ -171,7 +164,7 @@ export function PopupApp() {
       captureFrameworkState,
       privacyMode,
       mediaTimesliceMs: DEFAULT_RECORDING_OPTIONS.mediaTimesliceMs,
-      videoBitsPerSecond: VIDEO_BITRATE_BY_COMPRESSION[videoQuality],
+      videoBitsPerSecond: VIDEO_BITRATE_BY_COMPRESSION.balanced,
       maxSessionBytes: DEFAULT_RECORDING_OPTIONS.maxSessionBytes,
       maxResponseBodyBytes: DEFAULT_RECORDING_OPTIONS.maxResponseBodyBytes,
     };
@@ -187,7 +180,6 @@ export function PopupApp() {
     captureNetworkBodies,
     captureFrameworkState,
     privacyMode,
-    videoQuality,
   ]);
 
   const handleSetLanguagePreference = useCallback(
@@ -449,7 +441,7 @@ export function PopupApp() {
       captureFrameworkState,
       privacyMode,
       mediaTimesliceMs: DEFAULT_RECORDING_OPTIONS.mediaTimesliceMs,
-      videoBitsPerSecond: VIDEO_BITRATE_BY_COMPRESSION[videoQuality],
+      videoBitsPerSecond: VIDEO_BITRATE_BY_COMPRESSION.balanced,
       maxSessionBytes: DEFAULT_RECORDING_OPTIONS.maxSessionBytes,
       maxResponseBodyBytes: DEFAULT_RECORDING_OPTIONS.maxResponseBodyBytes,
     };
@@ -509,7 +501,6 @@ export function PopupApp() {
     captureNetwork,
     captureNetworkBodies,
     captureFrameworkState,
-    videoQuality,
     privacyMode,
   ]);
 
@@ -732,7 +723,6 @@ export function PopupApp() {
           captureNetwork={captureNetwork}
           captureNetworkBodies={captureNetworkBodies}
           captureFrameworkState={captureFrameworkState}
-          videoQuality={videoQuality}
           privacyMode={privacyMode}
           languagePreference={languagePreference}
           onToggleAdvanced={() => setAdvancedOpen(!advancedOpen)}
@@ -743,7 +733,6 @@ export function PopupApp() {
           onSetCaptureNetwork={setCaptureNetwork}
           onSetCaptureNetworkBodies={setCaptureNetworkBodies}
           onSetCaptureFrameworkState={setCaptureFrameworkState}
-          onSetVideoQuality={setVideoQuality}
           onSetPrivacyMode={setPrivacyMode}
           onSetLanguagePreference={handleSetLanguagePreference}
         />

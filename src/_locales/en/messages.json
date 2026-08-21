@@ -48,7 +48,7 @@
     "message": "Recording"
   },
   "defaultSafeCollection": {
-    "message": "Default · Safe Full Capture"
+    "message": "Capture Settings"
   },
   "workflowStepStart": {
     "message": "Start Record"
@@ -275,10 +275,10 @@
     "message": "Network"
   },
   "responseBodies": {
-    "message": "Response Bodies"
+    "message": "Bodies"
   },
   "frameworkStates": {
-    "message": "Framework State"
+    "message": "Framework"
   },
   "videoQuality": {
     "message": "Video quality"
@@ -291,6 +291,9 @@
   },
   "videoQualitySmall": {
     "message": "Small (lower quality)"
+  },
+  "privacyModeLabel": {
+    "message": "Masking"
   },
   "safeMode": {
     "message": "Safe Mode (Sanitized)"
