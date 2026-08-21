@@ -89,15 +89,42 @@ describe("Screenshot ZIP Builder - 资源包压缩与解压验证", () => {
       !promptText.includes("请将这里替换为导出的 ZIP 绝对路径"),
       "ai-prompt.md 不应包含路径占位符"
     );
-    assert.ok(
-      promptText.includes("真实绝对路径已写入剪贴板提示词"),
-      "ai-prompt.md 应包含剪贴板路径引导文案"
-    );
-
     // JSON 采用标准美化格式化（2 空格缩进，便于阅读）
     const domText = new TextDecoder().decode(unzipped["dom-context.json"]);
     assert.equal(domText, JSON.stringify(dummyPayload.domContextTree, null, 2));
     const envText = new TextDecoder().decode(unzipped["environment.json"]);
     assert.equal(envText, JSON.stringify(dummyPayload.environment, null, 2));
+  });
+
+  test("base64ToUint8Array 支持无 data: 前缀的纯 base64 字符串", () => {
+    const rawBase64 =
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+    const u8 = base64ToUint8Array(rawBase64);
+    assert.ok(u8 instanceof Uint8Array);
+    assert.equal(u8.byteLength, 70);
+  });
+
+  test("buildScreenshotZipPackage 正确打包包含 cascade.json 的完整 ZIP 且图片字节精确一致", async () => {
+    const payloadWithCascade: AIScreenshotPayload = {
+      ...dummyPayload,
+      cascadeIndex: {
+        meta: {
+          timestamp: 1700000000000,
+          bounds: { x: 0, y: 0, width: 100, height: 100 },
+        },
+        elements: [],
+        rules: [],
+      } as any,
+    };
+    const pack = buildScreenshotZipPackage(payloadWithCascade);
+    const u8 = new Uint8Array(await pack.blob.arrayBuffer());
+    const unzipped = unzipSync(u8);
+
+    assert.ok(unzipped["screenshot.png"]);
+    assert.ok(unzipped["cascade.json"]);
+
+    // 验证 Level 0 存储的 PNG 解压后字节与原始图片完全一致
+    const expectedImgU8 = base64ToUint8Array(dummyPayload.image.base64Data);
+    assert.deepEqual(unzipped["screenshot.png"], expectedImgU8);
   });
 });

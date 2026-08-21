@@ -1497,6 +1497,9 @@
   "shotClear": {
     "message": "一键清空标注"
   },
+  "screenshotProcessing": {
+    "message": "正在生成 ZIP 证据包..."
+  },
   "screenshotToastWithPath": {
     "message": "[ZIP] 截图证据包已下载完成\nAI Prompt 已复制（含路径），在 Cursor / Claude 中按 ⌘V 粘贴排查"
   },

@@ -14,10 +14,13 @@ export interface ScreenshotZipResult {
 
 /** 辅助将 Base64 dataURL 转化为 Uint8Array */
 export function base64ToUint8Array(base64Data: string): Uint8Array {
-  const parts = base64Data.split(",");
-  const raw = atob(parts[1] || parts[0]);
-  const u8 = new Uint8Array(raw.length);
-  for (let i = 0; i < raw.length; i++) {
+  const commaIdx = base64Data.indexOf(",");
+  const raw = atob(
+    commaIdx !== -1 ? base64Data.slice(commaIdx + 1) : base64Data
+  );
+  const len = raw.length;
+  const u8 = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
     u8[i] = raw.charCodeAt(i);
   }
   return u8;
@@ -41,7 +44,7 @@ export function formatLocalTimestamp(date: Date): string {
 }
 
 /**
- * 组装截图 ZIP 证据包 (fflate zipSync 高性能同步压缩)
+ * 组装截图 ZIP 证据包 (fflate zipSync 差异化高性能压缩：PNG 走 Level 0 存储，文本走 Level 6 压缩)
  */
 export function buildScreenshotZipPackage(
   payload: AIScreenshotPayload
@@ -57,26 +60,38 @@ export function buildScreenshotZipPackage(
   // 统一固定图片文件名为 screenshot.png
   const imageFilename = "screenshot.png";
 
-  // 组装 ZIP 压缩包包含的文件列表
-  const zipFiles: Record<string, Uint8Array> = {
-    [imageFilename]: imageU8,
-    "ai-prompt.md": stringToUint8Array(markdownPrompt),
-    "dom-context.json": stringToUint8Array(
-      JSON.stringify(normalizeDomTreeKeyOrder(payload.domContextTree), null, 2)
-    ),
-    "environment.json": stringToUint8Array(
-      JSON.stringify(payload.environment, null, 2)
-    ),
+  // 组装 ZIP 压缩包包含的文件列表（PNG 已为 Deflate 位图，采用 level 0 零算力封包；文本走 level 6 压缩）
+  const zipFiles: Record<
+    string,
+    Uint8Array | [Uint8Array, { level?: number }]
+  > = {
+    [imageFilename]: [imageU8, { level: 0 }],
+    "ai-prompt.md": [stringToUint8Array(markdownPrompt), { level: 6 }],
+    "dom-context.json": [
+      stringToUint8Array(
+        JSON.stringify(
+          normalizeDomTreeKeyOrder(payload.domContextTree),
+          null,
+          2
+        )
+      ),
+      { level: 6 },
+    ],
+    "environment.json": [
+      stringToUint8Array(JSON.stringify(payload.environment, null, 2)),
+      { level: 6 },
+    ],
   };
 
   if (payload.cascadeIndex) {
-    zipFiles["cascade.json"] = stringToUint8Array(
-      JSON.stringify(payload.cascadeIndex, null, 2)
-    );
+    zipFiles["cascade.json"] = [
+      stringToUint8Array(JSON.stringify(payload.cascadeIndex, null, 2)),
+      { level: 6 },
+    ];
   }
 
   // 使用 fflate 高性能 zipSync 快速打包
-  const zippedUint8 = zipSync(zipFiles, { level: 6 });
+  const zippedUint8 = zipSync(zipFiles as any);
   const blob = new Blob([zippedUint8], { type: "application/zip" });
   const blobUrl =
     typeof URL !== "undefined" && URL.createObjectURL

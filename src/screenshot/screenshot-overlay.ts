@@ -612,16 +612,44 @@ export class ScreenshotOverlay {
   private showToast(
     message: string,
     durationMs = 2800,
-    tone: "success" | "error" = "success"
-  ): void {
-    if (!document.body) return;
+    tone: "success" | "error" | "loading" = "success"
+  ): {
+    update: (
+      newMessage: string,
+      newTone?: "success" | "error" | "loading",
+      newDurationMs?: number
+    ) => void;
+    success: (newMessage: string, newDurationMs?: number) => void;
+    error: (newMessage: string, newDurationMs?: number) => void;
+    dismiss: () => void;
+  } {
+    if (!document.body) {
+      return {
+        update: () => {},
+        success: () => {},
+        error: () => {},
+        dismiss: () => {},
+      };
+    }
 
-    // 与录制导出 Toast（recording-widget）保持一致的视觉：先移除旧 toast 再新建
-    const existing = document.querySelector("#__bug_lens_screenshot_toast__");
+    // 注入全局 keyframes 动画样式（若尚未注入）
+    if (!document.getElementById("__wbr_screenshot_spin_style__")) {
+      const style = document.createElement("style");
+      style.id = "__wbr_screenshot_spin_style__";
+      style.textContent = `
+        @keyframes wbr-screenshot-spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    // 与录制导出 Toast 保持一致的视觉：先移除旧 toast 再新建
+    const existing = document.querySelector("#__wbr_screenshot_toast__");
     if (existing) existing.remove();
 
     const toast = document.createElement("div");
-    const isDualLine = message.includes("\n");
     toast.id = "__wbr_screenshot_toast__";
     toast.setAttribute("data-wbr-ignore", "true");
     toast.style.cssText = `
@@ -635,7 +663,6 @@ export class ScreenshotOverlay {
       backdrop-filter: blur(16px) !important;
       border: 1px solid rgba(0, 0, 0, 0.08) !important;
       color: #1d2129 !important;
-      padding: ${isDualLine ? "10px 18px" : "6px 16px"} !important;
       border-radius: 8px !important;
       font-size: 13.5px !important;
       box-shadow: 0 16px 42px -6px rgba(0, 0, 0, 0.18), 0 6px 16px -2px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04) !important;
@@ -643,32 +670,52 @@ export class ScreenshotOverlay {
       align-items: center !important;
       gap: 8px !important;
       pointer-events: none !important;
-      transition: opacity 0.2s ease, transform 0.2s ease !important;
+      transition: opacity 0.2s ease, transform 0.2s ease, padding 0.2s ease !important;
       opacity: 0 !important;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
     `;
-    let contentHtml = "";
-    if (isDualLine) {
-      const [title, ...rest] = message.split("\n");
-      const desc = rest.join("\n");
-      const kbdRegex = /(⌘V|Ctrl\+V)/g;
-      const descHtml = desc.replace(
-        kbdRegex,
-        `<kbd style="display:inline-flex!important;align-items:center!important;justify-content:center!important;padding:0 4px!important;min-width:20px!important;height:16px!important;font-size:10px!important;font-family:inherit!important;font-weight:600!important;color:#4e5969!important;background:#f2f3f5!important;border:1px solid #e5e6eb!important;border-radius:3px!important;vertical-align:baseline!important;margin:0 2px!important;">$1</kbd>`
-      );
-      contentHtml = `
-        <div style="display:flex!important;flex-direction:column!important;gap:2px!important;align-items:flex-start!important;text-align:left!important;">
-          <div style="font-size:13.5px!important;font-weight:600!important;color:#1d2129!important;line-height:1.4!important;">${title}</div>
-          <div style="font-size:12px!important;font-weight:400!important;color:#86909c!important;line-height:1.4!important;">${descHtml}</div>
-        </div>
-      `;
-    } else {
-      contentHtml = `<span style="line-height:1.4!important;">${message}</span>`;
-    }
 
-    const icon = tone === "error" ? "!" : "✓";
-    const iconColor = tone === "error" ? "#d5484c" : "#00b42a";
-    toast.innerHTML = `<span style="color:${iconColor};font-size:16px;font-weight:700;line-height:1;margin-top:${isDualLine ? "2px" : "0"};align-self:${isDualLine ? "flex-start" : "center"};">${icon}</span> ${contentHtml}`;
+    let dismissTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const renderContent = (
+      msg: string,
+      currentTone: "success" | "error" | "loading"
+    ) => {
+      const isDualLine = msg.includes("\n");
+      toast.style.padding = isDualLine ? "10px 18px" : "6px 16px";
+
+      let contentHtml = "";
+      if (isDualLine) {
+        const [title, ...rest] = msg.split("\n");
+        const desc = rest.join("\n");
+        const kbdRegex = /(⌘V|Ctrl\+V)/g;
+        const descHtml = desc.replace(
+          kbdRegex,
+          `<kbd style="display:inline-flex!important;align-items:center!important;justify-content:center!important;padding:0 4px!important;min-width:20px!important;height:16px!important;font-size:10px!important;font-family:inherit!important;font-weight:600!important;color:#4e5969!important;background:#f2f3f5!important;border:1px solid #e5e6eb!important;border-radius:3px!important;vertical-align:baseline!important;margin:0 2px!important;">$1</kbd>`
+        );
+        contentHtml = `
+          <div style="display:flex!important;flex-direction:column!important;gap:2px!important;align-items:flex-start!important;text-align:left!important;">
+            <div style="font-size:13.5px!important;font-weight:600!important;color:#1d2129!important;line-height:1.4!important;">${title}</div>
+            <div style="font-size:12px!important;font-weight:400!important;color:#86909c!important;line-height:1.4!important;">${descHtml}</div>
+          </div>
+        `;
+      } else {
+        contentHtml = `<span style="line-height:1.4!important;">${msg}</span>`;
+      }
+
+      let iconHtml = "";
+      if (currentTone === "loading") {
+        iconHtml = `<span style="display:inline-block!important;width:13px!important;height:13px!important;border:2px solid rgba(0,122,255,0.25)!important;border-top-color:#007aff!important;border-radius:50%!important;animation:wbr-screenshot-spin 0.8s linear infinite!important;margin-right:2px!important;flex-shrink:0!important;align-self:${isDualLine ? "flex-start" : "center"};margin-top:${isDualLine ? "3px" : "0"};"></span>`;
+      } else {
+        const icon = currentTone === "error" ? "!" : "✓";
+        const iconColor = currentTone === "error" ? "#d5484c" : "#00b42a";
+        iconHtml = `<span style="color:${iconColor};font-size:16px;font-weight:700;line-height:1;margin-top:${isDualLine ? "2px" : "0"};align-self:${isDualLine ? "flex-start" : "center"};">${icon}</span>`;
+      }
+
+      toast.innerHTML = `${iconHtml} ${contentHtml}`;
+    };
+
+    renderContent(message, tone);
     document.body.appendChild(toast);
 
     const rAF =
@@ -680,11 +727,45 @@ export class ScreenshotOverlay {
       toast.style.transform = "translateX(-50%) translateY(0)";
     });
 
-    setTimeout(() => {
-      toast.style.opacity = "0";
-      toast.style.transform = "translateX(-50%) translateY(-10px)";
-      setTimeout(() => toast.remove(), 200);
-    }, durationMs);
+    const scheduleDismiss = (ms: number) => {
+      if (dismissTimer) clearTimeout(dismissTimer);
+      if (ms > 0) {
+        dismissTimer = setTimeout(() => {
+          toast.style.opacity = "0";
+          toast.style.transform = "translateX(-50%) translateY(-10px)";
+          setTimeout(() => toast.remove(), 200);
+        }, ms);
+      }
+    };
+
+    if (durationMs > 0) {
+      scheduleDismiss(durationMs);
+    }
+
+    const controller = {
+      update: (
+        newMessage: string,
+        newTone: "success" | "error" | "loading" = "success",
+        newDurationMs = 2800
+      ) => {
+        renderContent(newMessage, newTone);
+        scheduleDismiss(newDurationMs);
+      },
+      success: (newMessage: string, newDurationMs = 2800) => {
+        controller.update(newMessage, "success", newDurationMs);
+      },
+      error: (newMessage: string, newDurationMs = 3000) => {
+        controller.update(newMessage, "error", newDurationMs);
+      },
+      dismiss: () => {
+        if (dismissTimer) clearTimeout(dismissTimer);
+        toast.style.opacity = "0";
+        toast.style.transform = "translateX(-50%) translateY(-10px)";
+        setTimeout(() => toast.remove(), 200);
+      },
+    };
+
+    return controller;
   }
 
   async confirm(viewportDataUrl: string): Promise<void> {
@@ -706,22 +787,28 @@ export class ScreenshotOverlay {
       this.container.style.display = "none";
     }
 
+    // 立即在顶部展示优雅的处理中状态胶囊（不阻塞网页操作）
+    const toastHandle = this.showToast(t("screenshotProcessing"), 0, "loading");
+
     try {
       const { payload, promptInjectedWithPath } = await processScreenshot({
         viewportDataUrl,
+        viewportImage: this.viewportImage,
         cropBounds: selection,
         annotations: this.annotationController.annotations,
         styleAdjustmentMode: this.styleAdjustmentMode,
         disablePruning: this.disablePruning,
       });
 
-      this.showToast(buildScreenshotToastMessage(promptInjectedWithPath));
+      // 原地升级为成功态 Toast
+      toastHandle.success(buildScreenshotToastMessage(promptInjectedWithPath));
 
       if (this.onCompleteCallback) {
         this.onCompleteCallback(payload);
       }
     } catch (err) {
       console.error("Bug Lens: Screenshot process failed", err);
+      toastHandle.error(t("screenshotFailed"));
     } finally {
       this.isConfirming = false;
       this.destroy();

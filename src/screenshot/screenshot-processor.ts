@@ -32,6 +32,7 @@ import {
 
 export interface ProcessScreenshotOptions {
   viewportDataUrl: string;
+  viewportImage?: HTMLImageElement | null;
   cropBounds: RectBounds;
   annotations: AnnotationItem[];
   devicePixelRatio?: number;
@@ -46,24 +47,6 @@ function loadImage(dataUrl: string): Promise<HTMLImageElement> {
     img.onload = () => resolve(img);
     img.onerror = (err) => reject(err);
     img.src = dataUrl;
-  });
-}
-
-/** 辅助 canvas.toBlob */
-function canvasToBlob(
-  canvas: HTMLCanvasElement,
-  type = "image/png",
-  quality?: number
-): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob(
-      (blob) => {
-        if (blob) resolve(blob);
-        else reject(new Error("Canvas toBlob failed"));
-      },
-      type,
-      quality
-    );
   });
 }
 
@@ -344,161 +327,171 @@ export async function processScreenshot(
   const dpr =
     options.devicePixelRatio ||
     (typeof window !== "undefined" ? window.devicePixelRatio : 1);
-  const { viewportDataUrl, cropBounds, annotations } = options;
-
-  // 1. 加载视口原图并在 Canvas 中按选区+DPR物理裁剪
-  const img = await loadImage(viewportDataUrl);
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(cropBounds.width * dpr);
-  canvas.height = Math.round(cropBounds.height * dpr);
-
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Failed to get 2d context");
-
-  // 设置高质量图像插值平滑
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = "high";
-
-  // 映射裁剪坐标
-  ctx.drawImage(
-    img,
-    cropBounds.x * dpr,
-    cropBounds.y * dpr,
-    cropBounds.width * dpr,
-    cropBounds.height * dpr,
-    0,
-    0,
-    canvas.width,
-    canvas.height
-  );
-
-  // 2. 将批注渲染 burn-in 进 Canvas 图像
-  // 需将批注坐标转换为相对选区的坐标
-  const relativeAnnotations = annotations.map((ann) => {
-    if (ann.type === "rect" || ann.type === "privacy") {
-      return {
-        ...ann,
-        bounds: {
-          x: ann.bounds.x - cropBounds.x,
-          y: ann.bounds.y - cropBounds.y,
-          width: ann.bounds.width,
-          height: ann.bounds.height,
-        },
-      };
-    }
-    if (ann.type === "arrow") {
-      return {
-        ...ann,
-        startPoint: {
-          x: ann.startPoint.x - cropBounds.x,
-          y: ann.startPoint.y - cropBounds.y,
-        },
-        endPoint: {
-          x: ann.endPoint.x - cropBounds.x,
-          y: ann.endPoint.y - cropBounds.y,
-        },
-      };
-    }
-    if (ann.type === "text") {
-      return {
-        ...ann,
-        position: {
-          x: ann.position.x - cropBounds.x,
-          y: ann.position.y - cropBounds.y,
-        },
-      };
-    }
-    return ann;
-  });
-
-  drawAnnotationsOnCanvas(ctx, relativeAnnotations as AnnotationItem[], dpr);
-
-  // 统一编码为 PNG 格式
-  const imageType = "image/png";
-  const imageQuality = undefined;
-
-  const croppedBase64 = canvas.toDataURL(imageType);
-  const imageBlob = await canvasToBlob(canvas, imageType);
-
+  const { cropBounds, annotations } = options;
   const styleAdjustmentMode = options.styleAdjustmentMode ?? true;
 
-  // 3. 收集空间 DOM 结构树（经主世界探针读取 Vue/React 组件链）
-  const spatialDom = await collectSpatialDomTree({
-    cropBounds,
-    annotations,
-    probeFramework: probeFrameworkComponents,
-    styleAdjustmentMode,
-    disablePruning: options.disablePruning,
-  });
+  // 轨道 A：图像裁剪、DPR 映射与批注渲染烧录（与 DOM 轨完全并行）
+  const imagePromise = (async () => {
+    // 优先复用已就绪的 HTMLImageElement，省去二次 Base64 字符串解析与解码
+    const img =
+      options.viewportImage?.complete && options.viewportImage.naturalWidth > 0
+        ? options.viewportImage
+        : await loadImage(options.viewportDataUrl);
 
-  // 4. 收集 Vue/React 组件的状态（Props / Data），存储到 environment.vueComponentStates 中
-  const vueComponentStates: Array<{
-    componentName: string;
-    componentPath?: string[];
-    props?: Record<string, unknown>;
-    data?: Record<string, unknown>;
-  }> = [];
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(cropBounds.width * dpr);
+    canvas.height = Math.round(cropBounds.height * dpr);
 
-  const collectedStateComponents = new Set<string>();
-  const collectStateFromTree = (node: NonNullable<typeof spatialDom.tree>) => {
-    if (node.componentName && (node.props || node.data)) {
-      const key = `${node.componentName}_${node.componentPath?.join(">")}`;
-      if (!collectedStateComponents.has(key)) {
-        collectedStateComponents.add(key);
-        vueComponentStates.push({
-          componentName: node.componentName,
-          componentPath: node.componentPath,
-          props: node.props,
-          data: node.data,
-        });
-      }
-    }
-    if (node.children) {
-      for (const child of node.children) collectStateFromTree(child);
-    }
-  };
-  if (spatialDom.tree) {
-    collectStateFromTree(spatialDom.tree);
-  }
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Failed to get 2d context");
 
-  // 4.5 如果开启了样式微调模式，收集 CSS 级联快照，并通过 CDP 补全代码行号
-  let cascadeIndex: any = undefined;
-  if (styleAdjustmentMode) {
-    try {
-      cascadeIndex = collectCascadeIndex({
-        bounds: cropBounds,
-        domTree: spatialDom,
-      });
+    // 设置高质量图像插值平滑
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
 
-      // 提取选区元素选择器发往 Background 调用 CDP
-      const selectors = cascadeIndex.elements
-        .map((el: any) => el.selector)
-        .filter(Boolean);
+    // 映射裁剪坐标
+    ctx.drawImage(
+      img,
+      cropBounds.x * dpr,
+      cropBounds.y * dpr,
+      cropBounds.width * dpr,
+      cropBounds.height * dpr,
+      0,
+      0,
+      canvas.width,
+      canvas.height
+    );
 
-      if (selectors.length > 0) {
-        const res = (await message("screenshot/style-source", {
-          selectors,
-        })) as unknown as {
-          ok: boolean;
-          sources?: Array<{ selector: string; source: any }>;
+    // 将批注坐标转换为相对选区的坐标
+    const relativeAnnotations = annotations.map((ann) => {
+      if (ann.type === "rect" || ann.type === "privacy") {
+        return {
+          ...ann,
+          bounds: {
+            x: ann.bounds.x - cropBounds.x,
+            y: ann.bounds.y - cropBounds.y,
+            width: ann.bounds.width,
+            height: ann.bounds.height,
+          },
         };
-        if (res && res.ok && res.sources && res.sources.length > 0) {
-          const sourceMap = new Map(
-            res.sources.map((s: any) => [s.selector, s])
-          );
-          for (const rule of cascadeIndex.rules) {
-            const match = sourceMap.get(rule.selectorText);
-            if (match && match.source) {
-              rule.source = match.source;
-              cascadeIndex.meta.cdpLineInfo = true;
+      }
+      if (ann.type === "arrow") {
+        return {
+          ...ann,
+          startPoint: {
+            x: ann.startPoint.x - cropBounds.x,
+            y: ann.startPoint.y - cropBounds.y,
+          },
+          endPoint: {
+            x: ann.endPoint.x - cropBounds.x,
+            y: ann.endPoint.y - cropBounds.y,
+          },
+        };
+      }
+      if (ann.type === "text") {
+        return {
+          ...ann,
+          position: {
+            x: ann.position.x - cropBounds.x,
+            y: ann.position.y - cropBounds.y,
+          },
+        };
+      }
+      return ann;
+    });
+
+    drawAnnotationsOnCanvas(ctx, relativeAnnotations as AnnotationItem[], dpr);
+    return canvas.toDataURL("image/png");
+  })();
+
+  // 轨道 B：空间 DOM 结构树采集、主世界框架探针与 CSS 级联快照（与图像轨完全并行）
+  const domAndStylePromise = (async () => {
+    // 1. 收集空间 DOM 结构树（经主世界探针读取 Vue/React 组件链）
+    const spatialDom = await collectSpatialDomTree({
+      cropBounds,
+      annotations,
+      probeFramework: probeFrameworkComponents,
+      styleAdjustmentMode,
+      disablePruning: options.disablePruning,
+    });
+
+    // 2. 收集 Vue/React 组件的状态（Props / Data）
+    const vueComponentStates: Array<{
+      componentName: string;
+      componentPath?: string[];
+      props?: Record<string, unknown>;
+      data?: Record<string, unknown>;
+    }> = [];
+
+    const collectedStateComponents = new Set<string>();
+    const collectStateFromTree = (
+      node: NonNullable<typeof spatialDom.tree>
+    ) => {
+      if (node.componentName && (node.props || node.data)) {
+        const key = `${node.componentName}_${node.componentPath?.join(">")}`;
+        if (!collectedStateComponents.has(key)) {
+          collectedStateComponents.add(key);
+          vueComponentStates.push({
+            componentName: node.componentName,
+            componentPath: node.componentPath,
+            props: node.props,
+            data: node.data,
+          });
+        }
+      }
+      if (node.children) {
+        for (const child of node.children) collectStateFromTree(child);
+      }
+    };
+    if (spatialDom.tree) {
+      collectStateFromTree(spatialDom.tree);
+    }
+
+    // 3. 如果开启了样式微调模式，收集 CSS 级联快照，并通过 CDP 补全代码行号
+    let cascadeIndex: any = undefined;
+    if (styleAdjustmentMode) {
+      try {
+        cascadeIndex = collectCascadeIndex({
+          bounds: cropBounds,
+          domTree: spatialDom,
+        });
+
+        // 提取选区元素选择器发往 Background 调用 CDP
+        const selectors = cascadeIndex.elements
+          .map((el: any) => el.selector)
+          .filter(Boolean);
+
+        if (selectors.length > 0) {
+          const res = (await message("screenshot/style-source", {
+            selectors,
+          })) as unknown as {
+            ok: boolean;
+            sources?: Array<{ selector: string; source: any }>;
+          };
+          if (res && res.ok && res.sources && res.sources.length > 0) {
+            const sourceMap = new Map(
+              res.sources.map((s: any) => [s.selector, s])
+            );
+            for (const rule of cascadeIndex.rules) {
+              const match = sourceMap.get(rule.selectorText);
+              if (match && match.source) {
+                rule.source = match.source;
+                cascadeIndex.meta.cdpLineInfo = true;
+              }
             }
           }
         }
+      } catch (err) {
+        console.warn("Bug Lens: 级联快照收集发生非阻断异常", err);
       }
-    } catch (err) {
-      console.warn("Bug Lens: 级联快照收集发生非阻断异常", err);
     }
-  }
+
+    return { spatialDom, vueComponentStates, cascadeIndex };
+  })();
+
+  // 双轨并行等待就绪
+  const [croppedBase64, { spatialDom, vueComponentStates, cascadeIndex }] =
+    await Promise.all([imagePromise, domAndStylePromise]);
 
   // 5. 组装完整 AIScreenshotPayload 并规范化 Key 顺序（确保意图/DOM在上，大图像/底层规则在下）
   const payload: AIScreenshotPayload = normalizePayloadKeyOrder({

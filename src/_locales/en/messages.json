@@ -1497,6 +1497,9 @@
   "shotClear": {
     "message": "Clear all annotations"
   },
+  "screenshotProcessing": {
+    "message": "Generating ZIP evidence package..."
+  },
   "screenshotToastWithPath": {
     "message": "[ZIP] Screenshot evidence downloaded\nAI Prompt copied (with path), paste with ⌘V in Cursor / Claude to diagnose"
   },
