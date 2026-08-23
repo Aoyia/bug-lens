@@ -2,12 +2,14 @@ import {
   message,
   type AnnotationModel,
   type IssueScene,
+  type UserAnnotationItem,
 } from "../../../shared/protocol";
 import { t } from "../../../shared/i18n";
 import {
   ANNOTATION_TOOLBAR_CSS,
   ANNOTATION_TOOLBAR_ICONS,
 } from "../../../shared/ui/annotation-toolbar";
+import { UndoManager } from "../../../shared/undo-manager";
 
 type ActiveDrawing = {
   type: "rect" | "arrow";
@@ -366,7 +368,10 @@ export class IssueEditor {
     });
 
     // ─── Undo/Redo ───
-    const redoStack: any[] = [];
+    const undoManager = new UndoManager<UserAnnotationItem[]>();
+    if (annotation.userAnnotations && annotation.userAnnotations.length > 0) {
+      undoManager.record(annotation.userAnnotations);
+    }
     const undoBtn = root.querySelector<HTMLButtonElement>(
       "[data-issue-tool-undo]"
     );
@@ -374,32 +379,30 @@ export class IssueEditor {
       "[data-issue-tool-redo]"
     );
     const updateUndoRedoStatus = () => {
-      const hasUndo = Boolean(annotation.userAnnotations?.length);
-      const hasRedo = Boolean(redoStack.length);
       if (undoBtn) {
-        undoBtn.disabled = !hasUndo;
+        undoBtn.disabled = !undoManager.canUndo;
       }
       if (redoBtn) {
-        redoBtn.disabled = !hasRedo;
+        redoBtn.disabled = !undoManager.canRedo;
       }
     };
     updateUndoRedoStatus();
     const handleUndo = () => {
-      if (annotation.userAnnotations?.length) {
-        const popped = annotation.userAnnotations.pop();
-        if (popped) redoStack.push(popped);
+      if (undoManager.canUndo) {
+        annotation.userAnnotations = undoManager.undo(
+          annotation.userAnnotations || []
+        );
         this.renderAnnotation(svg, annotation);
         updateUndoRedoStatus();
       }
     };
     const handleRedo = () => {
-      if (redoStack.length) {
-        const item = redoStack.pop();
-        if (item) {
-          annotation.userAnnotations!.push(item);
-          this.renderAnnotation(svg, annotation);
-          updateUndoRedoStatus();
-        }
+      if (undoManager.canRedo) {
+        annotation.userAnnotations = undoManager.redo(
+          annotation.userAnnotations || []
+        );
+        this.renderAnnotation(svg, annotation);
+        updateUndoRedoStatus();
       }
     };
     undoBtn?.addEventListener("click", handleUndo);
@@ -537,7 +540,7 @@ export class IssueEditor {
               yRatio: clickYRatio,
               text: val,
             });
-            redoStack.length = 0;
+            undoManager.record(annotation.userAnnotations!);
             this.renderAnnotation(svg, annotation);
             updateUndoRedoStatus();
           }
@@ -630,7 +633,7 @@ export class IssueEditor {
               endYRatio,
             });
           }
-          redoStack.length = 0;
+          undoManager.record(annotation.userAnnotations!);
           updateUndoRedoStatus();
         }
         this.renderAnnotation(svg, annotation);
