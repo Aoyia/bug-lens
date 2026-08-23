@@ -4,6 +4,10 @@ import {
   type IssueScene,
 } from "../../../shared/protocol";
 import { t } from "../../../shared/i18n";
+import {
+  ANNOTATION_TOOLBAR_CSS,
+  ANNOTATION_TOOLBAR_ICONS,
+} from "../../../shared/ui/annotation-toolbar";
 
 type ActiveDrawing = {
   type: "rect" | "arrow";
@@ -130,6 +134,14 @@ export class IssueEditor {
       fontFamily: `-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif`,
     });
     root.innerHTML = `<style>
+      ${ANNOTATION_TOOLBAR_CSS}
+      #__wbr_issue_editor__ .toolbar {
+        position: absolute;
+        top: 14px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 30;
+      }
       #__wbr_issue_editor__ textarea,
       #__wbr_issue_editor__ input {
         background: #f7f8fa !important;
@@ -164,37 +176,33 @@ export class IssueEditor {
         cursor: not-allowed;
       }
     </style>
-    <div style="position:absolute;top:14px;left:50%;transform:translateX(-50%);z-index:30;background:rgba(255,255,255,0.72);backdrop-filter:blur(14px);border:1px solid rgba(229,230,235,0.9);border-radius:4px;box-shadow:0 2px 10px rgba(0,0,0,0.08);padding:3px 6px;display:flex;align-items:center;gap:6px">
-      <div style="display:flex;align-items:center;gap:2px">
-        <button data-issue-tool="none" class="__wbr_issue_action __wbr_tool_btn" style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:22px;background:#165dff;color:#ffffff;border:1px solid #165dff;border-radius:3px;cursor:pointer;padding:0;flex-shrink:0" title="${t("issueToolBrowse")}">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-        </button>
-        <button data-issue-tool="rect" class="__wbr_issue_action __wbr_tool_btn" style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:22px;background:transparent;color:#5f6b7c;border:1px solid transparent;border-radius:3px;cursor:pointer;padding:0;flex-shrink:0" title="${t("issueToolRect")}">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
-        </button>
-        <button data-issue-tool="arrow" class="__wbr_issue_action __wbr_tool_btn" style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:22px;background:transparent;color:#5f6b7c;border:1px solid transparent;border-radius:3px;cursor:pointer;padding:0;flex-shrink:0" title="${t("issueToolArrow")}">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="19" x2="19" y2="5"/><polyline points="12 5 19 5 19 12"/></svg>
-        </button>
-        <button data-issue-tool="text" class="__wbr_issue_action __wbr_tool_btn" style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:22px;background:transparent;color:#5f6b7c;border:1px solid transparent;border-radius:3px;cursor:pointer;padding:0;flex-shrink:0" title="${t("issueToolText")}">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="12" y1="4" x2="12" y2="20"/><line x1="9" y1="20" x2="15" y2="20"/></svg>
-        </button>
-      </div>
-      <div style="height:12px;width:1px;background:rgba(229,230,235,0.8)"></div>
-      <div style="display:flex;align-items:center;gap:2px">
-        <button data-issue-tool-undo class="__wbr_issue_action" style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:22px;background:transparent;color:#1d2129;border:1px solid transparent;border-radius:3px;cursor:pointer;padding:0;flex-shrink:0" title="${t("undo")}">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/></svg>
-        </button>
-        <button data-issue-tool-redo class="__wbr_issue_action" style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:22px;background:transparent;color:#1d2129;border:1px solid transparent;border-radius:3px;cursor:pointer;padding:0;flex-shrink:0" title="${t("redo")}">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5v0A5.5 5.5 0 0 0 9.5 20H13"/></svg>
-        </button>
-      </div>
-      <div style="height:12px;width:1px;background:rgba(229,230,235,0.8)"></div>
-      <div style="display:flex;align-items:center;gap:2px">
-        <button data-issue-reselect class="__wbr_issue_action" style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:22px;background:transparent;color:#5f6b7c;border:1px solid transparent;border-radius:3px;cursor:pointer;padding:0;flex-shrink:0" title="${t("issueReselect")}">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-        </button>
-        <button data-issue-cancel class="__wbr_issue_action" style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:22px;background:transparent;color:#5f6b7c;border:1px solid transparent;border-radius:3px;cursor:pointer;padding:0;flex-shrink:0;font-size:12px" title="${t("issueCancelClose")}">✕</button>
-      </div>
+    <div class="toolbar">
+      <button data-issue-tool="none" class="active" title="${t("issueToolBrowse")}">
+        ${ANNOTATION_TOOLBAR_ICONS.select}
+      </button>
+      <button data-issue-tool="rect" title="${t("issueToolRect")}">
+        ${ANNOTATION_TOOLBAR_ICONS.rect}
+      </button>
+      <button data-issue-tool="arrow" title="${t("issueToolArrow")}">
+        ${ANNOTATION_TOOLBAR_ICONS.arrow}
+      </button>
+      <button data-issue-tool="text" title="${t("issueToolText")}">
+        ${ANNOTATION_TOOLBAR_ICONS.text}
+      </button>
+      <div class="divider"></div>
+      <button data-issue-tool-undo class="undo-btn" title="${t("undo")}">
+        ${ANNOTATION_TOOLBAR_ICONS.undo}
+      </button>
+      <button data-issue-tool-redo class="redo-btn" title="${t("redo")}">
+        ${ANNOTATION_TOOLBAR_ICONS.redo}
+      </button>
+      <div class="divider"></div>
+      <button data-issue-reselect class="reselect-btn" title="${t("issueReselect")}">
+        ${ANNOTATION_TOOLBAR_ICONS.reselect}
+      </button>
+      <button data-issue-cancel class="cancel-btn" title="${t("issueCancelClose")}">
+        ${ANNOTATION_TOOLBAR_ICONS.cancel}
+      </button>
     </div>
     <div style="width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;padding:52px 12px 24px;box-sizing:border-box;overflow:hidden;position:relative">
       <div data-issue-canvas style="position:relative;display:inline-block;max-width:100%;max-height:100%;border-radius:2px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.15);background:#06080c">
@@ -347,10 +355,11 @@ export class IssueEditor {
           "none" | "rect" | "arrow" | "text";
         activeTool = tool;
         toolButtons.forEach((b) => {
-          const isCurrent = b === btn;
-          b.style.background = isCurrent ? "#165dff" : "transparent";
-          b.style.color = isCurrent ? "#ffffff" : "#5f6b7c";
-          b.style.borderColor = isCurrent ? "#165dff" : "transparent";
+          if (b === btn) {
+            b.classList.add("active");
+          } else {
+            b.classList.remove("active");
+          }
         });
         svg.style.cursor = activeTool === "none" ? "default" : "crosshair";
       });
@@ -369,17 +378,9 @@ export class IssueEditor {
       const hasRedo = Boolean(redoStack.length);
       if (undoBtn) {
         undoBtn.disabled = !hasUndo;
-        undoBtn.style.color = hasUndo ? "#1d2129" : "#c0c6d0";
-        undoBtn.style.background = "transparent";
-        undoBtn.style.cursor = hasUndo ? "pointer" : "not-allowed";
-        undoBtn.style.opacity = "1";
       }
       if (redoBtn) {
         redoBtn.disabled = !hasRedo;
-        redoBtn.style.color = hasRedo ? "#1d2129" : "#c0c6d0";
-        redoBtn.style.background = "transparent";
-        redoBtn.style.cursor = hasRedo ? "pointer" : "not-allowed";
-        redoBtn.style.opacity = "1";
       }
     };
     updateUndoRedoStatus();
