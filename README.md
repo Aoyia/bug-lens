@@ -39,7 +39,7 @@ Standalone screenshot capture with pixel dimension measurement, directional arro
 
 1. **Install Extension**: Download the pre-compiled [bug-lens-v0.6.0.zip](https://github.com/Aoyia/bug-lens/releases/latest), unzip, and load via **"Load unpacked"** in Chrome (`chrome://extensions/` with Developer Mode enabled).
 2. **One-Click Record**: Click the extension icon (or press `Ctrl/Cmd+Shift+Y`) on any web page and reproduce the bug.
-3. **Feed to AI**: Click **"Stop & Export"**—Bug Lens automatically downloads the offline ZIP archive and copies the optimized `AI_PROMPT.md` to your clipboard. Simply paste into Cursor, Claude Code, or Antigravity to fix the bug instantly!
+3. **Feed to AI**: Click **"Stop & Export"**—Bug Lens automatically downloads the offline ZIP archive and copies the optimized `AI_PROMPT.md` to your clipboard. Simply paste into Cursor, Claude Code, Codex, Antigravity, or other AI assistants to fix the bug instantly!
 
 ---
 

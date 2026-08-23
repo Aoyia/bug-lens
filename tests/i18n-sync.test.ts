@@ -100,7 +100,7 @@ describe("i18n Sync and Translation", () => {
     }
   });
 
-  test("导出成功 Toast 提示文案包含 ZIP 下载与 Cursor/Claude 粘贴排查指引 (方案2)", async () => {
+  test("导出成功 Toast 提示文案包含 ZIP 下载与 Cursor/Codex 粘贴排查指引 (方案2)", async () => {
     const fs = await import("node:fs");
     const path = await import("node:path");
     const zhDict = JSON.parse(
@@ -119,18 +119,18 @@ describe("i18n Sync and Translation", () => {
     assert.ok(
       zhDict.exportSuccessCopied.message.includes("ZIP") &&
         zhDict.exportSuccessCopied.message.includes("Cursor") &&
-        zhDict.exportSuccessCopied.message.includes("Claude"),
-      "zh_CN exportSuccessCopied 应同时包含 ZIP 下载与 Cursor/Claude 粘贴指引"
+        zhDict.exportSuccessCopied.message.includes("Codex"),
+      "zh_CN exportSuccessCopied 应同时包含 ZIP 下载与 Cursor/Codex 粘贴指引"
     );
     assert.ok(
       enDict.exportSuccessCopied.message.includes("ZIP") &&
         enDict.exportSuccessCopied.message.includes("Cursor") &&
-        enDict.exportSuccessCopied.message.includes("Claude"),
-      "en exportSuccessCopied 应同时包含 ZIP 下载与 Cursor/Claude 粘贴指引"
+        enDict.exportSuccessCopied.message.includes("Codex"),
+      "en exportSuccessCopied 应同时包含 ZIP 下载与 Cursor/Codex 粘贴指引"
     );
   });
 
-  test("截图导出 Toast 提示文案同样包含双行结构与 Cursor/Claude 粘贴排查指引", async () => {
+  test("截图导出 Toast 提示文案同样包含双行结构与 Cursor/Codex 粘贴排查指引", async () => {
     const fs = await import("node:fs");
     const path = await import("node:path");
     const zhDict = JSON.parse(
@@ -149,14 +149,14 @@ describe("i18n Sync and Translation", () => {
     assert.ok(
       zhDict.screenshotToastWithPath.message.includes("\n") &&
         zhDict.screenshotToastWithPath.message.includes("Cursor") &&
-        zhDict.screenshotToastWithPath.message.includes("Claude"),
-      "zh_CN screenshotToastWithPath 应采用双行结构并包含 Cursor/Claude 粘贴指引"
+        zhDict.screenshotToastWithPath.message.includes("Codex"),
+      "zh_CN screenshotToastWithPath 应采用双行结构并包含 Cursor/Codex 粘贴指引"
     );
     assert.ok(
       enDict.screenshotToastWithPath.message.includes("\n") &&
         enDict.screenshotToastWithPath.message.includes("Cursor") &&
-        enDict.screenshotToastWithPath.message.includes("Claude"),
-      "en screenshotToastWithPath 应采用双行结构并包含 Cursor/Claude 粘贴指引"
+        enDict.screenshotToastWithPath.message.includes("Codex"),
+      "en screenshotToastWithPath 应采用双行结构并包含 Cursor/Codex 粘贴指引"
     );
   });
 });

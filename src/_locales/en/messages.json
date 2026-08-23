@@ -4,7 +4,7 @@
     "description": "The name of the extension"
   },
   "extensionDescription": {
-    "message": "Capture browser bug context (Console, Network, User Actions) and export structured prompts for Cursor, Claude Code, and AI assistants.",
+    "message": "Capture browser bug context (Console, Network, User Actions) and export structured prompts for Cursor, Claude Code, Codex, and AI assistants.",
     "description": "The description of the extension"
   },
   "actionDefaultTitle": {
@@ -60,7 +60,7 @@
     "message": "Feed to AI"
   },
   "workflowAiHint": {
-    "message": "Auto-copies prompt on completion, paste directly into Cursor / Claude etc."
+    "message": "Auto-copies prompt on completion, paste directly into Cursor / Codex etc."
   },
   "config": {
     "message": "Settings"
@@ -798,7 +798,7 @@
     }
   },
   "exportSuccessCopied": {
-    "message": "[ZIP] Evidence package downloaded\nAI Prompt copied, paste with ⌘V in Cursor / Claude to diagnose"
+    "message": "[ZIP] Evidence package downloaded\nAI Prompt copied, paste with ⌘V in Cursor / Codex etc. to diagnose"
   },
   "exportSuccessCanCopy": {
     "message": "ZIP downloaded, AI prompt ready to copy"
@@ -1507,10 +1507,10 @@
     "message": "Generating ZIP evidence package..."
   },
   "screenshotToastWithPath": {
-    "message": "[ZIP] Screenshot evidence downloaded\nAI Prompt copied (with path), paste with ⌘V in Cursor / Claude to diagnose"
+    "message": "[ZIP] Screenshot evidence downloaded\nAI Prompt copied (with path), paste with ⌘V in Cursor / Codex etc. to diagnose"
   },
   "screenshotToastWithoutPath": {
-    "message": "[ZIP] Screenshot evidence downloaded\nAI Prompt copied, paste with ⌘V in Cursor / Claude to diagnose"
+    "message": "[ZIP] Screenshot evidence downloaded\nAI Prompt copied, paste with ⌘V in Cursor / Codex etc. to diagnose"
   },
   "waitForEvidenceLoad": {
     "message": "Please wait for the evidence preview to finish loading."
@@ -1614,7 +1614,7 @@
     "message": "Fullscreen (double-click video)"
   },
   "aiPromptCopied": {
-    "message": "AI Prompt copied\nPaste with ⌘V in Cursor / Claude to diagnose"
+    "message": "AI Prompt copied\nPaste with ⌘V in Cursor / Codex etc. to diagnose"
   },
   "zipPathCopied": {
     "message": "ZIP absolute path copied"

@@ -1,6 +1,6 @@
 # Chrome Web Store Listing & Submission Guide — Bug Lens
 
-> **Version Alignment**: Manifest `v0.7.2`  
+> **Version Alignment**: Manifest `v0.7.32`  
 > **Target Store**: [Chrome Developer Dashboard](https://chrome.google.com/webstore/devconsole)
 
 ---
@@ -16,13 +16,13 @@ Bug Lens
 ### Short Description (Max 132 chars)
 
 ```text
-Capture browser bug context (Console, Network, User Actions) and export structured prompts for Cursor, Claude Code, and AI assistants.
+Capture browser bug context (Console, Network, User Actions) and export structured prompts for Cursor, Claude Code, Codex, and AI assistants.
 ```
 
 ### Detailed Description (English)
 
 ```text
-Bug Lens is a browser extension tailored for developers and AI code assistants (Cursor, Claude Code, Windsurf, Antigravity) to capture full-stack bug context from web sessions.
+Bug Lens is a browser extension tailored for developers and AI code assistants (Cursor, Claude Code, Codex, Windsurf, Antigravity, etc.) to capture full-stack bug context from web sessions.
 
 Debugging frontend issues with AI assistants often fails because critical runtime context is missing. Bug Lens bridges this gap with one-click recording to collect clean, reproducible diagnostic evidence and formatted prompts.
 
@@ -36,7 +36,7 @@ Key Features:
 
 2. AI-Optimized Export Formats
 - Generates token-efficient Markdown prompts and structured JSON data.
-- Built-in formatting tailored for direct consumption by Cursor, Claude Code, and custom AI agents.
+- Built-in formatting tailored for direct consumption by Cursor, Claude Code, Codex, and custom AI agents.
 - Automatically copies formatted AI prompts to the system clipboard upon export.
 
 3. Privacy-First & 100% Local Processing
@@ -58,7 +58,7 @@ Bug Lens does not collect, transmit, or share user data to remote servers. All d
 ### Detailed Description (Chinese / 中文详细说明)
 
 ```text
-Bug Lens 是一款专为开发者与 AI 编程助手（Cursor、Claude Code、Windsurf、Antigravity）量身定制的网页端 Bug 现场证据捕获工具。
+Bug Lens 是一款专为开发者与 AI 编程助手（Cursor、Claude Code、Codex、Windsurf、Antigravity 等 AI）量身定制的网页端 Bug 现场证据捕获工具。
 
 在使用 AI 辅助排查前端问题时，往往因为缺少运行时上下文导致 AI 无法准确定位。Bug Lens 让你一键将浏览器异常会话打包为结构化、高保真的诊断证据与提示词，让 AI 一步到位精准修复 Bug。
 
@@ -72,7 +72,7 @@ Bug Lens 是一款专为开发者与 AI 编程助手（Cursor、Claude Code、Wi
 
 2. 专为 AI 编程优化的导出格式
 - 提供高 Token 效率的 Markdown 提示词与结构化 JSON 数据
-- 深度适配 Cursor、Claude Code 与各类 AI Agent 的上下文格式
+- 深度适配 Cursor、Claude Code、Codex 与各类 AI Agent 的上下文格式
 - 导出完成后自动将结构化 Prompt 复制到系统剪贴板，即贴即用
 
 3. 隐私与数据安全第一
@@ -83,7 +83,7 @@ Bug Lens 是一款专为开发者与 AI 编程助手（Cursor、Claude Code、Wi
 
 1. 捕获：在发生异常的网页点击 Bug Lens 开始录制（或使用快捷键 Alt+R / Option+R）并复现 Bug。
 2. 导出：点击“结束并导出”，系统自动打包证据并生成 AI 诊断提示词。
-3. 修复：直接粘贴给 Cursor、Claude 等 AI 助手，秒级获取根本原因分析与修复代码。
+3. 修复：直接粘贴给 Cursor、Claude Code、Codex 等 AI 助手，秒级获取根本原因分析与修复代码。
 
 隐私与安全性说明：
 Bug Lens 不会向任何远程服务器收集、传输或共享用户数据。所有诊断证据均在本地存储与处理。
@@ -166,7 +166,7 @@ pnpm run typecheck
 pnpm run package
 ```
 
-产物位置：根目录下生成 `dist-zip/bug-lens-v0.7.2.zip`
+产物位置：根目录下生成 `dist-zip/bug-lens-v0.7.32.zip`
 
 ### 步骤 2: 提交至 Chrome Developer Dashboard
 
@@ -182,8 +182,10 @@ pnpm run package
 
 ## 6. 版本变更记录 (Version History)
 
-| Version  | Date       | Changes Summary                                                                                  | Store Status         |
-| :------- | :--------- | :----------------------------------------------------------------------------------------------- | :------------------- |
-| `v0.7.2` | 2026-08-19 | Fix silent export package missing offline HTML report template & assets.                         | Ready for Submission |
-| `v0.7.1` | 2026-08-19 | Store listing optimization for AI coding assistant workflows (Cursor, Claude Code, Antigravity). | Submitted            |
-| `v0.6.0` | 2026-08-12 | Alignment with CDP log capture, clipboard AI prompt copy, pnpm tooling.                          | Submitted            |
+| Version   | Date       | Changes Summary                                                                                                                                         | Store Status         |
+| :-------- | :--------- | :------------------------------------------------------------------------------------------------------------------------------------------------------ | :------------------- |
+| `v0.7.32` | 2026-08-21 | Widget position persistence across sessions, recording lock states, export toast card UI optimizations, and database loading performance optimizations. | Ready for Submission |
+| `v0.7.3`  | 2026-08-21 | Store listing and notification text refinement with Codex & AI assistant representations.                                                               | Submitted            |
+| `v0.7.2`  | 2026-08-19 | Fix silent export package missing offline HTML report template & assets.                                                                                | Submitted            |
+| `v0.7.1`  | 2026-08-19 | Store listing optimization for AI coding assistant workflows (Cursor, Claude Code, Antigravity).                                                        | Submitted            |
+| `v0.6.0`  | 2026-08-12 | Alignment with CDP log capture, clipboard AI prompt copy, pnpm tooling.                                                                                 | Submitted            |

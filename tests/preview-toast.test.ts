@@ -145,7 +145,7 @@ test("PreviewPageShell.notify 支持 aiPromptCopied 双行提示", () => {
   try {
     const shell = new PreviewPageShell(doc, () => {});
     shell.notify(
-      "AI Prompt 已复制\n直接在 Cursor / Claude 中按 ⌘V 粘贴即可排查"
+      "AI Prompt 已复制\n直接在 Cursor / Codex 等 AI 中按 ⌘V 粘贴即可排查"
     );
     assert.equal(toast.hidden, false);
     assert.ok(toast.innerHTML.includes("AI Prompt 已复制"));

@@ -4,7 +4,7 @@
     "description": "The name of the extension"
   },
   "extensionDescription": {
-    "message": "一键捕获网页端控制台、网络请求与交互时序，生成结构化上下文，专为 Cursor、Claude 等 AI 助手排查 Bug 设计。",
+    "message": "一键捕获网页端控制台、网络请求与交互时序，生成结构化上下文，专为 Cursor、Claude Code、Codex 等 AI 助手排查 Bug 设计。",
     "description": "The description of the extension"
   },
   "actionDefaultTitle": {
@@ -60,7 +60,7 @@
     "message": "喂给 AI"
   },
   "workflowAiHint": {
-    "message": "录制结束自动复制 Prompt，直接粘贴到 Cursor / Claude 等 AI"
+    "message": "录制结束自动复制 Prompt，直接粘贴到 Cursor / Codex 等 AI"
   },
   "config": {
     "message": "配置"
@@ -798,7 +798,7 @@
     }
   },
   "exportSuccessCopied": {
-    "message": "[ZIP] 证据包已下载完成\nAI Prompt 已复制，直接在 Cursor / Claude 中按 ⌘V 粘贴排查"
+    "message": "[ZIP] 证据包已下载完成\nAI Prompt 已复制，直接在 Cursor / Codex 等 AI 中按 ⌘V 粘贴排查"
   },
   "exportSuccessCanCopy": {
     "message": "ZIP 下载完成，可复制 AI 提示词"
@@ -1507,10 +1507,10 @@
     "message": "正在生成 ZIP 证据包..."
   },
   "screenshotToastWithPath": {
-    "message": "[ZIP] 截图证据包已下载完成\nAI Prompt 已复制（含路径），在 Cursor / Claude 中按 ⌘V 粘贴排查"
+    "message": "[ZIP] 截图证据包已下载完成\nAI Prompt 已复制（含路径），在 Cursor / Codex 等 AI 中按 ⌘V 粘贴排查"
   },
   "screenshotToastWithoutPath": {
-    "message": "[ZIP] 截图证据包已下载完成\nAI Prompt 已复制，直接在 Cursor / Claude 中按 ⌘V 粘贴排查"
+    "message": "[ZIP] 截图证据包已下载完成\nAI Prompt 已复制，直接在 Cursor / Codex 等 AI 中按 ⌘V 粘贴排查"
   },
   "waitForEvidenceLoad": {
     "message": "请先等待证据预览加载完成。"
@@ -1614,7 +1614,7 @@
     "message": "全屏 (双击视频)"
   },
   "aiPromptCopied": {
-    "message": "AI Prompt 已复制\n直接在 Cursor / Claude 中按 ⌘V 粘贴即可排查"
+    "message": "AI Prompt 已复制\n直接在 Cursor / Codex 等 AI 中按 ⌘V 粘贴即可排查"
   },
   "zipPathCopied": {
     "message": "ZIP 绝对路径已复制"
