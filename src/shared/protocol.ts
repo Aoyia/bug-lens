@@ -318,11 +318,31 @@ export type InteractionRecord = {
   };
 };
 
+export type SourceSnippetContext = {
+  sourceFile: string;
+  startLine: number;
+  errorLine: number;
+  lines: string[];
+  highlightColumn?: number;
+};
+
+export type SourceMappedLocation = {
+  resolved: boolean;
+  originalFile?: string;
+  originalLine?: number;
+  originalColumn?: number;
+  originalFunctionName?: string;
+  sourceSnippet?: SourceSnippetContext;
+  failureReason?:
+    "FETCH_FAILED" | "NO_MAPPING" | "INVALID_MAP" | "SIZE_EXCEEDED" | "TIMEOUT";
+};
+
 export type DiagnosticStackFrame = {
   functionName?: string;
   url?: string;
   lineNumber?: number;
   columnNumber?: number;
+  sourceMappedLocation?: SourceMappedLocation;
 };
 export type ConsoleArgument = {
   type: string;
@@ -336,6 +356,7 @@ export type ConsoleEntry = {
   createdAt: number;
   level: string;
   text: string;
+  url?: string;
   source?: string;
   category?: string;
   lineNumber?: number;
@@ -343,16 +364,19 @@ export type ConsoleEntry = {
   executionContextId?: number;
   context?: string;
   stackTrace?: DiagnosticStackFrame[];
+  sourceMappedLocation?: SourceMappedLocation;
   args?: ConsoleArgument[];
   networkRequestId?: string;
   workerId?: string;
 };
+
 export type ConciseCallFrame = {
   functionName?: string;
   url?: string;
   lineNumber?: number;
   columnNumber?: number;
   asyncBoundary?: string;
+  sourceMappedLocation?: SourceMappedLocation;
 };
 
 export type InitiatorEvidence = {

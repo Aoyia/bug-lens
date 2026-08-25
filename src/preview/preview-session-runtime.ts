@@ -12,6 +12,7 @@ import type {
 import { t } from "../shared/i18n";
 import type { db } from "../storage/db";
 import { normalizeExpected } from "../domain/issue-scene";
+import { SourceMapCoordinator } from "../sourcemap/index";
 import { PreviewController } from "./preview-controller";
 import type { EvidencePackageSnapshot } from "./evidence-package";
 import type { EvidenceReportSnapshot } from "./evidence-report-view";
@@ -135,10 +136,28 @@ export class PreviewSessionRuntime {
       });
 
     this.selection.loadSelection(exportSelection);
-    this.consoleEntries = rawConsole.sort(
+    const sortedConsole = rawConsole.sort(
       (left, right) => left.createdAt - right.createdAt
     );
-    this.networkEntries = networkEntries;
+
+    // 🌟 在 Preview 加载数据时，基于异常与时空交互聚焦准入策略（方案一）丰富调用链
+    try {
+      const coordinator = new SourceMapCoordinator();
+      const enriched = await coordinator.enrichEntries(
+        sortedConsole,
+        networkEntries,
+        {
+          interactions: this.interactions,
+          issueScenes: rawIssueScenes,
+        }
+      );
+      this.consoleEntries = enriched.consoleEntries;
+      this.networkEntries = enriched.networkEntries;
+    } catch {
+      this.consoleEntries = sortedConsole;
+      this.networkEntries = networkEntries;
+    }
+
     this.issueScenes = rawIssueScenes.map((scene) =>
       scene.narrative
         ? {

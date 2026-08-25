@@ -3,9 +3,9 @@ import type { ArchiveEntryIntegrity } from "./export-pipeline";
 import { sha256 } from "./sha256.ts";
 
 // 当前导出清单（ExportManifest）的 schema 版本，结构变更时递增
-export const EXPORT_SCHEMA_VERSION = 3;
+export const EXPORT_SCHEMA_VERSION = 4;
 // 允许读取并迁移到当前版本的历史版本号列表
-export const SUPPORTED_EXPORT_SCHEMA_VERSIONS = [1, 2, 3] as const;
+export const SUPPORTED_EXPORT_SCHEMA_VERSIONS = [1, 2, 3, 4] as const;
 
 /** 将持久化的 v1 会话补全为 v2 形态，确保能在 v2 证据包中安全序列化。 */
 // v1 会话缺少 schemaVersion/storage 字段，此处补齐为 v2 形态以便统一序列化；v2 已是现版本，原样返回

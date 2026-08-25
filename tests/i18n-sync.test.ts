@@ -159,4 +159,33 @@ describe("i18n Sync and Translation", () => {
       "en screenshotToastWithPath 应采用双行结构并包含 Cursor/Codex 粘贴指引"
     );
   });
+
+  test("所有 _locales 字典中的 $VAR$ 占位符均在 placeholders 中合法定义", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const localesDir = path.resolve(process.cwd(), "src/_locales");
+    const locales = ["en", "zh_CN"];
+
+    for (const locale of locales) {
+      const filePath = path.join(localesDir, locale, "messages.json");
+      const dict = JSON.parse(fs.readFileSync(filePath, "utf8"));
+
+      for (const [key, val] of Object.entries<any>(dict)) {
+        if (!val || typeof val !== "object" || !val.message) continue;
+        const matches = [...val.message.matchAll(/\$([A-Za-z0-9_@]+)\$/g)];
+        const placeholders = val.placeholders || {};
+        const placeholderKeys = Object.keys(placeholders).map((k) =>
+          k.toLowerCase()
+        );
+
+        for (const match of matches) {
+          const varName = match[1].toLowerCase();
+          assert.ok(
+            placeholderKeys.includes(varName),
+            `[${locale}/messages.json] 词条 "${key}" 中使用了未定义的占位符 "$${match[1]}$"`
+          );
+        }
+      }
+    }
+  });
 });

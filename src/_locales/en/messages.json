@@ -47,6 +47,18 @@
   "recording": {
     "message": "Recording"
   },
+  "recordingOtherTabBanner": {
+    "message": "Recording another tab: \"$TAB_TITLE$\" ($DURATION$)",
+    "description": "Warning banner when popup opens on a non-recording tab",
+    "placeholders": {
+      "tab_title": {
+        "content": "$1"
+      },
+      "duration": {
+        "content": "$2"
+      }
+    }
+  },
   "defaultSafeCollection": {
     "message": "Capture Settings"
   },

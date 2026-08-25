@@ -77,6 +77,21 @@ export const RecordPanel = memo(function RecordPanel({
   // 提交期间置位，用于禁用截图按钮并提供"正在截图"反馈，防止双击触发第二个截图 overlay。
   const [capturing, setCapturing] = useState(false);
 
+  const isRecordingOtherTab = Boolean(
+    active &&
+    activeSession?.status === "RECORDING" &&
+    activeSession?.target?.tabId !== undefined &&
+    activeTab?.id !== undefined &&
+    activeSession.target.tabId !== activeTab.id
+  );
+
+  const otherTabTitle =
+    activeSession?.target?.initialTitle?.trim() || t("unnamedTab");
+  const truncatedOtherTabTitle =
+    otherTabTitle.length > 25
+      ? `${otherTabTitle.slice(0, 25)}…`
+      : otherTabTitle;
+
   const handleTakeScreenshot = () => {
     if (!activeTab?.id) {
       onError(t("failedToReadTab"));
@@ -88,7 +103,7 @@ export const RecordPanel = memo(function RecordPanel({
       .sendMessage(message("screenshot/trigger", { tabId: activeTab.id }))
       .then(() => window.close())
       .catch((err) => {
-        console.warn("Bug Lens: Failed trigger screenshot message", err);
+        console.warn("Bug Lens: 触发截图消息失败", err);
         onError(t("screenshotFailed"));
         setCapturing(false);
       });
@@ -96,6 +111,30 @@ export const RecordPanel = memo(function RecordPanel({
 
   return (
     <div className="context-flow" data-testid="record-panel">
+      {isRecordingOtherTab && (
+        <div
+          className="recording-conflict-banner"
+          data-testid="recording-conflict-banner"
+          role="status"
+          aria-live="polite"
+          style={{
+            padding: "8px 10px",
+            marginBottom: "8px",
+            borderRadius: "6px",
+            fontSize: "12px",
+            lineHeight: "1.4",
+            color: "#b45309",
+            backgroundColor: "#fef3c7",
+            border: "1px solid #fcd34d",
+            wordBreak: "break-all",
+          }}
+        >
+          {t("recordingOtherTabBanner", [
+            truncatedOtherTabTitle,
+            timerText || "00:00",
+          ])}
+        </div>
+      )}
       <div className="context-head">
         <div id="title" className="target-title">
           {activeTab?.title || t("failedToReadTab")}

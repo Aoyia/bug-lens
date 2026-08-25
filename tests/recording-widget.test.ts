@@ -481,7 +481,7 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
     );
   });
 
-  test("restores position if sessionId matches (e.g., page reload during same session)", () => {
+  test("sessionId 匹配时恢复已保存位置（例如在同一次会话内刷新页面）", () => {
     sessionStorage.setItem(
       "__wbr_widget_pos__",
       JSON.stringify({ sessionId: "session-123", right: "150px", top: "180px" })
@@ -496,16 +496,16 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
     assert.equal(
       mockRootElement.style.top,
       "180px",
-      "Widget should restore position for matching sessionId"
+      "匹配 sessionId 时应恢复位置"
     );
     assert.equal(
       mockRootElement.style.right,
       "150px",
-      "Widget should restore position for matching sessionId"
+      "匹配 sessionId 时应恢复位置"
     );
   });
 
-  test("does NOT restore position if sessionId differs (new session started)", () => {
+  test("sessionId 不匹配时不恢复位置（新会话已开始）", () => {
     mockRootElement.style.top = "";
     mockRootElement.style.right = "";
 
@@ -523,12 +523,12 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
     assert.equal(
       mockRootElement.style.top,
       "",
-      "Widget should ignore saved position from different session"
+      "来自其他会话的已保存位置应被忽略"
     );
     assert.equal(
       mockRootElement.style.right,
       "",
-      "Widget should ignore saved position from different session"
+      "来自其他会话的已保存位置应被忽略"
     );
   });
 
@@ -625,7 +625,7 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
     assert.equal(issueBtn.style.opacity, "1");
   });
 
-  test("unmount and re-mount automatically clears isSelectingIssue state", () => {
+  test("卸载并重新挂载会自动清除 isSelectingIssue 状态", () => {
     widget = new RecordingWidget(callbacks);
     widget.mount();
 
@@ -643,12 +643,12 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
     assert.equal(
       issueBtn.disabled,
       false,
-      "Re-mounted widget button must not be disabled"
+      "重新挂载后标记按钮不得处于禁用状态"
     );
     assert.equal(
       issueBtn.textContent,
       `${t("markIssue")} (${widget.shortcutKeyText})`,
-      "Re-mounted widget button must restore default text"
+      "重新挂载后标记按钮必须恢复默认文本"
     );
   });
 

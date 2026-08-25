@@ -47,6 +47,18 @@
   "recording": {
     "message": "正在录制"
   },
+  "recordingOtherTabBanner": {
+    "message": "正在录制其他标签页：【$TAB_TITLE$】 ($DURATION$)",
+    "description": "非录制标签页打开时显示的冲突提示横幅",
+    "placeholders": {
+      "tab_title": {
+        "content": "$1"
+      },
+      "duration": {
+        "content": "$2"
+      }
+    }
+  },
   "defaultSafeCollection": {
     "message": "采集配置"
   },

@@ -15,6 +15,7 @@ import {
   describeOsFromUserAgent,
   formatEnvironmentSummary,
 } from "../domain/environment-capture.ts";
+import { SourceMapCoordinator } from "../sourcemap/index.js";
 
 export type EvidencePackageSnapshot = {
   session: RecordingSession;
@@ -59,11 +60,46 @@ const oneLine = (value: unknown) =>
     .replace(/[\r\n]+/g, " ")
     .trim();
 
+function formatSourceMappedErrors(consoleEntries: ConsoleEntry[]): string {
+  const mappedErrors = consoleEntries.filter(
+    (e) => e.level === "error" && e.sourceMappedLocation?.resolved
+  );
+  if (mappedErrors.length === 0) return "";
+
+  const lines: string[] = [
+    "\n[SourceMap 源码还原异常现场 / Source-Mapped Errors]",
+  ];
+  for (const entry of mappedErrors.slice(0, 3)) {
+    const loc = entry.sourceMappedLocation!;
+    lines.push(`- 报错: ${oneLine(entry.text)}`);
+    lines.push(
+      `  源码位置: \`${loc.originalFile}:${loc.originalLine}:${loc.originalColumn}\`${loc.originalFunctionName ? ` (\`${loc.originalFunctionName}\`)` : ""}`
+    );
+    if (loc.sourceSnippet && loc.sourceSnippet.lines.length > 0) {
+      lines.push("  现场代码切片:");
+      lines.push("  ```");
+      const start = loc.sourceSnippet.startLine;
+      loc.sourceSnippet.lines.forEach((codeLine, i) => {
+        const lineNum = start + i;
+        const marker = lineNum === loc.originalLine ? ">" : " ";
+        lines.push(
+          `  ${marker} ${lineNum.toString().padStart(4, " ")} | ${codeLine}`
+        );
+      });
+      lines.push("  ```");
+    }
+  }
+  return lines.join("\n");
+}
+
 export function buildAiPrompt(
   snapshot: EvidencePackageSnapshot,
   zipPath?: string
 ): string {
   const issueScenes = snapshot.issueScenes ?? [];
+  const sourceMappedErrorsText = formatSourceMappedErrors(
+    snapshot.consoleEntries
+  );
   if (isEn()) {
     const path = zipPath
       ? `File Path:\n${zipPath}`
@@ -80,7 +116,7 @@ ${path}
 Metadata Summary:
 - Page & URL: ${oneLine(snapshot.session.target.initialTitle) || "Unknown"} (${oneLine(snapshot.session.target.initialUrl) || "Unknown"})
 - Evidence Data: ${snapshot.interactions.length} interactions | ${snapshot.consoleEntries.length} console logs | ${snapshot.networkEntries.length} network requests | ${issueScenes.length} issue scenes | Quality: ${oneLine(snapshot.session.quality.overall) || "Unknown"}
-${environmentLine}
+${environmentLine}${sourceMappedErrorsText}
 
 Please follow this first-principles chain of diagnosis (extract ZIP to a temporary directory):
 1. Scene Alignment: Prioritize reading \`issueScenes[].scene.narrative.actual\` in \`data/session-data.js\` (to capture the user's explicit problem description), combined with \`issues/\` screenshots and selected DOM element styles. Note that \`data/session-data.js\` sets \`window.__BUG_LENS_DATA__ = {...}\` — start with the \`summary\` field and \`screenshotSummaries\`. Full request headers and initiator/call stack details are stored in \`data/network-details.js\`. Each scene also carries \`issueScenes[].scene.sequenceContext\` — the interactions and console errors in the seconds before the mark moment, frozen at capture time. Treat it as raw same-time context, never as a causal assertion.
@@ -115,7 +151,7 @@ ${path}
 元数据摘要：
 - 页面 & URL：${oneLine(snapshot.session.target.initialTitle) || "未知"} (${oneLine(snapshot.session.target.initialUrl) || "未知"})
 - 证据数据：${snapshot.interactions.length} 次交互 | ${snapshot.consoleEntries.length} 条日志 | ${snapshot.networkEntries.length} 个请求 | ${issueScenes.length} 个异常现场 | 质量: ${oneLine(snapshot.session.quality.overall) || "未知"}
-${environmentLine}
+${environmentLine}${sourceMappedErrorsText}
 
 请按以下第一性链式逻辑展开排查（解压 ZIP 至临时目录）：
 1. 现场定位：优先读取 \`data/session-data.js\` 中的 \`issueScenes[].scene.narrative.actual\`（获取用户填写的真实主观问题描述），并结合 \`issues/\` 截图与选中的 DOM 元素样式分析现场。注意：该文件设置 \`window.__BUG_LENS_DATA__ = {...}\`，请先读取 \`summary\` 字段和 \`screenshotSummaries\`。完整请求头、响应头和调用栈详情已独立保存至 \`data/network-details.js\`。每个现场还携带 \`issueScenes[].scene.sequenceContext\`——标记当下前数秒内的交互与 Console 报错，在捕获时刻冻结。请仅将其视为"同时刻原始上下文"，禁止当作已证实的因果链。
