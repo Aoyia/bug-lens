@@ -18,6 +18,8 @@ test-results/
 memory.md
 .workbuddy
 .skills-lock.json
+.worktrees/
+worktrees/
 playwright-report/
 .random_sample*
 videos/
