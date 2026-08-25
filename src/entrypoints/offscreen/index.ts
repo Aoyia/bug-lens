@@ -18,6 +18,7 @@ import {
   type ArchiveFile,
 } from "../../export/export-pipeline";
 import { Sha256 } from "../../export/sha256";
+import type { PerfReportData } from "../../shared/dev-profiler";
 
 // 预先加载并初始化用户语言偏好，使 t() 在 offscreen 中与 background 保持一致
 void initI18nPreference();
@@ -58,13 +59,28 @@ function withTimeout<T>(
   });
 }
 
-// 按 vp9 → vp8 → 基础 webm 顺序探测浏览器支持的编码格式
+// 优先探测浏览器原生的 MP4 格式，若不支持则降级到 WebM (VP9/VP8)
 function chooseMimeType(audio: boolean): string | undefined {
   const candidates = audio
-    ? ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"]
-    : ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"];
-  return candidates.find((candidate) =>
-    MediaRecorder.isTypeSupported(candidate)
+    ? [
+        "video/mp4;codecs=avc1,mp4a.40.2",
+        "video/mp4;codecs=avc1",
+        "video/mp4",
+        "video/webm;codecs=vp9,opus",
+        "video/webm;codecs=vp8,opus",
+        "video/webm",
+      ]
+    : [
+        "video/mp4;codecs=avc1",
+        "video/mp4",
+        "video/webm;codecs=vp9",
+        "video/webm;codecs=vp8",
+        "video/webm",
+      ];
+  return candidates.find(
+    (candidate) =>
+      typeof MediaRecorder !== "undefined" &&
+      MediaRecorder.isTypeSupported(candidate)
   );
 }
 
@@ -319,16 +335,44 @@ async function annotateImage(
   const response = await fetch(payload.dataUrl);
   const bitmap = await createImageBitmap(await response.blob());
   try {
-    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+    const rawWidth = bitmap.width;
+    const rawHeight = bitmap.height;
+
+    const maxDimension = 2048;
+    const longestEdge = Math.max(rawWidth, rawHeight);
+    const scale = longestEdge > maxDimension ? maxDimension / longestEdge : 1;
+
+    const targetWidth = Math.max(1, Math.round(rawWidth * scale));
+    const targetHeight = Math.max(1, Math.round(rawHeight * scale));
+
+    const canvas = new OffscreenCanvas(targetWidth, targetHeight);
     const context = canvas.getContext("2d");
     if (!context) throw new Error(t("canvasContextUnavailable"));
-    context.drawImage(bitmap, 0, 0);
+
+    // JPEG 格式不支持透明度，预先填充纯白背景
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, targetWidth, targetHeight);
+
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = "high";
+    context.drawImage(
+      bitmap,
+      0,
+      0,
+      rawWidth,
+      rawHeight,
+      0,
+      0,
+      targetWidth,
+      targetHeight
+    );
+
     // 交互点击坐标：按视口尺寸比例换算为图片像素坐标
     const x =
-      payload.clientX * (bitmap.width / Math.max(1, payload.viewportWidth));
+      payload.clientX * (targetWidth / Math.max(1, payload.viewportWidth));
     const y =
-      payload.clientY * (bitmap.height / Math.max(1, payload.viewportHeight));
-    const radius = Math.max(12, Math.min(bitmap.width, bitmap.height) * 0.018);
+      payload.clientY * (targetHeight / Math.max(1, payload.viewportHeight));
+    const radius = Math.max(12, Math.min(targetWidth, targetHeight) * 0.018);
     context.beginPath();
     context.arc(x, y, radius, 0, Math.PI * 2);
     context.lineWidth = Math.max(7, radius * 0.45);
@@ -340,7 +384,10 @@ async function annotateImage(
     context.lineWidth = Math.max(3, radius * 0.22);
     context.strokeStyle = "#ef233c";
     context.stroke();
-    const blob = await canvas.convertToBlob({ type: "image/png" });
+    const blob = await canvas.convertToBlob({
+      type: "image/jpeg",
+      quality: 0.83,
+    });
     return await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(String(reader.result));
@@ -371,6 +418,12 @@ async function renderIssueImage(
     const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
     const context = canvas.getContext("2d");
     if (!context) throw new Error(t("canvasContextUnavailable"));
+    // JPEG 格式不支持透明度，预先填充纯白背景
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, bitmap.width, bitmap.height);
+
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = "high";
     context.drawImage(bitmap, 0, 0);
     const x =
       bitmap.width * Math.min(1, Math.max(0, payload.annotation.point.xRatio));
@@ -491,7 +544,7 @@ async function renderIssueImage(
       }
     }
     const bytes = await (
-      await canvas.convertToBlob({ type: "image/png" })
+      await canvas.convertToBlob({ type: "image/jpeg", quality: 0.92 })
     ).arrayBuffer();
     // 批注结果作为新的证据资产落库
     const stored = await db.saveEvidenceAssetWithinBudget({
@@ -499,7 +552,7 @@ async function renderIssueImage(
       sessionId: payload.sessionId,
       issueSceneId: payload.issueSceneId,
       kind: "issue-annotated",
-      mimeType: "image/png",
+      mimeType: "image/jpeg",
       bytes,
       width: bitmap.width,
       height: bitmap.height,
@@ -519,8 +572,14 @@ async function exportPack(payload: { sessionId: string }): Promise<{
   prompt: string;
   blobUrl: string;
   filename: string;
+  perfReport?: PerfReportData;
+  queryTimeMs?: number;
+  packTimeMs?: number;
+  totalEntries?: number;
+  totalBytes?: number;
 }> {
   try {
+    const t0 = performance.now();
     // 静默导出打包：加载会话（forExport 模式跳过多余 Blob URL）→ 构建证据包 → 压缩 zip → 生成 Blob URL
     const runtime = new PreviewSessionRuntime(db);
     await runtime.load(payload.sessionId, { forExport: true });
@@ -534,6 +593,9 @@ async function exportPack(payload: { sessionId: string }): Promise<{
 
     // 构建证据包文件清单（截图、录制分片、元数据等）
     const packageFiles = buildEvidencePackage(snapshot, reportAssets);
+    const t1 = performance.now();
+    const queryTimeMs = t1 - t0;
+
     const zipChunks: Uint8Array[] = [];
     const sink = {
       write: async (chunk: Uint8Array) => {
@@ -547,13 +609,18 @@ async function exportPack(payload: { sessionId: string }): Promise<{
       payload.sessionId
     );
 
+    let collectedPerfReport: PerfReportData | undefined;
+
     // 压缩为 zip 并分块写入内存，避免一次性占用过大内存
-    await writeEvidenceArchive({
+    const progress = await writeEvidenceArchive({
       files: packageFiles as ArchiveFile[],
       sessionId: payload.sessionId,
       mediaSource: db,
       sink,
       precomputedMediaIntegrity,
+      onPerfReport: (report) => {
+        collectedPerfReport = report;
+      },
       createManifest: (integrity) => ({
         name: "manifest.json",
         data: new TextEncoder().encode(
@@ -566,6 +633,9 @@ async function exportPack(payload: { sessionId: string }): Promise<{
       }),
     });
 
+    const t2 = performance.now();
+    const packTimeMs = t2 - t1;
+
     const zipBlob = new Blob(zipChunks as BlobPart[], {
       type: "application/zip",
     });
@@ -573,7 +643,16 @@ async function exportPack(payload: { sessionId: string }): Promise<{
     const blobUrl = URL.createObjectURL(zipBlob);
     const prompt = buildAiPrompt(snapshot, filename);
 
-    return { prompt, blobUrl, filename };
+    return {
+      prompt,
+      blobUrl,
+      filename,
+      perfReport: collectedPerfReport,
+      queryTimeMs,
+      packTimeMs,
+      totalEntries: progress.entriesWritten,
+      totalBytes: progress.bytesWritten,
+    };
   } finally {
     precomputedMediaIntegrityMap.delete(payload.sessionId);
   }

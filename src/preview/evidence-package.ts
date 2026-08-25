@@ -28,12 +28,12 @@ export type EvidencePackageSnapshot = {
     sceneId: string;
     kind: "issue-original" | "issue-annotated";
     bytes: Uint8Array;
-    mimeType: "image/png";
+    mimeType: "image/png" | "image/jpeg" | "image/webp";
   }>;
   interactionAssets?: Array<{
     interactionId: string;
     bytes: Uint8Array;
-    mimeType: "image/png";
+    mimeType: "image/png" | "image/jpeg" | "image/webp";
   }>;
   excluded: {
     interaction: number;
@@ -263,7 +263,7 @@ ${issueLines}
   }
 
   const mediaDescription = snapshot.hasMedia
-    ? "- `media/recording.webm`：目标标签页录像，时间零点对应会话 `startedAtEpochMs`。"
+    ? "- `media/recording.mp4` / `media/recording.webm`：目标标签页录像，时间零点对应会话 `startedAtEpochMs`。"
     : "- 本包没有录像文件；请结合质量摘要判断媒体缺失原因。";
   const issueLines = issues.length
     ? issues
@@ -734,30 +734,35 @@ export function buildEvidencePackage(
     },
     ...networkBodyFiles,
   ];
-  for (const asset of snapshot.issueAssets ?? [])
+  for (const asset of snapshot.issueAssets ?? []) {
+    const ext = asset.mimeType === "image/jpeg" ? "jpg" : "png";
     files.push({
-      name: `issues/${asset.sceneId}/${asset.kind === "issue-original" ? "screenshot-original" : "screenshot-annotated"}.png`,
+      name: `issues/${asset.sceneId}/${asset.kind === "issue-original" ? "screenshot-original" : "screenshot-annotated"}.${ext}`,
       data: asset.bytes,
     });
+  }
   snapshot.interactions.forEach((interaction, index) => {
     const asset = (snapshot.interactionAssets ?? []).find(
       (a) => a.interactionId === interaction.id
     );
+    const dataUrl = interaction.screenshot.dataUrl;
+    const isJpeg = dataUrl
+      ? dataUrl.startsWith("data:image/jpeg")
+      : asset?.mimeType === "image/jpeg";
+    const ext = isJpeg ? "jpg" : "png";
+
     if (asset) {
       files.push({
-        name: `screenshots/step-${index + 1}.png`,
+        name: `screenshots/step-${index + 1}.${ext}`,
         data: asset.bytes,
       });
-    } else if (
-      interaction.screenshot.dataUrl &&
-      interaction.screenshot.dataUrl.startsWith("data:image/")
-    ) {
-      const base64 = interaction.screenshot.dataUrl.split(",")[1] ?? "";
+    } else if (dataUrl && dataUrl.startsWith("data:image/")) {
+      const base64 = dataUrl.split(",")[1] ?? "";
       const binary = atob(base64);
       const bytes = new Uint8Array(binary.length);
       for (let i = 0; i < binary.length; i += 1)
         bytes[i] = binary.charCodeAt(i);
-      files.push({ name: `screenshots/step-${index + 1}.png`, data: bytes });
+      files.push({ name: `screenshots/step-${index + 1}.${ext}`, data: bytes });
     }
   });
   return files;

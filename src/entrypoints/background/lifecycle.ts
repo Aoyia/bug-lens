@@ -29,7 +29,8 @@ export interface SessionLifecycle {
     commandId?: string,
     autoExport?: boolean,
     discard?: boolean,
-    silentExport?: boolean
+    silentExport?: boolean,
+    traceStartMs?: number
   ): Promise<RecordingSession | undefined>;
   continueInterrupted(
     sessionId: string,
@@ -45,13 +46,15 @@ export interface SessionLifecycle {
     commandId?: string,
     autoExport?: boolean,
     discard?: boolean,
-    silentExport?: boolean
+    silentExport?: boolean,
+    traceStartMs?: number
   ): Promise<RecordingSession | undefined>;
   stopImpl(
     commandId?: string,
     autoExport?: boolean,
     discard?: boolean,
-    silentExport?: boolean
+    silentExport?: boolean,
+    traceStartMs?: number
   ): Promise<RecordingSession | undefined>;
   pauseMedia(sessionId: string): Promise<void>;
   resumeMedia(sessionId: string): Promise<void>;
@@ -368,8 +371,17 @@ export function createSessionLifecycle(
     commandId?: string,
     autoExport = false,
     discard = false,
-    silentExport = false
+    silentExport = false,
+    traceStartMs?: number
   ): Promise<RecordingSession | undefined> {
+    const tTraceStart = traceStartMs ?? performance.now();
+    const e2eMetrics: Array<{
+      step: string;
+      durationMs: number;
+      size?: string;
+      note?: string;
+    }> = [];
+
     if (["PREVIEW_READY", "EXPORTED", "FAILED"].includes(session.status))
       return session;
     const stopping = await ctx.applySessionEvent(session.id, {
@@ -387,6 +399,11 @@ export function createSessionLifecycle(
     navigationCapture.detach();
     streamHealthMonitor.reset(session.target.tabId);
     const cleanupErrors: string[] = [];
+    const tCleanupStart = performance.now();
+
+    // 立即熔断并取消在途未截取的排队任务，防止阻塞收尾
+    interactionCapture.abortPending();
+
     try {
       await cdpCollector.detach(session.target.tabId);
 
@@ -431,6 +448,12 @@ export function createSessionLifecycle(
       await contentScripts.remove(session.target.tabId);
       streamHealthMonitor.reset(session.target.tabId);
     }
+    const tCleanupEnd = performance.now();
+    e2eMetrics.push({
+      step: "1. 媒体流收尾与数据分片刷盘",
+      durationMs: tCleanupEnd - tTraceStart,
+      note: "CDP Detach / MediaRecorder 停止 / 交互与网络数据落盘",
+    });
 
     if (discard) {
       try {
@@ -466,6 +489,8 @@ export function createSessionLifecycle(
         let prompt: string | undefined;
         let packResult: SilentExportPackResult | undefined;
         let caughtError: unknown;
+        let downloadDurationMs = 0;
+        let downloadSizeStr: string | undefined;
         try {
           await ensureOffscreenDocument();
           packResult = (await chrome.runtime.sendMessage(
@@ -477,7 +502,27 @@ export function createSessionLifecycle(
             )
           )) as SilentExportPackResult;
 
+          if (packResult?.queryTimeMs !== undefined) {
+            e2eMetrics.push({
+              step: "2. 证据数据读取与 AI 报告组装",
+              durationMs: packResult.queryTimeMs,
+              note: "IndexedDB 读取会话/日志/截图索引并生成 Prompt",
+            });
+          }
+          if (packResult?.packTimeMs !== undefined) {
+            e2eMetrics.push({
+              step: "3. ZIP 封包与哈希流式写入",
+              durationMs: packResult.packTimeMs,
+              size:
+                packResult.totalBytes !== undefined
+                  ? `${(packResult.totalBytes / (1024 * 1024)).toFixed(2)} MB`
+                  : undefined,
+              note: `${packResult.totalEntries ?? 0} 个条目打包完成`,
+            });
+          }
+
           if (packResult?.ok && packResult.blobUrl && packResult.filename) {
+            const tDownloadStart = performance.now();
             const downloadId = await chrome.downloads.download({
               url: packResult.blobUrl,
               filename: packResult.filename,
@@ -495,6 +540,12 @@ export function createSessionLifecycle(
                 );
               }
             }
+            downloadDurationMs = performance.now() - tDownloadStart;
+            e2eMetrics.push({
+              step: "4. 浏览器下载与本地绝对路径解析",
+              durationMs: downloadDurationMs,
+              note: "chrome.downloads 下载与操作系统路径探测",
+            });
           }
         } catch (err) {
           caughtError = err;
@@ -503,6 +554,11 @@ export function createSessionLifecycle(
           packResult,
           caughtError
         );
+        if (packResult?.perfReport) {
+          silentExportResult.perfReport = packResult.perfReport;
+        }
+        silentExportResult.e2eMetrics = e2eMetrics;
+
         if (!silentExportResult.ok) {
           const failed = await db.updateSession(session.id, (current) => ({
             ...reduceSession(
@@ -536,7 +592,8 @@ export function createSessionLifecycle(
     commandId?: string,
     autoExport = false,
     discard = false,
-    silentExport = false
+    silentExport = false,
+    traceStartMs?: number
   ): Promise<RecordingSession | undefined> {
     let session: RecordingSession | undefined;
     if (commandId) {
@@ -567,7 +624,14 @@ export function createSessionLifecycle(
       }
     }
     return recordingCoordinator.runStop(session.id, () =>
-      performStopSession(session!, commandId, autoExport, discard, silentExport)
+      performStopSession(
+        session!,
+        commandId,
+        autoExport,
+        discard,
+        silentExport,
+        traceStartMs
+      )
     );
   }
 
@@ -576,10 +640,17 @@ export function createSessionLifecycle(
     commandId?: string,
     autoExport = false,
     discard = false,
-    silentExport = false
+    silentExport = false,
+    traceStartMs?: number
   ): Promise<RecordingSession | undefined> {
     return recordingCoordinator.runLifecycle(() =>
-      stopSessionImpl(commandId, autoExport, discard, silentExport)
+      stopSessionImpl(
+        commandId,
+        autoExport,
+        discard,
+        silentExport,
+        traceStartMs
+      )
     );
   }
 

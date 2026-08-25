@@ -40,6 +40,7 @@
     "@jridgewell/trace-mapping": "^0.3.31",
     "fflate": "^0.8.3",
     "fix-webm-duration": "^1.0.6",
+    "mp4-muxer": "^5.2.2",
     "preact": "^10.29.7"
   }
 }

@@ -401,7 +401,42 @@ export async function processScreenshot(
     });
 
     drawAnnotationsOnCanvas(ctx, relativeAnnotations as AnnotationItem[], dpr);
-    return canvas.toDataURL("image/png");
+    // 方案 A：上限 2048px + JPEG 92% 质量，兼顾大屏（27寸 2K/4K）小字清晰度与轻量体积
+    let finalCanvas = canvas;
+    const maxDimension = 2048;
+    const longestEdge = Math.max(canvas.width, canvas.height);
+
+    if (longestEdge > maxDimension) {
+      const scale = maxDimension / longestEdge;
+      const scaledW = Math.round(canvas.width * scale);
+      const scaledH = Math.round(canvas.height * scale);
+      const scaledCanvas = document.createElement("canvas");
+      scaledCanvas.width = scaledW;
+      scaledCanvas.height = scaledH;
+      const scaledCtx = scaledCanvas.getContext("2d");
+      if (scaledCtx) {
+        scaledCtx.fillStyle = "#ffffff";
+        scaledCtx.fillRect(0, 0, scaledW, scaledH);
+        scaledCtx.imageSmoothingEnabled = true;
+        scaledCtx.imageSmoothingQuality = "high";
+        scaledCtx.drawImage(canvas, 0, 0, scaledW, scaledH);
+        finalCanvas = scaledCanvas;
+      }
+    } else {
+      // 确保背景为纯白色（JPEG 不支持透明）
+      const tempCanvas = document.createElement("canvas");
+      tempCanvas.width = canvas.width;
+      tempCanvas.height = canvas.height;
+      const tempCtx = tempCanvas.getContext("2d");
+      if (tempCtx) {
+        tempCtx.fillStyle = "#ffffff";
+        tempCtx.fillRect(0, 0, canvas.width, canvas.height);
+        tempCtx.drawImage(canvas, 0, 0);
+        finalCanvas = tempCanvas;
+      }
+    }
+
+    return finalCanvas.toDataURL("image/jpeg", 0.92);
   })();
 
   // 轨道 B：空间 DOM 结构树采集、主世界框架探针与 CSS 级联快照（与图像轨完全并行）

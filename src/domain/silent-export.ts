@@ -1,4 +1,5 @@
 import type { CaptureIssue, RecordingSession } from "../shared/protocol";
+import type { PerfMetricItem, PerfReportData } from "../shared/dev-profiler";
 import { sanitizeText } from "./privacy-policy";
 import type { RecordingSessionEvent } from "./recording-session";
 import { t } from "../shared/i18n";
@@ -12,6 +13,11 @@ export type SilentExportPackResult = {
   blobUrl?: string;
   filename?: string;
   error?: string;
+  perfReport?: PerfReportData;
+  queryTimeMs?: number;
+  packTimeMs?: number;
+  totalEntries?: number;
+  totalBytes?: number;
 };
 
 export type SilentExportResponse = {
@@ -43,12 +49,28 @@ export function getSilentExportFailure(
 export function resolveSilentExportResult(
   packResult: SilentExportPackResult | undefined,
   caughtError: unknown
-): { ok: boolean; error?: string } {
+): {
+  ok: boolean;
+  error?: string;
+  perfReport?: PerfReportData;
+  filename?: string;
+  e2eMetrics?: PerfMetricItem[];
+} {
   if (caughtError !== undefined && caughtError !== null) {
     return { ok: false, error: String(caughtError) };
   }
   if (packResult?.ok && packResult.blobUrl && packResult.filename) {
-    return { ok: true };
+    const result: {
+      ok: boolean;
+      error?: string;
+      perfReport?: PerfReportData;
+      filename?: string;
+      e2eMetrics?: PerfMetricItem[];
+    } = { ok: true };
+    if (packResult.perfReport) {
+      result.perfReport = packResult.perfReport;
+    }
+    return result;
   }
   const defaultError = t("silentExportNoDownloadableFile");
   return { ok: false, error: packResult?.error ?? defaultError };

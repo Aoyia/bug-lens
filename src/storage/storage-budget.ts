@@ -1,3 +1,4 @@
+import { DevProfiler } from "../shared/dev-profiler.ts";
 import { estimateBytes } from "../domain/storage-policy.ts";
 import type { RecordingSession } from "../shared/protocol.ts";
 import { openEvidenceDatabase, type StoreName } from "./indexed-db-schema.ts";
@@ -77,6 +78,9 @@ function batchPutWithinSessionBudget<T extends { sessionId: string }>(
 async function executeBatchPut(items: PendingBatchItem<any>[]): Promise<void> {
   if (items.length === 0) return;
 
+  const endBatchTimer = DevProfiler.time(
+    `IndexedDB 批量写入 (${items.length} 条记录)`
+  );
   const database = await openEvidenceDatabase();
 
   // 合并涉及的 store 并强制加入 sessions：预算计算与用量回写都落在该 store 上
@@ -206,6 +210,10 @@ async function executeBatchPut(items: PendingBatchItem<any>[]): Promise<void> {
 
     // 事务成功提交后才统一 resolve：保证调用方拿到的结果对应的是已落盘状态
     transaction.oncomplete = () => {
+      endBatchTimer({
+        批量写入条数: items.length,
+        "参与 Store": storeNames.join(", "),
+      });
       for (const { item, result } of itemResults) {
         // 通过全局监听器广播每个写入的预算结果（供存储健康协调通知 UI）
         if (budgetListener) {
@@ -228,7 +236,8 @@ async function executeBatchPut(items: PendingBatchItem<any>[]): Promise<void> {
     };
 
     transaction.onabort = () => {
-      const err = transaction.error ?? new Error(t("evidenceBatchWriteAborted"));
+      const err =
+        transaction.error ?? new Error(t("evidenceBatchWriteAborted"));
       if (!hasError) {
         for (const item of items) {
           item.reject(err);

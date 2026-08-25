@@ -1,3 +1,4 @@
+import { DevProfiler } from "../shared/dev-profiler.ts";
 import {
   applyInteractionEvent,
   type InteractionEvent,
@@ -58,6 +59,7 @@ export class InteractionCapture {
   private readonly repository: InteractionRepository;
   private readonly writeSessionEvent: SessionEventWriter;
   private readonly isStopping: (sessionId: string) => boolean;
+  private aborted = false;
 
   constructor(
     repository: InteractionRepository,
@@ -102,19 +104,34 @@ export class InteractionCapture {
     });
   }
 
-  /** 停止时调用：最多轮询 3 轮等待所有在途交互写入完成，返回失败明细。 */
-  async drain(): Promise<string[]> {
+  /** 停止时调用：立即熔断取消在途未截取的队列，并在超时保护下等待当前执行完成 */
+  abortPending(): void {
+    this.aborted = true;
+  }
+
+  async drain(timeoutMs = 300): Promise<string[]> {
+    this.abortPending();
     const errors: string[] = [];
-    for (let round = 0; round < 3; round += 1) {
-      const results = await Promise.allSettled([...this.pending]);
-      for (const result of results) {
-        if (result.status === "rejected")
-          errors.push(
-            t("cleanupInteractionWriteFailed", String(result.reason))
-          );
+    if (!this.pending.size) return errors;
+
+    const timeoutPromise = new Promise<void>((resolve) =>
+      setTimeout(resolve, timeoutMs)
+    );
+    const drainPromise = Promise.allSettled(Array.from(this.pending)).then(
+      (results) => {
+        for (const res of results) {
+          if (
+            res.status === "rejected" &&
+            res.reason?.message !== "CAPTURE_ABORTED"
+          ) {
+            errors.push(String(res.reason));
+          }
+        }
       }
-      if (!this.pending.size) break;
-    }
+    );
+
+    await Promise.race([drainPromise, timeoutPromise]);
+    this.pending.clear();
     return errors;
   }
 
@@ -239,7 +256,7 @@ export class InteractionCapture {
         delta: interactionDelta,
       });
     }
-    if (session.options.captureScreenshots && !previous) {
+    if (session.options.captureScreenshots && !previous && !this.aborted) {
       await this.captureScreenshot(session, next, sender);
     }
   }
@@ -248,22 +265,57 @@ export class InteractionCapture {
   private captureQueue = Promise.resolve();
 
   /**
-   * 全局串行 + 相邻间隔 510ms 节流的截屏执行器：规避 chrome 对
-   * captureVisibleTab 的每分钟调用次数配额限制。
+   * 优先通过 CDP Page.captureScreenshot 获取视口高保真原始帧（无 2次/秒 配额限制，耗时仅 30-50ms）
+   * 优雅降级兼容 chrome.tabs.captureVisibleTab
    */
-  private async executeCaptureVisibleTab(windowId: number): Promise<string> {
+  private async executeCaptureScreenshot(
+    session: RecordingSession
+  ): Promise<string> {
     const task = this.captureQueue.then(async () => {
+      if (this.aborted) throw new Error("CAPTURE_ABORTED");
+
       const elapsed = Date.now() - this.lastCaptureTime;
-      if (elapsed < 510) {
-        await new Promise((resolve) => setTimeout(resolve, 510 - elapsed));
+      // 轻量防抖 40ms（支持高达 25fps 密集点击截屏）
+      if (elapsed < 40) {
+        await new Promise((resolve) => setTimeout(resolve, 40 - elapsed));
       }
+      if (this.aborted) throw new Error("CAPTURE_ABORTED");
+
       this.lastCaptureTime = Date.now();
+      const tabId = session.target.tabId;
+
+      // 1. 优先尝试 CDP Page.captureScreenshot
+      if (typeof chrome !== "undefined" && chrome.debugger && tabId) {
+        try {
+          const res = (await chrome.debugger.sendCommand(
+            { tabId },
+            "Page.captureScreenshot",
+            {
+              format: "jpeg",
+              quality: 92,
+              fromSurface: true,
+              captureBeyondViewport: false,
+            }
+          )) as { data?: string };
+          if (res?.data) {
+            return `data:image/jpeg;base64,${res.data}`;
+          }
+        } catch {
+          // CDP 断开或不支持时降级走 captureVisibleTab
+        }
+      }
+
+      // 2. 降级走 chrome.tabs.captureVisibleTab
       const capture = chrome.tabs.captureVisibleTab as unknown as (
         wId: number,
-        options: { format: "png" }
+        options: { format: "jpeg"; quality: number }
       ) => Promise<string>;
-      return capture(windowId, { format: "png" });
+      return capture(
+        session.target.windowId ?? chrome.windows.WINDOW_ID_CURRENT,
+        { format: "jpeg", quality: 92 }
+      );
     });
+
     this.captureQueue = task.then(
       () => undefined,
       () => undefined
@@ -276,16 +328,21 @@ export class InteractionCapture {
     interaction: InteractionRecord,
     sender: chrome.runtime.MessageSender
   ): Promise<void> {
+    if (this.aborted) return;
+    const endStepTimer = DevProfiler.time(`交互截图生成 #${interaction.id}`);
     try {
       if ((sender.frameId ?? 0) !== 0)
         throw new Error(
           `FRAME_GEOMETRY_UNAVAILABLE: ${t("iframeCaptureUnsupported")}`
         );
       await this.assertTargetTabIsActive(session);
-      const dataUrl = await this.executeCaptureVisibleTab(
-        session.target.windowId ?? chrome.windows.WINDOW_ID_CURRENT
-      );
+      const capStartTime = performance.now();
+      const dataUrl = await this.executeCaptureScreenshot(session);
+      if (this.aborted) return;
+      const capDuration = performance.now() - capStartTime;
       await this.assertTargetTabIsActive(session);
+      const markStartTime = performance.now();
+      if (this.aborted) return;
       const annotated = await chrome.runtime.sendMessage(
         message(
           "offscreen/annotate-image",
@@ -300,16 +357,23 @@ export class InteractionCapture {
           "offscreen"
         )
       );
+      if (this.aborted) return;
+      const markDuration = performance.now() - markStartTime;
       if (!annotated?.ok || typeof annotated.dataUrl !== "string")
         throw new Error(annotated?.error || t("screenshotMarkFailed"));
       const assetId = `asset-interaction-${interaction.id}`;
       const bytes = dataUrlToArrayBuffer(annotated.dataUrl);
+      endStepTimer({
+        视口截屏: `${capDuration.toFixed(1)} ms`,
+        Offscreen标注与压缩: `${markDuration.toFixed(1)} ms`,
+        单图大小: `${(bytes.byteLength / 1024).toFixed(1)} KB`,
+      });
       const assetResult = await this.repository.saveEvidenceAssetWithinBudget({
         id: assetId,
         sessionId: session.id,
         interactionId: interaction.id,
         kind: "interaction-screenshot",
-        mimeType: "image/png",
+        mimeType: "image/jpeg",
         bytes,
         width: interaction.coordinates.viewport.width,
         height: interaction.coordinates.viewport.height,

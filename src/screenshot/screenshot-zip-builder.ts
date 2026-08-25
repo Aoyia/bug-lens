@@ -57,8 +57,8 @@ export function buildScreenshotZipPackage(
   const timestamp = formatLocalTimestamp(new Date());
   const filename = `bug-lens-screenshot-${timestamp}.zip`;
 
-  // 统一固定图片文件名为 screenshot.png
-  const imageFilename = "screenshot.png";
+  // 统一固定图片文件名为 screenshot.jpg
+  const imageFilename = "screenshot.jpg";
 
   // 组装 ZIP 压缩包包含的文件列表（PNG 已为 Deflate 位图，采用 level 0 零算力封包；文本走 level 6 压缩）
   const zipFiles: Record<

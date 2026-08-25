@@ -133,7 +133,8 @@ export function createMessageRouter(
               incoming.payload.commandId,
               incoming.payload.autoExport,
               incoming.payload.discard,
-              incoming.payload.silentExport
+              incoming.payload.silentExport,
+              incoming.payload.traceStartMs
             ),
           };
         // 查询当前活动会话

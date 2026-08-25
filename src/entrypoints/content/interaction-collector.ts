@@ -23,6 +23,7 @@ import { DomObserver } from "./collector/dom-observer";
 import { InactivityMonitor } from "./collector/inactivity-monitor";
 import { ScreenshotOverlay } from "../../screenshot/screenshot-overlay";
 import { recentErrorsTracker } from "../../screenshot/recent-errors-tracker";
+import { DevProfiler } from "../../shared/dev-profiler";
 import {
   ensureErrorsTrackerStarted,
   ensureScreenshotOverlayBridge,
@@ -57,6 +58,9 @@ declare global {
 // 用 window 标志跨注入去重，避免累积监听器 / 重复包装 console.error，
 // 否则多次截图后残留 window 拦截器（刷新/滚动永久失效）。
 ensureErrorsTrackerStarted(() => recentErrorsTracker.startListening());
+
+// 初始化宿主网页控制台与扩展 DevProfiler 的通信桥梁
+DevProfiler.initPageBridge();
 
 // 截图 overlay 初始为关闭：content script 重新注入（页面刷新等）时刷新 background
 // 的互斥标志，避免截图 overlay 异常销毁后残留"截图中"状态卡住录制启动。
@@ -117,6 +121,7 @@ if (existingController) {
   // 录制控制条：展示录制态，提供停止/标记问题/暂停操作
   const widget: RecordingWidget = new RecordingWidget({
     async onStop() {
+      const traceStart = performance.now();
       widget.setSavingState(true);
       try {
         const res = await chrome.runtime.sendMessage(
@@ -124,6 +129,7 @@ if (existingController) {
             commandId: crypto.randomUUID(),
             // 结束即导出：直出证据包下载，不打开预览页（业务契约，勿改）
             silentExport: true,
+            traceStartMs: traceStart,
           })
         );
         const exportFailure = getSilentExportFailure(res, t("stopFailed"));
@@ -133,6 +139,8 @@ if (existingController) {
           widget.showToast(t("exportFailed", exportFailure), 5_500, "error");
           return;
         }
+
+        const clipboardStart = performance.now();
         const prompt = res?.session?.silentPrompt;
         if (prompt) {
           try {
@@ -142,6 +150,35 @@ if (existingController) {
           }
         }
         widget.showToast(t("exportSuccessCopied"));
+        const clipboardDuration = performance.now() - clipboardStart;
+
+        const serverMetrics =
+          res?.session?.silentExportResult?.e2eMetrics ?? [];
+        if (serverMetrics.length > 0) {
+          const allE2EMetrics = [
+            ...serverMetrics,
+            {
+              step: "5. 剪贴板写入与 UI Toast 反馈",
+              durationMs: clipboardDuration,
+              size: prompt ? `${prompt.length} 字符` : "-",
+              note: "AI Prompt 注入剪贴板并呈现成功状态",
+            },
+          ];
+          const totalE2EMs = performance.now() - traceStart;
+          DevProfiler.printSummaryTable(
+            "端到端（E2E）导出耗时全链路大盘",
+            allE2EMetrics,
+            {
+              端到端总感知耗时: `${totalE2EMs.toFixed(2)} ms`,
+              导出文件: res?.session?.silentExportResult?.filename ?? "-",
+            }
+          );
+        }
+
+        const perfReport = res?.session?.silentExportResult?.perfReport;
+        if (perfReport) {
+          DevProfiler.printReport(perfReport);
+        }
       } catch (error) {
         // 通道异常：会话大概率仍存活，恢复挂件交互以便用户重试
         widget.setSavingState(false);

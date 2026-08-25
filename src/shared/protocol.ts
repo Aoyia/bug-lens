@@ -142,7 +142,17 @@ export type RecordingSession = {
   browserEpoch?: string;
   previewPending?: boolean;
   silentPrompt?: string;
-  silentExportResult?: { ok: boolean; error?: string };
+  silentExportResult?: {
+    ok: boolean;
+    error?: string;
+    perfReport?: any;
+    e2eMetrics?: Array<{
+      step: string;
+      durationMs: number;
+      size?: string;
+      note?: string;
+    }>;
+  };
   resumedFromSessionId?: string;
   storage?: SessionStorage;
   error?: CaptureIssue;
@@ -558,7 +568,7 @@ export type EvidenceAsset = {
   issueSceneId?: string;
   interactionId?: string;
   kind: "issue-original" | "issue-annotated" | "interaction-screenshot";
-  mimeType: "image/png";
+  mimeType: "image/png" | "image/jpeg" | "image/webp";
   bytes: ArrayBuffer;
   width: number;
   height: number;
@@ -736,6 +746,7 @@ export type RuntimeMessage =
         autoExport?: boolean;
         silentExport?: boolean;
         discard?: boolean;
+        traceStartMs?: number;
       }
     >
   | Envelope<"session/status", { session?: RecordingSession }>

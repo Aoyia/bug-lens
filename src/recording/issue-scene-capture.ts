@@ -94,9 +94,7 @@ export class IssueSceneCapture {
       const results = await Promise.allSettled([...this.pending]);
       for (const result of results)
         if (result.status === "rejected")
-          errors.push(
-            t("cleanupIssueSceneWriteFailed", String(result.reason))
-          );
+          errors.push(t("cleanupIssueSceneWriteFailed", String(result.reason)));
     }
     return errors;
   }
@@ -166,9 +164,7 @@ export class IssueSceneCapture {
       query.windowId = session.target.windowId;
     const tabs = await chrome.tabs.query(query);
     if (!tabs.some((tab) => tab.id === session.target.tabId))
-      throw new Error(
-        `TARGET_TAB_NOT_ACTIVE: ${t("issueTargetTabNotActive")}`
-      );
+      throw new Error(`TARGET_TAB_NOT_ACTIVE: ${t("issueTargetTabNotActive")}`);
   }
 
   /**
@@ -238,11 +234,11 @@ export class IssueSceneCapture {
       await this.assertTargetTabIsActive(session);
       const capture = chrome.tabs.captureVisibleTab as unknown as (
         windowId: number,
-        options: { format: "png" }
+        options: { format: "jpeg"; quality: number }
       ) => Promise<string>;
       const dataUrl = await capture(
         session.target.windowId ?? chrome.windows.WINDOW_ID_CURRENT,
-        { format: "png" }
+        { format: "jpeg", quality: 92 }
       );
       await this.assertTargetTabIsActive(session);
       const { bytes } = dataUrlBytes(dataUrl);
@@ -252,7 +248,7 @@ export class IssueSceneCapture {
         sessionId: session.id,
         issueSceneId: sceneId,
         kind: "issue-original",
-        mimeType: "image/png",
+        mimeType: "image/jpeg",
         bytes,
         width: Math.round(
           payload.page.viewport.width *

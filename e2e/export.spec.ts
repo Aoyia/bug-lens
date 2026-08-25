@@ -208,7 +208,8 @@ async function verifyZipAndOfflineReport(
   expect(mediaBuffer!.byteLength).toBeGreaterThan(0);
 
   const screenshotFiles = Object.keys(unzipped).filter(
-    (k) => k.startsWith("screenshots/") && k.endsWith(".png")
+    (k) =>
+      k.startsWith("screenshots/") && (k.endsWith(".jpg") || k.endsWith(".png"))
   );
   expect(screenshotFiles.length).toBeGreaterThan(0);
   for (const key of screenshotFiles) {

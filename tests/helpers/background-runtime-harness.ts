@@ -128,6 +128,9 @@ export class FakeCdpCollector {
 
 export class FakeInteractionCapture {
   calls: string[] = [];
+  abortPending() {
+    this.calls.push("abortPending");
+  }
   async handle(_interaction: InteractionRecord, _sender: unknown) {
     this.calls.push("handle");
   }

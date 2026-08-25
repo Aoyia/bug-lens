@@ -100,21 +100,25 @@ if (!data || data.protocolVersion !== 3) {
   const video = document.querySelector<HTMLVideoElement>("#video")!;
   const videoEmpty = document.querySelector<HTMLElement>("#video-empty")!;
   if (data.hasMedia) {
-    video.src = "media/recording.webm";
-    video.hidden = false;
-    videoEmpty.hidden = true;
-    video.addEventListener(
-      "error",
-      () => {
-        video.hidden = true;
-        videoEmpty.hidden = false;
-        videoEmpty.textContent =
-          t("videoDecodeFailed") !== "videoDecodeFailed"
-            ? t("videoDecodeFailed")
-            : "录像文件无法读取，请确认 media/recording.webm 已完整解压。";
-      },
-      { once: true }
-    );
+    // 优先尝试 mp4，若不存在则回退至 webm
+    const tryPlayVideo = (src: string, fallbackSrc?: string) => {
+      video.src = src;
+      video.hidden = false;
+      videoEmpty.hidden = true;
+      video.onerror = () => {
+        if (fallbackSrc) {
+          tryPlayVideo(fallbackSrc);
+        } else {
+          video.hidden = true;
+          videoEmpty.hidden = false;
+          videoEmpty.textContent =
+            t("videoDecodeFailed") !== "videoDecodeFailed"
+              ? t("videoDecodeFailed")
+              : "录像文件无法读取，请确认 media 目录下的视频文件已完整解压。";
+        }
+      };
+    };
+    tryPlayVideo("media/recording.mp4", "media/recording.webm");
   } else {
     videoEmpty.textContent =
       t("noVideoPlayback") !== "noVideoPlayback"

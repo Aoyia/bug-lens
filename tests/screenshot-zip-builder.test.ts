@@ -52,7 +52,7 @@ describe("Screenshot ZIP Builder - 资源包压缩与解压验证", () => {
     assert.equal(new TextDecoder().decode(strU8), "hello bug lens");
   });
 
-  test("buildScreenshotZipPackage 正确打包 ZIP 且解压出完整的 4 大关键资源文件（包含合并标注的 screenshot.png）", async () => {
+  test("buildScreenshotZipPackage 正确打包 ZIP 且解压出完整的 4 大关键资源文件（包含合并标注的 screenshot.jpg）", async () => {
     const pack = buildScreenshotZipPackage(dummyPayload);
     assert.ok(pack);
     assert.ok(pack.filename.startsWith("bug-lens-screenshot-"));
@@ -66,8 +66,8 @@ describe("Screenshot ZIP Builder - 资源包压缩与解压验证", () => {
     const unzipped = unzipSync(u8);
 
     assert.ok(
-      unzipped["screenshot.png"],
-      "必须包含合并标注的 screenshot.png 物理截图"
+      unzipped["screenshot.jpg"],
+      "必须包含合并标注的 screenshot.jpg 物理截图"
     );
     assert.ok(
       unzipped["ai-prompt.md"],
@@ -120,11 +120,11 @@ describe("Screenshot ZIP Builder - 资源包压缩与解压验证", () => {
     const u8 = new Uint8Array(await pack.blob.arrayBuffer());
     const unzipped = unzipSync(u8);
 
-    assert.ok(unzipped["screenshot.png"]);
+    assert.ok(unzipped["screenshot.jpg"]);
     assert.ok(unzipped["cascade.json"]);
 
-    // 验证 Level 0 存储的 PNG 解压后字节与原始图片完全一致
+    // 验证 Level 0 存储的图片解压后字节与原始图片完全一致
     const expectedImgU8 = base64ToUint8Array(dummyPayload.image.base64Data);
-    assert.deepEqual(unzipped["screenshot.png"], expectedImgU8);
+    assert.deepEqual(unzipped["screenshot.jpg"], expectedImgU8);
   });
 });
