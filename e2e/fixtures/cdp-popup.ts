@@ -157,7 +157,19 @@ export class CdpPopup {
     );
   }
 
+  async getAttribute(
+    selector: string,
+    attributeName: string
+  ): Promise<string | null> {
+    return this.evaluate<string | null>(`(() => {
+      const element = document.querySelector(${JSON.stringify(selector)});
+      if (!(element instanceof HTMLElement)) return null;
+      return element.getAttribute(${JSON.stringify(attributeName)});
+    })()`);
+  }
+
   async click(selector: string): Promise<void> {
+    await this.waitForSelector(selector);
     const box = await this.evaluate<{ x: number; y: number } | null>(`(() => {
       const element = document.querySelector(${JSON.stringify(selector)});
       if (!(element instanceof HTMLElement)) return null;

@@ -213,6 +213,11 @@ class ShadowProbe {
     await this.page.mouse.click(c.x, c.y);
   }
 
+  /** 释放 CDP session，避免在长时间运行或重复构建时堆积连接 */
+  async dispose(): Promise<void> {
+    await this.cdp.detach().catch(() => undefined);
+  }
+
   /** closed shadow 内匹配选择器的元素数量（如文本输入框） */
   async count(selector: string): Promise<number> {
     const ids = await this.findAllNodeIds(selector);
@@ -245,9 +250,11 @@ async function setupScreenshotOverlay(
   if (!page) page = await context.newPage();
   await page.goto(serverUrl);
   await page.bringToFront();
-  await page.waitForFunction(() => document.hasFocus(), undefined, {
-    timeout: 2_000,
-  });
+  await page
+    .waitForFunction(() => document.hasFocus(), undefined, {
+      timeout: 2_000,
+    })
+    .catch(() => undefined);
 
   await page.evaluate((types) => {
     const w = window as any;

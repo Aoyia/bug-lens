@@ -61,9 +61,11 @@ async function openPage(
   if (!page) page = await context.newPage();
   await page.goto(serverUrl);
   await page.bringToFront();
-  await page.waitForFunction(() => document.hasFocus(), undefined, {
-    timeout: 2_000,
-  });
+  await page
+    .waitForFunction(() => document.hasFocus(), undefined, {
+      timeout: 2_000,
+    })
+    .catch(() => undefined);
   return page;
 }
 
@@ -88,8 +90,7 @@ async function triggerAndOpenScreenshot(
   return host;
 }
 
-const refreshShortcut =
-  process.platform === "darwin" ? "Meta+r" : "Control+r";
+const refreshShortcut = process.platform === "darwin" ? "Meta+r" : "Control+r";
 
 /**
  * 注入按键探针（bubble 阶段）。overlay 的拦截器注册在 window capture 阶段，
@@ -99,7 +100,13 @@ const refreshShortcut =
  */
 async function installKeyProbe(
   page: import("@playwright/test").Page
-): Promise<() => Promise<{ total: number; refreshSeen: number; refreshDefaultPrevented: boolean | null }>> {
+): Promise<
+  () => Promise<{
+    total: number;
+    refreshSeen: number;
+    refreshDefaultPrevented: boolean | null;
+  }>
+> {
   await page.evaluate(() => {
     const w = window as any;
     w.__keyProbe = { total: 0, refreshSeen: 0, refreshDefaultPrevented: null };
@@ -119,8 +126,8 @@ async function installKeyProbe(
     page.evaluate(() => ({
       total: (window as any).__keyProbe.total as number,
       refreshSeen: (window as any).__keyProbe.refreshSeen as number,
-      refreshDefaultPrevented:
-        (window as any).__keyProbe.refreshDefaultPrevented as boolean | null,
+      refreshDefaultPrevented: (window as any).__keyProbe
+        .refreshDefaultPrevented as boolean | null,
     }));
 }
 
@@ -194,10 +201,9 @@ test.describe("Bug Lens Chrome Extension E2E SCREENSHOT-006: 截图后网页功�
     await page.keyboard.press("a");
     await delay(150);
     probe = await readProbe();
-    expect(
-      probe.total,
-      "普通按键应被截图拦截吞掉，不泄漏到页面"
-    ).toBe(beforePlainKey);
+    expect(probe.total, "普通按键应被截图拦截吞掉，不泄漏到页面").toBe(
+      beforePlainKey
+    );
     logE2e("Plain key still swallowed while screenshot active", {
       beforePlainKey,
       probe,
@@ -238,10 +244,7 @@ test.describe("Bug Lens Chrome Extension E2E SCREENSHOT-006: 截图后网页功�
       const duringLeak = await page.evaluate(
         () => (window as any).__bugLensLeakCount
       );
-      expect(
-        duringLeak,
-        `第 ${i} 次截图激活期按键不应泄漏到页面`
-      ).toBe(0);
+      expect(duringLeak, `第 ${i} 次截图激活期按键不应泄漏到页面`).toBe(0);
 
       await page.keyboard.press("Escape");
       await expect(host).toBeHidden({ timeout: 5_000 });

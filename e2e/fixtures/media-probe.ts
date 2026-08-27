@@ -430,7 +430,8 @@ export class MediaProbe {
 
   async waitForSession(
     targetTabId: number,
-    timeoutMs = 5_000
+    timeoutMs = 5_000,
+    predicate?: (session: RecordingSession) => boolean
   ): Promise<RecordingSession> {
     const session = await poll(
       () => this.activeSession(),
@@ -438,7 +439,8 @@ export class MediaProbe {
         Boolean(
           value &&
           value.target.tabId === targetTabId &&
-          value.status !== "PREPARING"
+          value.status !== "PREPARING" &&
+          (predicate ? predicate(value) : true)
         ),
       timeoutMs,
       "SESSION_START_TIMEOUT"
@@ -501,82 +503,85 @@ export class MediaProbe {
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);
       });
-      const getSession = new Promise<RecordingSession | undefined>(
-        (resolve, reject) => {
-          const request = database
-            .transaction("sessions")
-            .objectStore("sessions")
-            .get(id);
-          request.onsuccess = () =>
-            resolve(request.result as RecordingSession | undefined);
-          request.onerror = () => reject(request.error);
-        }
-      );
-      const getAll = <T>(storeName: string): Promise<T[]> =>
-        new Promise((resolve, reject) => {
-          const request = database
-            .transaction(storeName)
-            .objectStore(storeName)
-            .index("sessionId")
-            .getAll(id);
-          request.onsuccess = () => resolve((request.result ?? []) as T[]);
-          request.onerror = () => reject(request.error);
-        });
-      const [
-        session,
-        chunks,
-        interactions,
-        consoleEntries,
-        networkEntries,
-        assets,
-      ] = await Promise.all([
-        getSession,
-        getAll<{ sequence: number; mimeType: string; chunk: ArrayBuffer }>(
-          "mediaChunks"
-        ),
-        getAll<InteractionRecordSummary>("interactions"),
-        getAll<EvidenceItemWithTimestamp>("consoleEntries"),
-        getAll<EvidenceItemWithTimestamp>("networkEntries"),
-        getAll<{
-          id: string;
-          kind: string;
-          mimeType: string;
-          bytes: ArrayBuffer;
-          width?: number;
-          height?: number;
-          sessionId?: string;
-          issueSceneId?: string;
-          interactionId?: string;
-        }>("evidenceAssets"),
-      ]);
-      database.close();
-      return {
-        session,
-        mediaChunks: chunks
-          .map((entry) => ({
-            sequence: entry.sequence,
-            mimeType: entry.mimeType,
-            byteLength: entry.chunk?.byteLength ?? 0,
-          }))
-          .sort((left, right) => left.sequence - right.sequence),
-        interactionCount: interactions.length,
-        consoleCount: consoleEntries.length,
-        networkCount: networkEntries.length,
-        interactions,
-        consoleEntries,
-        networkEntries,
-        evidenceAssets: assets.map((asset) => ({
-          id: asset.id,
-          kind: asset.kind,
-          mimeType: asset.mimeType,
-          byteLength: asset.bytes?.byteLength ?? 0,
-          width: asset.width,
-          height: asset.height,
-          sessionId: asset.sessionId,
-          issueSceneId: asset.issueSceneId,
-          interactionId: asset.interactionId,
-        })),
-      };
+      try {
+        const getSession = new Promise<RecordingSession | undefined>(
+          (resolve, reject) => {
+            const request = database
+              .transaction("sessions")
+              .objectStore("sessions")
+              .get(id);
+            request.onsuccess = () =>
+              resolve(request.result as RecordingSession | undefined);
+            request.onerror = () => reject(request.error);
+          }
+        );
+        const getAll = <T>(storeName: string): Promise<T[]> =>
+          new Promise((resolve, reject) => {
+            const request = database
+              .transaction(storeName)
+              .objectStore(storeName)
+              .index("sessionId")
+              .getAll(id);
+            request.onsuccess = () => resolve((request.result ?? []) as T[]);
+            request.onerror = () => reject(request.error);
+          });
+        const [
+          session,
+          chunks,
+          interactions,
+          consoleEntries,
+          networkEntries,
+          assets,
+        ] = await Promise.all([
+          getSession,
+          getAll<{ sequence: number; mimeType: string; chunk: ArrayBuffer }>(
+            "mediaChunks"
+          ),
+          getAll<InteractionRecordSummary>("interactions"),
+          getAll<EvidenceItemWithTimestamp>("consoleEntries"),
+          getAll<EvidenceItemWithTimestamp>("networkEntries"),
+          getAll<{
+            id: string;
+            kind: string;
+            mimeType: string;
+            bytes: ArrayBuffer;
+            width?: number;
+            height?: number;
+            sessionId?: string;
+            issueSceneId?: string;
+            interactionId?: string;
+          }>("evidenceAssets"),
+        ]);
+        return {
+          session,
+          mediaChunks: chunks
+            .map((entry) => ({
+              sequence: entry.sequence,
+              mimeType: entry.mimeType,
+              byteLength: entry.chunk?.byteLength ?? 0,
+            }))
+            .sort((left, right) => left.sequence - right.sequence),
+          interactionCount: interactions.length,
+          consoleCount: consoleEntries.length,
+          networkCount: networkEntries.length,
+          interactions,
+          consoleEntries,
+          networkEntries,
+          evidenceAssets: assets.map((asset) => ({
+            id: asset.id,
+            kind: asset.kind,
+            mimeType: asset.mimeType,
+            byteLength: asset.bytes?.byteLength ?? 0,
+            width: asset.width,
+            height: asset.height,
+            sessionId: asset.sessionId,
+            issueSceneId: asset.issueSceneId,
+            interactionId: asset.interactionId,
+          })),
+        };
+      } finally {
+        database.close();
+      }
     }, idParam);
   }
 

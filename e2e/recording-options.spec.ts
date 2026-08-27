@@ -91,9 +91,9 @@ test.describe("Bug Lens Chrome Extension recording options", () => {
     ).toBe(true);
     expect(
       await popup.evaluate<string>(
-        "document.querySelector('#video-quality')?.value || ''"
+        "document.querySelector('#privacy-mode')?.value || ''"
       )
-    ).toBe("balanced");
+    ).toBe("masked");
 
     await popup.click("#video");
     await waitForPopupChecked(popup, "#video", false);

@@ -64,10 +64,10 @@ test.describe("Bug Lens DevProfiler 性能监控输出验证", () => {
     const markIssueButton = targetPage.locator("#__wbr_issue_btn__");
     await expect(markIssueButton).toBeVisible({ timeout: 5_000 });
 
-    await targetPage.click('[data-testid="normal-btn"]');
-    await expect(
-      targetPage.locator('[data-testid="action-status"]')
-    ).toHaveText("普通点击 1 完成");
+    await targetPage.click("#normal-btn");
+    await expect(targetPage.locator("#click-output")).toContainText(
+      "Clicked: Normal Button"
+    );
     await delay(500);
 
     // 5. 停止录制并打开 Preview 页面

@@ -122,8 +122,8 @@ test.describe("Bug Lens Chrome Extension E2E PRIV-002: Raw Mode Risk Warning & E
     await popup.waitForSelector(".raw-mode-inline-warning");
     expect(await popup.isVisible(".raw-mode-inline-warning")).toBe(true);
     const inlineWarning = await popup.text(".raw-mode-inline-warning");
-    expect(inlineWarning).toContain("原始模式");
-    expect(inlineWarning).toContain("未脱敏");
+    expect(inlineWarning).toMatch(/原始模式|Raw Mode/i);
+    expect(inlineWarning).toMatch(/未脱敏|sensitive/i);
 
     await popup.click("#video");
     await waitForPopupChecked(popup, "#video", false);

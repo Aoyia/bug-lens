@@ -21,13 +21,31 @@ test.describe("Bug Lens 真实用户 Google 业务流 E2E 测试 (包 4c41242b �
     if (!targetPage) targetPage = await context.newPage();
 
     logE2e("Navigating to real Google homepage", { url: googleUrl });
+    let isGoogleReachable = true;
     try {
-      await targetPage.goto(googleUrl, {
+      const response = await targetPage.goto(googleUrl, {
         waitUntil: "domcontentloaded",
-        timeout: 20_000,
+        timeout: 10_000,
       });
+      if (response && response.status() >= 400) {
+        isGoogleReachable = false;
+      }
     } catch (err) {
-      logE2e("Navigation warning, continuing test", { error: String(err) });
+      logE2e(
+        "Google network unreachable or timeout, skipping test gracefully",
+        {
+          error: String(err),
+        }
+      );
+      isGoogleReachable = false;
+    }
+
+    if (!isGoogleReachable) {
+      test.skip(
+        true,
+        "Google is unreachable in current network environment; skipping REAL-BUS-001"
+      );
+      return;
     }
 
     await targetPage.bringToFront();

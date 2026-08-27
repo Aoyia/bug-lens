@@ -91,7 +91,13 @@ export const test = base.extend<ExtensionFixtures>({
       "e2e/fixtures/privacy-page.html"
     );
     const server = http.createServer((req, res) => {
-      if (req.url === "/api/todo") {
+      const parsedUrl = new URL(
+        req.url || "/",
+        `http://${req.headers.host || "127.0.0.1"}`
+      );
+      const pathname = parsedUrl.pathname;
+
+      if (pathname === "/api/todo") {
         res.writeHead(200, {
           "Content-Type": "application/json; charset=utf-8",
         });
@@ -100,7 +106,7 @@ export const test = base.extend<ExtensionFixtures>({
         );
         return;
       }
-      if (req.url === "/api/preview/success") {
+      if (pathname === "/api/preview/success") {
         res.writeHead(200, {
           "Content-Type": "application/json; charset=utf-8",
         });
@@ -112,7 +118,7 @@ export const test = base.extend<ExtensionFixtures>({
         );
         return;
       }
-      if (req.url === "/api/preview/failure") {
+      if (pathname === "/api/preview/failure") {
         res.writeHead(500, {
           "Content-Type": "application/json; charset=utf-8",
         });
@@ -124,7 +130,7 @@ export const test = base.extend<ExtensionFixtures>({
         );
         return;
       }
-      if (req.url?.startsWith("/api/privacy-test")) {
+      if (pathname.startsWith("/api/privacy-test")) {
         let body = "";
         req.on("data", (chunk) => {
           body += chunk;
@@ -155,12 +161,12 @@ export const test = base.extend<ExtensionFixtures>({
         });
         return;
       }
-      if (req.url?.startsWith("/privacy-page.html")) {
+      if (pathname.startsWith("/privacy-page.html")) {
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
         res.end(fs.readFileSync(privacyHtmlPath));
         return;
       }
-      if (req.url?.startsWith("/issue-page.html")) {
+      if (pathname.startsWith("/issue-page.html")) {
         const issueHtmlPath = path.resolve(
           process.cwd(),
           "e2e/fixtures/issue-page.html"
@@ -169,7 +175,7 @@ export const test = base.extend<ExtensionFixtures>({
         res.end(fs.readFileSync(issueHtmlPath));
         return;
       }
-      if (req.url?.startsWith("/preview-page.html")) {
+      if (pathname.startsWith("/preview-page.html")) {
         const previewHtmlPath = path.resolve(
           process.cwd(),
           "e2e/fixtures/preview-page.html"
@@ -187,9 +193,12 @@ export const test = base.extend<ExtensionFixtures>({
     );
     const address = server.address() as { port: number };
     logE2e("Mock server started", { port: address.port });
-    await use(`http://127.0.0.1:${address.port}/mock-page.html`);
-    server.closeAllConnections?.();
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    try {
+      await use(`http://127.0.0.1:${address.port}/mock-page.html`);
+    } finally {
+      server.closeAllConnections?.();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
   },
 
   context: async ({}, use) => {
@@ -197,6 +206,8 @@ export const test = base.extend<ExtensionFixtures>({
       path.join(os.tmpdir(), "playwright-chrome-user-data-")
     );
     logE2e("Launching Chrome for Testing", { slowMoMs, profile: tmpDir });
+    const windowPosition = process.env.E2E_WINDOW_POSITION ?? "0,0";
+    const windowSize = process.env.E2E_WINDOW_SIZE ?? "1280,900";
     const context = await chromium.launchPersistentContext(tmpDir, {
       headless: false,
       slowMo: slowMoMs,
@@ -207,7 +218,8 @@ export const test = base.extend<ExtensionFixtures>({
         "--allow-file-access-from-files",
         "--no-first-run",
         "--no-default-browser-check",
-        "--window-size=1280,900",
+        `--window-position=${windowPosition}`,
+        `--window-size=${windowSize}`,
       ],
     });
 

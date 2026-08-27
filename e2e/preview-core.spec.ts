@@ -689,7 +689,29 @@ test.describe("Bug Lens Chrome Extension E2E PREV-001: Preview Core Browsing & T
     );
 
     // ==========================================
-    // 十二、状态与资源清理
+    // 十二、快捷键面板交互与关闭行为验证
+    // ==========================================
+    await previewPage.keyboard.press("?");
+    const shortcutsModal = previewPage.locator("#shortcuts-modal");
+    await expect(shortcutsModal).toBeVisible({ timeout: 3_000 });
+
+    // 1. 按 Escape 键关闭
+    await previewPage.keyboard.press("Escape");
+    await expect(shortcutsModal).toBeHidden({ timeout: 3_000 });
+
+    // 2. 再次打开，点击遮罩关闭
+    await previewPage.keyboard.press("?");
+    await expect(shortcutsModal).toBeVisible({ timeout: 3_000 });
+    const modalBackdrop = previewPage.locator(
+      "#shortcuts-modal .modal-backdrop"
+    );
+    if (await modalBackdrop.isVisible()) {
+      await modalBackdrop.click({ position: { x: 5, y: 5 } });
+      await expect(shortcutsModal).toBeHidden({ timeout: 3_000 });
+    }
+
+    // ==========================================
+    // 十三、状态与资源清理
     // ==========================================
     const persistedAfterFinish = await mediaProbe.persistedEvidence(session.id);
     expect(persistedAfterFinish.session?.status).toBe("PREVIEW_READY");
