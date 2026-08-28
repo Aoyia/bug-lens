@@ -54,10 +54,11 @@ test.describe("Bug Lens Chrome Extension recording lifecycle", () => {
     // 4.1 开始录制按钮应展示明确的快捷键提示（与 manifest start-recording 一致）
     const expectedShortcut =
       process.platform === "darwin" ? "Option+R" : "Alt+R";
-    await startPopup.waitForSelector('[data-testid="start-recording-btn"] kbd');
-    expect(
-      await startPopup.text('[data-testid="start-recording-btn"] kbd')
-    ).toBe(expectedShortcut);
+    await startPopup.waitForSelector('[data-testid="start-recording-btn"]');
+    const title = await startPopup.evaluate<string>(
+      'document.querySelector(\'[data-testid="start-recording-btn"]\')?.getAttribute("title") || ""'
+    );
+    expect(title).toContain(expectedShortcut);
 
     // 5. 点击开始按钮启动录制
     await startPopup.click('[data-testid="start-recording-btn"]');
@@ -312,18 +313,27 @@ test.describe("Bug Lens Chrome Extension recording lifecycle", () => {
     const stopButton = targetPage.locator("#__wbr_stop_btn__");
     await expect(stopButton).toBeVisible();
 
-    const previewPagePromise = context.waitForEvent("page", {
-      predicate: (page) =>
-        page.url().startsWith(`chrome-extension://${extensionId}/preview.html`),
-      timeout: 10_000,
-    });
     logE2e("Clicking in-page stop button");
     await stopButton.click();
 
-    const previewPage = await previewPagePromise;
+    const exportedDownload = await mediaProbe.waitForExportDownload();
+    logE2e("Silent export download completed", {
+      filename: exportedDownload.filename,
+      state: exportedDownload.state,
+      totalBytes: exportedDownload.totalBytes,
+    });
+    expect(exportedDownload.state).toBe("complete");
+    expect(exportedDownload.totalBytes ?? 0).toBeGreaterThan(0);
+
+    // 静默导出不自动弹出标签页，按需主动打开 Preview 页面验证播放器与证据详情
+    const previewPage = await context.newPage();
+    await previewPage.goto(
+      `chrome-extension://${extensionId}/preview.html?sessionId=${initialSessionId}`
+    );
     await previewPage.waitForLoadState("domcontentloaded");
-    await previewPage.bringToFront();
-    logE2e("Preview page opened", { previewUrl: previewPage.url() });
+    logE2e("Preview page opened for verification", {
+      previewUrl: previewPage.url(),
+    });
 
     // 16. 停止后的断言与资源清理
     expect(previewPage.url()).toContain(initialSessionId);

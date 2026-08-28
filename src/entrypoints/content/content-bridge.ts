@@ -1,5 +1,5 @@
-import { message } from "../../shared/protocol.ts";
-import type { ScreenshotOverlay } from "../../screenshot/screenshot-overlay.ts";
+import { message } from "../../shared/protocol";
+import type { ScreenshotOverlay } from "../../screenshot";
 
 /**
  * content script 幂等桥（无副作用，纯编排）：

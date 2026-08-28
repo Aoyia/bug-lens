@@ -1,4 +1,4 @@
-import type { FrameworkProbeEntry } from "../shared/protocol.ts";
+import type { FrameworkProbeEntry } from "../../shared/protocol";
 
 /**
  * 在页面主世界运行的框架组件探针。

@@ -21,8 +21,8 @@ import { IssueEditor } from "./collector/issue-editor";
 import { ExpectedCaptureCard } from "./collector/expected-capture-card";
 import { DomObserver } from "./collector/dom-observer";
 import { InactivityMonitor } from "./collector/inactivity-monitor";
-import { ScreenshotOverlay } from "../../screenshot/screenshot-overlay";
-import { recentErrorsTracker } from "../../screenshot/recent-errors-tracker";
+import { ScreenshotOverlay } from "../../screenshot";
+import { recentErrorsTracker } from "../../screenshot";
 import { DevProfiler } from "../../shared/dev-profiler";
 import {
   ensureErrorsTrackerStarted,

@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { OverlayStateMachine } from "../src/screenshot/overlay-state.ts";
+import { OverlayStateMachine } from "../src/screenshot/overlay/overlay-state";
 
 const ALL_PHASES = [
   "idle",

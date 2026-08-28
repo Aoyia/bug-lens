@@ -16,6 +16,7 @@
     "package": "node scripts/package.mjs",
     "test": "tsx --test tests/*.test.ts",
     "test:e2e": "node scripts/build.mjs --e2e && playwright test --headed",
+    "test:e2e:fast": "node scripts/build.mjs --e2e && playwright test --headed --grep-invert \"@slow\"",
     "typecheck": "tsc --noEmit && tsc --project tsconfig.e2e.json",
     "typecheck:e2e": "tsc --project tsconfig.e2e.json",
     "prepare": "husky",

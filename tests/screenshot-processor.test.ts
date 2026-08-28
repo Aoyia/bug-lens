@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { drawAnnotationsOnCanvas } from "../src/screenshot/screenshot-processor.ts";
+import { drawAnnotationsOnCanvas } from "../src/screenshot/pipeline/screenshot-processor";
 import type { AnnotationItem } from "../src/domain/screenshot-payload.ts";
 
 describe("Screenshot Processor", () => {

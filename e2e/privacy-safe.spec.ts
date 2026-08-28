@@ -113,10 +113,6 @@ test.describe("Bug Lens Chrome Extension E2E PRIV-001: Safe Mode Sensitive Data 
     let targetPage = context.pages()[0];
     if (!targetPage) targetPage = await context.newPage();
     await targetPage.goto(privacyUrl);
-    await targetPage.bringToFront();
-    await targetPage.waitForFunction(() => document.hasFocus(), undefined, {
-      timeout: 2_000,
-    });
 
     await targetPage.evaluate(
       ({ apiKey, secret }) => {
@@ -128,11 +124,13 @@ test.describe("Bug Lens Chrome Extension E2E PRIV-001: Safe Mode Sensitive Data 
       { apiKey: apiKeyCanary, secret: nestedSecretCanary }
     );
 
-    const targetTabId = await activeTabId();
-    expect(targetTabId).toBeTruthy();
-
     const popup = await openActionPopup(targetPage);
     await popup.waitForSelector('[data-testid="record-panel"]');
+    const targetTabId = await popup.evaluate<number | undefined>(
+      "(async () => (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id)()"
+    );
+    expect(targetTabId).toBeTruthy();
+
     await popup.click("#toggle-options");
     await popup.waitForSelector(".privacy-select");
     const privacyModeVal = await popup.evaluate<string>(
@@ -208,18 +206,14 @@ test.describe("Bug Lens Chrome Extension E2E PRIV-001: Safe Mode Sensitive Data 
     await expect(stopButton).toBeVisible();
 
     await stopButton.click();
-    await mediaProbe.waitForSessionStatus(session.id, "PREVIEW_READY");
-    let previewPage = context
-      .pages()
-      .find((p) => p.url().includes("preview.html"));
-    if (!previewPage) {
-      previewPage = await context.newPage();
-      await previewPage.goto(
-        `chrome-extension://${extensionId}/preview.html?id=${session.id}`
-      );
-    }
+    const exportedDownload = await mediaProbe.waitForExportDownload();
+    expect(exportedDownload.state).toBe("complete");
+
+    const previewPage = await context.newPage();
+    await previewPage.goto(
+      `chrome-extension://${extensionId}/preview.html?sessionId=${session.id}`
+    );
     await previewPage.waitForLoadState("domcontentloaded");
-    await previewPage.bringToFront();
 
     const fullEvidence = await mediaProbe.persistedFullEvidence(session.id);
     const summaryEvidence = await mediaProbe.persistedEvidence(

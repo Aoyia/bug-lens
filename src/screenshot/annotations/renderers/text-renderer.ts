@@ -1,4 +1,4 @@
-import type { TextAnnotation } from "../../domain/screenshot-payload.ts";
+import type { TextAnnotation } from "../../../domain/screenshot-payload";
 import {
   computeTextLayout,
   TEXT_ANNOTATION_FONT,
@@ -14,11 +14,8 @@ import {
   TEXT_MIN_WIDTH,
   TEXT_PADDING_X,
   TEXT_PADDING_Y,
-} from "../text-layout.ts";
-import type {
-  AnnotationRenderer,
-  RendererContext,
-} from "./renderer-registry.ts";
+} from "../text-layout";
+import type { AnnotationRenderer, RendererContext } from "./renderer-registry";
 
 export const textRenderer: AnnotationRenderer<TextAnnotation> = {
   type: "text",

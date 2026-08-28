@@ -4,7 +4,7 @@ import {
   ensureScreenshotOverlayBridge,
   ensureErrorsTrackerStarted,
 } from "../src/entrypoints/content/content-bridge.ts";
-import { recentErrorsTracker } from "../src/screenshot/recent-errors-tracker.ts";
+import { recentErrorsTracker } from "../src/screenshot";
 
 /**
  * content script 幂等桥回归测试（P0/P2）：

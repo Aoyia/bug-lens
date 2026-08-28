@@ -1,7 +1,7 @@
 import type {
   AnnotationItem,
   RectBounds,
-} from "../domain/screenshot-payload.ts";
+} from "../../domain/screenshot-payload";
 import {
   computeTextLayout,
   TEXT_ANNOTATION_FONT_FAMILY,
@@ -20,8 +20,8 @@ import {
   TEXT_PADDING_X,
   TEXT_PADDING_Y,
   TEXT_PLACEHOLDER_COLOR,
-} from "./text-layout.ts";
-import { t } from "../shared/i18n.ts";
+} from "../annotations/text-layout";
+import { t } from "../../shared/i18n";
 
 /**
  * 截图 Overlay 的两个独立 UI 小组件：

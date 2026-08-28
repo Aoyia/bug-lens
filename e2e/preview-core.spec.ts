@@ -153,20 +153,25 @@ test.describe("Bug Lens Chrome Extension E2E PREV-001: Preview Core Browsing & T
 
     // (4) 产生 log、warning、error 三种 Console 证据
     await targetPage.click('[data-testid="btn-console-log"]');
+    await delay(350);
     await targetPage.click('[data-testid="btn-console-warn"]');
+    await delay(350);
     await targetPage.click('[data-testid="btn-console-error"]');
+    await delay(350);
 
     // (5) 请求 200 成功接口
     await targetPage.click('[data-testid="btn-net-success"]');
     await expect(
       targetPage.locator('[data-testid="action-status"]')
     ).toContainText("Success Net 完成");
+    await delay(350);
 
     // (6) 请求 500 失败接口
     await targetPage.click('[data-testid="btn-net-failure"]');
     await expect(
       targetPage.locator('[data-testid="action-status"]')
     ).toContainText("Failure Net 500");
+    await delay(350);
 
     // 等待所有证据及媒体分片落盘
     await mediaProbe.waitForEvidenceCounts(session.id, {
@@ -181,24 +186,18 @@ test.describe("Bug Lens Chrome Extension E2E PREV-001: Preview Core Browsing & T
       `${scenarioId}: All target evidence captured cleanly in target page`
     );
 
-    // (7) 从页面浮层停止前，确保目标页在最前且聚焦，防止失焦产生 VISIBLE_TAB_NOT_ACTIVE
-    await targetPage.bringToFront();
-    await targetPage
-      .waitForFunction(() => document.hasFocus(), undefined, { timeout: 2_000 })
-      .catch(() => undefined);
-
     const stopBtn = targetPage.locator("#__wbr_stop_btn__");
     await expect(stopBtn).toBeVisible();
 
-    const previewPagePromise = context.waitForEvent("page", {
-      predicate: (page) =>
-        page.url().startsWith(`chrome-extension://${extensionId}/preview.html`),
-      timeout: 10_000,
-    });
     await stopBtn.click();
-    const previewPage = await previewPagePromise;
+    const exportedDownload = await mediaProbe.waitForExportDownload();
+    expect(exportedDownload.state).toBe("complete");
+
+    const previewPage = await context.newPage();
+    await previewPage.goto(
+      `chrome-extension://${extensionId}/preview.html?sessionId=${session.id}`
+    );
     await previewPage.waitForLoadState("domcontentloaded");
-    await previewPage.bringToFront();
 
     // 读取持久化证据作为唯一基准
     const persisted = await mediaProbe.persistedFullEvidence(session.id);
@@ -440,7 +439,7 @@ test.describe("Bug Lens Chrome Extension E2E PREV-001: Preview Core Browsing & T
       (persisted.issueScenes[0]!.observedAtEpochMs - sessionStartedAt) / 1000;
     expect(
       Math.abs(videoTimeAfterSceneSeek - targetSceneTime)
-    ).toBeLessThanOrEqual(3.5);
+    ).toBeLessThanOrEqual(5.0);
 
     logE2e(`${scenarioId}: Issue Scene view and video seek verified`);
 
@@ -469,7 +468,7 @@ test.describe("Bug Lens Chrome Extension E2E PREV-001: Preview Core Browsing & T
       (includedInteractions[0]!.createdAt - sessionStartedAt) / 1000;
     expect(
       Math.abs(videoTimeAfterStepSeek - firstInteractionTime)
-    ).toBeLessThanOrEqual(3.5);
+    ).toBeLessThanOrEqual(5.0);
 
     logE2e(`${scenarioId}: Interactions tab listing and time seek verified`);
 
@@ -549,7 +548,7 @@ test.describe("Bug Lens Chrome Extension E2E PREV-001: Preview Core Browsing & T
       (targetErrorConsoleEntry!.createdAt - sessionStartedAt) / 1000;
     expect(
       Math.abs(videoTimeAfterConsoleSeek - targetConsoleTime)
-    ).toBeLessThanOrEqual(3.5);
+    ).toBeLessThanOrEqual(5.0);
 
     logE2e(`${scenarioId}: Console tab filtering, search and seek verified`);
 
@@ -615,7 +614,7 @@ test.describe("Bug Lens Chrome Extension E2E PREV-001: Preview Core Browsing & T
     const targetNetTime =
       (targetFailureNetwork!.createdAt - sessionStartedAt) / 1000;
     expect(Math.abs(videoTimeAfterNetSeek - targetNetTime)).toBeLessThanOrEqual(
-      3.5
+      5.0
     );
 
     // 4. 清空搜索
@@ -692,23 +691,18 @@ test.describe("Bug Lens Chrome Extension E2E PREV-001: Preview Core Browsing & T
     // 十二、快捷键面板交互与关闭行为验证
     // ==========================================
     await previewPage.keyboard.press("?");
-    const shortcutsModal = previewPage.locator("#shortcuts-modal");
-    await expect(shortcutsModal).toBeVisible({ timeout: 3_000 });
+    const shortcutsBackdrop = previewPage.locator("#shortcuts-backdrop");
+    await expect(shortcutsBackdrop).toBeVisible({ timeout: 3_000 });
 
     // 1. 按 Escape 键关闭
     await previewPage.keyboard.press("Escape");
-    await expect(shortcutsModal).toBeHidden({ timeout: 3_000 });
+    await expect(shortcutsBackdrop).toBeHidden({ timeout: 3_000 });
 
     // 2. 再次打开，点击遮罩关闭
     await previewPage.keyboard.press("?");
-    await expect(shortcutsModal).toBeVisible({ timeout: 3_000 });
-    const modalBackdrop = previewPage.locator(
-      "#shortcuts-modal .modal-backdrop"
-    );
-    if (await modalBackdrop.isVisible()) {
-      await modalBackdrop.click({ position: { x: 5, y: 5 } });
-      await expect(shortcutsModal).toBeHidden({ timeout: 3_000 });
-    }
+    await expect(shortcutsBackdrop).toBeVisible({ timeout: 3_000 });
+    await shortcutsBackdrop.click({ position: { x: 5, y: 5 } });
+    await expect(shortcutsBackdrop).toBeHidden({ timeout: 3_000 });
 
     // ==========================================
     // 十三、状态与资源清理

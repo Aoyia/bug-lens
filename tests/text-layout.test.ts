@@ -5,8 +5,8 @@ import {
   estimateTextWidth,
   TEXT_MIN_WIDTH,
   TEXT_MAX_WIDTH,
-} from "../src/screenshot/text-layout.ts";
-import { hitTestAnnotation } from "../src/screenshot/annotation-renderer.ts";
+} from "../src/screenshot/annotations/text-layout";
+import { hitTestAnnotation } from "../src/screenshot/annotations/annotation-renderer";
 
 describe("text-layout 估算器", () => {
   test("CJK 字符宽度明显大于 ASCII（13px vs 6.7px）", () => {

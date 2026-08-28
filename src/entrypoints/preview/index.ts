@@ -21,7 +21,7 @@ void (async () => {
 const $ = <T extends HTMLElement>(selector: string) =>
   document.querySelector<T>(selector)!;
 const params = new URLSearchParams(location.search);
-const sessionId = params.get("sessionId") || undefined;
+const sessionId = params.get("sessionId") ?? undefined;
 const autoExport = params.get("autoExport") === "1";
 const silentMode = params.get("silent") === "1";
 const runtime = new PreviewSessionRuntime(db);

@@ -1,17 +1,7 @@
 import type { StaticReportAssets } from "./evidence-package";
 import { getLocale } from "../shared/i18n.ts";
 
-const sharedStyles = [
-  "preview-base.css",
-  "preview-workspace.css",
-  "preview-interactions.css",
-  "preview-console.css",
-  "preview-network.css",
-  "preview-image-viewer.css",
-  "preview-issue-scenes.css",
-  "preview-stream.css",
-  "report-static.css",
-];
+const sharedStyles = ["preview.css", "report-static.css"];
 
 async function loadAsset(path: string): Promise<Response> {
   const response = await fetch(chrome.runtime.getURL(path));

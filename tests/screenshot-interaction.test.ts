@@ -1,7 +1,7 @@
 import { test, describe, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { ScreenshotOverlay } from "../src/screenshot/screenshot-overlay.ts";
-import { InlineTextEditor } from "../src/screenshot/overlay-widgets.ts";
+import { ScreenshotOverlay } from "../src/screenshot/overlay/screenshot-overlay";
+import { InlineTextEditor } from "../src/screenshot/overlay/overlay-widgets";
 
 /**
  * 截图 Overlay 交互行为回归测试。

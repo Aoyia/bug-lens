@@ -4,8 +4,8 @@ import {
   type AIScreenshotPayload,
   type AnnotationItem,
   type RectBounds,
-} from "../domain/screenshot-payload.ts";
-import { message } from "../shared/protocol.ts";
+} from "../../domain/screenshot-payload";
+import { message } from "../../shared/protocol";
 import {
   TEXT_ANNOTATION_FONT_FAMILY,
   TEXT_ANNOTATION_FONT_SIZE,
@@ -20,15 +20,15 @@ import {
   TEXT_PADDING_X,
   TEXT_PADDING_Y,
   TEXT_LINE_HEIGHT,
-} from "./text-layout.ts";
-import { collectSpatialDomTree } from "./dom-spatial-collector.ts";
-import { collectCascadeIndex } from "./cascade-snapshot-collector.ts";
-import { probeFrameworkComponents } from "./framework-probe.ts";
-import { recentErrorsTracker } from "./recent-errors-tracker.ts";
+} from "../annotations/text-layout";
+import { collectSpatialDomTree } from "../probes/dom-spatial-collector";
+import { collectCascadeIndex } from "../probes/cascade-snapshot-collector";
+import { probeFrameworkComponents } from "../probes/framework-probe";
+import { recentErrorsTracker } from "../probes/recent-errors-tracker";
 import {
   buildScreenshotZipPackage,
   triggerZipDownload,
-} from "./screenshot-zip-builder.ts";
+} from "./screenshot-zip-builder";
 
 export interface ProcessScreenshotOptions {
   viewportDataUrl: string;
@@ -496,10 +496,14 @@ export async function processScreenshot(
           .map((el: any) => el.selector)
           .filter(Boolean);
 
-        if (selectors.length > 0) {
-          const res = (await message("screenshot/style-source", {
-            selectors,
-          })) as unknown as {
+        if (
+          selectors.length > 0 &&
+          typeof chrome !== "undefined" &&
+          chrome.runtime?.sendMessage
+        ) {
+          const res = (await chrome.runtime.sendMessage(
+            message("screenshot/style-source", { selectors })
+          )) as unknown as {
             ok: boolean;
             sources?: Array<{ selector: string; source: any }>;
           };
@@ -573,6 +577,7 @@ export async function processScreenshot(
   let downloaded = false;
   try {
     const zipPack = buildScreenshotZipPackage(payload);
+    triggerZipDownload(zipPack.blobUrl, zipPack.filename);
     if (typeof chrome !== "undefined" && chrome.runtime?.id) {
       try {
         // 直接发送 data URL 字符串而非 ArrayBuffer：字符串在消息序列化中不会丢字节，
@@ -591,16 +596,8 @@ export async function processScreenshot(
           zipPath = response.absolutePath;
         }
       } catch (bgErr) {
-        console.warn(
-          "Bug Lens: 经由 background 下载截图 ZIP 失败，回退页面内下载",
-          bgErr
-        );
+        console.warn("Bug Lens: 经由 background 下载截图 ZIP 失败", bgErr);
       }
-    }
-    if (!downloaded) {
-      triggerZipDownload(zipPack.blobUrl, zipPack.filename);
-    } else if (zipPack.blobUrl) {
-      URL.revokeObjectURL(zipPack.blobUrl);
     }
   } catch (zipErr) {
     console.warn("Bug Lens: 截图 ZIP 打包下载异常", zipErr);
@@ -608,10 +605,8 @@ export async function processScreenshot(
 
   // 7. 拿到真实绝对路径后，覆盖写回带真实路径的最终提示词，替换占位符。
   let promptInjectedWithPath = false;
-  if (zipPath) {
-    const finalPrompt = formatPayloadToMarkdown(payload, zipPath);
-    promptInjectedWithPath = await writeTextToClipboard(finalPrompt);
-  }
+  const finalPrompt = formatPayloadToMarkdown(payload, zipPath);
+  promptInjectedWithPath = await writeTextToClipboard(finalPrompt);
 
   return { payload, promptInjectedWithPath };
 }

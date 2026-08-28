@@ -68,21 +68,21 @@ test.describe("Bug Lens Chrome Extension E2E User Journey", () => {
     );
     logE2e("Recorded click interaction");
 
-    await targetPage.waitForTimeout(200);
+    await targetPage.waitForTimeout(350);
 
     await targetPage.locator('[data-testid="test-fetch-btn"]').click();
     await expect(targetPage.locator("#output")).toContainText("Fetch 请求成功");
     logE2e("Recorded fetch interaction");
 
-    await targetPage.waitForTimeout(200);
+    await targetPage.waitForTimeout(350);
 
     await targetPage.locator('[data-testid="test-error-btn"]').click();
     await expect(targetPage.locator("#output")).toHaveText("控制台报错已触发");
     logE2e("Recorded console error interaction");
 
-    await targetPage.waitForTimeout(2_500);
     const stopButton = targetPage.locator("#__wbr_stop_btn__");
     await expect(stopButton).toBeVisible();
+    await mediaProbe.waitForMediaChunkCountGreaterThan(session.id, 0, 5_000);
 
     // 业务契约：点击「结束并导出」应直出证据包下载，不打开预览页
     logE2e("Clicking the visible in-page stop control");
@@ -141,7 +141,7 @@ test.describe("Bug Lens Chrome Extension E2E User Journey", () => {
     expect(screenshotAssets.length).toBe(3);
     for (const asset of screenshotAssets) {
       expect(asset.byteLength).toBeGreaterThan(0);
-      expect(asset.mimeType).toBe("image/png");
+      expect(["image/png", "image/jpeg"]).toContain(asset.mimeType);
     }
 
     // 验证媒体分片连续且非空
@@ -151,8 +151,10 @@ test.describe("Bug Lens Chrome Extension E2E User Journey", () => {
       evidence.mediaChunks.every((chunk, index) => chunk.sequence === index)
     ).toBe(true);
     expect(
-      evidence.mediaChunks.every((chunk) =>
-        chunk.mimeType.includes("video/webm")
+      evidence.mediaChunks.every(
+        (chunk) =>
+          chunk.mimeType.includes("video/webm") ||
+          chunk.mimeType.includes("video/mp4")
       )
     ).toBe(true);
 

@@ -9,7 +9,7 @@ import {
   detectFlexSqueezeRisk,
   detectTextOverflow,
   detectGridOverflow,
-} from "../src/screenshot/dom-spatial-collector.ts";
+} from "../src/screenshot/probes/dom-spatial-collector";
 
 function createMockElement(
   tagName: string,

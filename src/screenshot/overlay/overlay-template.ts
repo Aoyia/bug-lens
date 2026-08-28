@@ -1,8 +1,8 @@
-import { t } from "../shared/i18n.ts";
+import { t } from "../../shared/i18n";
 import {
   ANNOTATION_TOOLBAR_CSS,
   ANNOTATION_TOOLBAR_ICONS,
-} from "../shared/ui/annotation-toolbar.ts";
+} from "../../shared/ui/annotation-toolbar";
 
 /**
  * 截图 Overlay 的 Shadow DOM 静态 UI 模板（CSS + HTML + SVG 图标）。

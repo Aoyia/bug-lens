@@ -4,9 +4,9 @@ import {
   getToolStrategy,
   type ToolContext,
   type Point,
-} from "../src/screenshot/tools/tool-registry.ts";
-import type { AnnotationItem } from "../src/domain/screenshot-payload.ts";
-import type { OverlayPhase } from "../src/screenshot/overlay-state.ts";
+} from "../src/screenshot/annotations/tools/tool-registry";
+import type { AnnotationItem } from "../src/domain/screenshot-payload";
+import type { OverlayPhase } from "../src/screenshot/overlay/overlay-state";
 
 interface CallRecord {
   start: Point | null;

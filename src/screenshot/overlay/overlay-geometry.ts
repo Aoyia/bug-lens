@@ -1,4 +1,4 @@
-import type { RectBounds } from "../domain/screenshot-payload.ts";
+import type { RectBounds } from "../../domain/screenshot-payload";
 
 /** 点到线段的最短距离（用于箭头批注命中检测） */
 export function pointToSegmentDistance(

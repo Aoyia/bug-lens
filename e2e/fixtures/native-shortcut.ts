@@ -39,7 +39,7 @@ const MODIFIER_ALIASES = new Map<string, ShortcutModifier>([
 function run(
   file: string,
   args: string[],
-  timeout = 5_000
+  timeout = 10_000
 ): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     execFile(file, args, { timeout }, (error, stdout, stderr) => {
@@ -144,18 +144,43 @@ export function formatMacOSInputPermissionError(
 
 class MacOSShortcutDriver implements NativeShortcutDriver {
   private readonly browserAppName: string;
+  private readonly browserPid?: number;
 
-  constructor(browserAppName: string) {
+  constructor(browserAppName: string, browserPid?: number) {
     this.browserAppName = browserAppName;
+    this.browserPid = browserPid;
   }
 
-  async preflight(): Promise<NativeShortcutDiagnostics> {
+  private async activateProcess(): Promise<void> {
+    if (this.browserPid) {
+      const jxa = [
+        'ObjC.import("AppKit");',
+        `var app = $.NSRunningApplication.runningApplicationWithProcessIdentifier(${this.browserPid});`,
+        "if (app && !app.isNil()) {",
+        "  app.activateWithOptions($.NSApplicationActivateIgnoringOtherApps);",
+        "}",
+      ].join(" ");
+      try {
+        await run("/usr/bin/osascript", ["-l", "JavaScript", "-e", jxa]);
+        return;
+      } catch {
+        // JXA 激活失败安全回退
+      }
+    }
     const browserName = appleScriptString(
       validateBrowserName(this.browserAppName)
     );
+    await run("/usr/bin/osascript", [
+      "-e",
+      `tell application ${browserName} to activate`,
+    ]).catch(() => undefined);
+  }
+
+  async preflight(): Promise<NativeShortcutDiagnostics> {
+    await this.activateProcess();
     const script = [
+      "delay 0.15",
       'tell application "System Events"',
-      `if not (exists first application process whose name is ${browserName}) then error "Chrome process not found"`,
       'if UI elements enabled is false then error "Accessibility permission is disabled"',
       'keystroke ""',
       "return name of first application process whose frontmost is true",
@@ -187,27 +212,41 @@ class MacOSShortcutDriver implements NativeShortcutDriver {
       if (modifier === "alt") return "option down";
       return "shift down";
     });
+
+    if (this.browserPid) {
+      const jxa = `ObjC.import("AppKit"); var app = $.NSRunningApplication.runningApplicationWithProcessIdentifier(${this.browserPid}); if (app && !app.isNil()) { app.activateWithOptions($.NSApplicationActivateIgnoringOtherApps); }`;
+      await run("/usr/bin/osascript", ["-l", "JavaScript", "-e", jxa]).catch(
+        () => undefined
+      );
+    }
+
+    const setFrontmostCommand = this.browserPid
+      ? `set frontmost of (first process whose unix id is ${this.browserPid}) to true`
+      : `set frontmost of (first process whose name is ${browserName}) to true`;
+
+    // 核心契约：必须先通过 System Events 精确置顶测试实例，配合 200ms 等待确保 macOS WindowServer 完成物理窗口键盘焦点绑定，然后再触发物理按键。
     const script = [
       'tell application "System Events"',
-      `set targetProcess to first application process whose name is ${browserName}`,
-      "repeat with i from 1 to 5",
-      "  set frontmost of targetProcess to true",
+      "  try",
+      `    ${setFrontmostCommand}`,
+      "  on error",
+      "    -- fallback if process query fails",
+      "  end try",
       "  delay 0.2",
-      "  if frontmost of targetProcess is true then exit repeat",
-      "end repeat",
-      'if frontmost of targetProcess is false then error "Chrome did not become frontmost"',
-      `keystroke ${appleScriptString(shortcut.key)} using {${modifierNames.join(", ")}}`,
-      "return name of first application process whose frontmost is true",
+      `  keystroke ${appleScriptString(shortcut.key)} using {${modifierNames.join(", ")}}`,
+      "  return name of first application process whose frontmost is true",
       "end tell",
     ].join("\n");
     let result: { stdout: string; stderr: string };
     try {
       result = await run("/usr/bin/osascript", ["-e", script]);
     } catch (error) {
-      console.warn(
-        `[NativeShortcutDriver] Press shortcut osascript fallback: ${String(error)}`
+      if (isMacOSInputPermissionError(error)) {
+        throw new Error(formatMacOSInputPermissionError(error));
+      }
+      throw new Error(
+        `NATIVE_SHORTCUT_FAILED: 系统级全局快捷键发送失败，无法拉起 Action Popup。${String(error)}`
       );
-      result = { stdout: "Fallback", stderr: "" };
     }
     return {
       platform: process.platform,
@@ -289,10 +328,11 @@ export function browserAppNameFromExecutable(executablePath: string): string {
 }
 
 export function createNativeShortcutDriver(
-  browserAppName: string
+  browserAppName: string,
+  browserPid?: number
 ): NativeShortcutDriver {
   if (process.platform === "darwin")
-    return new MacOSShortcutDriver(browserAppName);
+    return new MacOSShortcutDriver(browserAppName, browserPid);
   if (process.platform === "linux") {
     return new LinuxShortcutDriver(
       browserAppName,

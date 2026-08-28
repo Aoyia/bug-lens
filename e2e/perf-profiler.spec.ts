@@ -29,20 +29,17 @@ test.describe("Bug Lens DevProfiler 性能监控输出验证", () => {
 
     // 1. 打开测试目标网页
     let targetPage = context.pages()[0];
-    if (!targetPage) targetPage = await context.newPage();
-    await targetPage.goto(serverUrl);
-    await targetPage.bringToFront();
-    await targetPage.waitForFunction(() => document.hasFocus(), undefined, {
-      timeout: 2_000,
-    });
+    const targetUrl = serverUrl.replace("mock-page.html", "preview-page.html");
+    await targetPage.goto(targetUrl);
 
-    // 2. 开启性能监控开关 (通过 chrome.storage.local)
-    await targetPage.evaluate(async () => {
-      if (typeof chrome !== "undefined" && chrome.storage?.local) {
-        await chrome.storage.local.set({ BUG_LENS_DEBUG_PERF: "1" });
-      }
+    // 2. 开启性能监控开关 (通过 Service Worker 写入真正的 chrome.storage.local)
+    await mediaProbe.evaluateWorker(async () => {
+      await chrome.storage.local.set({ BUG_LENS_DEBUG_PERF: "1" });
+    });
+    await targetPage.evaluate(() => {
       (window as unknown as { __BUG_LENS_PERF__?: boolean }).__BUG_LENS_PERF__ =
         true;
+      localStorage.setItem("BUG_LENS_DEBUG_PERF", "1");
     });
 
     const targetTabId = await activeTabId();
@@ -65,8 +62,8 @@ test.describe("Bug Lens DevProfiler 性能监控输出验证", () => {
     await expect(markIssueButton).toBeVisible({ timeout: 5_000 });
 
     await targetPage.click("#normal-btn");
-    await expect(targetPage.locator("#click-output")).toContainText(
-      "Clicked: Normal Button"
+    await expect(targetPage.locator("#action-status")).toContainText(
+      "普通点击 1 完成"
     );
     await delay(500);
 
@@ -74,29 +71,14 @@ test.describe("Bug Lens DevProfiler 性能监控输出验证", () => {
     const stopBtn = targetPage.locator("#__wbr_stop_btn__");
     await expect(stopBtn).toBeVisible();
 
-    const previewPagePromise = (async () => {
-      const existing = context
-        .pages()
-        .find((p) => p.url().includes("preview.html"));
-      if (existing) return existing;
-      try {
-        return await context.waitForEvent("page", {
-          predicate: (p) => p.url().includes("preview.html"),
-          timeout: 10_000,
-        });
-      } catch {
-        const p = await context.newPage();
-        await p.goto(
-          `chrome-extension://${extensionId}/preview.html?id=${session.id}`
-        );
-        return p;
-      }
-    })();
-
     await stopBtn.click();
-    const previewPage = await previewPagePromise;
+    await mediaProbe.waitForExportDownload();
+
+    const previewPage = await context.newPage();
+    await previewPage.goto(
+      `chrome-extension://${extensionId}/preview.html?sessionId=${session.id}`
+    );
     await previewPage.waitForLoadState("domcontentloaded");
-    await previewPage.bringToFront();
 
     // 6. 在 Preview 页面确保开启性能监控并触发导出
     await previewPage.evaluate(async () => {
@@ -108,7 +90,7 @@ test.describe("Bug Lens DevProfiler 性能监控输出验证", () => {
         true;
     });
 
-    const exportBtn = previewPage.locator("#export-btn");
+    const exportBtn = previewPage.locator("#export");
     await expect(exportBtn).toBeVisible({ timeout: 10_000 });
 
     const downloadPromise = previewPage
@@ -155,20 +137,17 @@ test.describe("Bug Lens DevProfiler 性能监控输出验证", () => {
 
     // 1. 打开测试目标网页
     let targetPage = context.pages()[0];
-    if (!targetPage) targetPage = await context.newPage();
-    await targetPage.goto(serverUrl);
-    await targetPage.bringToFront();
-    await targetPage.waitForFunction(() => document.hasFocus(), undefined, {
-      timeout: 2_000,
-    });
+    const targetUrl = serverUrl.replace("mock-page.html", "preview-page.html");
+    await targetPage.goto(targetUrl);
 
-    // 2. 开启性能监控开关
-    await targetPage.evaluate(async () => {
-      if (typeof chrome !== "undefined" && chrome.storage?.local) {
-        await chrome.storage.local.set({ BUG_LENS_DEBUG_PERF: "1" });
-      }
+    // 2. 开启性能监控开关 (通过 Service Worker 写入真正的 chrome.storage.local)
+    await mediaProbe.evaluateWorker(async () => {
+      await chrome.storage.local.set({ BUG_LENS_DEBUG_PERF: "1" });
+    });
+    await targetPage.evaluate(() => {
       (window as unknown as { __BUG_LENS_PERF__?: boolean }).__BUG_LENS_PERF__ =
         true;
+      localStorage.setItem("BUG_LENS_DEBUG_PERF", "1");
     });
 
     const targetTabId = await activeTabId();
@@ -192,7 +171,7 @@ test.describe("Bug Lens DevProfiler 性能监控输出验证", () => {
 
     const normalBtn = targetPage.locator("#normal-btn");
     await normalBtn.click();
-    await expect(targetPage.locator("#click-output")).toHaveText(
+    await expect(targetPage.locator("#action-status")).toHaveText(
       "普通点击 1 完成"
     );
     await delay(500);
@@ -201,14 +180,8 @@ test.describe("Bug Lens DevProfiler 性能监控输出验证", () => {
     const stopBtn = targetPage.locator("#__wbr_stop_btn__");
     await expect(stopBtn).toBeVisible();
 
-    const downloadPromise = targetPage
-      .waitForEvent("download", {
-        timeout: 15_000,
-      })
-      .catch(() => null);
-
     await stopBtn.click();
-    await downloadPromise;
+    await mediaProbe.waitForExportDownload();
 
     // 6. 验证性能日志是否输出（包含全链路大盘或ZIP流水线报告）
     const hasPerfLogs = perfLogs.some(

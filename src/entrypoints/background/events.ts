@@ -105,6 +105,13 @@ export function createEventHandlers(
   };
 }
 
+declare const process: {
+  env: {
+    NODE_ENV: string;
+    BUG_LENS_IS_E2E?: boolean;
+  };
+};
+
 /** 首次安装引导页：GitHub Pages 托管的产品介绍与上手引导（引导已从扩展内迁移至网页）。 */
 const ONBOARDING_PAGE_URL = "https://aoyia.github.io/bug-lens/";
 
@@ -137,6 +144,9 @@ export function registerBackgroundEvents(
 
   chrome.runtime.onInstalled.addListener((details) => {
     if (details.reason !== "install") return;
+    // 自动化测试环境隔离：E2E 构建标志或 WebDriver 驱动时直接跳过，防止抢占前台焦点打断测试
+    if (Boolean(process.env.BUG_LENS_IS_E2E)) return;
+    if (typeof navigator !== "undefined" && navigator.webdriver) return;
     void (async () => {
       // 自动化测试（Playwright E2E）通过 skipOnboardingGuide 标记跳过，避免打断测试
       const stored = (await chrome.storage.local

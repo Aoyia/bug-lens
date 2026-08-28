@@ -3,7 +3,7 @@ import { describe, test } from "node:test";
 import {
   extractBoxModelGeometry,
   extractLayoutContext,
-} from "../src/screenshot/dom-spatial-collector.ts";
+} from "../src/screenshot/probes/dom-spatial-collector";
 
 describe("Box-Model Geometry & Layout Engine Extractor", () => {
   test("在非 DOM 环境安全降级返回 undefined", () => {

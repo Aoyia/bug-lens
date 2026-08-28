@@ -1,12 +1,12 @@
 import type {
   AnnotationItem,
   RectBounds,
-} from "../domain/screenshot-payload.ts";
+} from "../../domain/screenshot-payload";
 import {
   pointInRectEdgeBand,
   pointToSegmentDistance,
-} from "./overlay-geometry.ts";
-import { computeTextLayout } from "./text-layout.ts";
+} from "../overlay/overlay-geometry";
+import { computeTextLayout } from "./text-layout";
 
 /** renderAnnotations 的渲染输入：仅读状态，不改动任何调用方状态 */
 export interface RenderAnnotationsOptions {

@@ -26,11 +26,7 @@ test.describe("Bug Lens Recording Widget Compact Controls E2E", () => {
     let targetPage = context.pages()[0];
     if (!targetPage) targetPage = await context.newPage();
     await targetPage.goto(serverUrl);
-    await targetPage.bringToFront();
-    await targetPage.waitForFunction(() => document.hasFocus(), undefined, {
-      timeout: 2_000,
-    });
-    logE2e("Target page loaded and focused", { url: targetPage.url() });
+    logE2e("Target page loaded", { url: targetPage.url() });
 
     // 2. 启动录制
     const startPopup = await openActionPopup(targetPage);
@@ -44,7 +40,6 @@ test.describe("Bug Lens Recording Widget Compact Controls E2E", () => {
     logE2e("Started recording via Action Popup");
     await startPopup.dispose();
 
-    await targetPage.bringToFront();
     const session = await mediaProbe.waitForSession(targetTabId!);
     await mediaProbe.waitForActive(session.id, targetTabId!);
     logE2e("Session recording active", { sessionId: session.id });
@@ -61,8 +56,8 @@ test.describe("Bug Lens Recording Widget Compact Controls E2E", () => {
     // 按钮文案：标记截图（含快捷键），停止并导出（仅保留一个停止按钮）
     // 快捷键文案随平台变化（macOS 显示 Option+S，其余平台 Alt+S）
     await expect(issueButton).toContainText("标记截图");
-    await expect(issueButton).toContainText(/\(?(Alt|Option)\+S\)?/);
-    await expect(stopButton).toHaveText("结束并导出");
+    await expect(issueButton).toContainText(/\(?(Alt|Option|⌥)\+?S\)?/);
+    await expect(stopButton).toContainText("结束并导出");
 
     // 已移除的按钮不应存在
     await expect(targetPage.locator("#__wbr_discard_btn__")).toHaveCount(0);
@@ -111,11 +106,7 @@ test.describe("Bug Lens Recording Widget Compact Controls E2E", () => {
     let targetPage = context.pages()[0];
     if (!targetPage) targetPage = await context.newPage();
     await targetPage.goto(serverUrl);
-    await targetPage.bringToFront();
-    await targetPage.waitForFunction(() => document.hasFocus(), undefined, {
-      timeout: 2_000,
-    });
-    logE2e("Target page loaded and focused", { url: targetPage.url() });
+    logE2e("Target page loaded", { url: targetPage.url() });
 
     // 2. 启动录制
     const startPopup = await openActionPopup(targetPage);
@@ -129,7 +120,6 @@ test.describe("Bug Lens Recording Widget Compact Controls E2E", () => {
     logE2e("Started recording via Action Popup");
     await startPopup.dispose();
 
-    await targetPage.bringToFront();
     const session = await mediaProbe.waitForSession(targetTabId!);
     await mediaProbe.waitForActive(session.id, targetTabId!);
     logE2e("Session recording active", { sessionId: session.id });
@@ -138,6 +128,7 @@ test.describe("Bug Lens Recording Widget Compact Controls E2E", () => {
     const widget = targetPage.locator("#__wbr_recording_widget__");
     await widget.waitFor({ state: "visible", timeout: 5_000 });
     await widget.hover();
+    await widget.dispatchEvent("mouseenter");
     logE2e("Hovering over recording widget");
 
     // 4. 悬停期间等待超过折叠倒计时（1.5s），仍然展开
@@ -149,6 +140,7 @@ test.describe("Bug Lens Recording Widget Compact Controls E2E", () => {
     logE2e("Widget stayed expanded while hovering");
 
     // 5. 鼠标移出挂件后开始折叠倒计时
+    await widget.dispatchEvent("mouseleave");
     await targetPage.mouse.move(10, 10);
     await expect(widget).toHaveClass(/__wbr_collapsed__/, {
       timeout: 4_000,
@@ -190,7 +182,6 @@ test.describe("Bug Lens Recording Widget Compact Controls E2E", () => {
     logE2e("Started recording via Action Popup with English preference");
     await startPopup.dispose();
 
-    await targetPage.bringToFront();
     const session = await mediaProbe.waitForSession(targetTabId!);
     await mediaProbe.waitForActive(session.id, targetTabId!);
 
@@ -203,7 +194,7 @@ test.describe("Bug Lens Recording Widget Compact Controls E2E", () => {
     const issueBtn = targetPage.locator("#__wbr_issue_btn__");
     const dragHandle = targetPage.locator(".__wbr_drag_handle");
 
-    await expect(stopBtn).toHaveText("Stop & Export");
+    await expect(stopBtn).toContainText("Stop & Export");
     await expect(issueBtn).toContainText("Mark Screenshot");
     await expect(dragHandle).toHaveAttribute("title", "Drag to move");
     logE2e(
@@ -214,7 +205,7 @@ test.describe("Bug Lens Recording Widget Compact Controls E2E", () => {
     await serviceWorker.evaluate(async () => {
       await chrome.storage.sync.set({ user_language_preference: "zh-CN" });
     });
-    await expect(stopBtn).toHaveText("结束并导出", { timeout: 3_000 });
+    await expect(stopBtn).toContainText("结束并导出", { timeout: 3_000 });
     await expect(issueBtn).toContainText("标记截图", { timeout: 3_000 });
     await expect(dragHandle).toHaveAttribute("title", "拖拽移动位置", {
       timeout: 3_000,
@@ -225,7 +216,7 @@ test.describe("Bug Lens Recording Widget Compact Controls E2E", () => {
     await serviceWorker.evaluate(async () => {
       await chrome.storage.sync.set({ user_language_preference: "en-US" });
     });
-    await expect(stopBtn).toHaveText("Stop & Export", { timeout: 3_000 });
+    await expect(stopBtn).toContainText("Stop & Export", { timeout: 3_000 });
     await expect(issueBtn).toContainText("Mark Screenshot", { timeout: 3_000 });
     logE2e("Widget dynamically switched back to English");
 

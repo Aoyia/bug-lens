@@ -1,9 +1,6 @@
-import type { RectAnnotation } from "../../domain/screenshot-payload.ts";
-import { pointInRectEdgeBand } from "../overlay-geometry.ts";
-import type {
-  AnnotationRenderer,
-  RendererContext,
-} from "./renderer-registry.ts";
+import type { RectAnnotation } from "../../../domain/screenshot-payload";
+import { pointInRectEdgeBand } from "../../overlay/overlay-geometry";
+import type { AnnotationRenderer, RendererContext } from "./renderer-registry";
 
 export const rectRenderer: AnnotationRenderer<RectAnnotation> = {
   type: "rect",

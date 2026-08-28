@@ -593,7 +593,7 @@ export function PopupApp() {
         style={{ display: currentView === "record" ? "flex" : "none" }}
       >
         <div className="brand-left">
-          <img src="icons/icon_idle.png" alt="Bug Lens" />
+          <img src="icons/icon_idle_48.png" alt="Bug Lens" />
           <h1>Bug Lens</h1>
         </div>
         <div className="header-actions">

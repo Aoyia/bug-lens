@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { collectCascadeIndex } from "../src/screenshot/cascade-snapshot-collector.ts";
+import { collectCascadeIndex } from "../src/screenshot/probes/cascade-snapshot-collector";
 
 describe("Cascade Snapshot Collector (CSSOM 快照收集)", () => {
   test("在无 DOM 环境降级导出空快照结构", () => {

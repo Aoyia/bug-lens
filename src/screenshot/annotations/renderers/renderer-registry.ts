@@ -2,11 +2,11 @@ import type {
   AnnotationItem,
   AnnotationType,
   RectBounds,
-} from "../../domain/screenshot-payload.ts";
-import { rectRenderer } from "./rect-renderer.ts";
-import { arrowRenderer } from "./arrow-renderer.ts";
-import { privacyRenderer } from "./privacy-renderer.ts";
-import { textRenderer } from "./text-renderer.ts";
+} from "../../../domain/screenshot-payload";
+import { rectRenderer } from "./rect-renderer";
+import { arrowRenderer } from "./arrow-renderer";
+import { privacyRenderer } from "./privacy-renderer";
+import { textRenderer } from "./text-renderer";
 
 /** 渲染器所需的只读上下文（由调用方注入；Controller 无 viewportImage 时传 null） */
 export interface RendererContext {

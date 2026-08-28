@@ -3,7 +3,7 @@ import {
   formatPayloadToMarkdownForZip,
   normalizeDomTreeKeyOrder,
   type AIScreenshotPayload,
-} from "../domain/screenshot-payload.ts";
+} from "../../domain/screenshot-payload";
 
 export interface ScreenshotZipResult {
   blob: Blob;
@@ -115,6 +115,8 @@ export function triggerZipDownload(blobUrl: string, filename: string): void {
   a.href = blobUrl;
   a.download = filename;
   a.style.display = "none";
+  a.setAttribute("data-bug-lens-internal", "true");
+  a.addEventListener("click", (e) => e.stopPropagation(), { capture: true });
   document.body.appendChild(a);
   a.click();
   setTimeout(() => {

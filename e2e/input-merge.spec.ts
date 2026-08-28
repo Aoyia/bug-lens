@@ -36,11 +36,6 @@ test.describe("Input merge — 连续输入合并为单条交互", () => {
     await mediaProbe.waitForActive(session.id, targetTabId!);
     logE2e("Recording active", { sessionId: session.id });
 
-    await targetPage.bringToFront();
-    await targetPage.waitForFunction(() => document.hasFocus(), undefined, {
-      timeout: 2_000,
-    });
-
     // 快速输入一段文字（Playwright type 会逐字符触发 keydown/input 事件）
     const textInput = targetPage.locator('[data-testid="test-text-input"]');
     await textInput.click();
@@ -51,18 +46,11 @@ test.describe("Input merge — 连续输入合并为单条交互", () => {
     // 等待 idle 超时（1500ms）+ 余量
     await targetPage.waitForTimeout(2500);
 
-    // 停止录制
+    // 停止录制（结束并导出）
     const stopButton = targetPage.locator("#__wbr_stop_btn__");
     await expect(stopButton).toBeVisible();
-    const previewPagePromise = context.waitForEvent("page", {
-      predicate: (page) =>
-        page.url().startsWith(`chrome-extension://${extensionId}/preview.html`),
-      timeout: 10_000,
-    });
     await stopButton.click();
-    const previewPage = await previewPagePromise;
-    await previewPage.waitForLoadState("domcontentloaded");
-    logE2e("Preview page opened");
+    await mediaProbe.waitForExportDownload();
 
     // 读取完整证据
     const evidence = await mediaProbe.persistedFullEvidence(session.id);
@@ -115,11 +103,6 @@ test.describe("Input merge — 连续输入合并为单条交互", () => {
     const session = await mediaProbe.waitForSession(targetTabId!);
     await mediaProbe.waitForActive(session.id, targetTabId!);
 
-    await targetPage.bringToFront();
-    await targetPage.waitForFunction(() => document.hasFocus(), undefined, {
-      timeout: 2_000,
-    });
-
     // 输入文字 + 按 Enter
     const textInput = targetPage.locator('[data-testid="test-text-input"]');
     await textInput.click();
@@ -131,17 +114,11 @@ test.describe("Input merge — 连续输入合并为单条交互", () => {
 
     await targetPage.waitForTimeout(2500);
 
-    // 停止录制
+    // 停止录制（结束并导出）
     const stopButton = targetPage.locator("#__wbr_stop_btn__");
     await expect(stopButton).toBeVisible();
-    const previewPagePromise = context.waitForEvent("page", {
-      predicate: (page) =>
-        page.url().startsWith(`chrome-extension://${extensionId}/preview.html`),
-      timeout: 10_000,
-    });
     await stopButton.click();
-    const previewPage = await previewPagePromise;
-    await previewPage.waitForLoadState("domcontentloaded");
+    await mediaProbe.waitForExportDownload();
 
     const evidence = await mediaProbe.persistedFullEvidence(session.id);
 
@@ -207,11 +184,6 @@ test.describe("Input merge — 连续输入合并为单条交互", () => {
     const session = await mediaProbe.waitForSession(targetTabId!);
     await mediaProbe.waitForActive(session.id, targetTabId!);
 
-    await targetPage.bringToFront();
-    await targetPage.waitForFunction(() => document.hasFocus(), undefined, {
-      timeout: 2_000,
-    });
-
     // 聚焦输入框并模拟长按 (repeat=true) 的键盘事件序列
     const textInput = targetPage.locator('[data-testid="test-text-input"]');
     await textInput.click();
@@ -248,17 +220,11 @@ test.describe("Input merge — 连续输入合并为单条交互", () => {
     // 等待 merge 逻辑的超时 (500ms) + 额外余量
     await targetPage.waitForTimeout(1500);
 
-    // 停止录制
+    // 停止录制（结束并导出）
     const stopButton = targetPage.locator("#__wbr_stop_btn__");
     await expect(stopButton).toBeVisible();
-    const previewPagePromise = context.waitForEvent("page", {
-      predicate: (page) =>
-        page.url().startsWith(`chrome-extension://${extensionId}/preview.html`),
-      timeout: 10_000,
-    });
     await stopButton.click();
-    const previewPage = await previewPagePromise;
-    await previewPage.waitForLoadState("domcontentloaded");
+    await mediaProbe.waitForExportDownload();
 
     const evidence = await mediaProbe.persistedFullEvidence(session.id);
 

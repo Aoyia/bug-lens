@@ -1,6 +1,7 @@
 import { expect } from "@playwright/test";
 import { test, safeUrlForLog } from "./fixtures/extension.ts";
 import { parseChromeShortcut } from "./fixtures/native-shortcut.ts";
+import { withOsInteractionLock } from "./fixtures/os-mutex.ts";
 
 function logE2e(message: string, details?: unknown): void {
   const suffix = details === undefined ? "" : ` ${JSON.stringify(details)}`;
@@ -42,10 +43,6 @@ test.describe("Bug Lens Chrome Extension E2E SHORTCUT-001: Global Shortcut One-C
     let targetPage = context.pages()[0];
     if (!targetPage) targetPage = await context.newPage();
     await targetPage.goto(serverUrl);
-    await targetPage.bringToFront();
-    await targetPage.waitForFunction(() => document.hasFocus(), undefined, {
-      timeout: 2_000,
-    });
 
     const targetTabId = await activeTabId();
     expect(targetTabId).toBeTruthy();
@@ -55,9 +52,17 @@ test.describe("Bug Lens Chrome Extension E2E SHORTCUT-001: Global Shortcut One-C
 
     // 2. 通过全局快捷键直接启动录制（不打开 Popup、无任何二次确认弹窗）
     const shortcutRaw = startCommand!.shortcut as string;
-    await nativeShortcutDriver.press(parseChromeShortcut(shortcutRaw));
-
-    const session = await mediaProbe.waitForSession(targetTabId!, 10_000);
+    const session = await withOsInteractionLock(
+      async () => {
+        await targetPage.bringToFront();
+        await targetPage.waitForFunction(() => document.hasFocus(), undefined, {
+          timeout: 2_000,
+        });
+        await nativeShortcutDriver.press(parseChromeShortcut(shortcutRaw));
+        return mediaProbe.waitForSession(targetTabId!, 10_000);
+      },
+      { label: "start-recording-shortcut" }
+    );
     expect(session.status).toBe("RECORDING");
     // 快捷键录制使用安全默认选项（首次无历史选项时）
     expect(session.options.captureVideo).toBe(true);
@@ -92,15 +97,11 @@ test.describe("Bug Lens Chrome Extension E2E SHORTCUT-001: Global Shortcut One-C
     await targetPage.bringToFront();
     const stopButton = targetPage.locator("#__wbr_stop_btn__");
     await expect(stopButton).toBeVisible({ timeout: 5_000 });
-    const previewPagePromise = context.waitForEvent("page", {
-      predicate: (page) => page.url().includes("preview.html"),
-      timeout: 10_000,
-    });
     await stopButton.click();
-    const previewPage = await previewPagePromise;
-    expect(previewPage.url()).toContain(session.id);
-    logE2e("Preview opened after widget stop", {
-      previewUrl: previewPage.url(),
+    const exportedDownload = await mediaProbe.waitForExportDownload();
+    expect(exportedDownload.state).toBe("complete");
+    logE2e("Silent export completed after widget stop", {
+      filename: exportedDownload.filename,
     });
     await expect
       .poll(async () => (await mediaProbe.getSession(session.id))?.status, {

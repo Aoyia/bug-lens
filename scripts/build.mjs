@@ -1,5 +1,5 @@
 import { build, context, transform } from "esbuild";
-import { cp, mkdir, rm, readFile, writeFile } from "node:fs/promises";
+import { cp, mkdir, rm, readFile, writeFile, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { watch as watchFS } from "node:fs";
 import { WebSocketServer } from "ws";
@@ -30,6 +30,19 @@ function notifyReload() {
 await rm(outdir, { recursive: true, force: true });
 await mkdir(outdir, { recursive: true });
 
+function minifyHtml(html) {
+  if (isWatch) return html;
+  return html
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/^\s+/gm, "")
+    .replace(/\n+/g, "\n");
+}
+
+async function copyHtmlAsset(src, dest) {
+  const content = await readFile(src, "utf-8");
+  await writeFile(dest, minifyHtml(content));
+}
+
 async function copyCssAsset(src, dest) {
   const css = await readFile(src, "utf-8");
   const result = await transform(css, {
@@ -37,6 +50,72 @@ async function copyCssAsset(src, dest) {
     minify: !isWatch,
   });
   await writeFile(dest, result.code);
+}
+
+async function buildMergedPreviewCss() {
+  const previewStyleNames = [
+    "tokens",
+    "base",
+    "workspace",
+    "interactions",
+    "console",
+    "network",
+    "image-viewer",
+    "issue-scenes",
+    "stream",
+    "playwright",
+  ];
+
+  const cssChunks = await Promise.all(
+    previewStyleNames.map(async (name) => {
+      const p =
+        name === "tokens"
+          ? resolve(root, "src/shared/styles/tokens.css")
+          : resolve(root, `src/entrypoints/preview/styles/${name}.css`);
+      return readFile(p, "utf-8");
+    })
+  );
+
+  const merged = cssChunks.join("\n");
+  const result = await transform(merged, {
+    loader: "css",
+    minify: !isWatch,
+  });
+  await writeFile(resolve(outdir, "preview.css"), result.code);
+}
+
+async function copyLocales() {
+  const localesDir = resolve(root, "src/_locales");
+  const outLocalesDir = resolve(outdir, "_locales");
+  const list = await readdir(localesDir, { withFileTypes: true });
+
+  for (const entry of list) {
+    if (entry.isDirectory()) {
+      const locale = entry.name;
+      const srcFile = resolve(localesDir, locale, "messages.json");
+      const destFolder = resolve(outLocalesDir, locale);
+      await mkdir(destFolder, { recursive: true });
+
+      const raw = await readFile(srcFile, "utf-8");
+      const json = JSON.parse(raw);
+      const stripped = {};
+      for (const [key, val] of Object.entries(json)) {
+        if (typeof val === "object" && val !== null && "message" in val) {
+          const item = { message: val.message };
+          if (val.placeholders) {
+            item.placeholders = val.placeholders;
+          }
+          stripped[key] = item;
+        } else {
+          stripped[key] = val;
+        }
+      }
+      await writeFile(
+        resolve(destFolder, "messages.json"),
+        isWatch ? JSON.stringify(stripped, null, 2) : JSON.stringify(stripped)
+      );
+    }
+  }
 }
 
 const entries = {
@@ -68,52 +147,38 @@ async function copyStaticAssets() {
   await cp(resolve(root, "src/icons"), resolve(outdir, "icons"), {
     recursive: true,
   });
-  await cp(resolve(root, "src/_locales"), resolve(outdir, "_locales"), {
-    recursive: true,
-  });
+  await copyLocales();
+
   for (const file of [
     "popup.html",
     "permission.html",
     "offscreen.html",
     "preview.html",
   ]) {
-    await cp(
+    await copyHtmlAsset(
       resolve(root, `src/entrypoints/${file.replace(".html", "")}/index.html`),
       resolve(outdir, file)
     );
   }
-  await cp(
+  await copyHtmlAsset(
     resolve(root, "src/entrypoints/report/index.html"),
     resolve(outdir, "report-template.html")
+  );
+
+  await copyCssAsset(
+    resolve(root, "src/shared/styles/tokens.css"),
+    resolve(outdir, "tokens.css")
   );
   await copyCssAsset(
     resolve(root, "src/entrypoints/report/static.css"),
     resolve(outdir, "report-static.css")
   );
   await copyCssAsset(
-    resolve(root, "src/shared/styles/tokens.css"),
-    resolve(outdir, "tokens.css")
-  );
-  await copyCssAsset(
     resolve(root, "src/entrypoints/popup/styles/popup.css"),
     resolve(outdir, "popup.css")
   );
-  for (const style of [
-    "base",
-    "workspace",
-    "interactions",
-    "console",
-    "network",
-    "image-viewer",
-    "issue-scenes",
-    "stream",
-    "playwright",
-  ]) {
-    await copyCssAsset(
-      resolve(root, `src/entrypoints/preview/styles/${style}.css`),
-      resolve(outdir, `preview-${style}.css`)
-    );
-  }
+
+  await buildMergedPreviewCss();
 }
 
 if (isWatch) {
@@ -134,6 +199,7 @@ if (isWatch) {
       jsxImportSource: "preact",
       define: {
         "process.env.NODE_ENV": '"development"',
+        "process.env.BUG_LENS_IS_E2E": JSON.stringify(isE2e),
       },
       plugins: [
         {
@@ -195,6 +261,7 @@ if (isWatch) {
       jsxImportSource: "preact",
       define: {
         "process.env.NODE_ENV": '"production"',
+        "process.env.BUG_LENS_IS_E2E": JSON.stringify(isE2e),
       },
     });
   }

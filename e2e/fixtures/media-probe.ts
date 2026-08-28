@@ -74,7 +74,7 @@ async function poll<T>(
   while (Date.now() < deadline) {
     last = await read();
     if (accept(last)) return last;
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, 15));
   }
   throw new Error(`${label}: ${JSON.stringify(last)}`);
 }
@@ -88,15 +88,15 @@ export class MediaProbe {
     this.serviceWorker = serviceWorker;
   }
 
-  async evaluateWorker<T, A>(
-    pageFunction: (arg: A) => T | Promise<T>,
-    arg: A
+  async evaluateWorker<T, A = void>(
+    pageFunction: (arg?: any) => T | Promise<T>,
+    arg?: A
   ): Promise<T> {
     const evaluate = (worker: Worker) =>
       (
         worker.evaluate as unknown as (
-          fn: (value: A) => T | Promise<T>,
-          value: A
+          fn: (value?: unknown) => T | Promise<T>,
+          value?: unknown
         ) => Promise<T>
       )(pageFunction, arg);
     try {

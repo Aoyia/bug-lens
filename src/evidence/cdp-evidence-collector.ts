@@ -486,7 +486,9 @@ export class CdpEvidenceCollector {
             sessionId: session.id,
             createdAt:
               value.timestamp != null
-                ? Math.round(value.timestamp * 1000)
+                ? value.timestamp > 1e12
+                  ? Math.round(value.timestamp)
+                  : Math.round(value.timestamp * 1000)
                 : Date.now(),
             level: value.type ?? "log",
             text: (value.args ?? [])
@@ -537,7 +539,9 @@ export class CdpEvidenceCollector {
             sessionId: session.id,
             createdAt:
               value.timestamp != null
-                ? Math.round(value.timestamp * 1000)
+                ? value.timestamp > 1e12
+                  ? Math.round(value.timestamp)
+                  : Math.round(value.timestamp * 1000)
                 : Date.now(),
             level: "error",
             text:
@@ -583,7 +587,9 @@ export class CdpEvidenceCollector {
             sessionId: session.id,
             createdAt:
               value.entry.timestamp != null
-                ? Math.round(value.entry.timestamp * 1000)
+                ? value.entry.timestamp > 1e12
+                  ? Math.round(value.entry.timestamp)
+                  : Math.round(value.entry.timestamp * 1000)
                 : Date.now(),
             level: value.entry.level ?? "info",
             text: value.entry.text ?? "",

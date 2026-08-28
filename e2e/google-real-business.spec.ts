@@ -9,7 +9,7 @@ function logE2e(message: string, details?: unknown): void {
 }
 
 test.describe("Bug Lens 真实用户 Google 业务流 E2E 测试 (包 4c41242b 还原)", () => {
-  test("REAL-BUS-001: 还原真实 Google 搜索的全套 8 步交互流程与 Preview 卡片展示", async ({
+  test("REAL-BUS-001 @slow: 还原真实 Google 搜索的全套 8 步交互流程与 Preview 卡片展示", async ({
     context,
     extensionId,
     openActionPopup,

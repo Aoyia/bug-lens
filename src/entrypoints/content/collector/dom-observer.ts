@@ -213,7 +213,20 @@ export class DomObserver {
       return false;
     }
     const isShortcut = event.ctrlKey || event.metaKey || event.altKey;
-    const isActionKey = ["Enter", "Escape", "Tab"].includes(event.key);
+    const isActionKey = [
+      "Enter",
+      "Escape",
+      "Tab",
+      "ArrowUp",
+      "ArrowDown",
+      "ArrowLeft",
+      "ArrowRight",
+      "PageUp",
+      "PageDown",
+      "Home",
+      "End",
+      "Delete",
+    ].includes(event.key);
     return isShortcut || isActionKey;
   }
 

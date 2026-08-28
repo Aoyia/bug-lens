@@ -6,7 +6,7 @@ import type {
   CascadeRuleSource,
   CascadeSheetSource,
   DomContextTreeV2,
-} from "../domain/screenshot-payload";
+} from "../../domain/screenshot-payload";
 
 const INHERITABLE_PROPERTIES = new Set([
   "line-height",

@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import path from "node:path";
 import { formatMacOSInputPermissionError } from "./native-shortcut.ts";
+import { withOsInteractionLock } from "./os-mutex.ts";
 
 function run(
   file: string,
@@ -35,9 +36,11 @@ export interface NativeSaveDialogDriver {
 
 export class MacOSSaveDialogDriver implements NativeSaveDialogDriver {
   private readonly browserAppName: string;
+  private readonly browserPid?: number;
 
-  constructor(browserAppName: string) {
+  constructor(browserAppName: string, browserPid?: number) {
     this.browserAppName = browserAppName;
+    this.browserPid = browserPid;
   }
 
   async saveToDirectory(
@@ -50,12 +53,30 @@ export class MacOSSaveDialogDriver implements NativeSaveDialogDriver {
       );
     }
 
+    if (this.browserPid) {
+      const jxa = [
+        'ObjC.import("AppKit");',
+        `var app = $.NSRunningApplication.runningApplicationWithProcessIdentifier(${this.browserPid});`,
+        "if (app && !app.isNil()) {",
+        "  app.activateWithOptions($.NSApplicationActivateIgnoringOtherApps);",
+        "}",
+      ].join(" ");
+      try {
+        await run("/usr/bin/osascript", ["-l", "JavaScript", "-e", jxa]);
+      } catch {
+        // 安全回退
+      }
+    }
+
     const browserName = appleScriptString(this.browserAppName);
     const targetDir = appleScriptString(absolutePath);
+    const targetSelector = this.browserPid
+      ? `first application process whose unix id is ${this.browserPid}`
+      : `first application process whose name is ${browserName}`;
 
     const script = [
       'tell application "System Events"',
-      `  set targetProcess to first application process whose name is ${browserName}`,
+      `  set targetProcess to ${targetSelector}`,
       '  if UI elements enabled is false then error "Accessibility permission is disabled"',
       "",
       "  -- 1. Wait for Save sheet to appear",
@@ -103,7 +124,10 @@ export class MacOSSaveDialogDriver implements NativeSaveDialogDriver {
     ].join("\n");
 
     try {
-      await run("/usr/bin/osascript", ["-e", script], timeoutMs);
+      await withOsInteractionLock(
+        () => run("/usr/bin/osascript", ["-e", script], timeoutMs),
+        { label: "native-save-dialog" }
+      );
     } catch (error) {
       if (isMacOSInputPermissionError(error)) {
         throw new Error(formatMacOSInputPermissionError(error));
@@ -124,9 +148,10 @@ export class UnsupportedSaveDialogDriver implements NativeSaveDialogDriver {
 }
 
 export function createNativeSaveDialogDriver(
-  browserAppName: string
+  browserAppName: string,
+  browserPid?: number
 ): NativeSaveDialogDriver {
   if (process.platform === "darwin")
-    return new MacOSSaveDialogDriver(browserAppName);
+    return new MacOSSaveDialogDriver(browserAppName, browserPid);
   return new UnsupportedSaveDialogDriver();
 }

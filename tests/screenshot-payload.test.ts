@@ -12,7 +12,7 @@ import {
 import {
   findSmallestCommonAncestor,
   pruneAncestorElements,
-} from "../src/screenshot/dom-spatial-collector.ts";
+} from "../src/screenshot/probes/dom-spatial-collector";
 
 describe("Screenshot Payload Formatter", () => {
   const mockPayload: AIScreenshotPayload = {

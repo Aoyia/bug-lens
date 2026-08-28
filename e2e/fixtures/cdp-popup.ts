@@ -183,7 +183,7 @@ export class CdpPopup {
       x: box.x,
       y: box.y,
     });
-    await delay(50);
+    await delay(5);
     await this.send("Input.dispatchMouseEvent", {
       type: "mousePressed",
       x: box.x,
@@ -192,7 +192,7 @@ export class CdpPopup {
       buttons: 1,
       clickCount: 1,
     });
-    await delay(50);
+    await delay(5);
     await this.send("Input.dispatchMouseEvent", {
       type: "mouseReleased",
       x: box.x,
@@ -201,7 +201,7 @@ export class CdpPopup {
       buttons: 0,
       clickCount: 1,
     });
-    await delay(100);
+    await delay(5);
   }
 
   async pressKey(
@@ -237,7 +237,7 @@ export class CdpPopup {
     }
 
     await this.send("Input.dispatchKeyEvent", params);
-    await delay(30);
+    await delay(5);
     await this.send("Input.dispatchKeyEvent", { ...params, type: "keyUp" });
   }
 

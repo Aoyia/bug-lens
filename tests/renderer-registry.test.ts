@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { getRenderer } from "../src/screenshot/renderers/renderer-registry.ts";
+import { getRenderer } from "../src/screenshot/annotations/renderers/renderer-registry";
 
 function createRecordingCtx(): { ctx: any; calls: string[] } {
   const calls: string[] = [];

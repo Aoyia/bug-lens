@@ -7,7 +7,7 @@ import {
 import { sanitizeText } from "../../domain/privacy-policy";
 import { t } from "../../shared/i18n";
 import { validateStorageHealthUpdate } from "../../storage/storage-health-coordinator";
-import { runMainWorldFrameworkProbe } from "../../screenshot/main-world-probe";
+import { runMainWorldFrameworkProbe } from "../../screenshot/probes/main-world-probe";
 import type { BackgroundContext } from "./context";
 import type { SessionLifecycle } from "./lifecycle";
 import type { ScreenshotService } from "./screenshot";
@@ -375,7 +375,7 @@ export function createMessageRouter(
             return { ok: true, sources: [] };
           }
           const { fetchStyleSourceInfoWithCDP } =
-            await import("../../screenshot/cdp-style-source.ts");
+            await import("../../screenshot/probes/cdp-style-source");
           const sources = await fetchStyleSourceInfoWithCDP(tabId, selectors);
           return { ok: true, sources };
         }

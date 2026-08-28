@@ -1,14 +1,14 @@
 import type {
   AnnotationItem,
   RectBounds,
-} from "../domain/screenshot-payload.ts";
+} from "../../domain/screenshot-payload";
 import {
   clampPointToRect,
   computeDraggedPosition,
   computeResizedRect,
   pointInRect,
-} from "./overlay-geometry.ts";
-import type { OverlayPhase } from "./overlay-state.ts";
+} from "./overlay-geometry";
+import type { OverlayPhase } from "./overlay-state";
 
 /** 选区内部拖拽的防误触阈值（px）：位移不足时视为单击，不移动选区框 */
 const DRAG_THRESHOLD_PX = 5;

@@ -5,7 +5,7 @@ import {
   buildScreenshotZipPackage,
   base64ToUint8Array,
   stringToUint8Array,
-} from "../src/screenshot/screenshot-zip-builder.ts";
+} from "../src/screenshot/pipeline/screenshot-zip-builder";
 import type { AIScreenshotPayload } from "../src/domain/screenshot-payload.ts";
 
 describe("Screenshot ZIP Builder - 资源包压缩与解压验证", () => {

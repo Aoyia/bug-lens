@@ -1,5 +1,5 @@
-import { message } from "../shared/protocol.ts";
-import type { FrameworkProbeEntry } from "../shared/protocol.ts";
+import { message } from "../../shared/protocol";
+import type { FrameworkProbeEntry } from "../../shared/protocol";
 
 const PROBE_ATTR = "data-bug-lens-probe-id";
 

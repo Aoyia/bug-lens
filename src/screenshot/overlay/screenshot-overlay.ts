@@ -1,18 +1,18 @@
 import type {
   AIScreenshotPayload,
   AnnotationItem,
-} from "../domain/screenshot-payload.ts";
-import { processScreenshot } from "./screenshot-processor.ts";
-import { initI18nPreference, t } from "../shared/i18n.ts";
-import { createOverlayMarkup } from "./overlay-template.ts";
+} from "../../domain/screenshot-payload";
+import { processScreenshot } from "../pipeline/screenshot-processor";
+import { initI18nPreference, t } from "../../shared/i18n";
+import { createOverlayMarkup } from "./overlay-template";
 import {
   renderAnnotations as renderAnnotationsOnContext,
   renderSelectionHandles as drawSelectionHandles,
-} from "./annotation-renderer.ts";
-import { InlineTextEditor, MagnifierRenderer } from "./overlay-widgets.ts";
-import { SelectionController } from "./selection-controller.ts";
-import { AnnotationController } from "./annotation-controller.ts";
-import { OverlayStateMachine } from "./overlay-state.ts";
+} from "../annotations/annotation-renderer";
+import { InlineTextEditor, MagnifierRenderer } from "./overlay-widgets";
+import { SelectionController } from "./selection-controller";
+import { AnnotationController } from "../annotations/annotation-controller";
+import { OverlayStateMachine } from "./overlay-state";
 
 /**
  * 截图完成后的 toast 文案：根据 ZIP 是否已注入本地绝对路径区分提示。
@@ -383,18 +383,20 @@ export class ScreenshotOverlay {
         this.deleteSelectedAnnotation();
       }
     } else if (!isEditingText) {
-      // 允许 Cmd / Ctrl 组合快捷键（如 Cmd+R 刷新页面、Cmd+W 关闭标签等）及 F1-F12 功能键穿透给浏览器
-      if (
-        e.metaKey ||
-        e.ctrlKey ||
-        (e.key &&
-          e.key.length >= 2 &&
-          e.key.startsWith("F") &&
-          !isNaN(Number(e.key.slice(1))))
-      ) {
+      // 允许刷新快捷键（Cmd+R / Ctrl+R）及 F1-F12 功能键放行给浏览器
+      const isRefresh =
+        (e.metaKey || e.ctrlKey) &&
+        (e.key === "r" || e.key === "R" || e.code === "KeyR");
+      const isFnKey = Boolean(
+        e.key &&
+        e.key.length >= 2 &&
+        e.key.startsWith("F") &&
+        !isNaN(Number(e.key.slice(1)))
+      );
+
+      if (isRefresh || isFnKey) {
         return;
       }
-      // 截图激活期间吞掉所有其余按键，避免网页全局快捷键被无意触发
       e.preventDefault();
       e.stopPropagation();
     }
@@ -405,7 +407,20 @@ export class ScreenshotOverlay {
    * 编辑器/游戏）被截图操作触发。
    */
   private handleKeyUp(e: KeyboardEvent): void {
-    if (this.isEditingText() || e.metaKey || e.ctrlKey) return;
+    if (this.isEditingText()) return;
+    const isRefresh =
+      (e.metaKey || e.ctrlKey) &&
+      (e.key === "r" || e.key === "R" || e.code === "KeyR");
+    const isFnKey = Boolean(
+      e.key &&
+      e.key.length >= 2 &&
+      e.key.startsWith("F") &&
+      !isNaN(Number(e.key.slice(1)))
+    );
+
+    if (isRefresh || isFnKey) {
+      return;
+    }
     e.preventDefault();
     e.stopPropagation();
   }

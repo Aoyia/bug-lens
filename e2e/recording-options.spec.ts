@@ -49,10 +49,6 @@ test.describe("Bug Lens Chrome Extension recording options", () => {
     let targetPage = context.pages()[0];
     if (!targetPage) targetPage = await context.newPage();
     await targetPage.goto(serverUrl);
-    await targetPage.bringToFront();
-    await targetPage.waitForFunction(() => document.hasFocus(), undefined, {
-      timeout: 2_000,
-    });
     logE2e("Target page loaded", { url: targetPage.url() });
 
     const targetTabId = await activeTabId();
@@ -91,9 +87,9 @@ test.describe("Bug Lens Chrome Extension recording options", () => {
     ).toBe(true);
     expect(
       await popup.evaluate<string>(
-        "document.querySelector('#privacy-mode')?.value || ''"
+        "document.querySelector('#privacy')?.value || ''"
       )
-    ).toBe("masked");
+    ).toBe("safe");
 
     await popup.click("#video");
     await waitForPopupChecked(popup, "#video", false);
@@ -162,18 +158,17 @@ test.describe("Bug Lens Chrome Extension recording options", () => {
     await expect(targetPage.locator("#output")).toHaveText("控制台报错已触发");
     logE2e("Diagnostic interactions completed");
 
-    await targetPage.waitForTimeout(1_000);
     const stopButton = targetPage.locator("#__wbr_stop_btn__");
     await expect(stopButton).toBeVisible();
-    const previewPagePromise = context.waitForEvent("page", {
-      predicate: (page) =>
-        page.url().startsWith(`chrome-extension://${extensionId}/preview.html`),
-      timeout: 10_000,
-    });
     await stopButton.click();
-    const previewPage = await previewPagePromise;
+    const exportedDownload = await mediaProbe.waitForExportDownload();
+    expect(exportedDownload.state).toBe("complete");
+
+    const previewPage = await context.newPage();
+    await previewPage.goto(
+      `chrome-extension://${extensionId}/preview.html?sessionId=${session.id}`
+    );
     await previewPage.waitForLoadState("domcontentloaded");
-    await previewPage.bringToFront();
 
     const evidence = await mediaProbe.persistedEvidence(
       previewPage,
@@ -273,10 +268,6 @@ test.describe("Bug Lens Chrome Extension recording options", () => {
     let targetPage = context.pages()[0];
     if (!targetPage) targetPage = await context.newPage();
     await targetPage.goto(serverUrl);
-    await targetPage.bringToFront();
-    await targetPage.waitForFunction(() => document.hasFocus(), undefined, {
-      timeout: 2_000,
-    });
     logE2e("Target page loaded", { url: targetPage.url() });
 
     const targetTabId = await activeTabId();
@@ -361,24 +352,26 @@ test.describe("Bug Lens Chrome Extension recording options", () => {
     await expect(targetPage.locator("#output")).toContainText(
       "点击已被成功记录"
     );
+    await targetPage.waitForTimeout(500);
     await targetPage.locator('[data-testid="test-fetch-btn"]').click();
     await expect(targetPage.locator("#output")).toContainText("Fetch 请求成功");
+    await targetPage.waitForTimeout(500);
     await targetPage.locator('[data-testid="test-error-btn"]').click();
     await expect(targetPage.locator("#output")).toHaveText("控制台报错已触发");
     logE2e("Visual interactions completed");
 
-    await targetPage.waitForTimeout(2_500);
     const stopButton = targetPage.locator("#__wbr_stop_btn__");
     await expect(stopButton).toBeVisible();
-    const previewPagePromise = context.waitForEvent("page", {
-      predicate: (page) =>
-        page.url().startsWith(`chrome-extension://${extensionId}/preview.html`),
-      timeout: 10_000,
-    });
+    await mediaProbe.waitForMediaChunkCountGreaterThan(session.id, 0, 5_000);
     await stopButton.click();
-    const previewPage = await previewPagePromise;
+    const exportedDownload = await mediaProbe.waitForExportDownload();
+    expect(exportedDownload.state).toBe("complete");
+
+    const previewPage = await context.newPage();
+    await previewPage.goto(
+      `chrome-extension://${extensionId}/preview.html?sessionId=${session.id}`
+    );
     await previewPage.waitForLoadState("domcontentloaded");
-    await previewPage.bringToFront();
 
     const evidence = await mediaProbe.persistedEvidence(
       previewPage,
@@ -438,7 +431,9 @@ test.describe("Bug Lens Chrome Extension recording options", () => {
     expect(screenshotAssets.length).toBe(3);
     expect(
       screenshotAssets.every(
-        (asset) => asset.byteLength > 0 && asset.mimeType === "image/png"
+        (asset) =>
+          asset.byteLength > 0 &&
+          ["image/png", "image/jpeg"].includes(asset.mimeType)
       )
     ).toBe(true);
     expect(evidence.consoleCount).toBe(0);

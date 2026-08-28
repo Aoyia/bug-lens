@@ -23,6 +23,7 @@ import {
   createNativeSaveDialogDriver,
   type NativeSaveDialogDriver,
 } from "./native-save-dialog.ts";
+import { withOsInteractionLock } from "./os-mutex.ts";
 
 const pathToExtension = fs.realpathSync(path.resolve(process.cwd(), "dist"));
 
@@ -32,6 +33,7 @@ function envMilliseconds(name: string, fallback: number): number {
 }
 
 const slowMoMs = envMilliseconds("E2E_SLOW_MO_MS", 0);
+let hasCompletedShortcutPreflight = false;
 
 export function safeUrlForLog(url: string | undefined): string | undefined {
   if (!url) return undefined;
@@ -223,7 +225,16 @@ export const test = base.extend<ExtensionFixtures>({
       ],
     });
 
-    logE2e("Chrome launched", { pages: context.pages().length });
+    context.on("page", (page) => {
+      if (page.url().includes("aoyia.github.io/bug-lens")) {
+        page.close().catch(() => {});
+      }
+    });
+    for (const page of context.pages()) {
+      if (page.url().includes("aoyia.github.io/bug-lens")) {
+        await page.close().catch(() => {});
+      }
+    }
 
     await use(context);
     logE2e("Closing Chrome test context");
@@ -277,23 +288,56 @@ export const test = base.extend<ExtensionFixtures>({
     await use(parseChromeShortcut(command.shortcut));
   },
 
-  nativeShortcutDriver: async ({ actionShortcut }, use) => {
+  nativeShortcutDriver: async ({ context, actionShortcut }, use) => {
     void actionShortcut;
     const browserAppName = browserAppNameFromExecutable(
       chromium.executablePath()
     );
-    const driver = createNativeShortcutDriver(browserAppName);
-    await driver.preflight();
-    logE2e("Native shortcut driver ready", { browserAppName });
+    let browserPid: number | undefined;
+    try {
+      const browser = context.browser();
+      if (browser) {
+        const cdp = await browser.newBrowserCDPSession();
+        const info = (await cdp.send("SystemInfo.getProcessInfo")) as {
+          processInfo: Array<{ type: string; id: number }>;
+        };
+        const proc = info.processInfo.find((p) => p.type === "browser");
+        browserPid = proc?.id;
+        await cdp.detach();
+      }
+    } catch {
+      // 忽略 CDP 获取 PID 失败，安全回退到进程名查找
+    }
+    const driver = createNativeShortcutDriver(browserAppName, browserPid);
+    if (!hasCompletedShortcutPreflight) {
+      await driver.preflight();
+      hasCompletedShortcutPreflight = true;
+    }
+    logE2e("Native shortcut driver ready", { browserAppName, browserPid });
     await use(driver);
   },
 
-  nativeSaveDialogDriver: async ({}, use) => {
+  nativeSaveDialogDriver: async ({ context }, use) => {
     const browserAppName = browserAppNameFromExecutable(
       chromium.executablePath()
     );
-    const driver = createNativeSaveDialogDriver(browserAppName);
-    logE2e("Native save dialog driver ready", { browserAppName });
+    let browserPid: number | undefined;
+    try {
+      const browser = context.browser();
+      if (browser) {
+        const cdp = await browser.newBrowserCDPSession();
+        const info = (await cdp.send("SystemInfo.getProcessInfo")) as {
+          processInfo: Array<{ type: string; id: number }>;
+        };
+        const proc = info.processInfo.find((p) => p.type === "browser");
+        browserPid = proc?.id;
+        await cdp.detach();
+      }
+    } catch {
+      // 回退
+    }
+    const driver = createNativeSaveDialogDriver(browserAppName, browserPid);
+    logE2e("Native save dialog driver ready", { browserAppName, browserPid });
     await use(driver);
   },
 
@@ -331,52 +375,65 @@ export const test = base.extend<ExtensionFixtures>({
     const open = async (targetPage: Page): Promise<CdpPopup> => {
       if (targetPage.isClosed())
         throw new Error("TARGET_TAB_MISSING: 目标页面已经关闭");
-      await targetPage.bringToFront();
-      await targetPage.waitForFunction(() => document.hasFocus(), undefined, {
-        timeout: 2_000,
-      });
 
-      const target = await activeTab(serviceWorker);
-      const targetUrl = new URL(targetPage.url());
-      if (!target?.id || !target.url)
-        throw new Error("TARGET_TAB_MISSING: Chrome 没有活动标签页");
-      const chromeUrl = new URL(target.url);
-      if (
-        chromeUrl.origin !== targetUrl.origin ||
-        chromeUrl.pathname !== targetUrl.pathname
-      ) {
-        throw new Error(
-          `TARGET_TAB_MISMATCH: Playwright=${safeUrlForLog(targetPage.url())} Chrome=${safeUrlForLog(target.url)}`
-        );
-      }
+      return withOsInteractionLock(
+        async () => {
+          await targetPage.bringToFront();
+          await targetPage.waitForFunction(
+            () => document.hasFocus(),
+            undefined,
+            {
+              timeout: 2_000,
+            }
+          );
 
-      if (await popupTargetExists())
-        throw new Error(
-          "ACTION_POPUP_TARGET_INVALID: 快捷键发送前已有未关闭的 Popup"
-        );
+          const target = await activeTab(serviceWorker);
+          const targetUrl = new URL(targetPage.url());
+          if (!target?.id || !target.url)
+            throw new Error("TARGET_TAB_MISSING: Chrome 没有活动标签页");
+          const chromeUrl = new URL(target.url);
+          if (
+            chromeUrl.origin !== targetUrl.origin ||
+            chromeUrl.pathname !== targetUrl.pathname
+          ) {
+            throw new Error(
+              `TARGET_TAB_MISMATCH: Playwright=${safeUrlForLog(targetPage.url())} Chrome=${safeUrlForLog(target.url)}`
+            );
+          }
 
-      logE2e("Sending native extension shortcut", {
-        shortcut: actionShortcut.raw,
-        targetTabId: target.id,
-        targetUrl: safeUrlForLog(target.url),
-      });
-      await nativeShortcutDriver.press(actionShortcut);
+          if (await popupTargetExists())
+            throw new Error(
+              "ACTION_POPUP_TARGET_INVALID: 快捷键发送前已有未关闭的 Popup"
+            );
 
-      let popup: CdpPopup;
-      try {
-        popup = await attachToPopupTarget(browserCdp, popupUrl, 3_000);
-      } catch (error) {
-        const fallbackUrl = `${popupUrl}?tabId=${target.id}`;
-        logE2e(
-          "Native shortcut target absent, opening targeted popup page directly",
-          { fallbackUrl, targetTabId: target.id }
-        );
-        const popupPage = await context.newPage();
-        await popupPage.goto(fallbackUrl);
-        popup = await attachToPopupTarget(browserCdp, popupUrl, 5_000);
-      }
-      logE2e("Attached to real Action Popup", { url: popup.url });
-      return popup;
+          logE2e("Sending native extension shortcut", {
+            shortcut: actionShortcut.raw,
+            targetTabId: target.id,
+            targetUrl: safeUrlForLog(target.url),
+          });
+          const diag = await nativeShortcutDriver.press(actionShortcut);
+          logE2e("Native extension shortcut sent", {
+            focusedWindow: diag.focusedWindow?.trim(),
+          });
+
+          // 业务核心契约：必须 100% 通过系统原生全局快捷键触发真实的浏览器原生 Action Popup 浮层。
+          // 严禁通过新建 Tab 打开 popup.html 伪造或绕过快捷键测试；若快捷键未成功唤起真实浮层，必须立即报错中断。
+          let popup: CdpPopup;
+          try {
+            popup = await attachToPopupTarget(browserCdp, popupUrl, 2_000);
+          } catch {
+            // 若 2s 内未捕获到 Action Popup（例如冷启窗口 Cocoa 焦点首次绑定偶发抖动），显式重新置顶并物理重试一次系统级原生快捷键
+            logE2e("Retrying native shortcut once for action popup attach");
+            await targetPage.bringToFront();
+            await new Promise((resolve) => setTimeout(resolve, 300));
+            await nativeShortcutDriver.press(actionShortcut);
+            popup = await attachToPopupTarget(browserCdp, popupUrl, 5_000);
+          }
+          logE2e("Attached to real Action Popup", { url: popup.url });
+          return popup;
+        },
+        { label: "openActionPopup" }
+      );
     };
     try {
       await use(open);

@@ -1,14 +1,14 @@
 import type {
   AnnotationItem,
   RectBounds,
-} from "../domain/screenshot-payload.ts";
-import { clampPointToRect } from "./overlay-geometry.ts";
+} from "../../domain/screenshot-payload";
+import { clampPointToRect } from "../overlay/overlay-geometry";
 import {
   hitTestAnnotation as hitTestAnnotationInList,
   hitTestAnnotationHandle as hitTestAnnotationHandleOf,
-} from "./annotation-renderer.ts";
-import type { OverlayPhase } from "./overlay-state.ts";
-import { UndoManager } from "./undo-manager.ts";
+} from "./annotation-renderer";
+import type { OverlayPhase } from "../overlay/overlay-state";
+import { UndoManager } from "./undo-manager";
 
 /** AnnotationController 所需的外部依赖（由组合根注入，无双向引用） */
 export interface AnnotationControllerOptions {

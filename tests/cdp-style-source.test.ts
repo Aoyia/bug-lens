@@ -4,7 +4,7 @@ import { shouldCaptureResponseBody } from "../src/evidence/cdp-evidence-collecto
 import {
   fetchStyleSourceInfoWithCDP,
   isTabAlreadyAttached,
-} from "../src/screenshot/cdp-style-source.ts";
+} from "../src/screenshot/probes/cdp-style-source";
 
 test("shouldCaptureResponseBody 能正确允许文本类型并排除图片/字体/音视频等大文件", () => {
   // 文本类 JSON / HTML / JS / XML / Form -> 应当拉取

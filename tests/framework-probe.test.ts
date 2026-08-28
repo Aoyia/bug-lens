@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { probeFrameworkComponents } from "../src/screenshot/framework-probe.ts";
+import { probeFrameworkComponents } from "../src/screenshot/probes/framework-probe";
 
 const ATTR = "data-bug-lens-probe-id";
 

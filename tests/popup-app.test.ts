@@ -226,6 +226,11 @@ test("首次引导已迁移至 GitHub Pages 网页，扩展内不再内嵌引导
     background.includes("skipOnboardingGuide"),
     "background events 应支持 skipOnboardingGuide 跳过标记（自动化测试）"
   );
+  assert.ok(
+    background.includes("BUG_LENS_IS_E2E") &&
+      background.includes("navigator.webdriver"),
+    "background events 应在自动化测试环境下（构建标志与 webdriver 检测）直接隔离跳过引导页打开"
+  );
 
   // GitHub Pages 引导页存在且包含核心内容
   assert.ok(guidePage.includes("Bug Lens"), "docs/index.html 应包含产品名");

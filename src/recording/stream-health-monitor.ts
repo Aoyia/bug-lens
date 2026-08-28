@@ -122,7 +122,10 @@ export class StreamHealthMonitor {
       });
       await chrome.action.setIcon({
         tabId: this.currentTabId,
-        path: "icons/icon_recording.png",
+        path: {
+          16: "icons/icon_recording_16.png",
+          32: "icons/icon_recording_32.png",
+        },
       });
     } catch {
       // tab 可能已关闭
@@ -143,7 +146,13 @@ export class StreamHealthMonitor {
     if (tabId) {
       chrome.action.setBadgeText({ tabId, text: "" }).catch(() => undefined);
       chrome.action
-        .setIcon({ tabId, path: "icons/icon_idle.png" })
+        .setIcon({
+          tabId,
+          path: {
+            16: "icons/icon_idle_16.png",
+            32: "icons/icon_idle_32.png",
+          },
+        })
         .catch(() => undefined);
     }
     this.currentTabId = undefined;

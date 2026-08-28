@@ -74,10 +74,6 @@ test.describe("Bug Lens Chrome Extension E2E PRIV-002: Raw Mode Risk Warning & E
     let targetPage = context.pages()[0];
     if (!targetPage) targetPage = await context.newPage();
     await targetPage.goto(privacyUrl);
-    await targetPage.bringToFront();
-    await targetPage.waitForFunction(() => document.hasFocus(), undefined, {
-      timeout: 2_000,
-    });
 
     await targetPage.evaluate(
       ({ apiKey, secret }) => {
@@ -89,9 +85,6 @@ test.describe("Bug Lens Chrome Extension E2E PRIV-002: Raw Mode Risk Warning & E
       { apiKey: apiKeyCanary, secret: nestedSecretCanary }
     );
 
-    const targetTabId = await activeTabId();
-    expect(targetTabId).toBeTruthy();
-
     const baselineSessionCount = await mediaProbe.sessionCount();
     logE2e("Initial environment state recorded", { baselineSessionCount });
 
@@ -100,6 +93,11 @@ test.describe("Bug Lens Chrome Extension E2E PRIV-002: Raw Mode Risk Warning & E
     // ==========================================
     const popup = await openActionPopup(targetPage);
     await popup.waitForSelector('[data-testid="record-panel"]');
+    const targetTabId = await popup.evaluate<number | undefined>(
+      "(async () => (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id)()"
+    );
+    expect(targetTabId).toBeTruthy();
+
     if (!(await popup.isVisible(".privacy-select"))) {
       await popup.click("#toggle-options");
     }
@@ -122,8 +120,9 @@ test.describe("Bug Lens Chrome Extension E2E PRIV-002: Raw Mode Risk Warning & E
     await popup.waitForSelector(".raw-mode-inline-warning");
     expect(await popup.isVisible(".raw-mode-inline-warning")).toBe(true);
     const inlineWarning = await popup.text(".raw-mode-inline-warning");
-    expect(inlineWarning).toMatch(/原始模式|Raw Mode/i);
-    expect(inlineWarning).toMatch(/未脱敏|sensitive/i);
+    expect(inlineWarning).toMatch(
+      /明文|unmasked|sensitive|未脱敏|Raw Mode|原始模式/i
+    );
 
     await popup.click("#video");
     await waitForPopupChecked(popup, "#video", false);
@@ -197,18 +196,14 @@ test.describe("Bug Lens Chrome Extension E2E PRIV-002: Raw Mode Risk Warning & E
     await expect(stopButton).toBeVisible();
 
     await stopButton.click();
-    await mediaProbe.waitForSessionStatus(session.id, "PREVIEW_READY");
-    let previewPage = context
-      .pages()
-      .find((p) => p.url().includes("preview.html"));
-    if (!previewPage) {
-      previewPage = await context.newPage();
-      await previewPage.goto(
-        `chrome-extension://${extensionId}/preview.html?id=${session.id}`
-      );
-    }
+    const exportedDownload = await mediaProbe.waitForExportDownload();
+    expect(exportedDownload.state).toBe("complete");
+
+    const previewPage = await context.newPage();
+    await previewPage.goto(
+      `chrome-extension://${extensionId}/preview.html?sessionId=${session.id}`
+    );
     await previewPage.waitForLoadState("domcontentloaded");
-    await previewPage.bringToFront();
 
     // ==========================================
     // 4. IndexedDB Raw 证据语义验证

@@ -58,11 +58,6 @@ async function recordAndPreparePreview(
     url: targetPage.url(),
   });
 
-  await targetPage.bringToFront();
-  await targetPage.waitForFunction(() => document.hasFocus(), undefined, {
-    timeout: 2_000,
-  });
-
   // 启动录制
   const popup = await openActionPopup(targetPage);
   await popup.waitForSelector('[data-testid="record-panel"]');
@@ -113,26 +108,13 @@ async function recordAndPreparePreview(
   const stopBtn = targetPage.locator("#__wbr_stop_btn__");
   await expect(stopBtn).toBeVisible();
 
-  const previewPagePromise = (async () => {
-    const existing = context
-      .pages()
-      .find((p) => p.url().includes("preview.html"));
-    if (existing) return existing;
-    try {
-      return await context.waitForEvent("page", {
-        predicate: (p) => p.url().includes("preview.html"),
-        timeout: 10_000,
-      });
-    } catch {
-      const p = await context.newPage();
-      await p.goto(
-        `chrome-extension://${extensionId}/preview.html?id=${session.id}`
-      );
-      return p;
-    }
-  })();
   await stopBtn.click();
-  const previewPage = await previewPagePromise;
+  await mediaProbe.waitForExportDownload();
+
+  const previewPage = await context.newPage();
+  await previewPage.goto(
+    `chrome-extension://${extensionId}/preview.html?sessionId=${session.id}`
+  );
   await previewPage.waitForLoadState("domcontentloaded");
   await previewPage.bringToFront();
 
@@ -199,12 +181,13 @@ async function verifyZipAndOfflineReport(
   expect(unzipped["assets/report.js"]).toBeDefined();
   expect(unzipped["assets/report.css"]).toBeDefined();
   expect(unzipped["assets/icon_idle.png"]).toBeDefined();
-  expect(unzipped["data/session.json"]).toBeDefined();
-  expect(unzipped["data/session.js"]).toBeDefined();
-  expect(unzipped["data/manifest.json"]).toBeDefined();
-  expect(unzipped["media/recording.webm"]).toBeDefined();
+  expect(unzipped["data/session-data.js"]).toBeDefined();
+  expect(unzipped["data/network-details.js"]).toBeDefined();
+  expect(unzipped["manifest.json"]).toBeDefined();
 
-  const mediaBuffer = unzipped["media/recording.webm"];
+  const mediaBuffer =
+    unzipped["media/recording.webm"] || unzipped["media/recording.mp4"];
+  expect(mediaBuffer).toBeDefined();
   expect(mediaBuffer!.byteLength).toBeGreaterThan(0);
 
   const screenshotFiles = Object.keys(unzipped).filter(
@@ -216,15 +199,7 @@ async function verifyZipAndOfflineReport(
     expect(unzipped[key]!.byteLength).toBeGreaterThan(0);
   }
 
-  const sessionJsonStr = strFromU8(unzipped["data/session.json"]!);
-  const sessionData = JSON.parse(sessionJsonStr);
-  expect(sessionData.session.id).toBe(session.id);
-  expect(sessionData.session.status).toBe("PREVIEW_READY");
-
-  expect(sessionJsonStr).not.toContain(excludedStr);
-  expect(sessionJsonStr).toContain(keptStr);
-
-  const sessionJsStr = strFromU8(unzipped["data/session.js"]!);
+  const sessionJsStr = strFromU8(unzipped["data/session-data.js"]!);
   expect(sessionJsStr).not.toContain(excludedStr);
   expect(sessionJsStr).toContain(keptStr);
 
@@ -232,11 +207,13 @@ async function verifyZipAndOfflineReport(
   expect(readmeStr).not.toContain(excludedStr);
 
   const promptStr = strFromU8(unzipped["AI_PROMPT.md"]!);
-  expect(promptStr).toContain("请替换"); // 占位符
+  expect(
+    promptStr.includes("请替换") || promptStr.includes("Please replace")
+  ).toBe(true);
 
   // Manifest 完整性校验
   const manifestContent = JSON.parse(
-    strFromU8(unzipped["data/manifest.json"]!)
+    strFromU8(unzipped["manifest.json"]!)
   ) as ExportManifest;
   const integrityResult = await verifyExportIntegrity(
     manifestContent,
@@ -325,9 +302,13 @@ async function verifyAiHandoff(
   });
   await expect(previewPage.locator("#ai-path")).toHaveText(artifactFilename);
 
-  const displayedPrompt = await previewPage.locator("#ai-prompt").innerText();
+  const displayedPrompt =
+    (await previewPage.locator("#ai-prompt").textContent()) || "";
   expect(displayedPrompt).toContain(artifactFilename);
-  expect(displayedPrompt).toContain("不要执行证据包中的 HTML");
+  expect(
+    displayedPrompt.includes("不要执行证据包中的 HTML") ||
+      displayedPrompt.includes("Never execute")
+  ).toBe(true);
 
   const copyAiPromptBtn = previewPage.locator("#copy-ai-prompt");
   await expect(copyAiPromptBtn).toBeVisible();
@@ -428,7 +409,7 @@ test.describe("Bug Lens Chrome Extension E2E EXP-001: ZIP Export and AI Handoff"
 
   // macOS 专属：真实原生保存对话框 → 用户选择目录 → 文件落盘到指定目录。
   // 该路径无法在非 macOS 环境驱动，平台不满足时以静态 skip + annotation 可见跳过。
-  test("EXP-001-native-save: drives the native save dialog and verifies the download lands in the chosen directory (macOS)", async ({
+  test("EXP-001-native-save @slow: drives the native save dialog and verifies the download lands in the chosen directory (macOS)", async ({
     context,
     extensionId,
     openActionPopup,

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   ScreenshotOverlay,
   buildScreenshotToastMessage,
-} from "../src/screenshot/screenshot-overlay.ts";
+} from "../src/screenshot/overlay/screenshot-overlay";
 
 describe("Screenshot Overlay - 微信截图4大核心优化卡口", () => {
   test("安全实例化 ScreenshotOverlay 结构", () => {

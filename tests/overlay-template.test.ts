@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { createOverlayMarkup } from "../src/screenshot/overlay-template.ts";
+import { createOverlayMarkup } from "../src/screenshot/overlay/overlay-template";
 import { t, type I18nBundle } from "../src/shared/i18n.ts";
 
 /**

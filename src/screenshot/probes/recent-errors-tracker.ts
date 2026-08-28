@@ -1,7 +1,7 @@
 import type {
   RecentConsoleError,
   RecentFailedNetworkRequest,
-} from "../domain/screenshot-payload.ts";
+} from "../../domain/screenshot-payload";
 
 const ERROR_TIME_WINDOW_MS = 5000;
 

@@ -1,12 +1,9 @@
-import type { ArrowAnnotation } from "../../domain/screenshot-payload.ts";
+import type { ArrowAnnotation } from "../../../domain/screenshot-payload";
 import {
   clampPointToRect,
   pointToSegmentDistance,
-} from "../overlay-geometry.ts";
-import type {
-  AnnotationRenderer,
-  RendererContext,
-} from "./renderer-registry.ts";
+} from "../../overlay/overlay-geometry";
+import type { AnnotationRenderer, RendererContext } from "./renderer-registry";
 
 export const arrowRenderer: AnnotationRenderer<ArrowAnnotation> = {
   type: "arrow",

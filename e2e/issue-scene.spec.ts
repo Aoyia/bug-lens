@@ -251,6 +251,22 @@ test.describe("Bug Lens Chrome Extension E2E ISSUE-001: Issue Scene Recording Jo
     await mediaProbe.waitForEvidenceCounts(session.id, {
       interactionCount: initialInteractionCount + 1,
     });
+    await expect
+      .poll(
+        async () => {
+          const ev = await mediaProbe.persistedFullEvidence(session.id);
+          const item = ev.interactions.find(
+            (i) =>
+              i.element.id === "after-issue-action" ||
+              i.element.locators?.some((l) =>
+                l.expression.includes("after-issue-action")
+              )
+          );
+          return item?.status;
+        },
+        { timeout: 3_000 }
+      )
+      .toBe("confirmed");
     const updatedEvidence = await mediaProbe.persistedFullEvidence(session.id);
     const afterInteraction = updatedEvidence.interactions.find(
       (i) =>
@@ -260,7 +276,6 @@ test.describe("Bug Lens Chrome Extension E2E ISSUE-001: Issue Scene Recording Jo
         )
     );
     expect(afterInteraction).toBeDefined();
-    expect(afterInteraction!.status).toBe("confirmed");
     expect(afterInteraction!.createdAt).toBeGreaterThan(
       recordedScene.observedAtEpochMs
     );
@@ -325,8 +340,8 @@ test.describe("Bug Lens Chrome Extension E2E ISSUE-001: Issue Scene Recording Jo
     expect(originalAsset?.kind).toBe("issue-original");
     expect(annotatedAsset?.kind).toBe("issue-annotated");
 
-    expect(originalAsset?.mimeType).toBe("image/png");
-    expect(annotatedAsset?.mimeType).toBe("image/png");
+    expect(["image/png", "image/jpeg"]).toContain(originalAsset?.mimeType);
+    expect(["image/png", "image/jpeg"]).toContain(annotatedAsset?.mimeType);
 
     expect(originalAsset?.byteLength).toBeGreaterThan(0);
     expect(annotatedAsset?.byteLength).toBeGreaterThan(0);
@@ -337,7 +352,7 @@ test.describe("Bug Lens Chrome Extension E2E ISSUE-001: Issue Scene Recording Jo
     expect(originalAsset?.width).toBe(annotatedAsset?.width);
     expect(originalAsset?.height).toBe(annotatedAsset?.height);
 
-    // 真正调用 getEvidenceAssetBytes 进行实际 PNG 解码验证
+    // 真正调用 getEvidenceAssetBytes 进行实际图片解码验证
     const originalAssetBytes = await mediaProbe.getEvidenceAssetBytes(
       originalAssetId!
     );
@@ -348,18 +363,22 @@ test.describe("Bug Lens Chrome Extension E2E ISSUE-001: Issue Scene Recording Jo
     expect(originalAssetBytes).toBeDefined();
     expect(annotatedAssetBytes).toBeDefined();
 
-    const checkPngMagicNumber = (buf: ArrayBuffer) => {
+    const checkImageMagicNumber = (buf: ArrayBuffer, mimeType?: string) => {
       const u8 = new Uint8Array(buf);
       expect(u8.length).toBeGreaterThan(8);
-      // PNG Header: 0x89 50 4E 47 0D 0A 1A 0A
-      expect(u8[0]).toBe(0x89);
-      expect(u8[1]).toBe(0x50);
-      expect(u8[2]).toBe(0x4e);
-      expect(u8[3]).toBe(0x47);
+      if (mimeType === "image/jpeg" || (u8[0] === 0xff && u8[1] === 0xd8)) {
+        expect(u8[0]).toBe(0xff);
+        expect(u8[1]).toBe(0xd8);
+      } else {
+        expect(u8[0]).toBe(0x89);
+        expect(u8[1]).toBe(0x50);
+        expect(u8[2]).toBe(0x4e);
+        expect(u8[3]).toBe(0x47);
+      }
     };
 
-    checkPngMagicNumber(originalAssetBytes!.bytes);
-    checkPngMagicNumber(annotatedAssetBytes!.bytes);
+    checkImageMagicNumber(originalAssetBytes!.bytes, originalAsset?.mimeType);
+    checkImageMagicNumber(annotatedAssetBytes!.bytes, annotatedAsset?.mimeType);
 
     logE2e("All Issue Scene persistence contract assertions passed cleanly");
 
@@ -369,15 +388,15 @@ test.describe("Bug Lens Chrome Extension E2E ISSUE-001: Issue Scene Recording Jo
     const stopBtn = targetPage.locator("#__wbr_stop_btn__");
     await expect(stopBtn).toBeVisible();
 
-    const previewPagePromise = context.waitForEvent("page", {
-      predicate: (page) =>
-        page.url().startsWith(`chrome-extension://${extensionId}/preview.html`),
-      timeout: 10_000,
-    });
     await stopBtn.click();
-    const previewPage = await previewPagePromise;
+    const exportedDownload = await mediaProbe.waitForExportDownload();
+    expect(exportedDownload.state).toBe("complete");
+
+    const previewPage = await context.newPage();
+    await previewPage.goto(
+      `chrome-extension://${extensionId}/preview.html?sessionId=${session.id}`
+    );
     await previewPage.waitForLoadState("domcontentloaded");
-    await previewPage.bringToFront();
 
     const finalEvidence = await mediaProbe.persistedEvidence(
       previewPage,

@@ -13,9 +13,9 @@ import type {
   SelectOptionItem,
   SelectStateSnapshot,
   TextOverflowInfo,
-} from "../domain/screenshot-payload.ts";
-import type { FrameworkProbeEntry } from "../shared/protocol.ts";
-import { isEn, t } from "../shared/i18n.ts";
+} from "../../domain/screenshot-payload";
+import type { FrameworkProbeEntry } from "../../shared/protocol";
+import { isEn, t } from "../../shared/i18n";
 
 /** 主世界框架探针：content script 隔离世界读不到 __vue__/__reactFiber$ 等 expando 属性，须注入页面主世界读取 */
 export interface FrameworkProbeFn {
