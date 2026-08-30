@@ -161,6 +161,7 @@ export class InlineTextEditor {
   /** 当前活动文本输入上下文（供 cancelEdit 复用 Esc 语义，保证关闭必恢复状态机） */
   private activeInput: HTMLTextAreaElement | null = null;
   private activeInitialText = "";
+  private activeColor: string | undefined = undefined;
   private activePosition = { x: 0, y: 0 };
   private activeIsHandled = false;
 
@@ -246,6 +247,7 @@ export class InlineTextEditor {
     // 保存当前活动编辑上下文（供 cancelEdit 复用 Esc 语义）
     this.activeInput = input;
     this.activeInitialText = initialText || "";
+    this.activeColor = color;
     this.activePosition = { x, y };
     this.activeIsHandled = false;
 
@@ -268,6 +270,7 @@ export class InlineTextEditor {
           type: "text",
           position: { x: this.activePosition.x, y: this.activePosition.y },
           text,
+          color: this.activeColor,
         });
       } else if (this.activeInitialText) {
         // 原本有字但清空确认了：重绘 Canvas 清除原文字，并通知组合根恢复状态机
@@ -318,6 +321,7 @@ export class InlineTextEditor {
         type: "text",
         position: { x: this.activePosition.x, y: this.activePosition.y },
         text: this.activeInitialText,
+        color: this.activeColor,
       });
     } else {
       this.onClose();

@@ -803,6 +803,21 @@ test.describe("Bug Lens Chrome Extension E2E SCREENSHOT-004: 截图文本批注�
     expect(await probe.count(".inline-text-input")).toBe(1);
     logE2e("text annotation re-edit spawned");
 
+    // ---- 4.1) 测试 Esc 取消二次编辑保留原内容 ----
+    await page.keyboard.press("End");
+    await page.keyboard.type(" should be discarded");
+    await page.keyboard.press("Escape");
+    await delay(200);
+    expect(await probe.count(".inline-text-input")).toBe(0);
+    const f1_reverted = await probe.canvasFingerprint();
+    expect(f1_reverted).toBe(f1);
+    logE2e("text annotation re-edit cancelled via Esc restored original text");
+
+    // ---- 4.2) 再次双击进入编辑并提交 ----
+    await page.mouse.dblclick(430, 430);
+    await delay(200);
+    expect(await probe.count(".inline-text-input")).toBe(1);
+
     // ---- 5) 修改文本并提交 ----
     await page.keyboard.type(" v2");
     await probe.click('button[data-tool="rect"]');
