@@ -55,6 +55,13 @@ function getMacVirtualKeyCode(
       return 48;
     case "Escape":
       return 53;
+    case "Backspace":
+      return 51;
+    case "Delete":
+      return 117;
+    case "Space":
+    case " ":
+      return 49;
     default:
       return fallback;
   }
