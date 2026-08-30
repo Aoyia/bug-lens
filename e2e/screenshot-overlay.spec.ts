@@ -889,4 +889,61 @@ test.describe("Bug Lens Chrome Extension E2E SCREENSHOT-005: 截图确认导出�
     // 6) 全流程无事件泄漏
     expect(await leakCount()).toBe(0);
   });
+
+  test("非编辑态按 Enter 快捷键，直接触发确认导出并自动销毁 Overlay", async ({
+    context,
+    serviceWorker,
+    serverUrl,
+  }) => {
+    context.on("console", (message) => {
+      logE2e(`Browser console.${message.type()}`, {
+        url:
+          safeUrlForLog(message.page()?.url()) ?? "extension-worker-or-popup",
+        text: message.text().slice(0, 200),
+      });
+    });
+
+    let downloadedUrl = "";
+    context.on("download", (download) => {
+      downloadedUrl = download.url();
+      logE2e("Screenshot export download triggered via Enter key", {
+        url: safeUrlForLog(downloadedUrl),
+      });
+    });
+
+    const { page, host, probe, leakCount } = await setupScreenshotOverlay(
+      context,
+      serviceWorker,
+      serverUrl
+    );
+
+    // 1) 拉框建立选区
+    await page.mouse.move(300, 300);
+    await page.mouse.down();
+    await page.mouse.move(800, 500, { steps: 8 });
+    await page.mouse.up();
+
+    // 2) 绘制矩形批注
+    await probe.click('button[data-tool="rect"]');
+    await page.mouse.move(350, 340);
+    await page.mouse.down();
+    await page.mouse.move(480, 420, { steps: 5 });
+    await page.mouse.up();
+
+    // 3) 非编辑态按 Enter 键触发确认导出
+    await page.keyboard.press("Enter");
+    logE2e("Enter key pressed to confirm export");
+
+    // 4) 校验 Overlay 隐藏与销毁
+    await expect(host).toBeHidden({ timeout: 5_000 });
+    logE2e("Overlay closed after Enter confirmation");
+
+    // 5) 检查页面上是否出现了处理中或完成提示（Toast）
+    const toast = page.locator("#__wbr_screenshot_toast__");
+    await expect(toast).toBeAttached({ timeout: 5_000 });
+    logE2e("Toast visible on page via Enter confirmation");
+
+    // 6) 全流程无事件泄漏
+    expect(await leakCount()).toBe(0);
+  });
 });
