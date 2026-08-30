@@ -208,6 +208,10 @@ test.describe("Bug Lens Chrome Extension E2E SCREENSHOT-006: 截图后网页功�
       beforePlainKey,
       probe,
     });
+
+    // 退出截图 overlay，避免残留影响当前测试 context 清理
+    await page.keyboard.press("Escape");
+    await expect(host).toBeHidden({ timeout: 5_000 });
   });
 
   test("SCREENSHOT-006-2: 连续三次截图并退出后，滚动/按键/刷新均恢复正常（无残留拦截器）", async ({
