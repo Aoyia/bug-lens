@@ -23,4 +23,4 @@ worktrees/
 playwright-report/
 .random_sample*
 videos/
-tools/
+/tools/
