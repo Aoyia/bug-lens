@@ -260,6 +260,9 @@ export class MediaProbe {
         request.onerror = () => reject(request.error);
       });
       try {
+        if (!database.objectStoreNames.contains("exportArtifacts")) {
+          return undefined;
+        }
         return await new Promise<
           import("../../src/shared/protocol.ts").ExportArtifact | undefined
         >((resolve, reject) => {
