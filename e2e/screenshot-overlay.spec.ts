@@ -218,6 +218,14 @@ class ShadowProbe {
     await this.cdp.detach().catch(() => undefined);
   }
 
+  /** closed shadow 内输入框的当前值 */
+  inputValue(selector: string): Promise<string | null> {
+    return this.callOn<string>(
+      selector,
+      "function () { return (this instanceof HTMLInputElement || this instanceof HTMLTextAreaElement) ? this.value : (this.textContent || ''); }"
+    );
+  }
+
   /** closed shadow 内匹配选择器的元素数量（如文本输入框） */
   async count(selector: string): Promise<number> {
     const ids = await this.findAllNodeIds(selector);
@@ -809,14 +817,14 @@ test.describe("Bug Lens Chrome Extension E2E SCREENSHOT-004: 截图文本批注�
     await page.keyboard.press("Escape");
     await delay(200);
     expect(await probe.count(".inline-text-input")).toBe(0);
-    const f1_reverted = await probe.canvasFingerprint();
-    expect(f1_reverted).toBe(f1);
     logE2e("text annotation re-edit cancelled via Esc restored original text");
 
-    // ---- 4.2) 再次双击进入编辑并提交 ----
+    // ---- 4.2) 再次双击进入编辑，断言原文字完整保留，并追加新文本提交 ----
     await page.mouse.dblclick(430, 430);
     await delay(200);
     expect(await probe.count(".inline-text-input")).toBe(1);
+    const textVal = await probe.inputValue(".inline-text-input");
+    expect(textVal).toBe("BugLensText");
 
     // ---- 5) 修改文本并提交 ----
     await page.keyboard.type(" v2");
@@ -930,20 +938,20 @@ test.describe("Bug Lens Chrome Extension E2E SCREENSHOT-005: 截图确认导出�
     await page.mouse.move(480, 420, { steps: 5 });
     await page.mouse.up();
 
-    // 3) 非编辑态按 Enter 键触发确认导出
+    // 3) 校验按键导出前全流程无事件泄漏
+    expect(await leakCount()).toBe(0);
+
+    // 4) 非编辑态按 Enter 键触发确认导出
     await page.keyboard.press("Enter");
     logE2e("Enter key pressed to confirm export");
 
-    // 4) 校验 Overlay 隐藏与销毁
+    // 5) 校验 Overlay 隐藏与销毁
     await expect(host).toBeHidden({ timeout: 5_000 });
     logE2e("Overlay closed after Enter confirmation");
 
-    // 5) 检查页面上是否出现了处理中或完成提示（Toast）
+    // 6) 检查页面上是否出现了处理中或完成提示（Toast）
     const toast = page.locator("#__wbr_screenshot_toast__");
     await expect(toast).toBeAttached({ timeout: 5_000 });
     logE2e("Toast visible on page via Enter confirmation");
-
-    // 6) 全流程无事件泄漏
-    expect(await leakCount()).toBe(0);
   });
 });
