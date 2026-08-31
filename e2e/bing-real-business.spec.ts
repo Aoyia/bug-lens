@@ -8,42 +8,39 @@ function logE2e(message: string, details?: unknown): void {
   );
 }
 
-test.describe("Bug Lens 真实用户 Google 业务流 E2E 测试 (包 4c41242b 还原)", () => {
-  test("REAL-BUS-001 @slow: 还原真实 Google 搜索的全套 8 步交互流程与 Preview 卡片展示", async ({
+test.describe("Bug Lens 真实用户 Bing 业务流 E2E 测试 (包 4c41242b 还原)", () => {
+  test("REAL-BUS-001 @slow: 还原真实 Bing 搜索的全套 8 步交互流程与 Preview 卡片展示", async ({
     context,
     extensionId,
     openActionPopup,
     mediaProbe,
   }) => {
-    const googleUrl = "https://www.google.com/webhp";
+    const bingUrl = "https://www.bing.com";
 
     let targetPage = context.pages()[0];
     if (!targetPage) targetPage = await context.newPage();
 
-    logE2e("Navigating to real Google homepage", { url: googleUrl });
-    let isGoogleReachable = true;
+    logE2e("Navigating to real Bing homepage", { url: bingUrl });
+    let isBingReachable = true;
     try {
-      const response = await targetPage.goto(googleUrl, {
+      const response = await targetPage.goto(bingUrl, {
         waitUntil: "domcontentloaded",
         timeout: 10_000,
       });
       if (response && response.status() >= 400) {
-        isGoogleReachable = false;
+        isBingReachable = false;
       }
     } catch (err) {
-      logE2e(
-        "Google network unreachable or timeout, skipping test gracefully",
-        {
-          error: String(err),
-        }
-      );
-      isGoogleReachable = false;
+      logE2e("Bing network unreachable or timeout, skipping test gracefully", {
+        error: String(err),
+      });
+      isBingReachable = false;
     }
 
-    if (!isGoogleReachable) {
+    if (!isBingReachable) {
       test.skip(
         true,
-        "Google is unreachable in current network environment; skipping REAL-BUS-001"
+        "Bing is unreachable in current network environment; skipping REAL-BUS-001"
       );
       return;
     }
@@ -61,7 +58,7 @@ test.describe("Bug Lens 真实用户 Google 业务流 E2E 测试 (包 4c41242b �
     expect(targetTabId).toBeTruthy();
 
     await startPopup.click('[data-testid="start-recording-btn"]');
-    logE2e("Recording started on real Google page", { targetTabId });
+    logE2e("Recording started on real Bing page", { targetTabId });
     await startPopup.dispose();
 
     // 给予充裕的等待时间 (15s)，适应真实网络环境
@@ -74,20 +71,22 @@ test.describe("Bug Lens 真实用户 Google 业务流 E2E 测试 (包 4c41242b �
 
     // ─── 还原 Zip 包 4c41242b 中的 8 步真实用户交互链条 ───
 
-    // Step 1: 点击 Google Logo / SVG 元素
-    const logo = targetPage.locator("svg, img[alt='Google']").first();
+    // Step 1: 点击 Bing Logo / SVG / Header 元素
+    const logo = targetPage
+      .locator("#bLogo, svg, .b_logo, a.b_logo, img[alt*='Bing']")
+      .first();
     if (await logo.isVisible()) {
       await logo.click({ force: true }).catch(() => undefined);
-      logE2e("Step 1: Clicked Google logo/SVG");
+      logE2e("Step 1: Clicked Bing logo/SVG");
       await targetPage.waitForTimeout(400);
     }
 
-    // Step 2: 点击搜索框 textarea[name='q'] (#APjFqb)
+    // Step 2: 点击搜索框 #sb_form_q / input[name='q']
     const searchInput = targetPage
-      .locator('textarea[name="q"], #APjFqb')
+      .locator('#sb_form_q, textarea[name="q"], input[name="q"]')
       .first();
     await searchInput.click({ force: true });
-    logE2e("Step 2: Clicked search textarea");
+    logE2e("Step 2: Clicked search textarea/input");
     await targetPage.waitForTimeout(400);
 
     // Step 3: 输入文字 "你好呀，今天是雨天" (与证据包 4c41242b 完全相同)
@@ -101,8 +100,10 @@ test.describe("Bug Lens 真实用户 Google 业务流 E2E 测试 (包 4c41242b �
     logE2e("Step 4: Pressed Enter to submit search");
     await targetPage.waitForTimeout(2500);
 
-    // Step 5: 点击搜索结果区域 (如 #rcnt)
-    const resultContainer = targetPage.locator("#rcnt, #search, main").first();
+    // Step 5: 点击搜索结果区域 (如 #b_results, #b_content)
+    const resultContainer = targetPage
+      .locator("#b_results, #b_content, main, #rcnt")
+      .first();
     if (await resultContainer.isVisible()) {
       await resultContainer.click({ force: true }).catch(() => undefined);
       logE2e("Step 6: Clicked search results container");
@@ -112,20 +113,24 @@ test.describe("Bug Lens 真实用户 Google 业务流 E2E 测试 (包 4c41242b �
     // Step 6 & 7: 触发快捷键按键组合 (如 ControlOrMeta+r)
     await targetPage.keyboard.press("ControlOrMeta+r").catch(() => undefined);
     logE2e("Step 7/8: Dispatched Meta+R keyboard shortcut");
-    await targetPage.waitForTimeout(1000);
+    await targetPage
+      .waitForLoadState("domcontentloaded")
+      .catch(() => undefined);
+    await targetPage.waitForTimeout(1500);
 
     // ─── 停止录制并打开 Preview 页面 ───
+    await targetPage.bringToFront();
     const stopButton = targetPage.locator("#__wbr_stop_btn__");
-    await expect(stopButton).toBeVisible();
-
-    const previewPagePromise = context.waitForEvent("page", {
-      predicate: (page) =>
-        page.url().startsWith(`chrome-extension://${extensionId}/preview.html`),
-      timeout: 15_000,
-    });
+    await expect(stopButton).toBeVisible({ timeout: 10_000 });
 
     await stopButton.click();
-    const previewPage = await previewPagePromise;
+    const exportedDownload = await mediaProbe.waitForExportDownload(15_000);
+    expect(exportedDownload.state).toBe("complete");
+
+    const previewPage = await context.newPage();
+    await previewPage.goto(
+      `chrome-extension://${extensionId}/preview.html?sessionId=${session.id}`
+    );
     await previewPage.waitForLoadState("domcontentloaded");
     logE2e("Preview page opened successfully");
 
