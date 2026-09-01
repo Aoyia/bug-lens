@@ -577,7 +577,6 @@ export async function processScreenshot(
   let downloaded = false;
   try {
     const zipPack = buildScreenshotZipPackage(payload);
-    triggerZipDownload(zipPack.blobUrl, zipPack.filename);
     if (typeof chrome !== "undefined" && chrome.runtime?.id) {
       try {
         // 直接发送 data URL 字符串而非 ArrayBuffer：字符串在消息序列化中不会丢字节，
@@ -598,6 +597,16 @@ export async function processScreenshot(
       } catch (bgErr) {
         console.warn("Bug Lens: 经由 background 下载截图 ZIP 失败", bgErr);
       }
+    }
+
+    if (!downloaded) {
+      triggerZipDownload(zipPack.blobUrl, zipPack.filename);
+    } else if (
+      zipPack.blobUrl &&
+      typeof URL !== "undefined" &&
+      URL.revokeObjectURL
+    ) {
+      URL.revokeObjectURL(zipPack.blobUrl);
     }
   } catch (zipErr) {
     console.warn("Bug Lens: 截图 ZIP 打包下载异常", zipErr);
