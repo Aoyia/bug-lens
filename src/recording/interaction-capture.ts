@@ -109,7 +109,7 @@ export class InteractionCapture {
     this.aborted = true;
   }
 
-  async drain(timeoutMs = 300): Promise<string[]> {
+  async drain(timeoutMs = 1200): Promise<string[]> {
     this.abortPending();
     const errors: string[] = [];
     if (!this.pending.size) return errors;
@@ -311,7 +311,7 @@ export class InteractionCapture {
         options: { format: "jpeg"; quality: number }
       ) => Promise<string>;
       return capture(
-        session.target.windowId ?? chrome.windows.WINDOW_ID_CURRENT,
+        session.target.windowId ?? chrome.windows?.WINDOW_ID_CURRENT ?? -2,
         { format: "jpeg", quality: 92 }
       );
     });
@@ -337,36 +337,61 @@ export class InteractionCapture {
         );
       await this.assertTargetTabIsActive(session);
       const capStartTime = performance.now();
-      const dataUrl = await this.executeCaptureScreenshot(session);
+      const rawDataUrl = await this.executeCaptureScreenshot(session);
       if (this.aborted) return;
       const capDuration = performance.now() - capStartTime;
       await this.assertTargetTabIsActive(session);
       const markStartTime = performance.now();
       if (this.aborted) return;
-      const annotated = await chrome.runtime.sendMessage(
-        message(
-          "offscreen/annotate-image",
-          {
-            dataUrl,
-            clientX: interaction.coordinates.clientX,
-            clientY: interaction.coordinates.clientY,
-            viewportWidth: interaction.coordinates.viewport.width,
-            viewportHeight: interaction.coordinates.viewport.height,
-          },
-          session.id,
-          "offscreen"
-        )
-      );
+
+      let finalDataUrl = rawDataUrl;
+      let source: "primary" | "fallback" = "primary";
+
+      try {
+        const annotateTask = chrome.runtime.sendMessage(
+          message(
+            "offscreen/annotate-image",
+            {
+              dataUrl: rawDataUrl,
+              clientX: interaction.coordinates.clientX,
+              clientY: interaction.coordinates.clientY,
+              viewportWidth: interaction.coordinates.viewport.width,
+              viewportHeight: interaction.coordinates.viewport.height,
+            },
+            session.id,
+            "offscreen"
+          )
+        );
+        const timeoutTask = new Promise<{ ok: false; error: string }>(
+          (resolve) =>
+            setTimeout(
+              () => resolve({ ok: false, error: "ANNOTATION_TIMEOUT" }),
+              1000
+            )
+        );
+        const annotated = (await Promise.race([annotateTask, timeoutTask])) as
+          | { ok: true; dataUrl: string }
+          | { ok: false; error?: string }
+          | undefined;
+
+        if (annotated?.ok && typeof annotated.dataUrl === "string") {
+          finalDataUrl = annotated.dataUrl;
+        } else {
+          source = "fallback";
+        }
+      } catch {
+        source = "fallback";
+      }
+
       if (this.aborted) return;
       const markDuration = performance.now() - markStartTime;
-      if (!annotated?.ok || typeof annotated.dataUrl !== "string")
-        throw new Error(annotated?.error || t("screenshotMarkFailed"));
       const assetId = `asset-interaction-${interaction.id}`;
-      const bytes = dataUrlToArrayBuffer(annotated.dataUrl);
+      const bytes = dataUrlToArrayBuffer(finalDataUrl);
       endStepTimer({
         视口截屏: `${capDuration.toFixed(1)} ms`,
         Offscreen标注与压缩: `${markDuration.toFixed(1)} ms`,
         单图大小: `${(bytes.byteLength / 1024).toFixed(1)} KB`,
+        来源: source,
       });
       const assetResult = await this.repository.saveEvidenceAssetWithinBudget({
         id: assetId,
@@ -392,7 +417,7 @@ export class InteractionCapture {
       }
       const result = await this.persist(session.id, interaction.id, {
         type: "screenshot-captured",
-        source: "primary",
+        source,
         assetId,
       });
       if (result.budgetRejected) {
@@ -410,7 +435,10 @@ export class InteractionCapture {
       ) {
         await this.writeSessionEvent(session.id, {
           type: "quality-delta",
-          delta: { primaryScreenshotCount: 1 },
+          delta:
+            source === "primary"
+              ? { primaryScreenshotCount: 1 }
+              : { fallbackScreenshotCount: 1 },
         });
       }
     } catch (error) {

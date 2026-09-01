@@ -61,6 +61,9 @@ export type ChromeMock = {
     setBadgeBackgroundColor: () => Promise<void>;
     setIcon: () => Promise<void>;
   };
+  windows: {
+    WINDOW_ID_CURRENT: number;
+  };
 };
 
 export type ChromeHandlers = {
@@ -177,6 +180,9 @@ export function installChromeMock(handlers: ChromeHandlers = {}): {
       setBadgeText: async () => {},
       setBadgeBackgroundColor: async () => {},
       setIcon: async () => {},
+    },
+    windows: {
+      WINDOW_ID_CURRENT: -2,
     },
   };
 

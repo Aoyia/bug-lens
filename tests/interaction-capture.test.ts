@@ -3,6 +3,7 @@ import test from "node:test";
 
 import { InteractionCapture } from "../src/recording/interaction-capture.ts";
 import type { RecordingSessionEvent } from "../src/domain/recording-session.ts";
+import { installChromeMock } from "./helpers/chrome-mock.ts";
 import type {
   InteractionRecord,
   RecordingSession,
@@ -153,5 +154,126 @@ test("iframe 内交互的截图失败会给出用户可读文案与独立错误�
     !issueEvent.issue.message.includes("FRAME_GEOMETRY_UNAVAILABLE:"),
     "告警不应包含开发者内部前缀"
   );
+  assert.deepEqual(await capture.drain(), []);
+});
+
+test("开启截图且 Offscreen 标注成功时保存 primary 截图", async () => {
+  installChromeMock({
+    tabsQuery: async () => [{ id: 7, active: true }],
+    captureVisibleTab: async () => "data:image/jpeg;base64,QUFB",
+    sendMessage: async () => ({
+      ok: true,
+      dataUrl: "data:image/jpeg;base64,QU5OT1RBVEVE",
+    }),
+  });
+
+  let storedInteraction: InteractionRecord | undefined;
+  let savedAsset: unknown;
+  const sessionEvents: RecordingSessionEvent[] = [];
+  const screenshotSession: RecordingSession = {
+    ...session,
+    options: { ...session.options, captureScreenshots: true },
+  };
+
+  const capture = new InteractionCapture(
+    {
+      getActiveSession: async () => screenshotSession,
+      getInteraction: async () => storedInteraction,
+      saveInteractionWithinBudget: async (next) => {
+        storedInteraction = next;
+        return { stored: true, usedBytes: 1, limitReached: false };
+      },
+      saveEvidenceAssetWithinBudget: async (asset) => {
+        savedAsset = asset;
+        return { stored: true, usedBytes: 1, limitReached: false };
+      },
+    },
+    async (_sessionId, event) => {
+      sessionEvents.push(event);
+      return screenshotSession;
+    },
+    () => false
+  );
+
+  await capture.handle(interaction, {
+    tab: { id: 7 },
+    frameId: 0,
+  } as chrome.runtime.MessageSender);
+
+  assert.equal(storedInteraction?.screenshot.status, "captured");
+  if (storedInteraction?.screenshot.status === "captured") {
+    assert.equal(storedInteraction.screenshot.source, "primary");
+  }
+  assert.ok(savedAsset, "应已保存截图资产");
+  const qualityDelta = sessionEvents.find(
+    (e): e is Extract<RecordingSessionEvent, { type: "quality-delta" }> =>
+      e.type === "quality-delta" && "primaryScreenshotCount" in e.delta
+  );
+  assert.ok(qualityDelta, "应上报 primaryScreenshotCount 增量");
+  assert.equal(qualityDelta.delta.primaryScreenshotCount, 1);
+  assert.deepEqual(await capture.drain(), []);
+});
+
+test("开启截图但 Offscreen 标注超时或失败时自动降级保存 fallback 原图", async () => {
+  installChromeMock({
+    tabsQuery: async () => [{ id: 7, active: true }],
+    captureVisibleTab: async () => "data:image/jpeg;base64,RAWIMAGE",
+    sendMessage: async () => {
+      throw new Error("OFFSCREEN_COMMUNICATION_ERROR");
+    },
+  });
+
+  let storedInteraction: InteractionRecord | undefined;
+  let savedAsset: any;
+  const sessionEvents: RecordingSessionEvent[] = [];
+  const screenshotSession: RecordingSession = {
+    ...session,
+    options: { ...session.options, captureScreenshots: true },
+  };
+
+  const capture = new InteractionCapture(
+    {
+      getActiveSession: async () => screenshotSession,
+      getInteraction: async () => storedInteraction,
+      saveInteractionWithinBudget: async (next) => {
+        storedInteraction = next;
+        return { stored: true, usedBytes: 1, limitReached: false };
+      },
+      saveEvidenceAssetWithinBudget: async (asset) => {
+        savedAsset = asset;
+        return { stored: true, usedBytes: 1, limitReached: false };
+      },
+    },
+    async (_sessionId, event) => {
+      sessionEvents.push(event);
+      return screenshotSession;
+    },
+    () => false
+  );
+
+  await capture.handle(interaction, {
+    tab: { id: 7 },
+    frameId: 0,
+  } as chrome.runtime.MessageSender);
+
+  assert.equal(
+    storedInteraction?.screenshot.status,
+    "captured",
+    "降级后截图状态仍应为 captured"
+  );
+  if (storedInteraction?.screenshot.status === "captured") {
+    assert.equal(
+      storedInteraction.screenshot.source,
+      "fallback",
+      "来源应标记为 fallback"
+    );
+  }
+  assert.ok(savedAsset, "降级原图应已写入资产库，绝不丢图");
+  const qualityDelta = sessionEvents.find(
+    (e): e is Extract<RecordingSessionEvent, { type: "quality-delta" }> =>
+      e.type === "quality-delta" && "fallbackScreenshotCount" in e.delta
+  );
+  assert.ok(qualityDelta, "应上报 fallbackScreenshotCount 增量");
+  assert.equal(qualityDelta.delta.fallbackScreenshotCount, 1);
   assert.deepEqual(await capture.drain(), []);
 });

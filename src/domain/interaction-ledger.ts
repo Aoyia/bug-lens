@@ -8,7 +8,7 @@ export type InteractionEvent =
       type: "screenshot-captured";
       assetId?: string;
       dataUrl?: string;
-      source: "primary" | "video-frame";
+      source: "primary" | "fallback" | "video-frame";
     }
   | { type: "screenshot-unavailable"; issue: string };
 

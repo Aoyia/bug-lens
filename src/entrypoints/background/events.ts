@@ -176,7 +176,17 @@ export function registerBackgroundEvents(
   });
 
   // 消息路由中枢：承载 content script / popup / offscreen 的所有消息分发。
-  chrome.runtime.onMessage.addListener((raw: unknown, sender) => {
-    return handlers.handleMessage(raw, sender);
+  chrome.runtime.onMessage.addListener((raw: unknown, sender, sendResponse) => {
+    if (
+      typeof raw === "object" &&
+      raw !== null &&
+      "target" in raw &&
+      (raw as { target?: string }).target &&
+      (raw as { target?: string }).target !== "background"
+    ) {
+      return; // 明确发往其他上下文（如 offscreen/content）的消息直接同步跳过，避免拦截异步响应
+    }
+    handlers.handleMessage(raw, sender).then(sendResponse);
+    return true;
   });
 }

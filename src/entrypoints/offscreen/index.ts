@@ -332,8 +332,12 @@ async function annotateImage(
     { type: "offscreen/annotate-image" }
   >["payload"]
 ): Promise<string> {
-  const response = await fetch(payload.dataUrl);
-  const bitmap = await createImageBitmap(await response.blob());
+  const [metadata = "", encoded = ""] = payload.dataUrl.split(",", 2);
+  const mimeType = metadata.match(/^data:([^;,]+)/)?.[1] || "image/jpeg";
+  const binary = atob(encoded);
+  const bytes = Uint8Array.from(binary, (ch) => ch.charCodeAt(0));
+  const blob = new Blob([bytes], { type: mimeType });
+  const bitmap = await createImageBitmap(blob);
   try {
     const rawWidth = bitmap.width;
     const rawHeight = bitmap.height;
@@ -658,44 +662,47 @@ async function exportPack(payload: { sessionId: string }): Promise<{
   }
 }
 
-chrome.runtime.onMessage.addListener((raw: unknown) => {
+chrome.runtime.onMessage.addListener((raw: unknown, _sender, sendResponse) => {
   if (!isEnvelope(raw)) return;
   const incoming = raw as RuntimeMessage;
   // 仅处理明确指定发给 offscreen 的消息，其余消息直接忽略
   if (incoming.target && incoming.target !== "offscreen") return;
-  if (incoming.type === "offscreen/start-media")
-    return startMedia(incoming.payload)
-      .then(() => ({ ok: true }))
-      .catch((error) => ({ ok: false, error: String(error) }));
-  if (incoming.type === "offscreen/stop-media")
-    return stopMedia(incoming.payload.sessionId)
-      .then(() => ({ ok: true }))
-      .catch((error) => ({ ok: false, error: String(error) }));
-  if (incoming.type === "offscreen/pause-media")
-    return pauseMedia(incoming.payload.sessionId)
-      .then(() => ({ ok: true }))
-      .catch((error) => ({ ok: false, error: String(error) }));
-  if (incoming.type === "offscreen/resume-media")
-    return resumeMedia(incoming.payload.sessionId)
-      .then(() => ({ ok: true }))
-      .catch((error) => ({ ok: false, error: String(error) }));
-  if (incoming.type === "offscreen/status")
-    return Promise.resolve({
-      ok: true,
-      active:
-        activeSessionId === incoming.payload.sessionId &&
-        (recorder?.state === "recording" || recorder?.state === "paused"),
-    });
-  if (incoming.type === "offscreen/annotate-image")
-    return annotateImage(incoming.payload)
-      .then((dataUrl) => ({ ok: true, dataUrl }))
-      .catch((error) => ({ ok: false, error: String(error) }));
-  if (incoming.type === "offscreen/render-issue-image")
-    return renderIssueImage(incoming.payload)
-      .then((result) => ({ ok: true, ...result }))
-      .catch((error) => ({ ok: false, error: String(error) }));
-  if (incoming.type === "offscreen/export-pack")
-    return exportPack(incoming.payload)
-      .then((result) => ({ ok: true, ...result }))
-      .catch((error) => ({ ok: false, error: String(error) }));
+
+  (async () => {
+    try {
+      if (incoming.type === "offscreen/start-media") {
+        await startMedia(incoming.payload);
+        sendResponse({ ok: true });
+      } else if (incoming.type === "offscreen/stop-media") {
+        await stopMedia(incoming.payload.sessionId);
+        sendResponse({ ok: true });
+      } else if (incoming.type === "offscreen/pause-media") {
+        await pauseMedia(incoming.payload.sessionId);
+        sendResponse({ ok: true });
+      } else if (incoming.type === "offscreen/resume-media") {
+        await resumeMedia(incoming.payload.sessionId);
+        sendResponse({ ok: true });
+      } else if (incoming.type === "offscreen/status") {
+        sendResponse({
+          ok: true,
+          active:
+            activeSessionId === incoming.payload.sessionId &&
+            (recorder?.state === "recording" || recorder?.state === "paused"),
+        });
+      } else if (incoming.type === "offscreen/annotate-image") {
+        const dataUrl = await annotateImage(incoming.payload);
+        sendResponse({ ok: true, dataUrl });
+      } else if (incoming.type === "offscreen/render-issue-image") {
+        const result = await renderIssueImage(incoming.payload);
+        sendResponse({ ok: true, ...result });
+      } else if (incoming.type === "offscreen/export-pack") {
+        const result = await exportPack(incoming.payload);
+        sendResponse({ ok: true, ...result });
+      }
+    } catch (error) {
+      sendResponse({ ok: false, error: String(error) });
+    }
+  })();
+
+  return true;
 });

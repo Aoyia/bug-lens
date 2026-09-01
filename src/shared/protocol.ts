@@ -323,7 +323,7 @@ export type InteractionRecord = {
   };
   screenshot: {
     status: "pending" | "captured" | "unavailable" | "disabled";
-    source?: "primary" | "video-frame";
+    source?: "primary" | "fallback" | "video-frame";
     assetId?: string;
     dataUrl?: string;
     issue?: string;
