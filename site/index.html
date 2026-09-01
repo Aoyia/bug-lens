@@ -4,6 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Bug Lens — From Bug Scene to AI Fix in 3 Seconds</title>
+    <link rel="icon" type="image/png" href="assets/logo.png" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="apple-touch-icon" href="assets/logo.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
     <link
@@ -296,6 +299,49 @@
       .btn-secondary:hover {
         border-color: var(--text-muted);
         background: var(--surface-sub);
+      }
+
+      /* Demo Player Section */
+      .demo-player-wrap {
+        width: 100%;
+        max-width: 980px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-md);
+        overflow: hidden;
+        margin-bottom: 48px;
+        text-align: left;
+      }
+      .demo-player-topbar {
+        background: var(--surface-sub);
+        border-bottom: 1px solid var(--border);
+        padding: 12px 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .demo-player-tag {
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: var(--primary);
+        font-family: var(--mono);
+      }
+      .demo-video-box {
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        background: #0d1117;
+        position: relative;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .demo-video-box video {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        display: block;
       }
 
       /* Timeline Section */
@@ -3514,6 +3560,38 @@
           >
         </div>
 
+        <!-- End-to-End Workflow Video Player -->
+        <div class="demo-player-wrap reveal">
+          <div class="demo-player-topbar">
+            <div class="tl-dots">
+              <span class="tl-dot r"></span>
+              <span class="tl-dot y"></span>
+              <span class="tl-dot g"></span>
+            </div>
+            <span class="demo-player-tag" data-l10n="demoPlayerTag"
+              >20秒全闭环演示: 录制 ➔ 500报错 ➔ AI 修复</span
+            >
+          </div>
+          <div class="demo-video-box">
+            <video
+              id="heroDemoVideo"
+              poster="assets/demo/demo-poster.png"
+              autoplay
+              loop
+              muted
+              playsinline
+              controls
+              preload="metadata"
+            >
+              <source
+                src="assets/demo/bug-lens-demo-1080p.webm"
+                type="video/webm"
+              />
+              您的浏览器暂不支持 HTML5 视频播放。
+            </video>
+          </div>
+        </div>
+
         <!-- Timeline -->
         <div class="timeline-wrap reveal">
           <div class="timeline-topbar">
@@ -4009,6 +4087,7 @@
             effNew: "1-秒录制 ➔ 复制自动 Prompt ➔ 粘贴至 Cursor",
             ctaInstall: "安装扩展",
             ctaSource: "查看源码",
+            demoPlayerTag: "20秒全闭环演示: 录制 ➔ 500报错 ➔ AI 修复",
             bmTag: "全生命周期: Vue 3 TodoMVC 实操闭环",
             t1Title: "Step 01. 问题复现与红圈轨迹捕获",
             t1Badge: "用户操作",
@@ -4060,6 +4139,7 @@
             effNew: "1-Click Record ➔ Copy Auto-Prompt ➔ Paste to Cursor",
             ctaInstall: "Install Extension",
             ctaSource: "View Source",
+            demoPlayerTag: "20s Full Lifecycle Demo: Record ➔ Capture ➔ AI Fix",
             bmTag: "FULL LIFECYCLE: Vue 3 TodoMVC Benchmark",
             t1Title: "Step 01. Bug Reproduction & Red-Ring Capture",
             t1Badge: "User Action",
