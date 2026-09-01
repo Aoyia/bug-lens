@@ -388,6 +388,27 @@
   "deleteSession": {
     "message": "删除当前会话"
   },
+  "renameSession": {
+    "message": "重命名会话"
+  },
+  "renameSessionPlaceholder": {
+    "message": "输入会话名称…"
+  },
+  "clickToRename": {
+    "message": "点击修改会话名称"
+  },
+  "renameFailed": {
+    "message": "重命名失败"
+  },
+  "originalPage": {
+    "message": "原网页"
+  },
+  "save": {
+    "message": "保存"
+  },
+  "cancel": {
+    "message": "取消"
+  },
   "timeline": {
     "message": "操作时间轴"
   },

@@ -29,6 +29,7 @@ const runtime = new PreviewSessionRuntime(db);
 const reportView = new EvidenceReportView(document, {
   mode: "editable",
   getSnapshot: () => runtime.getReportSnapshot(),
+  renameSession: (title) => runtime.renameSession(title),
   excludeInteraction: (id) => runtime.excludeInteraction(id),
   excludeIssueScene: (id) => runtime.excludeIssueScene(id),
   excludeDiagnostic: (kind, id) => runtime.excludeDiagnostic(kind, id),

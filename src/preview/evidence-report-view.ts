@@ -1,10 +1,11 @@
 import { h, render } from "preact";
-import type {
-  ConsoleEntry,
-  FrameworkStateEvidence,
-  InteractionRecord,
-  NetworkEntry,
-  RecordingSession,
+import {
+  getSessionTitle,
+  type ConsoleEntry,
+  type FrameworkStateEvidence,
+  type InteractionRecord,
+  type NetworkEntry,
+  type RecordingSession,
 } from "../shared/protocol";
 import { ImageViewer } from "./image-viewer";
 import { PreviewPageShell } from "./page-shell";
@@ -47,6 +48,7 @@ type ReadOnlyReportAdapter = {
 type EditableReportAdapter = {
   mode: "editable";
   getSnapshot(): EvidenceReportSnapshot | undefined;
+  renameSession?(title: string): Promise<void>;
   excludeInteraction(interactionId: string): Promise<void>;
   excludeDiagnostic(kind: "console" | "network", id: string): Promise<void>;
   excludeIssueScene?(issueSceneId: string): Promise<void>;
@@ -108,7 +110,78 @@ export class EvidenceReportView {
       root
         .querySelector<HTMLButtonElement>("#restore-network")
         ?.addEventListener("click", () => void this.restoreKind("network"));
+
+      this.bindTitleEdit();
     }
+  }
+
+  private bindTitleEdit(): void {
+    const adapter = this.adapter;
+    if (adapter.mode !== "editable" || !adapter.renameSession) return;
+    const titleEl = this.root.querySelector<HTMLElement>("#title");
+    if (!titleEl || titleEl.dataset.editableBound) return;
+    titleEl.dataset.editableBound = "true";
+    titleEl.classList.add("editable-title");
+    titleEl.setAttribute("tabindex", "0");
+    titleEl.setAttribute("role", "button");
+    titleEl.setAttribute("title", t("clickToRename"));
+
+    const startEdit = () => {
+      const snapshot = adapter.getSnapshot();
+      if (!snapshot) return;
+      const currentTitle =
+        snapshot.session.customTitle ??
+        snapshot.session.target.initialTitle ??
+        "";
+      const input = this.root.createElement("input");
+      input.type = "text";
+      input.className = "zen-title-input";
+      input.value = currentTitle;
+      input.placeholder =
+        snapshot.session.target.initialTitle || t("recordingPreviewFallback");
+      input.setAttribute("aria-label", t("renameSession"));
+
+      let isCommitted = false;
+      const commit = async () => {
+        if (isCommitted) return;
+        isCommitted = true;
+        const newTitle = input.value.trim();
+        input.replaceWith(titleEl);
+        if (newTitle !== currentTitle) {
+          await adapter.renameSession?.(newTitle);
+          this.render();
+        }
+      };
+
+      const cancel = () => {
+        if (isCommitted) return;
+        isCommitted = true;
+        input.replaceWith(titleEl);
+      };
+
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          void commit();
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          cancel();
+        }
+      });
+      input.addEventListener("blur", () => void commit(), { once: true });
+
+      titleEl.replaceWith(input);
+      input.focus();
+      input.select();
+    };
+
+    titleEl.addEventListener("click", startEdit);
+    titleEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        startEdit();
+      }
+    });
   }
 
   notify(message: string): void {
@@ -143,8 +216,10 @@ export class EvidenceReportView {
     }
 
     // 标题与元信息
-    const titleText =
-      snapshot.session.target.initialTitle || t("recordingPreviewFallback");
+    const titleText = getSessionTitle(
+      snapshot.session,
+      t("recordingPreviewFallback")
+    );
     const metaText = `${snapshot.session.target.initialUrl} · ${
       snapshot.session.timeline.durationMs
         ? t("previewDuration", [
@@ -155,7 +230,11 @@ export class EvidenceReportView {
     const titleEl = this.root.querySelector<HTMLElement>("#title");
     if (titleEl) {
       titleEl.textContent = titleText;
-      titleEl.setAttribute("title", titleText);
+      if (this.adapter.mode === "editable") {
+        titleEl.setAttribute("title", t("clickToRename"));
+      } else {
+        titleEl.setAttribute("title", titleText);
+      }
     }
     const metaEl = this.root.querySelector<HTMLElement>("#meta");
     if (metaEl) {

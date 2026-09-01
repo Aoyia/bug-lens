@@ -131,6 +131,32 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.brand-titles #title.editable-title {
+  cursor: pointer;
+  border-radius: var(--zen-radius-btn);
+  padding: 1px 4px;
+  margin: -1px -4px;
+  transition: all 0.15s ease;
+}
+.brand-titles #title.editable-title:hover,
+.brand-titles #title.editable-title:focus-visible {
+  background: var(--zen-primary-light);
+  color: var(--zen-primary);
+  outline: none;
+}
+.brand-titles .zen-title-input {
+  font-size: var(--font-sm);
+  font-weight: 500;
+  color: var(--zen-text-main);
+  background: #ffffff;
+  border: 1px solid var(--zen-primary);
+  border-radius: var(--zen-radius-btn);
+  padding: 1px 4px;
+  margin: -1px -4px;
+  max-width: 240px;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(22, 93, 255, 0.15);
+}
 .brand-titles .muted,
 .brand-titles truncated-text.muted {
   font-size: var(--font-xs);

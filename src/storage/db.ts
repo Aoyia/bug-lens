@@ -324,11 +324,16 @@ export const db = {
         (session) =>
           !normalizedQuery ||
           [
+            session.customTitle,
             session.target.initialTitle,
             session.target.initialUrl,
             session.status,
             session.id,
-          ].some((value) => value.toLocaleLowerCase().includes(normalizedQuery))
+          ].some(
+            (value) =>
+              typeof value === "string" &&
+              value.toLocaleLowerCase().includes(normalizedQuery)
+          )
       )
       .sort(
         (left, right) =>

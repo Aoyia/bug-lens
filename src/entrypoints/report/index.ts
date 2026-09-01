@@ -1,9 +1,10 @@
-import type {
-  ConsoleEntry,
-  FrameworkStateEvidence,
-  InteractionRecord,
-  NetworkEntry,
-  RecordingSession,
+import {
+  getSessionTitle,
+  type ConsoleEntry,
+  type FrameworkStateEvidence,
+  type InteractionRecord,
+  type NetworkEntry,
+  type RecordingSession,
 } from "../../shared/protocol";
 import type { IssueScenePreview } from "../../preview/issue-scene-view";
 import { EvidenceReportView } from "../../preview/evidence-report-view";
@@ -130,6 +131,6 @@ if (!data || data.protocolVersion !== 3) {
     t("offlineReportTitle") !== "offlineReportTitle"
       ? t("offlineReportTitle")
       : "离线报告";
-  document.title = `${data.session.target.initialTitle || "Bug Lens"} - ${suffix}`;
+  document.title = `${getSessionTitle(data.session, "Bug Lens")} - ${suffix}`;
   view.render();
 }

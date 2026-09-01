@@ -146,6 +146,19 @@ export function createMessageRouter(
             ok: true,
             sessions: await db.listSessionOverviews(incoming.payload.query),
           };
+        // 重命名会话自定义标题
+        case "session/rename": {
+          const rawTitle = incoming.payload.title ?? "";
+          const sanitized = sanitizeText(rawTitle, "safe", 256).trim();
+          const session = await db.updateSession(
+            incoming.payload.sessionId,
+            (current) => ({
+              ...current,
+              customTitle: sanitized || undefined,
+            })
+          );
+          return { ok: true, session };
+        }
         // 删除历史会话（正在录制的活动会话拒绝删除）
         case "session/delete": {
           const active = await db.getActiveSession();

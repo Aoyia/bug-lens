@@ -121,6 +121,8 @@ export type RecordingSession = {
   schemaVersion: 1 | 2;
   extensionVersion: string;
   status: SessionStatus;
+  /** 用户自定义的会话标题（若未设置则回退至 target.initialTitle） */
+  customTitle?: string;
   target: {
     tabId: number;
     windowId?: number;
@@ -751,6 +753,7 @@ export type RuntimeMessage =
     >
   | Envelope<"session/status", { session?: RecordingSession }>
   | Envelope<"session/list", { query?: string }>
+  | Envelope<"session/rename", { sessionId: string; title: string }>
   | Envelope<"session/delete", { sessionId: string }>
   | Envelope<"session/open-preview", { sessionId: string }>
   | Envelope<"session/resume", { sessionId: string; commandId: string }>
@@ -916,6 +919,7 @@ export type RuntimeMessageResponseMap = {
   "session/stop": { ok: true; session?: RecordingSession };
   "session/status": { ok: true; session?: RecordingSession };
   "session/list": { ok: true; sessions: SessionOverview[] };
+  "session/rename": { ok: true; session?: RecordingSession };
   "session/delete": { ok: true; deleted: boolean };
   "session/open-preview": { ok: true };
   "session/resume": { ok: true; session: RecordingSession };
@@ -975,3 +979,21 @@ export type RuntimeMessageResponseMap = {
     error?: string;
   };
 };
+
+/**
+ * 获取会话展示标题：优先级为自定义标题 > 初始网页标题 > 兜底文案
+ */
+export function getSessionTitle(
+  session?: {
+    customTitle?: string;
+    target?: { initialTitle?: string };
+  } | null,
+  fallback = ""
+): string {
+  if (!session) return fallback;
+  const custom = session.customTitle?.trim();
+  if (custom) return custom;
+  const initial = session.target?.initialTitle?.trim();
+  if (initial) return initial;
+  return fallback;
+}

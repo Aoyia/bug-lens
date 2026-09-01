@@ -1,8 +1,9 @@
-import type {
-  RecordingSession,
-  InteractionRecord,
-  ConsoleEntry,
-  NetworkEntry,
+import {
+  getSessionTitle,
+  type RecordingSession,
+  type InteractionRecord,
+  type ConsoleEntry,
+  type NetworkEntry,
 } from "../shared/protocol";
 import { MAX_IDLE_GAP_THRESHOLD_MS } from "../recording/idle-monitor.ts";
 
@@ -242,9 +243,11 @@ export function generatePlaywrightScript(input: GeneratorInput): string {
   const lines: string[] = [];
   const l = (s: string) => lines.push(s);
 
+  const sessionTitle = getSessionTitle(session, "recorded bug");
+
   l(`// Bug Lens — Playwright reproduction script`);
   l(`// URL: ${session.target.initialUrl || "unknown"}`);
-  l(`// Title: ${session.target.initialTitle || "untitled"}`);
+  l(`// Title: ${sessionTitle}`);
   l(`// Privacy: ${session.options.privacyMode}`);
   l(
     `// Recorded evidence: ${interactions.length} interactions, ${recordedErrors} console errors, ${recordedNetworkFailures} network failures`
@@ -260,9 +263,7 @@ export function generatePlaywrightScript(input: GeneratorInput): string {
   l(``);
   l(`import { test, expect } from '@playwright/test';`);
   l(``);
-  l(
-    `test('reproduce: ${escapeStr(session.target.initialTitle || "recorded bug")}', async ({ page }) => {`
-  );
+  l(`test('reproduce: ${escapeStr(sessionTitle)}', async ({ page }) => {`);
 
   const firstInteraction = interactions[0];
 
@@ -362,7 +363,7 @@ export function generatePlaywrightScript(input: GeneratorInput): string {
   l(``);
   l(`  // Capture screenshot for visual comparison`);
   l(
-    `  await page.screenshot({ path: 'bug-replay-${escapeStr(session.target.initialTitle || "screenshot")}.png', fullPage: true });`
+    `  await page.screenshot({ path: 'bug-replay-${escapeStr(sessionTitle)}.png', fullPage: true });`
   );
   l(`});`);
 

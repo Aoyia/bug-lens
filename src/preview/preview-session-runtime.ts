@@ -332,6 +332,16 @@ export class PreviewSessionRuntime {
     await this.saveSelection();
   }
 
+  async renameSession(title: string): Promise<void> {
+    if (!this.session) return;
+    const sanitized = title.trim();
+    this.session = {
+      ...this.session,
+      customTitle: sanitized || undefined,
+    };
+    await this.storage.saveSession(this.session);
+  }
+
   async restore(
     kind: "interaction" | "console" | "network" | "issueScene"
   ): Promise<void> {

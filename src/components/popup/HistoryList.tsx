@@ -1,5 +1,7 @@
 import { memo } from "preact/compat";
+import { useState, useCallback, useRef, useEffect } from "preact/hooks";
 import {
+  getSessionTitle,
   type EvidenceSummary,
   type SessionStatus,
   type SessionOverview,
@@ -7,6 +9,7 @@ import {
 } from "../../shared/protocol";
 import { t } from "../../shared/i18n";
 import { formatSessionDate } from "../../popup/session-date";
+import "../../shared/components/truncated-text";
 
 /** 会话状态 → i18n key：历史卡片状态标签必须走双语文案，不能把内部枚举直接展示给用户 */
 const SESSION_STATUS_KEYS: Record<SessionStatus, string> = {
@@ -38,6 +41,7 @@ interface HistoryListProps {
   onSearchChange: (query: string) => void;
   onOpenPreview: (sessionId: string) => void;
   onDeleteSession: (sessionId: string) => void;
+  onRenameSession?: (sessionId: string, title: string) => void;
   onResumeSession: (sessionId: string) => void;
 }
 
@@ -52,8 +56,44 @@ export const HistoryList = memo(function HistoryList({
   onSearchChange,
   onOpenPreview,
   onDeleteSession,
+  onRenameSession,
   onResumeSession,
 }: HistoryListProps) {
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState<string>("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editingSessionId && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [editingSessionId]);
+
+  const handleStartEdit = useCallback(
+    (sessionId: string, currentTitle: string, e?: Event) => {
+      e?.stopPropagation();
+      setEditingSessionId(sessionId);
+      setEditingTitle(currentTitle);
+    },
+    []
+  );
+
+  const handleCommitEdit = useCallback(
+    (sessionId: string) => {
+      if (editingSessionId === sessionId) {
+        onRenameSession?.(sessionId, editingTitle);
+        setEditingSessionId(null);
+      }
+    },
+    [editingSessionId, editingTitle, onRenameSession]
+  );
+
+  const handleCancelEdit = useCallback((e?: Event) => {
+    e?.stopPropagation();
+    setEditingSessionId(null);
+  }, []);
+
   return (
     <div>
       <div className="search-wrapper" role="search">
@@ -115,23 +155,124 @@ export const HistoryList = memo(function HistoryList({
                 entry.code.startsWith("SESSION_") ||
                 entry.code === "MEDIA_CONTEXT_LOST"
             );
+            const displayTitle = getSessionTitle(session, t("unnamedTab"));
+            const isEditing = editingSessionId === session.id;
+
             return (
               <article
                 key={session.id}
                 className="session"
-                aria-label={session.target.initialTitle || t("unnamedTab")}
+                aria-label={displayTitle}
                 // 整卡可点击打开预览：卡片 hover 已有蓝色描边（可点击暗示），
                 // 若点击主体无响应会破坏感知可用性；同时扩大主操作热区（Fitts 定律）。
                 // 内嵌按钮各自 stopPropagation，避免冒泡双触发。
                 onClick={() => onOpenPreview(session.id)}
               >
                 <div className="session-head">
-                  <div
-                    className="session-title"
-                    title={session.target.initialTitle}
-                  >
-                    {session.target.initialTitle || t("unnamedTab")}
-                  </div>
+                  {isEditing ? (
+                    <div
+                      className="session-title-edit"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <input
+                        ref={inputRef}
+                        className="session-title-input"
+                        type="text"
+                        value={editingTitle}
+                        placeholder={
+                          session.target.initialTitle || t("unnamedTab")
+                        }
+                        onInput={(e) => setEditingTitle(e.currentTarget.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleCommitEdit(session.id);
+                          } else if (e.key === "Escape") {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleCancelEdit(e);
+                          }
+                        }}
+                        onBlur={() => handleCommitEdit(session.id)}
+                        aria-label={t("renameSession")}
+                      />
+                    </div>
+                  ) : (
+                    <div
+                      className="session-title-wrapper"
+                      onMouseEnter={(e) => {
+                        const textEl =
+                          e.currentTarget.querySelector<HTMLElement>(
+                            ".session-title"
+                          );
+                        if (textEl) {
+                          const customEl = textEl as unknown as {
+                            checkOverflow?: () => boolean;
+                          };
+                          const isOverflow =
+                            typeof customEl.checkOverflow === "function"
+                              ? customEl.checkOverflow()
+                              : textEl.scrollWidth > textEl.clientWidth;
+                          e.currentTarget.toggleAttribute(
+                            "data-overflowed",
+                            isOverflow
+                          );
+                        }
+                      }}
+                      onDblClick={(e) =>
+                        handleStartEdit(
+                          session.id,
+                          session.customTitle ??
+                            session.target.initialTitle ??
+                            "",
+                          e
+                        )
+                      }
+                    >
+                      <truncated-text
+                        className="session-title"
+                        text={displayTitle}
+                        no-tooltip
+                      />
+                      <button
+                        type="button"
+                        className="btn-edit-title"
+                        title={t("renameSession")}
+                        aria-label={`${t("renameSession")} - ${displayTitle}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleStartEdit(
+                            session.id,
+                            session.customTitle ??
+                              session.target.initialTitle ??
+                              "",
+                            e
+                          );
+                        }}
+                      >
+                        <svg
+                          width="11"
+                          height="11"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                        >
+                          <path d="M12 20h9"></path>
+                          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                        </svg>
+                      </button>
+
+                      {/* 仿成熟开源组件的标准单一片段 Tooltip */}
+                      <div className="session-title-tooltip" role="tooltip">
+                        {displayTitle}
+                      </div>
+                    </div>
+                  )}
                   <div className="session-head-actions">
                     {isContinuable && (
                       <button
@@ -140,7 +281,7 @@ export const HistoryList = memo(function HistoryList({
                           e.stopPropagation();
                           onResumeSession(session.id);
                         }}
-                        aria-label={`${t("resume")} - ${session.target.initialTitle || t("unnamedTab")}`}
+                        aria-label={`${t("resume")} - ${displayTitle}`}
                       >
                         {t("resume")}
                       </button>
@@ -151,14 +292,14 @@ export const HistoryList = memo(function HistoryList({
                         e.stopPropagation();
                         onOpenPreview(session.id);
                       }}
-                      aria-label={`${t("preview")} - ${session.target.initialTitle || t("unnamedTab")}`}
+                      aria-label={`${t("preview")} - ${displayTitle}`}
                     >
                       {t("preview")}
                     </button>
                     <button
                       className="btn-delete-icon"
                       title={t("deleteSession")}
-                      aria-label={`${t("deleteSession")} - ${session.target.initialTitle || t("unnamedTab")}`}
+                      aria-label={`${t("deleteSession")} - ${displayTitle}`}
                       onClick={(e) => {
                         e.stopPropagation();
                         onDeleteSession(session.id);

@@ -388,6 +388,27 @@
   "deleteSession": {
     "message": "Delete Session"
   },
+  "renameSession": {
+    "message": "Rename Session"
+  },
+  "renameSessionPlaceholder": {
+    "message": "Enter session name..."
+  },
+  "clickToRename": {
+    "message": "Click to rename session"
+  },
+  "renameFailed": {
+    "message": "Failed to rename session"
+  },
+  "originalPage": {
+    "message": "Original Page"
+  },
+  "save": {
+    "message": "Save"
+  },
+  "cancel": {
+    "message": "Cancel"
+  },
   "timeline": {
     "message": "Timeline"
   },

@@ -551,6 +551,30 @@ export function PopupApp() {
     [searchQuery]
   );
 
+  const handleRenameSession = useCallback(
+    async (sessionId: string, title: string) => {
+      const result = await send("session/rename", { sessionId, title });
+      if (!result.ok) {
+        setErrorText(result.error || t("renameFailed"));
+      } else {
+        setSessions((prev) =>
+          prev.map((item) =>
+            item.session.id === sessionId
+              ? {
+                  ...item,
+                  session: {
+                    ...item.session,
+                    customTitle: title.trim() || undefined,
+                  },
+                }
+              : item
+          )
+        );
+      }
+    },
+    [send]
+  );
+
   const handleResumeSession = useCallback(async (sessionId: string) => {
     const result = await send("session/resume", {
       sessionId,
@@ -754,6 +778,7 @@ export function PopupApp() {
           onSearchChange={setSearchQuery}
           onOpenPreview={(id) => handleOpenPreview(id)}
           onDeleteSession={handleDeleteSession}
+          onRenameSession={handleRenameSession}
           onResumeSession={handleResumeSession}
         />
       </section>
