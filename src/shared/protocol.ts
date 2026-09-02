@@ -26,6 +26,70 @@ export type SessionStatus =
   | "EXPORTED"
   | "FAILED";
 
+/** 会话状态关联的多语言与枚举检索关键词列表（支持中英文与原始枚举） */
+export const SESSION_STATUS_SEARCH_TERMS: Record<
+  SessionStatus,
+  readonly string[]
+> = Object.freeze({
+  IDLE: Object.freeze(["IDLE", "空闲", "Idle"]),
+  PREPARING: Object.freeze(["PREPARING", "准备中", "Preparing", "启动中"]),
+  RECORDING: Object.freeze(["RECORDING", "录制中", "Recording", "正在录制"]),
+  DEGRADED: Object.freeze([
+    "DEGRADED",
+    "降级",
+    "录制中（降级）",
+    "录制中(降级)",
+    "Degraded",
+    "Recording (degraded)",
+    "Recording(degraded)",
+    "recording-degraded",
+    "recording_degraded",
+  ]),
+  STOPPING: Object.freeze([
+    "STOPPING",
+    "正在停止",
+    "正在结束",
+    "停止中",
+    "结束中",
+    "Stopping",
+  ]),
+  PREVIEW_READY: Object.freeze([
+    "PREVIEW_READY",
+    "PREVIEW READY",
+    "preview-ready",
+    "Preview Ready",
+    "Preview-Ready",
+    "PreviewReady",
+    "已就绪",
+    "已完成",
+    "就绪",
+    "完成",
+    "Ready",
+  ]),
+  EXPORTING: Object.freeze(["EXPORTING", "导出中", "正在导出", "Exporting"]),
+  EXPORTED: Object.freeze(["EXPORTED", "已导出", "Exported"]),
+  FAILED: Object.freeze(["FAILED", "失败", "Failed", "失败的"]),
+});
+
+/**
+ * 获取指定状态关联的多语言与枚举检索词集合。
+ * 兼容未识别状态，降级返回自身或空列表；防御 prototype pollution 与非字符串输入。
+ */
+export function getSessionStatusSearchTerms(
+  status?: SessionStatus | string | null
+): readonly string[] {
+  if (!status || typeof status !== "string") {
+    return [];
+  }
+  const upper = status.toUpperCase().replace(/[-\s]+/g, "_");
+  if (
+    Object.prototype.hasOwnProperty.call(SESSION_STATUS_SEARCH_TERMS, upper)
+  ) {
+    return SESSION_STATUS_SEARCH_TERMS[upper as SessionStatus];
+  }
+  return [status];
+}
+
 export type CaptureIssue = {
   code: string;
   message: string;

@@ -12,7 +12,11 @@ import type {
   StorageOverview,
   StoragePolicy,
 } from "../shared/protocol";
-import { ACTIVE_STATUSES } from "../shared/protocol";
+import {
+  ACTIVE_STATUSES,
+  SESSION_STATUS_SEARCH_TERMS,
+  getSessionStatusSearchTerms,
+} from "../shared/protocol";
 import {
   DEFAULT_STORAGE_POLICY,
   estimateBytes,
@@ -51,6 +55,10 @@ export {
   putWithinSessionBudget,
   type BudgetWriteResult,
 } from "./storage-budget.ts";
+export {
+  SESSION_STATUS_SEARCH_TERMS,
+  getSessionStatusSearchTerms,
+} from "../shared/protocol";
 
 /**
  * 证据仓储：封装 IndexedDB 的读写，供 background/offscreen 统一调用。
@@ -225,6 +233,7 @@ function sumBytesByCursor(
 }
 
 async function measureSessionBytes(sessionId: string): Promise<number> {
+  if (!sessionId || typeof sessionId !== "string") return 0;
   const database = await openDb();
   // 跨 7 个证据 store 逐个游标累计字节数；仅在没有缓存用量（storage.usedBytes）时兜底调用
   const storeNames: StoreName[] = [
@@ -285,6 +294,9 @@ async function deleteIssueScene(issueSceneId: string): Promise<void> {
 }
 
 async function evidenceFor(session: RecordingSession) {
+  if (!session?.id || typeof session.id !== "string") {
+    return buildEvidenceSummary(session, { count: 0 }, [], [], 0);
+  }
   const [media, networkEntries, issueScenes, frameworkStates] =
     await Promise.all([
       getMediaSummary(session.id),
@@ -311,10 +323,13 @@ export const db = {
           right.timeline.createdAtEpochMs - left.timeline.createdAtEpochMs
       )
       .slice(0, Math.max(0, limit)),
-  listSessionOverviews: async (query = ""): Promise<SessionOverview[]> => {
+  listSessionOverviews: async (
+    query: string = ""
+  ): Promise<SessionOverview[]> => {
     // 关键词检索（标题/URL/状态/ID 任一命中）+ 按创建时间倒序；
     // 过期时间按 retentionDays 现算，用量优先取缓存、缺失时兜底实测
-    const normalizedQuery = query.trim().toLocaleLowerCase();
+    const normalizedQuery =
+      typeof query === "string" ? query.trim().toLocaleLowerCase() : "";
     const [policy, allSessions] = await Promise.all([
       db.getStoragePolicy(),
       listAll<RecordingSession>("sessions"),
@@ -322,22 +337,25 @@ export const db = {
     const sessions = allSessions
       .filter(
         (session) =>
-          !normalizedQuery ||
-          [
-            session.customTitle,
-            session.target.initialTitle,
-            session.target.initialUrl,
-            session.status,
-            session.id,
-          ].some(
-            (value) =>
-              typeof value === "string" &&
-              value.toLocaleLowerCase().includes(normalizedQuery)
-          )
+          session &&
+          (!normalizedQuery ||
+            [
+              session.customTitle,
+              session.target?.initialTitle,
+              session.target?.initialUrl,
+              session.id,
+              session.status,
+              ...getSessionStatusSearchTerms(session.status),
+            ].some(
+              (value) =>
+                typeof value === "string" &&
+                value.toLocaleLowerCase().includes(normalizedQuery)
+            ))
       )
       .sort(
         (left, right) =>
-          right.timeline.createdAtEpochMs - left.timeline.createdAtEpochMs
+          (right?.timeline?.createdAtEpochMs ?? 0) -
+          (left?.timeline?.createdAtEpochMs ?? 0)
       );
     return Promise.all(
       sessions.map(async (session) => {
@@ -348,7 +366,7 @@ export const db = {
           evidence: await evidenceFor(session),
           sizeBytes,
           expiresAtEpochMs: expiresAt(
-            session.timeline.createdAtEpochMs,
+            session?.timeline?.createdAtEpochMs ?? Date.now(),
             policy.retentionDays
           ),
         };

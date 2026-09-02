@@ -10,7 +10,9 @@ import { t } from "../shared/i18n.ts";
 type MediaSummary = { count: number; mimeType?: string };
 
 function hasIssue(session: RecordingSession, source: string): boolean {
-  return session.quality.issues.some((entry) => entry.source === source);
+  return (session?.quality?.issues ?? []).some(
+    (entry) => entry.source === source
+  );
 }
 
 /**
@@ -40,11 +42,36 @@ export function buildEvidenceSummary(
   issueScenes: IssueScene[] = [],
   frameworkStateCount = 0
 ): EvidenceSummary[] {
+  const quality = session?.quality ?? {
+    overall: "complete",
+    interactionCount: 0,
+    confirmedInteractionCount: 0,
+    primaryScreenshotCount: 0,
+    fallbackScreenshotCount: 0,
+    unavailableScreenshotCount: 0,
+    consoleEntryCount: 0,
+    networkEntryCount: 0,
+    issues: [],
+  };
+  const options = session?.options ?? {
+    captureAudio: false,
+    captureVideo: false,
+    captureScreenshots: false,
+    captureConsole: false,
+    captureNetwork: false,
+    captureNetworkBodies: false,
+    privacyMode: "safe" as const,
+    mediaTimesliceMs: 1000,
+    maxResponseBodyBytes: 0,
+    maxSessionBytes: 0,
+  };
   const screenshotCount =
-    session.quality.primaryScreenshotCount +
-    session.quality.fallbackScreenshotCount;
-  const unavailableScreenshots = session.quality.unavailableScreenshotCount;
-  const networkBodyEntries = networkEntries.filter((entry) => entry.response);
+    (quality.primaryScreenshotCount ?? 0) +
+    (quality.fallbackScreenshotCount ?? 0);
+  const unavailableScreenshots = quality.unavailableScreenshotCount ?? 0;
+  const networkBodyEntries = (networkEntries ?? []).filter(
+    (entry) => entry?.response
+  );
   const bodyBytes = networkBodyEntries.reduce(
     (total, entry) =>
       total +
@@ -62,12 +89,13 @@ export function buildEvidenceSummary(
       entry.response?.bodyStatus === "unavailable" ||
       entry.response?.bodyStatus === "pending"
   ).length;
+  const mediaCount = media?.count ?? 0;
   const videoState = enabledState(
-    session.options.captureVideo,
-    media.count,
+    Boolean(options.captureVideo),
+    mediaCount,
     hasIssue(session, "media")
   );
-  const screenshotState = !session.options.captureScreenshots
+  const screenshotState = !options.captureScreenshots
     ? "disabled"
     : unavailableScreenshots
       ? screenshotCount
@@ -75,17 +103,17 @@ export function buildEvidenceSummary(
         : "failed"
       : "captured";
   const consoleState = enabledState(
-    session.options.captureConsole,
-    session.quality.consoleEntryCount,
+    Boolean(options.captureConsole),
+    quality.consoleEntryCount ?? 0,
     hasIssue(session, "debugger")
   );
   const networkState = enabledState(
-    session.options.captureNetwork,
-    session.quality.networkEntryCount,
+    Boolean(options.captureNetwork),
+    quality.networkEntryCount ?? 0,
     hasIssue(session, "debugger")
   );
   let bodiesState: EvidenceState = "disabled";
-  if (session.options.captureNetwork && session.options.captureNetworkBodies) {
+  if (options.captureNetwork && options.captureNetworkBodies) {
     bodiesState = redactedBodyCount
       ? "redacted"
       : unavailableBodyCount
@@ -95,31 +123,40 @@ export function buildEvidenceSummary(
         : "captured";
   }
 
+  const safeIssueScenes = issueScenes ?? [];
+  const issueScenesState: EvidenceState = safeIssueScenes.some(
+    (scene) => scene?.status === "failed"
+  )
+    ? safeIssueScenes.some((scene) => scene?.status === "complete")
+      ? "partial"
+      : "failed"
+    : safeIssueScenes.some((scene) => scene?.status === "partial")
+      ? "partial"
+      : "captured";
+
   return [
     {
       kind: "video",
       state: videoState,
-      count: media.count,
+      count: mediaCount,
       sizeBytes: 0,
-      detail: media.count
-        ? t("webmChunks", String(media.count))
+      detail: mediaCount
+        ? t("webmChunks", String(mediaCount))
         : t("videoNotCaptured"),
     },
     {
       kind: "audio",
-      state: !session.options.captureAudio ? "disabled" : videoState,
-      count: session.options.captureAudio && media.count ? 1 : 0,
+      state: !options.captureAudio ? "disabled" : videoState,
+      count: options.captureAudio && mediaCount ? 1 : 0,
       sizeBytes: 0,
-      detail: session.options.captureAudio
-        ? t("audioReused")
-        : t("notCaptured"),
+      detail: options.captureAudio ? t("audioReused") : t("notCaptured"),
     },
     {
       kind: "screenshots",
       state: screenshotState,
       count: screenshotCount,
       sizeBytes: 0,
-      detail: !session.options.captureScreenshots
+      detail: !options.captureScreenshots
         ? t("notCaptured")
         : unavailableScreenshots
           ? t("screenshotDetailPartial", [
@@ -130,39 +167,33 @@ export function buildEvidenceSummary(
     },
     {
       kind: "issueScenes",
-      state: issueScenes.some((scene) => scene.status === "failed")
-        ? issueScenes.some((scene) => scene.status === "complete")
-          ? "partial"
-          : "failed"
-        : issueScenes.some((scene) => scene.status === "partial")
-          ? "partial"
-          : "captured",
-      count: issueScenes.length,
+      state: issueScenesState,
+      count: safeIssueScenes.length,
       sizeBytes: 0,
-      detail: issueScenes.length
-        ? t("issueSceneCountDetail", String(issueScenes.length))
+      detail: safeIssueScenes.length
+        ? t("issueSceneCountDetail", String(safeIssueScenes.length))
         : t("noIssueScene"),
     },
     {
       kind: "console",
       state: consoleState,
-      count: session.quality.consoleEntryCount,
+      count: quality.consoleEntryCount ?? 0,
       sizeBytes: 0,
-      detail: t("countEntries", String(session.quality.consoleEntryCount)),
+      detail: t("countEntries", String(quality.consoleEntryCount ?? 0)),
     },
     {
       kind: "network",
       state: networkState,
-      count: session.quality.networkEntryCount,
+      count: quality.networkEntryCount ?? 0,
       sizeBytes: 0,
-      detail: t("countEntries", String(session.quality.networkEntryCount)),
+      detail: t("countEntries", String(quality.networkEntryCount ?? 0)),
     },
     {
       kind: "networkBodies",
       state: bodiesState,
       count: networkBodyEntries.length,
       sizeBytes: bodyBytes,
-      detail: !session.options.captureNetworkBodies
+      detail: !options.captureNetworkBodies
         ? t("notCaptured")
         : redactedBodyCount && truncatedBodyCount
           ? t("redactedAndTruncatedBodies", [
@@ -177,14 +208,14 @@ export function buildEvidenceSummary(
     },
     {
       kind: "frameworkStates",
-      state: !session.options.captureFrameworkState
+      state: !options.captureFrameworkState
         ? "disabled"
         : frameworkStateCount > 0
           ? "captured"
           : "partial",
       count: frameworkStateCount,
       sizeBytes: 0,
-      detail: !session.options.captureFrameworkState
+      detail: !options.captureFrameworkState
         ? t("notCaptured")
         : frameworkStateCount > 0
           ? t("frameworkFrames", String(frameworkStateCount))
