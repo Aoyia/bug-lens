@@ -166,7 +166,7 @@ pnpm run typecheck
 pnpm run package
 ```
 
-产物位置：根目录下生成 `dist-zip/bug-lens-v0.7.32.zip`
+产物位置：根目录下生成 `dist-zip/bug-lens-v0.7.33.zip`
 
 ### 步骤 2: 提交至 Chrome Developer Dashboard
 
