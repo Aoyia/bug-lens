@@ -571,6 +571,7 @@ export function sanitizeConsoleEntry(
     ...entry,
     text: sanitizeText(entry.text, mode, 8_192),
     source: entry.source ? sanitizeUrl(entry.source, mode) : undefined,
+    url: entry.url ? sanitizeUrl(entry.url, mode) : undefined,
     category: entry.category
       ? sanitizeText(entry.category, mode, 128, false)
       : undefined,

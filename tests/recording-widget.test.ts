@@ -815,3 +815,391 @@ describe("RecordingWidget - i18n", () => {
     assert.match(enDict.widgetBubbleGotIt.message, /Start|Reproduce/i);
   });
 });
+
+describe("RecordingWidget - Smooth Close and Saving Lifecycle", () => {
+  let widget: RecordingWidget;
+  let mockRootElement: any;
+  const callbacks = {
+    onStop: () => {},
+    onMarkIssue: () => {},
+    getStartedAtEpochMs: () => Date.now(),
+    isIdlePaused: () => false,
+  };
+
+  let stopBtnMock: any;
+  let issueBtnMock: any;
+  let dragHandleMock: any;
+  let stopCallCount = 0;
+  let issueCallCount = 0;
+
+  beforeEach(() => {
+    stopCallCount = 0;
+    issueCallCount = 0;
+    const createMockBtn = () => {
+      const btnListeners = new Map<string, Function[]>();
+      return {
+        style: {},
+        disabled: false,
+        textContent: "",
+        title: "",
+        addEventListener(event: string, fn: Function) {
+          if (!btnListeners.has(event)) btnListeners.set(event, []);
+          btnListeners.get(event)!.push(fn);
+        },
+        removeEventListener(event: string, fn: Function) {
+          if (btnListeners.has(event)) {
+            const arr = btnListeners.get(event)!;
+            const idx = arr.indexOf(fn);
+            if (idx >= 0) arr.splice(idx, 1);
+          }
+        },
+        dispatchEvent(evt: any) {
+          const fns = btnListeners.get(evt.type) || [];
+          fns.forEach((fn) => fn(evt));
+        },
+        click() {
+          const fns = btnListeners.get("click") || [];
+          fns.forEach((fn) =>
+            fn({
+              stopPropagation() {},
+              preventDefault() {},
+              clientX: 10,
+              clientY: 10,
+            })
+          );
+        },
+      };
+    };
+    stopBtnMock = createMockBtn();
+    issueBtnMock = createMockBtn();
+    dragHandleMock = createMockBtn();
+
+    const classSet = new Set<string>();
+    mockRootElement = {
+      id: "__wbr_recording_widget__",
+      getBoundingClientRect() {
+        return {
+          left: 10,
+          top: 10,
+          right: 100,
+          bottom: 50,
+          width: 90,
+          height: 40,
+        };
+      },
+      style: {
+        setProperty() {},
+      },
+      classList: {
+        add(cls: string) {
+          classSet.add(cls);
+        },
+        remove(cls: string) {
+          classSet.delete(cls);
+        },
+        contains(cls: string) {
+          return classSet.has(cls);
+        },
+      },
+      setAttribute() {},
+      addEventListener() {},
+      removeEventListener() {},
+      querySelector(sel: string) {
+        if (sel.includes("timer_display")) {
+          return { innerHTML: "", textContent: "" };
+        }
+        if (sel.includes("stop_btn")) {
+          return stopBtnMock;
+        }
+        if (sel.includes("issue_btn")) {
+          return issueBtnMock;
+        }
+        if (sel.includes("drag_handle")) {
+          return dragHandleMock;
+        }
+        return null;
+      },
+      remove() {},
+    };
+
+    (globalThis as any).document = {
+      body: {
+        appendChild() {},
+      },
+      createElement() {
+        return mockRootElement;
+      },
+    };
+    const winListeners = new Map<string, Function[]>();
+    (globalThis as any).window = {
+      top: {},
+      addEventListener(type: string, fn: Function) {
+        if (!winListeners.has(type)) winListeners.set(type, []);
+        winListeners.get(type)!.push(fn);
+      },
+      removeEventListener(type: string, fn: Function) {
+        if (winListeners.has(type)) {
+          const arr = winListeners.get(type)!;
+          const idx = arr.indexOf(fn);
+          if (idx >= 0) arr.splice(idx, 1);
+        }
+      },
+      setInterval() {
+        return 1;
+      },
+      clearInterval() {},
+      setTimeout(fn: () => void, ms: number) {
+        return setTimeout(fn, ms);
+      },
+      clearTimeout(id: any) {
+        clearTimeout(id);
+      },
+    };
+    (globalThis as any).window.top = (globalThis as any).window;
+  });
+
+  afterEach(() => {
+    if (widget?.container) {
+      widget.unmount();
+    }
+  });
+
+  test("closeSmoothly 添加 __wbr_closing__ 类并平滑卸载挂件", async () => {
+    widget = new RecordingWidget({
+      ...callbacks,
+      onStop: () => {
+        stopCallCount++;
+      },
+    });
+    widget.mount();
+    assert.equal(widget.container !== undefined, true);
+    assert.equal(widget.isClosing, false);
+
+    const closePromise = widget.closeSmoothly(20);
+    assert.equal(widget.isClosing, true);
+    assert.equal(mockRootElement.classList.contains("__wbr_closing__"), true);
+    await closePromise;
+    assert.equal(widget.isClosing, false);
+    assert.equal(widget.container, undefined);
+  });
+
+  test("closeSmoothly 并发调用返回同一 Promise，同时等待完成", async () => {
+    widget = new RecordingWidget(callbacks);
+    widget.mount();
+
+    const p1 = widget.closeSmoothly(25);
+    const p2 = widget.closeSmoothly(25);
+    assert.equal(p1, p2);
+    await Promise.all([p1, p2]);
+    assert.equal(widget.container, undefined);
+  });
+
+  test("在 closeSmoothly 执行期间调用 mount()，中止正在关闭的旧挂件并成功挂载新挂件", async () => {
+    widget = new RecordingWidget(callbacks);
+    widget.mount();
+    assert.equal(widget.container !== undefined, true);
+
+    const closePromise = widget.closeSmoothly(50);
+    assert.equal(widget.isClosing, true);
+
+    // 在关闭过程中重新 mount（如快速开启新会话）
+    widget.mount();
+    assert.equal(widget.isClosing, false);
+    assert.equal(widget.container !== undefined, true);
+
+    // 原关闭任务即使到期，也不得销毁新挂载的 widget
+    await closePromise;
+    assert.equal(widget.container !== undefined, true);
+  });
+
+  test("在 closeSmoothly 执行期间调用 unmount()，清理定时器并正常 resolve", async () => {
+    widget = new RecordingWidget(callbacks);
+    widget.mount();
+
+    const closePromise = widget.closeSmoothly(50);
+    assert.equal(widget.isClosing, true);
+
+    widget.unmount();
+    assert.equal(widget.isClosing, false);
+    assert.equal(widget.container, undefined);
+
+    // closePromise 应当正常 resolve 而不是 hang
+    await closePromise;
+  });
+
+  test("isSaving 或 isClosing 状态下点击 stop 与 issue 按钮被拦截，不触发重复回调", () => {
+    widget = new RecordingWidget({
+      ...callbacks,
+      onStop: () => {
+        stopCallCount++;
+      },
+      onMarkIssue: () => {
+        issueCallCount++;
+      },
+    });
+    widget.mount();
+
+    // 正常状态点击：应当触发
+    stopBtnMock.click();
+    issueBtnMock.click();
+    assert.equal(stopCallCount, 1);
+    assert.equal(issueCallCount, 1);
+
+    // setSavingState(true) 状态下点击：应当被拦截阻断
+    widget.setSavingState(true);
+    stopBtnMock.click();
+    issueBtnMock.click();
+    assert.equal(stopCallCount, 1);
+    assert.equal(issueCallCount, 1);
+
+    // 恢复正常后点击：恢复响应
+    widget.setSavingState(false);
+    stopBtnMock.click();
+    assert.equal(stopCallCount, 2);
+
+    // closeSmoothly 关闭状态下点击：应当被拦截阻断
+    void widget.closeSmoothly(50);
+    stopBtnMock.click();
+    issueBtnMock.click();
+    assert.equal(stopCallCount, 2);
+    assert.equal(issueCallCount, 1);
+  });
+
+  test("setSavingState(true) 激活 isSaving 状态并在挂件添加 __wbr_saving__ 类", () => {
+    widget = new RecordingWidget(callbacks);
+    widget.mount();
+    assert.equal(widget.isSaving, false);
+
+    widget.setSavingState(true);
+    assert.equal(widget.isSaving, true);
+    assert.equal(mockRootElement.classList.contains("__wbr_saving__"), true);
+
+    widget.setSavingState(false);
+    assert.equal(widget.isSaving, false);
+    assert.equal(mockRootElement.classList.contains("__wbr_saving__"), false);
+  });
+
+  test("未 mount 时调用 closeSmoothly 安全返回无异常", async () => {
+    widget = new RecordingWidget(callbacks);
+    assert.equal(widget.container, undefined);
+    await widget.closeSmoothly(10);
+    assert.equal(widget.container, undefined);
+  });
+
+  test("closeSmoothly(0) 立即卸载挂件并 resolve", async () => {
+    widget = new RecordingWidget(callbacks);
+    widget.mount();
+    assert.equal(widget.container !== undefined, true);
+    await widget.closeSmoothly(0);
+    assert.equal(widget.isClosing, false);
+    assert.equal(widget.container, undefined);
+  });
+
+  test("isClosing 状态下调用 setSavingState 无效，不破坏关闭状态", async () => {
+    widget = new RecordingWidget(callbacks);
+    widget.mount();
+    const p = widget.closeSmoothly(30);
+    assert.equal(widget.isClosing, true);
+    widget.setSavingState(true);
+    widget.setSavingState(false);
+    assert.equal(widget.isClosing, true);
+    await p;
+    assert.equal(widget.container, undefined);
+  });
+
+  test("isClosing 状态下 updateLanguage、updatePauseState 与 updateHealth 安全忽略不操作 DOM", async () => {
+    widget = new RecordingWidget(callbacks);
+    widget.mount();
+    const p = widget.closeSmoothly(30);
+    widget.updateLanguage();
+    widget.updatePauseState(true);
+    widget.updateHealth({ badgeColor: "#000", message: "ok" });
+    assert.equal(widget.isClosing, true);
+    await p;
+  });
+
+  test("setSavingState(false) 恢复非保存状态并触发自动折叠定时器", () => {
+    let timeoutMs = 0;
+    const origSetTimeout = (globalThis as any).window.setTimeout;
+    (globalThis as any).window.setTimeout = (fn: () => void, ms: number) => {
+      timeoutMs = ms;
+      return 999;
+    };
+    try {
+      widget = new RecordingWidget(callbacks);
+      widget.mount();
+      widget.setSavingState(true);
+      widget.setSavingState(false);
+      assert.equal(widget.isSaving, false);
+      assert.equal(timeoutMs, 1500);
+    } finally {
+      (globalThis as any).window.setTimeout = origSetTimeout;
+    }
+  });
+
+  test("isSaving 状态下 updateLanguage、updatePauseState 与 updateHealth 安全忽略不操作 DOM", () => {
+    widget = new RecordingWidget(callbacks);
+    widget.mount();
+    widget.setSavingState(true);
+    assert.equal(widget.isSaving, true);
+
+    widget.updateLanguage();
+    widget.updatePauseState(true);
+    widget.updateHealth({ badgeColor: "#000", message: "warn" });
+    assert.equal(widget.isSaving, true);
+    assert.equal(mockRootElement.classList.contains("__wbr_saving__"), true);
+  });
+
+  test("closeSmoothly(NaN) 安全回退默认时长并正常关闭", async () => {
+    widget = new RecordingWidget(callbacks);
+    widget.mount();
+    assert.equal(widget.container !== undefined, true);
+    // 传入 NaN，测试内部 safeDuration 防御性机制生效且顺利 resolve
+    const p = widget.closeSmoothly(NaN as any);
+    assert.equal(widget.isClosing, true);
+    // 手动调用 unmount 加速结束测试并验证状态闭环
+    widget.unmount();
+    await p;
+    assert.equal(widget.container, undefined);
+  });
+
+  test("在拖拽过程中调用 unmount()，能通过 cleanupDragListeners 干净移除 window 事件监听器", () => {
+    let windowRemoveCount = 0;
+    const origRemoveEventListener = (globalThis as any).window
+      .removeEventListener;
+    (globalThis as any).window.removeEventListener = (
+      type: string,
+      fn: any
+    ) => {
+      if (type === "mousemove" || type === "mouseup") {
+        windowRemoveCount++;
+      }
+      return origRemoveEventListener.call((globalThis as any).window, type, fn);
+    };
+
+    try {
+      widget = new RecordingWidget(callbacks);
+      widget.mount();
+
+      // 触发 mousedown 开启拖拽
+      const dragHandle = mockRootElement.querySelector(".__wbr_drag_handle");
+      assert.ok(dragHandle);
+      dragHandle.dispatchEvent({
+        type: "mousedown",
+        stopPropagation() {},
+        preventDefault() {},
+        clientX: 100,
+        clientY: 200,
+      });
+
+      // 在拖拽中突然卸载
+      widget.unmount();
+      assert.ok(
+        windowRemoveCount >= 2,
+        "卸载时应当清理 mousemove 与 mouseup 监听器"
+      );
+    } finally {
+      (globalThis as any).window.removeEventListener = origRemoveEventListener;
+    }
+  });
+});

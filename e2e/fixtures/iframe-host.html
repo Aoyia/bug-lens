@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Bug Lens E2E Iframe Host Page</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        padding: 2rem;
+        background: #f8fafc;
+      }
+      .card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        margin-bottom: 1.5rem;
+      }
+      button {
+        padding: 8px 16px;
+        background: #2563eb;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #1d4ed8;
+      }
+      input {
+        padding: 6px 12px;
+        border: 1px solid #d1d5db;
+        border-radius: 4px;
+        width: 260px;
+      }
+      .iframe-container {
+        margin-top: 20px;
+        padding: 15px;
+        background: #f1f5f9;
+        border-radius: 6px;
+      }
+      iframe {
+        border: 2px solid #3b82f6;
+        border-radius: 6px;
+        width: 500px;
+        height: 250px;
+        display: block;
+        margin-top: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Bug Lens 多 Frame / Iframe 嵌入测试基准</h1>
+      <p>主页面包含独立输入、点击与网络请求，下方嵌入了独立 iframe 子应用。</p>
+
+      <div
+        style="display: flex; gap: 10px; align-items: center; margin-top: 15px"
+      >
+        <input
+          type="text"
+          id="host-input"
+          data-testid="host-input"
+          placeholder="主页面输入文字"
+        />
+        <button
+          id="host-btn"
+          data-testid="host-btn"
+          onclick="handleHostClick()"
+        >
+          主页面点击 (Top Frame Click)
+        </button>
+      </div>
+      <div
+        id="host-status"
+        data-testid="host-status"
+        style="margin-top: 10px; font-size: 14px; color: #475569"
+      >
+        主页面就绪
+      </div>
+
+      <div class="iframe-container">
+        <h3>嵌入式子系统 (Subframe Container)</h3>
+        <iframe
+          id="child-frame"
+          data-testid="child-frame"
+          src="/iframe-child.html"
+        ></iframe>
+      </div>
+    </div>
+
+    <script>
+      function handleHostClick() {
+        document.getElementById("host-status").textContent =
+          "主页面点击已被记录 " + Date.now();
+        console.log("[E2E-HOST] 主页面顶级 Frame 普通点击事件已触发");
+      }
+    </script>
+  </body>
+</html>

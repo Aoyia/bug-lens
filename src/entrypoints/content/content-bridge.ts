@@ -35,6 +35,9 @@ export function ensureScreenshotOverlayBridge(options: {
   onMessage: (fn: (msg: any) => void) => void;
   sendMessage: (msg: unknown) => Promise<unknown>;
 }): boolean {
+  if (typeof window !== "undefined" && window.top && window.top !== window) {
+    return false;
+  }
   if (window.__WEB_BUG_RECORDER_SCREENSHOT_LISTENER__) return false;
   window.__WEB_BUG_RECORDER_SCREENSHOT_LISTENER__ = true;
 

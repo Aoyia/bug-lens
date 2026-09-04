@@ -382,8 +382,18 @@ export function createSessionLifecycle(
       note?: string;
     }> = [];
 
-    if (["PREVIEW_READY", "EXPORTED", "FAILED"].includes(session.status))
-      return session;
+    if (["EXPORTED", "FAILED"].includes(session.status)) return session;
+
+    if (session.status === "PREVIEW_READY") {
+      if (!silentExport) return session;
+      recordingCoordinator.beginStopping(session.id);
+      try {
+        return await performSilentExport(session, tTraceStart, e2eMetrics);
+      } finally {
+        recordingCoordinator.finishStopping(session.id);
+      }
+    }
+
     const stopping = await ctx.applySessionEvent(session.id, {
       type: "stop-requested",
       atEpochMs: Date.now(),
@@ -445,7 +455,9 @@ export function createSessionLifecycle(
       );
     } finally {
       await cdpCollector.detach(session.target.tabId);
-      await contentScripts.remove(session.target.tabId);
+      if (!silentExport) {
+        await contentScripts.remove(session.target.tabId);
+      }
       streamHealthMonitor.reset(session.target.tabId);
     }
     const tCleanupEnd = performance.now();
@@ -486,105 +498,117 @@ export function createSessionLifecycle(
       if (!next)
         throw new Error(`未找到会话 (SESSION_NOT_FOUND:${session.id})`);
       if (silentExport) {
-        let prompt: string | undefined;
-        let packResult: SilentExportPackResult | undefined;
-        let caughtError: unknown;
-        let downloadDurationMs = 0;
-        let downloadSizeStr: string | undefined;
-        try {
-          await ensureOffscreenDocument();
-          packResult = (await chrome.runtime.sendMessage(
-            message(
-              "offscreen/export-pack",
-              { sessionId: session.id },
-              undefined,
-              "offscreen"
-            )
-          )) as SilentExportPackResult;
-
-          if (packResult?.queryTimeMs !== undefined) {
-            e2eMetrics.push({
-              step: "2. 证据数据读取与 AI 报告组装",
-              durationMs: packResult.queryTimeMs,
-              note: "IndexedDB 读取会话/日志/截图索引并生成 Prompt",
-            });
-          }
-          if (packResult?.packTimeMs !== undefined) {
-            e2eMetrics.push({
-              step: "3. ZIP 封包与哈希流式写入",
-              durationMs: packResult.packTimeMs,
-              size:
-                packResult.totalBytes !== undefined
-                  ? `${(packResult.totalBytes / (1024 * 1024)).toFixed(2)} MB`
-                  : undefined,
-              note: `${packResult.totalEntries ?? 0} 个条目打包完成`,
-            });
-          }
-
-          if (packResult?.ok && packResult.blobUrl && packResult.filename) {
-            const tDownloadStart = performance.now();
-            const downloadId = await chrome.downloads.download({
-              url: packResult.blobUrl,
-              filename: packResult.filename,
-              saveAs: false,
-            });
-            prompt = packResult.prompt;
-            if (downloadId && prompt) {
-              const absolutePath =
-                await ctx.resolveDownloadedFilePath(downloadId);
-              if (absolutePath) {
-                prompt = injectAbsolutePathToPrompt(
-                  prompt,
-                  packResult.filename,
-                  absolutePath
-                );
-              }
-            }
-            downloadDurationMs = performance.now() - tDownloadStart;
-            e2eMetrics.push({
-              step: "4. 浏览器下载与本地绝对路径解析",
-              durationMs: downloadDurationMs,
-              note: "chrome.downloads 下载与操作系统路径探测",
-            });
-          }
-        } catch (err) {
-          caughtError = err;
-        }
-        const silentExportResult = resolveSilentExportResult(
-          packResult,
-          caughtError
-        );
-        if (packResult?.perfReport) {
-          silentExportResult.perfReport = packResult.perfReport;
-        }
-        silentExportResult.e2eMetrics = e2eMetrics;
-
-        if (!silentExportResult.ok) {
-          const failed = await db.updateSession(session.id, (current) => ({
-            ...reduceSession(
-              current,
-              buildSilentExportFailureEvent(
-                silentExportResult.error ?? t("unknownError"),
-                current.options.privacyMode
-              )
-            ),
-            previewPending: true,
-          }));
-          if (failed)
-            return {
-              ...failed,
-              silentPrompt: prompt,
-              silentExportResult,
-            };
-        } else {
-          await db.clearActive(session.id);
-        }
-        return { ...next, silentPrompt: prompt, silentExportResult };
+        return await performSilentExport(next, tTraceStart, e2eMetrics);
       }
       return await openPendingPreview(next, autoExport);
     } finally {
       recordingCoordinator.finishStopping(session.id);
     }
+  }
+
+  async function performSilentExport(
+    session: RecordingSession,
+    tTraceStart: number,
+    e2eMetrics: Array<{
+      step: string;
+      durationMs: number;
+      size?: string;
+      note?: string;
+    }>
+  ): Promise<RecordingSession> {
+    let prompt: string | undefined;
+    let packResult: SilentExportPackResult | undefined;
+    let caughtError: unknown;
+    let downloadDurationMs = 0;
+    try {
+      await ensureOffscreenDocument();
+      packResult = (await chrome.runtime.sendMessage(
+        message(
+          "offscreen/export-pack",
+          { sessionId: session.id },
+          undefined,
+          "offscreen"
+        )
+      )) as SilentExportPackResult;
+
+      if (packResult?.queryTimeMs !== undefined) {
+        e2eMetrics.push({
+          step: "2. 证据数据读取与 AI 报告组装",
+          durationMs: packResult.queryTimeMs,
+          note: "IndexedDB 读取会话/日志/截图索引并生成 Prompt",
+        });
+      }
+      if (packResult?.packTimeMs !== undefined) {
+        e2eMetrics.push({
+          step: "3. ZIP 封包与哈希流式写入",
+          durationMs: packResult.packTimeMs,
+          size:
+            packResult.totalBytes !== undefined
+              ? `${(packResult.totalBytes / (1024 * 1024)).toFixed(2)} MB`
+              : undefined,
+          note: `${packResult.totalEntries ?? 0} 个条目打包完成`,
+        });
+      }
+
+      if (packResult?.ok && packResult.blobUrl && packResult.filename) {
+        const tDownloadStart = performance.now();
+        const downloadId = await chrome.downloads.download({
+          url: packResult.blobUrl,
+          filename: packResult.filename,
+          saveAs: false,
+        });
+        prompt = packResult.prompt;
+        if (downloadId && prompt) {
+          const absolutePath = await ctx.resolveDownloadedFilePath(downloadId);
+          if (absolutePath) {
+            prompt = injectAbsolutePathToPrompt(
+              prompt,
+              packResult.filename,
+              absolutePath
+            );
+          }
+        }
+        downloadDurationMs = performance.now() - tDownloadStart;
+        e2eMetrics.push({
+          step: "4. 浏览器下载与本地绝对路径解析",
+          durationMs: downloadDurationMs,
+          note: "chrome.downloads 下载与操作系统路径探测",
+        });
+      }
+    } catch (err) {
+      caughtError = err;
+    }
+    const silentExportResult = resolveSilentExportResult(
+      packResult,
+      caughtError
+    );
+    if (packResult?.perfReport) {
+      silentExportResult.perfReport = packResult.perfReport;
+    }
+    silentExportResult.e2eMetrics = e2eMetrics;
+
+    if (!silentExportResult.ok) {
+      const failed = await db.updateSession(session.id, (current) => ({
+        ...reduceSession(
+          current,
+          buildSilentExportFailureEvent(
+            silentExportResult.error ?? t("unknownError"),
+            current.options.privacyMode
+          )
+        ),
+        previewPending: true,
+      }));
+      if (failed)
+        return {
+          ...failed,
+          silentPrompt: prompt,
+          silentExportResult,
+        };
+    } else {
+      await db.clearActive(session.id);
+      await contentScripts.remove(session.target.tabId).catch(() => undefined);
+    }
+    return { ...session, silentPrompt: prompt, silentExportResult };
   }
 
   /** 幂等停止：同 commandId 已入库则直接复用其关联会话，保证一条停止指令只执行一次。 */

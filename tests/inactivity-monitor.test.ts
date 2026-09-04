@@ -146,4 +146,40 @@ describe("InactivityMonitor - 暂停/继续竞态修复 (A3)", () => {
     assert.equal(onResumeCalls, 1);
     monitor.stop();
   });
+
+  test("recordActivity() 外部心跳能重置闲置倒计时防止误暂停", () => {
+    monitor.start();
+    mock.timers.tick(20_000);
+    fw.tickAllIntervals();
+    assert.equal(monitor.isIdlePaused, false);
+
+    // 外部（如子 iframe 交互）调用 recordActivity() 刷新活跃时间
+    monitor.recordActivity();
+
+    // 再过去 15 秒（总计 35 秒，但离上次 recordActivity 仅 15 秒）
+    mock.timers.tick(15_000);
+    fw.tickAllIntervals();
+    assert.equal(monitor.isIdlePaused, false, "心跳刷新后不应在 30 秒时误暂停");
+
+    // 再过去 16 秒（离 recordActivity 超过 30 秒），应正常触发闲置暂停
+    mock.timers.tick(16_000);
+    fw.tickAllIntervals();
+    assert.equal(monitor.isIdlePaused, true, "超时后仍应正常触发闲置暂停");
+    assert.equal(onPauseCalls, 1);
+    monitor.stop();
+  });
+
+  test("闲置暂停状态下调用 recordActivity() 自动恢复录制", () => {
+    monitor.start();
+    mock.timers.tick(31_000);
+    fw.tickAllIntervals();
+    assert.equal(monitor.isIdlePaused, true, "应已进入闲置暂停");
+    assert.equal(onPauseCalls, 1);
+
+    // 收到外部交互心跳，自动恢复录制
+    monitor.recordActivity();
+    assert.equal(monitor.isIdlePaused, false, "心跳应自动恢复闲置暂停");
+    assert.equal(onResumeCalls, 1, "应调用 onResume");
+    monitor.stop();
+  });
 });

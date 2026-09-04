@@ -116,6 +116,7 @@ function renderNetworkDetailHtml(entry?: NetworkEntry): string {
     <div class="network-detail-view">
       <div class="network-detail-header"><span>${t("requestDetails")}</span><button id="btn-copy-curl" class="btn-copy-curl" title="${t("copyAsCurl")}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span class="btn-copy-curl-text">${t("copyCurl")}</span></button></div>
       <div class="network-detail-url"><strong>${escapeHtml((entry.method || "GET").toUpperCase())}</strong> ${escapeHtml(entry.url)}</div>
+      <div class="network-detail-frame"><strong>Frame:</strong> ${escapeHtml(entry.frameId ? `Frame [${entry.frameId}]${entry.documentUrl ? ` (${entry.documentUrl})` : ""}` : "Top Frame")}</div>
       ${headerBlock}
       <div class="network-detail-section"><details open><summary>${t("responseBodyHeader", escapeHtml(response?.mimeType || t("unknownMime")))} ${response?.byteLength != null ? `(${formatBytes(response.byteLength)})` : ""}</summary><div class="network-detail-content">${body}</div></details></div>
     </div>
@@ -284,6 +285,20 @@ export const NetworkTab = memo(function NetworkTab({
                       {(entry.method || "GET").toUpperCase()}
                     </span>
                     <span className="col-url" title={entry.url}>
+                      <span
+                        className={`network-frame-badge ${entry.frameId ? "badge-subframe" : "badge-topframe"}`}
+                        title={
+                          entry.frameId
+                            ? entry.documentUrl
+                              ? `${entry.documentUrl} (Frame [${entry.frameId}])`
+                              : `Frame [${entry.frameId}]`
+                            : "Top Frame"
+                        }
+                      >
+                        {entry.frameId
+                          ? `Frame [${entry.frameId}]`
+                          : "Top Frame"}
+                      </span>
                       {entry.url}
                     </span>
                     <span className="col-size">{size}</span>

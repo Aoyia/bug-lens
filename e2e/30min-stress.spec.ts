@@ -136,9 +136,11 @@ test.describe("Bug Lens 30 分钟连续录制长效压力与零丢包 E2E 测试
 
     // 3. 停止录制并校验落盘数据
     await targetPage.locator("#__wbr_stop_btn__").click();
-    await delay(2000);
-
-    const finalSession = await mediaProbe.getSession(sessionId);
+    const finalSession = await mediaProbe.waitForSessionStatus(
+      sessionId,
+      "PREVIEW_READY",
+      30_000
+    );
     const finalChunkCount = await mediaProbe.mediaChunkCount(sessionId);
 
     logE2e("压力测试完成，数据落盘校验", {

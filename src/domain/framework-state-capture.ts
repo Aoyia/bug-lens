@@ -153,6 +153,7 @@ export function captureFrameworkState(input: {
   sessionId: string;
   trigger: FrameworkStateTrigger;
   privacyMode: "safe" | "raw";
+  frameId?: number;
 }): FrameworkStateEvidence {
   const now = Date.now();
   const snapshot = captureTree();
@@ -167,7 +168,12 @@ export function captureFrameworkState(input: {
     page: {
       url: typeof location !== "undefined" ? location.href : "about:blank",
       title: typeof document !== "undefined" ? document.title : "",
-      frameId: typeof window !== "undefined" && window.top === window ? 0 : -1,
+      frameId:
+        input.frameId !== undefined
+          ? input.frameId
+          : typeof window !== "undefined" && window.top === window
+            ? 0
+            : -1,
       viewport:
         typeof window !== "undefined"
           ? { width: window.innerWidth, height: window.innerHeight }

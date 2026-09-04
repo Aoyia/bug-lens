@@ -108,10 +108,19 @@ test("interaction capture serializes accepted events behind one capture interfac
   assert.deepEqual(await capture.drain(), []);
 });
 
-test("iframe 内交互的截图失败会给出用户可读文案与独立错误码（A7）", async () => {
+test("iframe 内交互（sender.frameId > 0）在坐标归一化后正常执行截图与标注，不再抛出 FRAME_GEOMETRY_UNAVAILABLE", async () => {
+  installChromeMock({
+    tabsQuery: async () => [{ id: 7, active: true }],
+    captureVisibleTab: async () => "data:image/jpeg;base64,QUFB",
+    sendMessage: async () => ({
+      ok: true,
+      dataUrl: "data:image/jpeg;base64,QU5OT1RBVEVE",
+    }),
+  });
+
   let stored: InteractionRecord | undefined;
+  let savedAsset: unknown;
   const sessionEvents: RecordingSessionEvent[] = [];
-  // iframe 截图仅在开启点击截图时触发
   const iframeSession: RecordingSession = {
     ...session,
     options: { ...session.options, captureScreenshots: true },
@@ -124,6 +133,10 @@ test("iframe 内交互的截图失败会给出用户可读文案与独立错误�
         stored = next;
         return { stored: true, usedBytes: 1, limitReached: false };
       },
+      saveEvidenceAssetWithinBudget: async (asset) => {
+        savedAsset = asset;
+        return { stored: true, usedBytes: 1, limitReached: false };
+      },
     },
     async (_sessionId, event) => {
       sessionEvents.push(event);
@@ -132,28 +145,40 @@ test("iframe 内交互的截图失败会给出用户可读文案与独立错误�
     () => false
   );
 
-  await capture.handle(interaction, {
+  const iframeInteraction: InteractionRecord = {
+    ...interaction,
+    page: { ...interaction.page, frameId: -1 },
+    coordinates: {
+      ...interaction.coordinates,
+      clientX: 150,
+      clientY: 250,
+      localX: 50,
+      localY: 50,
+    },
+  };
+
+  await capture.handle(iframeInteraction, {
     tab: { id: 7 },
     frameId: 1,
   } as chrome.runtime.MessageSender);
 
-  const issueEvent = sessionEvents.find(
-    (
-      event
-    ): event is Extract<RecordingSessionEvent, { type: "capture-issue" }> =>
-      event.type === "capture-issue"
-  );
-  assert.ok(issueEvent, "iframe 截图失败应产生 capture-issue 事件");
-  assert.equal(issueEvent.issue.code, "IFRAME_CAPTURE_UNSUPPORTED");
+  assert.equal(stored?.page.frameId, 1, "应权威绑定 sender.frameId 并纠正 -1");
   assert.equal(
-    issueEvent.issue.message,
-    "iframeCaptureUnsupported",
-    "错误文案应走 i18n key 而非开发者术语"
+    stored?.screenshot.status,
+    "captured",
+    "截图状态应成功变为 captured"
   );
-  assert.ok(
-    !issueEvent.issue.message.includes("FRAME_GEOMETRY_UNAVAILABLE:"),
-    "告警不应包含开发者内部前缀"
+  if (stored?.screenshot.status === "captured") {
+    assert.equal(stored.screenshot.source, "primary", "来源应为 primary");
+  }
+  assert.ok(savedAsset, "应保存标注后的截图资产");
+
+  const qualityDelta = sessionEvents.find(
+    (e): e is Extract<RecordingSessionEvent, { type: "quality-delta" }> =>
+      e.type === "quality-delta" && "primaryScreenshotCount" in e.delta
   );
+  assert.ok(qualityDelta, "应上报 primaryScreenshotCount 增量");
+  assert.equal(qualityDelta.delta.primaryScreenshotCount, 1);
   assert.deepEqual(await capture.drain(), []);
 });
 
@@ -276,4 +301,92 @@ test("开启截图但 Offscreen 标注超时或失败时自动降级保存 fallb
   assert.ok(qualityDelta, "应上报 fallbackScreenshotCount 增量");
   assert.equal(qualityDelta.delta.fallbackScreenshotCount, 1);
   assert.deepEqual(await capture.drain(), []);
+});
+
+test("子 iframe 视口退化时，resolveTopViewport 兜底为 session 权威顶层视口并正确传递给 Offscreen 标注", async () => {
+  let offscreenPayload: any;
+  const validBase64 = Buffer.from("VALID_TEST_IMAGE_DATA").toString("base64");
+  installChromeMock({
+    tabsQuery: async () => [{ id: 7, active: true }],
+    captureVisibleTab: async () => `data:image/jpeg;base64,${validBase64}`,
+    sendMessage: async (msg: any) => {
+      if (msg?.type === "offscreen/annotate-image") {
+        offscreenPayload = msg.payload;
+        return { ok: true, dataUrl: `data:image/jpeg;base64,${validBase64}` };
+      }
+      return { ok: true };
+    },
+  });
+
+  let storedInteraction: InteractionRecord | undefined;
+  let savedAsset: any;
+  const sessionWithEnv: RecordingSession = {
+    ...session,
+    target: {
+      ...session.target,
+      environment: {
+        userAgent: "Chrome",
+        platform: "MacIntel",
+        language: "zh-CN",
+        screenWidth: 1920,
+        screenHeight: 1080,
+        devicePixelRatio: 1,
+        viewportWidth: 1920,
+        viewportHeight: 1080,
+        online: true,
+        capturedAtEpochMs: Date.now(),
+      },
+    },
+    options: { ...session.options, captureScreenshots: true },
+  };
+
+  const capture = new InteractionCapture(
+    {
+      getActiveSession: async () => sessionWithEnv,
+      getInteraction: async () => storedInteraction,
+      saveInteractionWithinBudget: async (next) => {
+        storedInteraction = next;
+        return { stored: true, usedBytes: 1, limitReached: false };
+      },
+      saveEvidenceAssetWithinBudget: async (asset) => {
+        savedAsset = asset;
+        return { stored: true, usedBytes: 1, limitReached: false };
+      },
+    },
+    async () => sessionWithEnv,
+    () => false
+  );
+
+  const childDegradedInteraction: InteractionRecord = {
+    ...interaction,
+    id: "child-degraded-int",
+    page: { ...interaction.page, frameId: 3 },
+    coordinates: {
+      ...interaction.coordinates,
+      viewport: { width: 320, height: 240 }, // 退化视口
+    },
+  };
+
+  await capture.handle(childDegradedInteraction, {
+    tab: { id: 7 },
+    frameId: 3,
+  } as chrome.runtime.MessageSender);
+
+  assert.ok(offscreenPayload, "应向 offscreen 发送 annotate 消息");
+  assert.equal(
+    offscreenPayload.viewportWidth,
+    1920,
+    "Offscreen 批注视口宽度应被 resolveTopViewport 纠正为权威顶层视口 1920"
+  );
+  assert.equal(
+    offscreenPayload.viewportHeight,
+    1080,
+    "Offscreen 批注视口高度应被 resolveTopViewport 纠正为权威顶层视口 1080"
+  );
+  assert.equal(
+    storedInteraction?.coordinates.viewport.width,
+    1920,
+    "落库的交互记录视口宽度应为 1920"
+  );
+  assert.equal(savedAsset?.width, 1920, "落库的截图资产宽度应为 1920");
 });

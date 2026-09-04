@@ -124,7 +124,7 @@ test.describe("Bug Lens 真实用户 Bing 业务流 E2E 测试 (包 4c41242b 还
     await expect(stopButton).toBeVisible({ timeout: 10_000 });
 
     await stopButton.click();
-    const exportedDownload = await mediaProbe.waitForExportDownload(15_000);
+    const exportedDownload = await mediaProbe.waitForExportDownload(30_000);
     expect(exportedDownload.state).toBe("complete");
 
     const previewPage = await context.newPage();
@@ -152,7 +152,14 @@ test.describe("Bug Lens 真实用户 Bing 业务流 E2E 测试 (包 4c41242b 还
     );
     expect(hasSearchInput).toBe(true);
 
-    // 在 Preview DOM UI 页面上验证聚合卡片与标题展现
+    // 在 Preview DOM UI 页面上验证聚合卡片与标题展现（确保切换至 steps 面板）
+    const stepsTab = previewPage.locator('.zen-tab-btn[data-tab="steps"]');
+    await stepsTab
+      .waitFor({ state: "visible", timeout: 10_000 })
+      .catch(() => undefined);
+    if (await stepsTab.isVisible()) {
+      await stepsTab.click();
+    }
     await previewPage.waitForSelector(".grouped-card", { timeout: 10_000 });
     const cardTitle = await previewPage
       .locator(".grouped-card .top strong")

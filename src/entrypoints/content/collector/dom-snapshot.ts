@@ -31,17 +31,22 @@ export function textOf(
   element: Element,
   privacyMode: "safe" | "raw"
 ): string | undefined {
+  const isInput =
+    typeof HTMLInputElement !== "undefined" &&
+    element instanceof HTMLInputElement;
+  const isTextarea =
+    typeof HTMLTextAreaElement !== "undefined" &&
+    element instanceof HTMLTextAreaElement;
+  const isSelect =
+    typeof HTMLSelectElement !== "undefined" &&
+    element instanceof HTMLSelectElement;
+
   if (
-    element instanceof HTMLInputElement &&
-    element.type.toLowerCase() === "password"
+    isInput &&
+    (element as HTMLInputElement).type?.toLowerCase() === "password"
   )
     return undefined;
-  if (
-    privacyMode === "safe" &&
-    (element instanceof HTMLInputElement ||
-      element instanceof HTMLTextAreaElement ||
-      element instanceof HTMLSelectElement)
-  )
+  if (privacyMode === "safe" && (isInput || isTextarea || isSelect))
     return undefined;
   const labelled =
     element.getAttribute("aria-label") ||
@@ -49,11 +54,117 @@ export function textOf(
     element.getAttribute("title");
   const text =
     labelled ||
-    (element instanceof HTMLInputElement ||
-    element instanceof HTMLTextAreaElement
-      ? element.value
+    (isInput || isTextarea
+      ? (element as HTMLInputElement | HTMLTextAreaElement).value
       : element.textContent);
   return text?.replace(/\s+/g, " ").trim().slice(0, 256) || undefined;
+}
+
+export function getFrameSelector(frameEl: Element): string {
+  if (frameEl.id && !/[0-9a-f]{8,}|uuid|random/i.test(frameEl.id)) {
+    return `iframe#${cssEscape(frameEl.id)}`;
+  }
+  for (const attr of ["data-testid", "data-test", "data-cy"]) {
+    const val = frameEl.getAttribute(attr);
+    if (val) {
+      return `iframe[${attr}="${cssEscape(val)}"]`;
+    }
+  }
+  const name = frameEl.getAttribute("name");
+  if (name) {
+    return `iframe[name="${cssEscape(name)}"]`;
+  }
+  const rawSrc = frameEl.getAttribute("src");
+  if (
+    rawSrc &&
+    !rawSrc.startsWith("about:") &&
+    !rawSrc.startsWith("blob:") &&
+    !rawSrc.startsWith("data:")
+  ) {
+    try {
+      const base = frameEl.ownerDocument?.baseURI || "http://localhost";
+      const u = new URL(rawSrc, base);
+      const path = u.pathname !== "/" ? u.pathname : rawSrc;
+      return `iframe[src*="${cssEscape(path)}"]`;
+    } catch {
+      return `iframe[src*="${cssEscape(rawSrc)}"]`;
+    }
+  }
+  const validClass = Array.from(frameEl.classList).find(
+    (c) => !/[0-9a-f]{8,}|uuid|random/i.test(c)
+  );
+  if (validClass) {
+    return `iframe.${cssEscape(validClass)}`;
+  }
+  const parent = frameEl.parentElement;
+  if (parent) {
+    const iframes = Array.from(
+      parent.querySelectorAll(":scope > iframe, iframe")
+    );
+    const idx = iframes.indexOf(frameEl);
+    if (idx >= 0) {
+      return `iframe:nth-of-type(${idx + 1})`;
+    }
+  }
+  return "iframe";
+}
+
+export function getFrameSelectorChain(win: Window | null): string[] {
+  if (!win) return [];
+  const chain: string[] = [];
+  let curr: Window | null = win;
+  let depth = 0;
+
+  while (curr && depth < 5) {
+    let isTop = false;
+    try {
+      isTop = !curr.parent || curr.parent === curr || curr === curr.top;
+    } catch {
+      isTop = false;
+    }
+    if (isTop) break;
+
+    let frameEl: Element | null = null;
+    try {
+      frameEl = (curr as any).frameElement;
+    } catch {
+      frameEl = null;
+    }
+
+    if (frameEl) {
+      chain.unshift(getFrameSelector(frameEl));
+      try {
+        curr = frameEl.ownerDocument?.defaultView ?? null;
+      } catch {
+        curr = null;
+      }
+    } else {
+      let selector = "iframe";
+      try {
+        if (curr.name) {
+          selector = `iframe[name="${cssEscape(curr.name)}"]`;
+        } else if (
+          curr.location?.pathname &&
+          curr.location.pathname !== "/" &&
+          curr.location.pathname !== "blank"
+        ) {
+          selector = `iframe[src*="${cssEscape(curr.location.pathname)}"]`;
+        }
+      } catch {
+        selector = "iframe";
+      }
+      chain.unshift(selector);
+
+      try {
+        curr = curr.parent !== curr ? curr.parent : null;
+      } catch {
+        curr = null;
+      }
+    }
+    depth++;
+  }
+
+  return chain;
 }
 
 // ─── Locators ───
@@ -116,16 +227,28 @@ export function buildLocators(
     });
   const tag = element.tagName.toLowerCase();
   add("css", tag, 0.25, ["CSS 兜底定位器"]);
-  return candidates
+
+  const sorted = candidates
     .sort((a, b) => b.stabilityScore - a.stabilityScore)
     .slice(0, 8);
+
+  const win = element.ownerDocument?.defaultView ?? null;
+  const frameChain = getFrameSelectorChain(win);
+  if (frameChain.length > 0) {
+    const prefix = `${frameChain.join(" >>> ")} >>> `;
+    const frameReason = `位于子 Frame (${frameChain.join(" >>> ")})`;
+    for (const c of sorted) {
+      c.expression = `${prefix}${c.expression}`;
+      c.reasons = [frameReason, ...c.reasons];
+    }
+  }
+
+  return sorted;
 }
 
 // ─── Framework Detection ───
 
-function probeElement(
-  element: HTMLElement
-): FrameworkSnapshot | undefined {
+function probeElement(element: HTMLElement): FrameworkSnapshot | undefined {
   return detectVue(element) ?? detectReact(element);
 }
 
@@ -177,12 +300,22 @@ export function snapshotHtml(element: Element): {
   try {
     const clone = element.cloneNode(true) as Element;
     clone
-      .querySelectorAll("script,style,iframe,object,embed")
+      .querySelectorAll("script,style,object,embed")
       .forEach((node) => node.remove());
     clone.querySelectorAll("input,textarea,select").forEach((node) => {
       node.removeAttribute("value");
       node.textContent = "";
     });
+    const iframes: Element[] = [];
+    if (clone.tagName.toLowerCase() === "iframe") {
+      iframes.push(clone);
+    }
+    clone.querySelectorAll("iframe").forEach((node) => iframes.push(node));
+    for (const iframe of iframes) {
+      iframe.setAttribute("data-bug-lens-frame", "true");
+      iframe.removeAttribute("srcdoc");
+      iframe.textContent = "";
+    }
     clone.querySelectorAll("*").forEach((node) => {
       for (const attribute of Array.from(node.attributes)) {
         if (
@@ -213,39 +346,79 @@ export function buildDomSnapshot(
   privacyMode: "safe" | "raw"
 ): TargetDomSnapshot {
   const ancestors: DomAncestorSnapshot[] = [];
+  let currEl: Element | null = element;
   let parent = element.parentElement;
-  while (parent && ancestors.length < 5) {
-    ancestors.push({
-      tagName: parent.tagName.toLowerCase(),
-      id: parent.id || undefined,
-      classNames: Array.from(parent.classList).slice(0, 12),
-      role: parent.getAttribute("role") || undefined,
-      accessibleName: parent.getAttribute("aria-label") || undefined,
-    });
-    parent = parent.parentElement;
+  while (ancestors.length < 5) {
+    if (parent) {
+      ancestors.push({
+        tagName: parent.tagName.toLowerCase(),
+        id: parent.id || undefined,
+        classNames: Array.from(parent.classList).slice(0, 12),
+        role: parent.getAttribute("role") || undefined,
+        accessibleName: parent.getAttribute("aria-label") || undefined,
+      });
+      currEl = parent;
+      parent = parent.parentElement;
+    } else {
+      const win: Window | null = currEl?.ownerDocument?.defaultView ?? null;
+      let frameEl: Element | null = null;
+      try {
+        if (win && win !== win.top) {
+          frameEl = (win as any).frameElement;
+        }
+      } catch {
+        frameEl = null;
+      }
+      if (frameEl && ancestors.length < 5) {
+        ancestors.push({
+          tagName: frameEl.tagName.toLowerCase(),
+          id: frameEl.id || undefined,
+          classNames: Array.from(frameEl.classList).slice(0, 12),
+          role: frameEl.getAttribute("role") || undefined,
+          accessibleName: frameEl.getAttribute("aria-label") || undefined,
+        });
+        currEl = frameEl;
+        parent = frameEl.parentElement;
+      } else {
+        break;
+      }
+    }
   }
-  const style = getComputedStyle(element);
+  const rawStyle =
+    typeof getComputedStyle !== "undefined" ? getComputedStyle(element) : null;
   const computedStyle: Record<string, string> = {};
-  for (const key of [
-    "display",
-    "visibility",
-    "opacity",
-    "position",
-    "z-index",
-    "width",
-    "height",
-    "color",
-    "background-color",
-    "pointer-events",
-    "overflow",
-  ])
-    computedStyle[key] = style.getPropertyValue(key);
+  if (rawStyle) {
+    for (const key of [
+      "display",
+      "visibility",
+      "opacity",
+      "position",
+      "z-index",
+      "width",
+      "height",
+      "color",
+      "background-color",
+      "pointer-events",
+      "overflow",
+    ]) {
+      computedStyle[key] =
+        typeof rawStyle.getPropertyValue === "function"
+          ? rawStyle.getPropertyValue(key) || ""
+          : (rawStyle as any)[key] || "";
+    }
+  }
   const input = element as HTMLInputElement;
-  const snapshot: TargetDomSnapshot = {
+  const frameChain = getFrameSelectorChain(
+    element.ownerDocument?.defaultView ?? null
+  );
+  const frameSelector =
+    frameChain.length > 0 ? frameChain.join(" >>> ") : undefined;
+  const snapshot: TargetDomSnapshot & { frameSelector?: string } = {
     capturedAtEpochMs: Date.now(),
     element: describe(element, privacyMode),
     ...snapshotHtml(element),
     ancestors,
+    frameSelector,
     state: {
       disabled:
         "disabled" in element
@@ -265,7 +438,9 @@ export function buildDomSnapshot(
           : element.getAttribute("aria-expanded") === "false"
             ? false
             : undefined,
-      hidden: style.display === "none" || style.visibility === "hidden",
+      hidden: rawStyle
+        ? rawStyle.display === "none" || rawStyle.visibility === "hidden"
+        : false,
     },
     computedStyle,
   };

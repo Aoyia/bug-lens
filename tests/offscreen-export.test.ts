@@ -39,7 +39,7 @@ test("buildEvidencePackage 在传入静态模板时输出完整非空的 report.
   const session: RecordingSession = {
     id: "session-test",
     schemaVersion: 2,
-    extensionVersion: "0.7.32",
+    extensionVersion: "0.7.33",
     status: "PREVIEW_READY",
     target: {
       tabId: 1,

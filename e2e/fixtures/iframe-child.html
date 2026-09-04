@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Bug Lens E2E Child Iframe</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        padding: 1rem;
+        background: #f1f5f9;
+        margin: 0;
+      }
+      .child-box {
+        background: white;
+        padding: 1rem;
+        border-radius: 6px;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+      }
+      button {
+        padding: 6px 12px;
+        background: #0284c7;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        margin-right: 8px;
+      }
+      button:hover {
+        background: #0369a1;
+      }
+      input {
+        padding: 6px 10px;
+        border: 1px solid #cbd5e1;
+        border-radius: 4px;
+        width: 220px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="child-box">
+      <h3 style="margin-top: 0">嵌入式子应用 (Iframe Child)</h3>
+      <div>
+        <input
+          id="child-input"
+          data-testid="child-input"
+          placeholder="子 Frame 输入框"
+        />
+      </div>
+      <div style="margin-top: 10px">
+        <button
+          id="child-btn"
+          data-testid="child-btn"
+          onclick="handleChildClick()"
+        >
+          子 Frame 点击
+        </button>
+        <button
+          id="child-fetch-btn"
+          data-testid="child-fetch-btn"
+          onclick="handleChildFetch()"
+        >
+          子 Frame Fetch
+        </button>
+        <button
+          id="child-error-btn"
+          data-testid="child-error-btn"
+          onclick="handleChildError()"
+        >
+          子 Frame Error
+        </button>
+      </div>
+      <div
+        id="child-status"
+        data-testid="child-status"
+        style="margin-top: 10px; font-size: 12px; color: #64748b"
+      >
+        就绪
+      </div>
+    </div>
+
+    <script>
+      function handleChildClick() {
+        document.getElementById("child-status").textContent =
+          "子 Frame 点击成功 " + Date.now();
+        console.log("[E2E-IFRAME-CHILD] 子 Frame 普通点击事件已触发");
+      }
+
+      async function handleChildFetch() {
+        try {
+          const res = await fetch("/api/iframe-child-data");
+          const data = await res.json();
+          document.getElementById("child-status").textContent =
+            "子 Frame Fetch 成功: " + data.message;
+        } catch (err) {
+          document.getElementById("child-status").textContent =
+            "子 Frame Fetch 失败: " + err.message;
+        }
+      }
+
+      function handleChildError() {
+        console.error(
+          "[E2E-IFRAME-CHILD-ERROR] 子 Frame 内部控制台严重错误: Uncaught Error in child frame"
+        );
+        document.getElementById("child-status").textContent =
+          "子 Frame 报错已触发";
+      }
+    </script>
+  </body>
+</html>

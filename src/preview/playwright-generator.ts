@@ -54,28 +54,65 @@ function pickLocator(
     : undefined;
 }
 
-function formatPlaywrightLocator(locator: {
+export function parsePiercingSelector(expression: string): {
+  frameSelectors: string[];
+  targetSelector: string;
+} {
+  const parts = expression.split(/\s*>>>\s*/).filter(Boolean);
+  if (parts.length <= 1) {
+    return {
+      frameSelectors: [],
+      targetSelector: parts[0] || expression,
+    };
+  }
+  return {
+    frameSelectors: parts.slice(0, -1),
+    targetSelector: parts[parts.length - 1],
+  };
+}
+
+export function formatPlaywrightLocator(locator: {
   kind: string;
   expression: string;
 }): string {
+  const { frameSelectors, targetSelector } = parsePiercingSelector(
+    locator.expression
+  );
+  let base = "page";
+  for (const frameSel of frameSelectors) {
+    base += `.frameLocator(${JSON.stringify(frameSel)})`;
+  }
+
   switch (locator.kind) {
-    case "testId":
-      return `page.getByTestId(${JSON.stringify(locator.expression)})`;
+    case "testId": {
+      const match = targetSelector.match(
+        /\[(?:data-testid|data-test|data-cy)=(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|([^\]\s]+))\]/
+      );
+      const rawVal = match
+        ? (match[1] ?? match[2] ?? match[3] ?? "")
+        : targetSelector;
+      const testIdValue = rawVal.replace(/\\(.)/gs, "$1");
+      return `${base}.getByTestId(${JSON.stringify(testIdValue)})`;
+    }
     case "role": {
-      const match = locator.expression.match(/^role=(\S+)/);
+      const match = targetSelector.match(/^role=(\S+)/);
       if (match) {
-        return `page.getByRole(${JSON.stringify(match[1])}).first()`;
+        return `${base}.getByRole(${JSON.stringify(match[1])}).first()`;
       }
-      return `page.locator(${JSON.stringify(locator.expression)}).first()`;
+      return `${base}.locator(${JSON.stringify(targetSelector)}).first()`;
     }
     case "text":
-      return `page.getByText(${JSON.stringify(locator.expression)}).first()`;
-    case "id":
-      return `page.locator(${JSON.stringify(`#${CSS.escape(locator.expression)}`)})`;
+      return `${base}.getByText(${JSON.stringify(targetSelector)}).first()`;
+    case "id": {
+      const idSelector = targetSelector.startsWith("#")
+        ? targetSelector
+        : `#${targetSelector}`;
+      return `${base}.locator(${JSON.stringify(idSelector)})`;
+    }
     case "css":
-      return `page.locator(${JSON.stringify(locator.expression)}).first()`;
+      return `${base}.locator(${JSON.stringify(targetSelector)}).first()`;
     default:
-      return `page.locator(${JSON.stringify(locator.expression)}).first()`;
+      return `${base}.locator(${JSON.stringify(targetSelector)}).first()`;
   }
 }
 

@@ -2,10 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { h } from "preact";
+import render from "preact-render-to-string";
 import {
   filterNetworkEntries,
   selectActiveNetworkId,
 } from "../src/preview/network-filter.ts";
+import { NetworkTab } from "../src/components/preview/NetworkTab.tsx";
 
 import type { NetworkEntry } from "../src/shared/protocol.ts";
 
@@ -201,4 +204,92 @@ test("NetworkTab 目标格式选择器标签必须走 i18n（禁止硬编码中�
 
   // zh 文案与原先硬编码字符串逐字一致，保证中文界面零视觉变化
   assert.equal(zhDict.snippetTargetLabel.message, "目标格式:");
+});
+
+test("NetworkTab R3 - filterNetworkEntries supports matching frameId and documentUrl", () => {
+  const oopifEntries: NetworkEntry[] = [
+    {
+      id: "net-main",
+      createdAt: 1000,
+      method: "GET",
+      url: "https://main.app/api/data",
+      status: 200,
+    },
+    {
+      id: "net-frame-1",
+      createdAt: 2000,
+      method: "POST",
+      url: "https://iframe.auth.com/login",
+      status: 200,
+      frameId: "auth-frame-100",
+      documentUrl: "https://iframe.auth.com/embed",
+    },
+    {
+      id: "net-frame-2",
+      createdAt: 3000,
+      method: "GET",
+      url: "https://payment.gateway.com/charge",
+      status: 200,
+      frameId: "pay-frame-200",
+      documentUrl: "https://payment.gateway.com/modal",
+    },
+  ];
+
+  // 1. Search by frameId
+  const byFrameId = filterNetworkEntries(oopifEntries, "auth-frame-100");
+  assert.equal(byFrameId.length, 1);
+  assert.equal(byFrameId[0].id, "net-frame-1");
+
+  // 2. Search by documentUrl
+  const byDocUrl = filterNetworkEntries(
+    oopifEntries,
+    "payment.gateway.com/modal"
+  );
+  assert.equal(byDocUrl.length, 1);
+  assert.equal(byDocUrl[0].id, "net-frame-2");
+
+  // 3. Search case-insensitive
+  const caseInsensitive = filterNetworkEntries(oopifEntries, "AUTH-FRAME");
+  assert.equal(caseInsensitive.length, 1);
+  assert.equal(caseInsensitive[0].id, "net-frame-1");
+});
+
+test("NetworkTab R3 - renders frame badges for top frame and subframe requests", () => {
+  const oopifEntries: NetworkEntry[] = [
+    {
+      id: "net-top",
+      createdAt: 1000,
+      method: "GET",
+      url: "https://main.app/api/data",
+      status: 200,
+    },
+    {
+      id: "net-sub",
+      createdAt: 2000,
+      method: "POST",
+      url: "https://iframe.auth.com/login",
+      status: 200,
+      frameId: "frame-sub-42",
+      documentUrl: "https://iframe.auth.com/embed",
+    },
+  ];
+
+  const html = render(
+    h(NetworkTab, {
+      snapshot: {
+        session: undefined,
+        all: oopifEntries,
+        included: oopifEntries,
+      },
+      editable: false,
+    })
+  );
+
+  // Top frame badge rendered
+  assert.match(html, /class="network-frame-badge badge-topframe"/);
+  assert.match(html, /Top Frame/);
+
+  // Subframe badge rendered with Frame [frameId]
+  assert.match(html, /class="network-frame-badge badge-subframe"/);
+  assert.match(html, /Frame \[frame-sub-42\]/);
 });

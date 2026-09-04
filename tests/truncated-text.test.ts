@@ -73,4 +73,24 @@ test("TruncatedText: renders text and manages tooltip safely without recursion",
   assert.equal(el.checkOverflow(), false);
   assert.equal((el as any).hasAttribute("data-overflowed"), false);
   assert.equal(span.title, ""); // 未溢出时不展示 tooltip
+
+  // 5. textContent 赋值不被空 text 属性抹除
+  (el as any).removeAttribute("text");
+  el.textContent = "通过 textContent 直接写入的文本";
+  assert.equal(el.textContent, "通过 textContent 直接写入的文本");
+  assert.equal(span.textContent, "通过 textContent 直接写入的文本");
+
+  // 6. text 属性存在时，通过 textContent 赋值正确同步属性，且不被 render 抹除
+  (el as any).setAttribute("text", "初始属性文本");
+  assert.equal(el.textContent, "初始属性文本");
+  el.textContent = "后续覆盖写入的文本";
+  assert.equal(el.textContent, "后续覆盖写入的文本");
+  assert.equal(span.textContent, "后续覆盖写入的文本");
+  assert.equal((el as any).getAttribute("text"), "后续覆盖写入的文本");
+
+  // 7. innerText 与 textContent 表现一致
+  el.innerText = "通过 innerText 写入的文本";
+  assert.equal(el.innerText, "通过 innerText 写入的文本");
+  assert.equal(el.textContent, "通过 innerText 写入的文本");
+  assert.equal(span.textContent, "通过 innerText 写入的文本");
 });

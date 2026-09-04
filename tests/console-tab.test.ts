@@ -191,3 +191,88 @@ test("ConsoleTab 删除按钮应当具备可访问性 aria-label 属性", () => 
     "ConsoleTab 可编辑模式下的删除按钮应包含 aria-label 属性"
   );
 });
+
+test("ConsoleTab R3 - filterConsoleEntries supports matching frameId and url", () => {
+  const oopifLogs: ConsoleEntry[] = [
+    {
+      id: "c-top",
+      sessionId: "s1",
+      createdAt: 1000,
+      level: "log",
+      text: "Main thread log",
+    },
+    {
+      id: "c-sub-1",
+      sessionId: "s1",
+      createdAt: 2000,
+      level: "warn",
+      text: "Warning inside iframe",
+      frameId: "frame-sub-77",
+      url: "https://child.domain.test/app.js",
+    },
+    {
+      id: "c-sub-2",
+      sessionId: "s1",
+      createdAt: 3000,
+      level: "error",
+      text: "Syntax error in payment modal",
+      frameId: "frame-pay-88",
+      url: "https://pay.domain.test/script.js",
+    },
+  ];
+
+  // 1. Filter by frameId
+  const byFrame = filterConsoleEntries(oopifLogs, "all", "frame-sub-77");
+  assert.equal(byFrame.length, 1);
+  assert.equal(byFrame[0].id, "c-sub-1");
+
+  // 2. Filter by iframe url
+  const byUrl = filterConsoleEntries(oopifLogs, "all", "pay.domain.test");
+  assert.equal(byUrl.length, 1);
+  assert.equal(byUrl[0].id, "c-sub-2");
+
+  // 3. Filter case-insensitive
+  const caseInsensitive = filterConsoleEntries(oopifLogs, "all", "FRAME-PAY");
+  assert.equal(caseInsensitive.length, 1);
+  assert.equal(caseInsensitive[0].id, "c-sub-2");
+});
+
+test("ConsoleTab R3 - renders frame badge in console log row", () => {
+  const oopifLogs: ConsoleEntry[] = [
+    {
+      id: "c-top",
+      sessionId: "s1",
+      createdAt: 1000,
+      level: "log",
+      text: "Root window message",
+    },
+    {
+      id: "c-sub",
+      sessionId: "s1",
+      createdAt: 2000,
+      level: "error",
+      text: "Iframe crash",
+      frameId: "child-frame-999",
+      url: "https://iframe.org/index.html",
+    },
+  ];
+
+  const html = render(
+    h(ConsoleTab, {
+      snapshot: {
+        session: undefined,
+        all: oopifLogs,
+        included: oopifLogs,
+      },
+      editable: false,
+    })
+  );
+
+  // Top frame badge rendered
+  assert.match(html, /class="console-frame-badge badge-topframe"/);
+  assert.match(html, /Top Frame/);
+
+  // Subframe badge rendered with Frame [frameId]
+  assert.match(html, /class="console-frame-badge badge-subframe"/);
+  assert.match(html, /Frame \[child-frame-999\]/);
+});

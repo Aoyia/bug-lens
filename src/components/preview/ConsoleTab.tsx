@@ -207,6 +207,20 @@ export const ConsoleTab = memo(function ConsoleTab({
                         <span className="console-icon log-prompt">❯</span>
                       )}
                       <span className="console-level-tag">{level}</span>
+                      <span
+                        className={`console-frame-badge ${entry.frameId ? "badge-subframe" : "badge-topframe"}`}
+                        title={
+                          entry.frameId
+                            ? entry.url
+                              ? `${entry.url} (Frame [${entry.frameId}])`
+                              : `Frame [${entry.frameId}]`
+                            : "Top Frame"
+                        }
+                      >
+                        {entry.frameId
+                          ? `Frame [${entry.frameId}]`
+                          : "Top Frame"}
+                      </span>
                       <pre className="console-message">{displayText}</pre>
                     </div>
                     <div className="console-row-right">

@@ -180,6 +180,55 @@ test("stopSession: silentExport 成功时清 active 且返回结果", async () =
   assert.equal(db.activeSessionId, undefined);
 });
 
+test("stopSession: silentExport 首次失败后再次重试可顺利导出并清理 active", async () => {
+  const { runtime, db } = createTestRuntime();
+  const session = makeSession({ id: "sess-retry", status: "RECORDING" });
+  db.sessions.set(session.id, session);
+  db.activeSessionId = session.id;
+
+  const { handlers } = installChromeMock();
+  let packAttempts = 0;
+  handlers.sendMessage = async (message: unknown) => {
+    const type = (message as { type?: string })?.type;
+    if (type === "offscreen/export-pack") {
+      packAttempts++;
+      if (packAttempts === 1) {
+        return { ok: false, error: "Disk full" };
+      }
+      return {
+        ok: true,
+        blobUrl: "blob:retry",
+        filename: "retry.zip",
+        prompt: "导出重试成功",
+      };
+    }
+    return { ok: true };
+  };
+
+  // 首次导出：打包失败，会话进入 PREVIEW_READY 但仍保留 active 供悬浮条重试
+  const firstResult = await runtime.stopSession(
+    "cmd-fail-1",
+    false,
+    false,
+    true
+  );
+  assert.ok(firstResult);
+  assert.equal(firstResult.silentExportResult?.ok, false);
+  assert.equal(db.activeSessionId, "sess-retry");
+  assert.equal(db.sessions.get("sess-retry")?.status, "PREVIEW_READY");
+
+  // 二次导出（重试）：应当穿透 PREVIEW_READY 并顺利完成封包下载
+  const retryResult = await runtime.stopSession(
+    "cmd-retry-2",
+    false,
+    false,
+    true
+  );
+  assert.ok(retryResult);
+  assert.equal(retryResult.silentExportResult?.ok, true);
+  assert.equal(db.activeSessionId, undefined);
+});
+
 test("continueInterruptedSession: 无可恢复问题时拒绝续录", async () => {
   const { runtime, db } = createTestRuntime();
   const session = makeSession({

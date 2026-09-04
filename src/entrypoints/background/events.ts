@@ -5,7 +5,7 @@ import type { BootstrapService } from "./bootstrap";
 /** 供 registerBackgroundEvents 注册的处理器集合（与 createBackgroundRuntime 返回对象兼容）。 */
 export interface BackgroundEventHandlers {
   handleDebuggerEvent(
-    source: chrome.debugger.Debuggee,
+    source: chrome.debugger.DebuggerSession,
     method: string,
     params?: object
   ): void;
@@ -46,7 +46,7 @@ export function createEventHandlers(
 
   // CDP 事件统一转发给 cdpCollector（网络/控制台证据采集）
   function handleDebuggerEvent(
-    source: chrome.debugger.Debuggee,
+    source: chrome.debugger.DebuggerSession,
     method: string,
     params?: object
   ): void {

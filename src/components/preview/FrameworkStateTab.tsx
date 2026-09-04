@@ -62,6 +62,20 @@ export const FrameworkStateTab = memo(function FrameworkStateTab({
               <span className="framework-state-trigger">
                 {t(TRIGGER_LABEL_KEYS[state.trigger]) ?? state.trigger}
               </span>
+              <span
+                className={`framework-frame-badge ${state.page.frameId ? "badge-subframe" : "badge-topframe"}`}
+                title={
+                  state.page.frameId
+                    ? state.page.url
+                      ? `${state.page.url} (Frame [${state.page.frameId}])`
+                      : `Frame [${state.page.frameId}]`
+                    : "Top Frame"
+                }
+              >
+                {state.page.frameId
+                  ? `Frame [${state.page.frameId}]`
+                  : "Top Frame"}
+              </span>
               <time>
                 {elapsed ??
                   formatTime(state.capturedAtEpochMs, undefined, getLocale())}

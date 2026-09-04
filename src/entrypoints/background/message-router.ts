@@ -1,5 +1,6 @@
 import {
   isEnvelope,
+  message,
   RECORDING_STATUSES,
   type FrameworkProbeEntry,
   type RuntimeMessage,
@@ -28,6 +29,16 @@ export function createMessageRouter(
   const { db, streamHealthMonitor, interactionCapture, issueSceneCapture } =
     ctx;
   const { lifecycle, screenshot, bootstrapPromise } = services;
+  const claimedDownloadIds = new Set<number>();
+  function trackClaimedDownloadId(id: number): void {
+    claimedDownloadIds.add(id);
+    if (claimedDownloadIds.size > 200) {
+      const oldest = claimedDownloadIds.values().next().value;
+      if (oldest !== undefined) {
+        claimedDownloadIds.delete(oldest);
+      }
+    }
+  }
 
   /** 消息路由中枢：承载 content script / popup / offscreen 的所有消息分发。 */
   async function handleMessage(
@@ -234,6 +245,7 @@ export function createMessageRouter(
             active: allowed,
             sessionId: allowed ? session?.id : undefined,
             nonce: allowed ? session?.nonce : undefined,
+            frameId: sender.frameId ?? 0,
             startedAtEpochMs: allowed
               ? (session?.timeline.startedAtEpochMs ??
                 session?.timeline.createdAtEpochMs)
@@ -250,6 +262,24 @@ export function createMessageRouter(
           ctx.isScreenshotOverlayOpen.set(Boolean(incoming.payload.open));
           return { ok: true };
         }
+        // content script 子 iframe 活跃心跳：转发给顶层主帧（frameId: 0）刷新闲置监测倒计时
+        case "content/activity-ping": {
+          if (sender.tab?.id) {
+            void chrome.tabs
+              .sendMessage(
+                sender.tab.id,
+                message(
+                  "content/activity-ping",
+                  { timestamp: incoming.payload?.timestamp ?? Date.now() },
+                  undefined,
+                  "content"
+                ),
+                { frameId: 0 }
+              )
+              .catch(() => undefined);
+          }
+          return { ok: true };
+        }
         // content script 上报框架状态快照（在存储预算内写入）
         case "framework/state": {
           const state = incoming.payload.state;
@@ -260,12 +290,33 @@ export function createMessageRouter(
             RECORDING_STATUSES.includes(session.status) &&
             session.target.tabId === sender.tab?.id;
           if (!valid) return { ok: true, stored: false };
+          if (sender.frameId !== undefined) {
+            state.page = {
+              ...(state.page || {}),
+              frameId: sender.frameId,
+            };
+          }
           const result = await db.saveFrameworkStateWithinBudget(state);
           return { ok: true, stored: result.stored };
         }
         // 交互候选/确认：转交 interactionCapture 落库（含截图采集决策）
+        // 若来自子 iframe (sender.frameId > 0)，顺带通知顶层主帧刷新活跃时间
         case "interaction/candidate":
         case "interaction/confirmed":
+          if (sender.tab?.id && sender.frameId && sender.frameId > 0) {
+            void chrome.tabs
+              .sendMessage(
+                sender.tab.id,
+                message(
+                  "content/activity-ping",
+                  { timestamp: Date.now() },
+                  undefined,
+                  "content"
+                ),
+                { frameId: 0 }
+              )
+              .catch(() => undefined);
+          }
           await interactionCapture.handle(incoming.payload.interaction, sender);
           return { ok: true };
         // 交互取消：撤销候选/已确认记录
@@ -346,28 +397,95 @@ export function createMessageRouter(
           return { ok: true };
         }
         case "screenshot/download": {
-          // content script 无 chrome.downloads 权限：由 background 触发下载并解析真实绝对路径。
-          // 内容脚本直接发送 data URL 字符串，background 无需 createObjectURL（SW 不支持）。
+          // content script 触发原生下载后，由 background 关联下载任务并解析真实落盘绝对路径。
+          // 若未能查到页面触发的任务，则作为兜底由 background 发起。
           const { dataUrl, filename } = incoming.payload;
-          const downloadId = await chrome.downloads.download({
-            url: dataUrl,
-            filename,
-            saveAs: false,
-          });
-          const absolutePath = await ctx.resolveDownloadedFilePath(downloadId);
+          let downloadId: number | undefined;
+
+          if (filename && chrome.downloads?.search) {
+            const extMatch = filename.match(/\.([a-zA-Z0-9]+)$/);
+            const ext = extMatch ? extMatch[1] : "";
+            const base = ext ? filename.slice(0, -(ext.length + 1)) : filename;
+            const escapedBase = base.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            const escapedExt = ext.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            // 严格边界正则：匹配字符串开头或路径分隔符后接完整 base 名称，兼容消重后缀 (1)
+            const pattern = new RegExp(
+              `(?:^|[\\/\\\\])${escapedBase}(?: \\(\\d+\\))?${escapedExt ? "\\." + escapedExt : ""}$`,
+              "i"
+            );
+            const searchStartTime = Date.now() - 15_000;
+
+            for (let i = 0; i < 15; i++) {
+              const items = await new Promise<chrome.downloads.DownloadItem[]>(
+                (resolve) => {
+                  chrome.downloads.search(
+                    { orderBy: ["-startTime"], limit: 10 },
+                    (res) => resolve(res || [])
+                  );
+                }
+              );
+              const match = items.find((it) => {
+                if (it.state === "interrupted") return false;
+                if (claimedDownloadIds.has(it.id)) return false;
+                const parsedTime = it.startTime
+                  ? Date.parse(it.startTime)
+                  : Date.now();
+                const startTimeMs = Number.isFinite(parsedTime)
+                  ? parsedTime
+                  : Date.now();
+                if (startTimeMs < searchStartTime) return false;
+                return Boolean(it.filename && pattern.test(it.filename));
+              });
+              if (match) {
+                downloadId = match.id;
+                trackClaimedDownloadId(match.id);
+                break;
+              }
+              await new Promise((r) => setTimeout(r, 100));
+            }
+          }
+
+          if (downloadId == null && dataUrl) {
+            try {
+              downloadId = await chrome.downloads.download({
+                url: dataUrl,
+                filename,
+                saveAs: false,
+              });
+              if (downloadId != null) {
+                trackClaimedDownloadId(downloadId);
+              }
+            } catch (dlErr) {
+              console.warn(
+                "[Bug Lens] Background fallback download error:",
+                dlErr
+              );
+            }
+          }
+
+          const absolutePath =
+            downloadId != null
+              ? await ctx.resolveDownloadedFilePath(downloadId)
+              : undefined;
           return { ok: true, downloadId, absolutePath };
         }
         case "screenshot/framework-probe": {
           // content script 处于隔离世界，读不到页面框架挂在 DOM 元素上的
           // __vue__/__reactFiber$ 等 expando 属性：由 background 以
           // world: "MAIN" 注入自包含探针到页面主世界读取组件链。
-          const { probeIds } = incoming.payload;
+          const { probeIds, allFrames } = incoming.payload as {
+            probeIds?: string[];
+            allFrames?: boolean;
+          };
           const tabId = sender.tab?.id;
           if (!tabId || !Array.isArray(probeIds) || probeIds.length === 0) {
             return { ok: true, results: {} };
           }
+          const target: chrome.scripting.InjectionTarget = allFrames
+            ? { tabId, allFrames: true }
+            : { tabId, frameIds: [sender.frameId ?? 0] };
           const injected = await chrome.scripting.executeScript({
-            target: { tabId, frameIds: [sender.frameId ?? 0] },
+            target,
             world: "MAIN",
             func: runMainWorldFrameworkProbe,
             args: [probeIds],

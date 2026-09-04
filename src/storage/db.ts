@@ -26,6 +26,7 @@ import {
 } from "../domain/storage-policy.ts";
 import { buildEvidenceSummary } from "./evidence-summary.ts";
 import {
+  closeEvidenceDatabase,
   openEvidenceDatabase as openDb,
   type StoreName,
 } from "./indexed-db-schema.ts";
@@ -50,6 +51,7 @@ export type MediaChunkRecord = {
   mimeType: string;
   chunk: ArrayBuffer;
 };
+export { closeEvidenceDatabase } from "./indexed-db-schema.ts";
 export {
   flushStorageBatchQueue,
   putWithinSessionBudget,

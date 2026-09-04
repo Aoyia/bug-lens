@@ -11,6 +11,7 @@ import {
 import { formatElapsedEpochTime } from "../../domain/evidence-clock";
 
 import { copyTextToClipboard } from "../../preview/clipboard";
+import { parsePiercingSelector } from "../../preview/playwright-generator.ts";
 import { t, getLocale } from "../../shared/i18n.ts";
 import { formatDateTime, formatTime } from "../../shared/intl-formatter.ts";
 
@@ -37,23 +38,38 @@ function formatPlaywrightLocator(
 ): string {
   const expression = locator.expression;
   if (expression.startsWith("page.")) return expression;
+  const { frameSelectors, targetSelector } = parsePiercingSelector(expression);
+  let base = "page";
+  for (const f of frameSelectors) {
+    base += `.frameLocator("${f.replace(/"/g, '\\"')}")`;
+  }
   if (locator.kind === "role") {
     const roleName =
-      expression.match(/^role=(.+)$/)?.[1] ?? element.role ?? "button";
+      targetSelector.match(/^role=(.+)$/)?.[1] ?? element.role ?? "button";
     const name = element.accessibleName || element.text;
     if (name && name.length < 50) {
-      return `page.getByRole("${roleName}", { name: "${name.replace(/"/g, '\\"')}" })`;
+      return `${base}.getByRole("${roleName}", { name: "${name.replace(/"/g, '\\"')}" })`;
     }
-    return `page.getByRole("${roleName}")`;
+    return `${base}.getByRole("${roleName}")`;
   }
   if (locator.kind === "text") {
-    return `page.getByText("${expression.replace(/"/g, '\\"')}")`;
+    return `${base}.getByText("${targetSelector.replace(/"/g, '\\"')}")`;
   }
   if (locator.kind === "testId") {
-    const testId = expression.match(/\[data-[^=]+="([^"]+)"\]/)?.[1];
-    if (testId) return `page.getByTestId("${testId}")`;
+    const match = targetSelector.match(
+      /\[(?:data-testid|data-test|data-cy)=(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|([^\]\s]+))\]/
+    );
+    const rawVal = match
+      ? (match[1] ?? match[2] ?? match[3] ?? "")
+      : targetSelector;
+    const testId = rawVal.replace(/\\(.)/gs, "$1");
+    return `${base}.getByTestId(${JSON.stringify(testId)})`;
   }
-  return `page.locator("${expression.replace(/"/g, '\\"')}")`;
+  const cssSel =
+    locator.kind === "id" && !targetSelector.startsWith("#")
+      ? `#${targetSelector}`
+      : targetSelector;
+  return `${base}.locator("${cssSel.replace(/"/g, '\\"')}")`;
 }
 
 function formatStepForAi(

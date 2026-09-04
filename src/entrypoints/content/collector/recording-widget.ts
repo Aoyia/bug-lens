@@ -23,7 +23,12 @@ export class RecordingWidget {
   private bubbleElement?: HTMLElement;
   private bubbleTimer?: number;
   private cleanupCollapseListeners?: () => void;
+  private cleanupDragListeners?: () => void;
   private _isSaving = false;
+  private _isClosing = false;
+  private closeTimer?: number;
+  private closePromise?: Promise<void>;
+  private closeResolve?: () => void;
   private readonly callbacks: WidgetCallbacks;
   private readonly isMac: boolean;
   readonly shortcutKeyText: string;
@@ -31,6 +36,10 @@ export class RecordingWidget {
 
   get isSaving(): boolean {
     return this._isSaving;
+  }
+
+  get isClosing(): boolean {
+    return this._isClosing;
   }
 
   constructor(callbacks: WidgetCallbacks) {
@@ -133,6 +142,9 @@ export class RecordingWidget {
   }
 
   mount(): void {
+    if (this._isClosing) {
+      this.unmount();
+    }
     if (this.container || window.top !== window) return;
     const root = document.createElement("div");
     root.id = "__wbr_recording_widget__";
@@ -176,7 +188,7 @@ export class RecordingWidget {
           transform: none !important;
           align-self: auto !important;
           overflow: hidden !important;
-          transition: height 0.32s cubic-bezier(0.25, 1, 0.5, 1), border-radius 0.32s cubic-bezier(0.25, 1, 0.5, 1), padding 0.32s cubic-bezier(0.25, 1, 0.5, 1), background 0.32s ease, box-shadow 0.32s ease !important;
+          transition: height 0.32s cubic-bezier(0.25, 1, 0.5, 1), border-radius 0.32s cubic-bezier(0.25, 1, 0.5, 1), padding 0.32s cubic-bezier(0.25, 1, 0.5, 1), background 0.32s ease, box-shadow 0.32s ease, opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
         }
         #__wbr_recording_widget__.__wbr_collapsed__ {
           height: 30px !important;
@@ -219,6 +231,11 @@ export class RecordingWidget {
           border-radius: 15px !important;
           border: 1px solid rgba(255, 255, 255, 0.2) !important;
           box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3) !important;
+          pointer-events: none !important;
+        }
+        #__wbr_recording_widget__.__wbr_closing__ {
+          opacity: 0 !important;
+          transform: translateY(8px) scale(0.96) !important;
           pointer-events: none !important;
         }
         #__wbr_recording_widget__.__wbr_saving__ .__wbr_drag_handle,
@@ -328,6 +345,7 @@ export class RecordingWidget {
             (e) => {
               e.stopPropagation();
               e.preventDefault();
+              if (this._isSaving || this._isClosing) return;
               this.callbacks.onStop();
             },
             true
@@ -339,6 +357,7 @@ export class RecordingWidget {
           (e: Event) => {
             e.stopPropagation();
             e.preventDefault();
+            if (this._isSaving || this._isClosing) return;
             const me = e as MouseEvent;
             this.callbacks.onMarkIssue({ x: me.clientX, y: me.clientY });
           },
@@ -352,6 +371,7 @@ export class RecordingWidget {
           const onMouseDown = (e: MouseEvent) => {
             e.stopPropagation();
             e.preventDefault();
+            if (this._isSaving || this._isClosing) return;
             this.isDragging = true;
             if (this.autoCollapseTimer) {
               window.clearTimeout(this.autoCollapseTimer);
@@ -394,6 +414,7 @@ export class RecordingWidget {
               this.isDragging = false;
               window.removeEventListener("mousemove", onMouseMove);
               window.removeEventListener("mouseup", onMouseUp);
+              this.cleanupDragListeners = undefined;
 
               try {
                 const currentSessionId = this.callbacks.getSessionId?.();
@@ -418,6 +439,10 @@ export class RecordingWidget {
               this.resetCollapseTimer();
             };
 
+            this.cleanupDragListeners = () => {
+              window.removeEventListener("mousemove", onMouseMove);
+              window.removeEventListener("mouseup", onMouseUp);
+            };
             window.addEventListener("mousemove", onMouseMove);
             window.addEventListener("mouseup", onMouseUp);
           };
@@ -431,16 +456,16 @@ export class RecordingWidget {
         // 自动折叠逻辑
         // 鼠标悬停期间保持展开：只清除折叠计时器，不再重新安排折叠
         const onMouseEnter = () => {
-          if (this._isSaving) return;
+          if (this._isSaving || this._isClosing) return;
           this.isHovering = true;
           this.keepExpanded();
         };
         const onMouseMove = () => {
-          if (this._isSaving) return;
+          if (this._isSaving || this._isClosing) return;
           this.keepExpanded();
         };
         const onFocusIn = () => {
-          if (this._isSaving) return;
+          if (this._isSaving || this._isClosing) return;
           if (this.isHovering) {
             this.keepExpanded();
           } else {
@@ -453,7 +478,7 @@ export class RecordingWidget {
         root.addEventListener("focusin", onFocusIn);
 
         const onMouseLeave = () => {
-          if (this._isSaving) return;
+          if (this._isSaving || this._isClosing) return;
           this.isHovering = false;
           if (this.autoCollapseTimer) {
             window.clearTimeout(this.autoCollapseTimer);
@@ -638,7 +663,7 @@ export class RecordingWidget {
 
     const rAF =
       typeof requestAnimationFrame === "function"
-        ? requestAnimationFrame
+        ? (fn: FrameRequestCallback) => requestAnimationFrame(fn)
         : (fn: FrameRequestCallback) => setTimeout(fn, 0);
     rAF(() => {
       bubble.classList.add("__wbr_bubble_visible__");
@@ -712,11 +737,59 @@ export class RecordingWidget {
     }
   }
 
+  /**
+   * 平滑淡出并卸载悬浮条挂件。
+   * 导出完成后展示 Toast 的同时触发，避免突然闪退消失。
+   */
+  closeSmoothly(durationMs = 260): Promise<void> {
+    if (this.closePromise) return this.closePromise;
+    if (!this.container) {
+      this.unmount();
+      return Promise.resolve();
+    }
+    const safeDuration = Number.isFinite(durationMs)
+      ? Math.max(0, durationMs)
+      : 260;
+    if (safeDuration <= 0) {
+      this.unmount();
+      return Promise.resolve();
+    }
+    this._isClosing = true;
+    this.container.classList.add("__wbr_closing__");
+    this.closePromise = new Promise<void>((resolve) => {
+      this.closeResolve = resolve;
+      this.closeTimer = window.setTimeout(() => {
+        this.finishClosing();
+      }, safeDuration);
+    });
+    return this.closePromise;
+  }
+
+  private finishClosing(): void {
+    if (this.closeTimer) {
+      window.clearTimeout(this.closeTimer);
+      this.closeTimer = undefined;
+    }
+    this.unmount();
+  }
+
   unmount(): void {
+    if (this.closeTimer) {
+      window.clearTimeout(this.closeTimer);
+      this.closeTimer = undefined;
+    }
+    const resolve = this.closeResolve;
+    this.closeResolve = undefined;
+    this.closePromise = undefined;
+    this._isClosing = false;
     this._isSaving = false;
     this.isHovering = false;
     this.isBubbleShowing = false;
     this.isSelectingIssue = false;
+    if (this.cleanupDragListeners) {
+      this.cleanupDragListeners();
+      this.cleanupDragListeners = undefined;
+    }
     if (this.bubbleTimer) {
       window.clearTimeout(this.bubbleTimer);
       this.bubbleTimer = undefined;
@@ -741,9 +814,11 @@ export class RecordingWidget {
       this.container.remove();
       this.container = undefined;
     }
+    resolve?.();
   }
 
   setSavingState(saving: boolean, messageText?: string): void {
+    if (this._isClosing) return;
     this._isSaving = saving;
     if (this.timerInterval) {
       clearInterval(this.timerInterval);
@@ -755,6 +830,8 @@ export class RecordingWidget {
     }
     if (!this.container) return;
     if (saving) {
+      this.isHovering = false;
+      this.isDragging = false;
       this.container.classList.remove("__wbr_collapsed__");
       this.container.classList.add("__wbr_saving__");
       const display = this.container.querySelector("#__wbr_timer_display__");
@@ -770,6 +847,7 @@ export class RecordingWidget {
           1000
         );
       }
+      this.resetCollapseTimer();
     }
   }
 
@@ -811,7 +889,7 @@ export class RecordingWidget {
   }
 
   updateLanguage(): void {
-    if (!this.container) return;
+    if (this._isClosing || this._isSaving || !this.container) return;
     const handle =
       this.container.querySelector<HTMLElement>(".__wbr_drag_handle");
     if (handle) handle.title = t("dragToMove");
@@ -833,7 +911,7 @@ export class RecordingWidget {
   }
 
   updatePauseState(paused: boolean): void {
-    if (!this.container) return;
+    if (this._isClosing || this._isSaving || !this.container) return;
     const dot = this.container.querySelector<HTMLElement>(".__wbr_dot");
     const recTag =
       this.container.querySelector<HTMLElement>("[data-wbr-rec-tag]");
@@ -855,7 +933,7 @@ export class RecordingWidget {
   updateHealth(
     health?: import("../../../shared/protocol").RecordingHealthInfo
   ): void {
-    if (!this.container || !health) return;
+    if (this._isClosing || this._isSaving || !this.container || !health) return;
     const dot = this.container.querySelector<HTMLElement>(".__wbr_dot");
     const recTag =
       this.container.querySelector<HTMLElement>("[data-wbr-rec-tag]");
@@ -947,7 +1025,7 @@ export class RecordingWidget {
 
     const rAF =
       typeof requestAnimationFrame === "function"
-        ? requestAnimationFrame
+        ? (fn: FrameRequestCallback) => requestAnimationFrame(fn)
         : (fn: FrameRequestCallback) => setTimeout(fn, 0);
 
     rAF(() => {

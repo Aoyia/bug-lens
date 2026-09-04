@@ -163,6 +163,37 @@ export const test = base.extend<ExtensionFixtures>({
         });
         return;
       }
+      if (pathname === "/api/iframe-child-data") {
+        res.writeHead(200, {
+          "Content-Type": "application/json; charset=utf-8",
+        });
+        res.end(
+          JSON.stringify({
+            status: "ok",
+            message: "child data loaded",
+            timestamp: Date.now(),
+          })
+        );
+        return;
+      }
+      if (pathname.startsWith("/iframe-host.html")) {
+        const iframeHostPath = path.resolve(
+          process.cwd(),
+          "e2e/fixtures/iframe-host.html"
+        );
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(fs.readFileSync(iframeHostPath));
+        return;
+      }
+      if (pathname.startsWith("/iframe-child.html")) {
+        const iframeChildPath = path.resolve(
+          process.cwd(),
+          "e2e/fixtures/iframe-child.html"
+        );
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(fs.readFileSync(iframeChildPath));
+        return;
+      }
       if (pathname.startsWith("/privacy-page.html")) {
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
         res.end(fs.readFileSync(privacyHtmlPath));

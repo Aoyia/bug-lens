@@ -67,6 +67,11 @@ test.describe("Bug Lens Recording Widget Compact Controls E2E", () => {
     // 4. 点击【结束并导出】：停止录制并直出证据包下载（不打开预览页）
     logE2e("Clicking the compact stop-export control");
     await stopButton.click();
+
+    // 验证点击后悬浮条持续展示 Loading 保存状态，不再提前闪退
+    const savingWidget = targetPage.locator("#__wbr_recording_widget__");
+    await expect(savingWidget).toHaveClass(/__wbr_saving__/);
+
     // Playwright 捕获不到扩展后台发起的下载，改由 chrome.downloads API 轮询验证
     const exportedDownload = await mediaProbe.waitForExportDownload();
     logE2e("Silent export download completed", {
@@ -77,8 +82,18 @@ test.describe("Bug Lens Recording Widget Compact Controls E2E", () => {
     expect(exportedDownload.state).toBe("complete");
     expect(exportedDownload.totalBytes ?? 0).toBeGreaterThan(0);
 
+    // 导出完成后弹出 Toast，且悬浮条平滑关闭并正常卸载
+    const exportToast = targetPage.locator("#__wbr_toast__");
+    await expect(exportToast).toBeVisible({ timeout: 5_000 });
+    await expect(targetPage.locator("#__wbr_recording_widget__")).toHaveCount(
+      0,
+      {
+        timeout: 5_000,
+      }
+    );
+
     // 静默导出不自动打开 Preview 页
-    await targetPage.waitForTimeout(1_500);
+    await targetPage.waitForTimeout(1_000);
     const previewPages = context
       .pages()
       .filter((p) =>

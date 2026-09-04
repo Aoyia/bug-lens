@@ -41,6 +41,19 @@ export class TruncatedText extends ElementBase {
   }
 
   connectedCallback(): void {
+    if (
+      !this.hasAttribute("text") &&
+      !this.spanEl.textContent &&
+      this.childNodes.length > 0
+    ) {
+      const text = Array.from(this.childNodes)
+        .map((node) => node.textContent ?? "")
+        .join("")
+        .trim();
+      if (text) {
+        this.spanEl.textContent = text;
+      }
+    }
     this.render();
     if (typeof this.addEventListener === "function") {
       this.addEventListener("mouseenter", this.handleMouseEnter);
@@ -92,15 +105,20 @@ export class TruncatedText extends ElementBase {
     newValue: string | null
   ): void {
     if (oldValue === newValue) return;
+    if (name === "text") {
+      this.spanEl.textContent = newValue ?? "";
+    }
     if (name === "text" || name === "title" || name === "no-tooltip") {
       this.render();
     }
   }
 
   private render(): void {
-    const text = this.getAttribute("text") ?? "";
-    if (this.spanEl.textContent !== text) {
-      this.spanEl.textContent = text;
+    if (this.hasAttribute("text")) {
+      const text = this.getAttribute("text") ?? "";
+      if (this.spanEl.textContent !== text) {
+        this.spanEl.textContent = text;
+      }
     }
 
     if (this.hasAttribute("no-tooltip")) {
@@ -116,7 +134,9 @@ export class TruncatedText extends ElementBase {
 
   set textContent(value: string | null) {
     const text = value ?? "";
-    if (this.spanEl) {
+    if (typeof this.hasAttribute === "function" && this.hasAttribute("text")) {
+      this.setAttribute("text", text);
+    } else if (this.spanEl) {
       this.spanEl.textContent = text;
       this.render();
     }
@@ -124,6 +144,14 @@ export class TruncatedText extends ElementBase {
 
   get textContent(): string {
     return this.spanEl?.textContent ?? "";
+  }
+
+  set innerText(value: string | null) {
+    this.textContent = value;
+  }
+
+  get innerText(): string {
+    return this.textContent;
   }
 }
 

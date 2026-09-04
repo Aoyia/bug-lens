@@ -341,6 +341,8 @@ export type InteractionRecord = {
   coordinates: {
     clientX: number;
     clientY: number;
+    localX?: number;
+    localY?: number;
     pageX: number;
     pageY: number;
     scrollX: number;
@@ -444,6 +446,7 @@ export type ConsoleEntry = {
   args?: ConsoleArgument[];
   networkRequestId?: string;
   workerId?: string;
+  frameId?: string;
 };
 
 export type ConciseCallFrame = {
@@ -872,6 +875,7 @@ export type RuntimeMessage =
   | Envelope<"content/reset", Record<string, never>>
   | Envelope<"content/health-update", { health: RecordingHealthInfo }>
   | Envelope<"content/screenshot-overlay-state", { open: boolean }>
+  | Envelope<"content/activity-ping", { timestamp?: number }>
   | Envelope<"framework/state", { state: FrameworkStateEvidence }>
   | Envelope<
       "offscreen/start-media",
@@ -1007,10 +1011,12 @@ export type RuntimeMessageResponseMap = {
     privacyMode?: "safe" | "raw";
     captureFrameworkState?: boolean;
     health?: RecordingHealthInfo;
+    frameId?: number;
   };
   "content/reset": { ok: true };
   "content/health-update": { ok: true };
   "content/screenshot-overlay-state": { ok: true };
+  "content/activity-ping": { ok: true };
   "framework/state": { ok: true; stored: boolean };
   "offscreen/start-media": { ok: true };
   "offscreen/stop-media": { ok: true };

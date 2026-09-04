@@ -422,6 +422,12 @@ test.describe("Bug Lens Chrome Extension E2E EXP-001: ZIP Export and AI Handoff"
       process.platform !== "darwin",
       "EXP-001-native-save requires macOS native save dialog driver"
     );
+    const hasPermission =
+      (await nativeSaveDialogDriver.isAvailable?.()) ?? true;
+    test.skip(
+      !hasPermission,
+      "EXP-001-native-save requires macOS Accessibility permission for System Events"
+    );
     test.info().annotations.push({
       type: "platform",
       description:

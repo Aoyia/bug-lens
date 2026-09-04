@@ -57,17 +57,20 @@ export class SpatialPruner {
     }> = [];
     const visitedComponentNames = new Set<string>();
 
-    // 遍历 DOM 树元素，匹配在 BoundingBox 范围内的可视节点
-    const allElements = Array.from(document.querySelectorAll("*"));
-    for (const el of allElements) {
+    // 递归遍历 DOM 树元素（含同源子 iframe），匹配在 BoundingBox 范围内的可视节点
+    const processElement = (
+      el: Element,
+      offset: { x: number; y: number },
+      depth: number
+    ) => {
       // 忽略不可见节点
-      if (!(el instanceof HTMLElement) && !(el instanceof SVGElement)) continue;
+      if (!(el instanceof HTMLElement) && !(el instanceof SVGElement)) return;
       const rect = el.getBoundingClientRect();
-      if (rect.width === 0 || rect.height === 0) continue;
+      if (rect.width === 0 || rect.height === 0) return;
 
       const elementBox: BoundingBox = {
-        x: rect.left,
-        y: rect.top,
+        x: offset.x + rect.left,
+        y: offset.y + rect.top,
         width: rect.width,
         height: rect.height,
       };
@@ -127,6 +130,34 @@ export class SpatialPruner {
           // 忽略检测错误
         }
       }
+
+      // 若为同源 iframe，穿透探测其内部 DOM 与组件
+      const isIframe =
+        typeof HTMLIFrameElement !== "undefined"
+          ? el instanceof HTMLIFrameElement
+          : el.tagName.toLowerCase() === "iframe";
+      if (isIframe && depth < 5) {
+        try {
+          const doc = (el as HTMLIFrameElement).contentDocument;
+          if (doc) {
+            const childOffset = {
+              x: offset.x + rect.left,
+              y: offset.y + rect.top,
+            };
+            const childElements = Array.from(doc.querySelectorAll("*"));
+            for (const child of childElements) {
+              processElement(child, childOffset, depth + 1);
+            }
+          }
+        } catch {
+          // 跨域或安全受限时忽略穿透异常
+        }
+      }
+    };
+
+    const allElements = Array.from(document.querySelectorAll("*"));
+    for (const el of allElements) {
+      processElement(el, { x: 0, y: 0 }, 0);
     }
 
     // 将匹配到的前 N 个关键 DOM 节点打成轻量级 TargetDomSnapshot

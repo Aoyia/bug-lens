@@ -1,9 +1,15 @@
 import { message, type InteractionRecord } from "../../../shared/protocol";
 import { describe, isWidgetElement } from "./dom-snapshot";
+import { normalizeCoordinates } from "./frame-geometry";
 
 export type DomObserverDeps = {
   getSession():
-    | { nonce: string; sessionId: string; privacyMode: "safe" | "raw" }
+    | {
+        nonce: string;
+        sessionId: string;
+        privacyMode: "safe" | "raw";
+        frameId?: number;
+      }
     | undefined;
   isIssueActive(): boolean;
   beginIssueSelection(): void;
@@ -304,8 +310,12 @@ export class DomObserver {
     const pointer = event instanceof MouseEvent ? event : undefined;
     const keyboard = event instanceof KeyboardEvent ? event : undefined;
     const rect = element.getBoundingClientRect();
-    const clientX = pointer?.clientX ?? Math.max(0, rect.left + rect.width / 2);
-    const clientY = pointer?.clientY ?? Math.max(0, rect.top + rect.height / 2);
+    const localX = pointer?.clientX ?? Math.max(0, rect.left + rect.width / 2);
+    const localY = pointer?.clientY ?? Math.max(0, rect.top + rect.height / 2);
+    const isChildFrame = typeof window !== "undefined" && window.top !== window;
+    const norm = normalizeCoordinates(localX, localY);
+    const clientX = norm.clientX;
+    const clientY = norm.clientY;
     const pointerType =
       event instanceof PointerEvent
         ? event.pointerType || "unknown"
@@ -321,9 +331,19 @@ export class DomObserver {
       status,
       createdAt: now,
       page: {
-        url: location.href,
-        title: document.title,
-        frameId: window.top === window ? 0 : -1,
+        url:
+          typeof window !== "undefined" && window.location
+            ? window.location.href
+            : typeof location !== "undefined"
+              ? location.href
+              : "",
+        title: typeof document !== "undefined" ? document.title : "",
+        frameId:
+          typeof session.frameId === "number" && session.frameId >= 0
+            ? session.frameId
+            : window.top === window
+              ? 0
+              : -1,
       },
       input: {
         pointerType,
@@ -333,12 +353,28 @@ export class DomObserver {
       coordinates: {
         clientX,
         clientY,
-        pageX: pointer?.pageX ?? clientX + window.scrollX,
-        pageY: pointer?.pageY ?? clientY + window.scrollY,
+        localX,
+        localY,
+        pageX:
+          typeof pointer?.pageX === "number"
+            ? pointer.pageX + (clientX - localX)
+            : clientX +
+              (typeof window !== "undefined" &&
+              typeof window.scrollX === "number"
+                ? window.scrollX
+                : 0),
+        pageY:
+          typeof pointer?.pageY === "number"
+            ? pointer.pageY + (clientY - localY)
+            : clientY +
+              (typeof window !== "undefined" &&
+              typeof window.scrollY === "number"
+                ? window.scrollY
+                : 0),
         scrollX: window.scrollX,
         scrollY: window.scrollY,
         devicePixelRatio: window.devicePixelRatio,
-        viewport: { width: window.innerWidth, height: window.innerHeight },
+        viewport: norm.viewport,
       },
       element: describe(element, session.privacyMode),
       metadata,
@@ -428,8 +464,14 @@ export class DomObserver {
     if (!element || isWidgetElement(element)) return;
     const nearest = Array.from(this.pending.values()).find(
       (candidate) =>
-        Math.abs(candidate.coordinates.clientX - event.clientX) < 3 &&
-        Math.abs(candidate.coordinates.clientY - event.clientY) < 3
+        Math.abs(
+          (candidate.coordinates.localX ?? candidate.coordinates.clientX) -
+            event.clientX
+        ) < 3 &&
+        Math.abs(
+          (candidate.coordinates.localY ?? candidate.coordinates.clientY) -
+            event.clientY
+        ) < 3
     );
     const record = nearest
       ? {

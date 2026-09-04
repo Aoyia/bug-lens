@@ -21,8 +21,8 @@ export function filterConsoleEntries(
       return false;
     return (
       !query ||
-      [entry.text, entry.source, level].some((value) =>
-        (value || "").toLowerCase().includes(query)
+      [entry.text, entry.source, entry.url, entry.frameId, level].some(
+        (value) => (value || "").toLowerCase().includes(query)
       )
     );
   });

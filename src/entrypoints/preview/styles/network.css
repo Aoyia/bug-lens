@@ -431,3 +431,31 @@
   border-radius: 2px;
   border: 1px dashed var(--zen-border);
 }
+
+.network-frame-badge {
+  display: inline-block;
+  font-size: 10px;
+  line-height: 1.2;
+  padding: 1px 4px;
+  border-radius: 3px;
+  margin-right: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+.network-frame-badge.badge-topframe {
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+}
+.network-frame-badge.badge-subframe {
+  background: rgba(99, 102, 241, 0.12);
+  color: #6366f1;
+  border: 1px solid rgba(99, 102, 241, 0.25);
+}
+.network-detail-frame {
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--zen-text-sub, #475569);
+  word-break: break-all;
+}

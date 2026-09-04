@@ -570,17 +570,16 @@ export async function processScreenshot(
   //    确保用户在任何后续失败下都能拿到可用的 AI 提示词。
   await writeTextToClipboard(formatPayloadToMarkdown(payload));
 
-  // 6. 打包 ZIP 并触发下载。优先经由 background 下载（content script 无
-  //    chrome.downloads 权限）并解析真实绝对路径；background 不可用时回退页面内
-  //    <a download>（该路径无法拿到绝对路径，提示词保留占位符）。
+  // 6. 打包 ZIP 并触发下载。
+  //    先在页面内触发标准原生下载，确保浏览器/Playwright 均可感知下载事件；
+  //    同时通知 background 监听该任务以解析真实绝对路径；若页面未生效则由 background 兜底。
   let zipPath: string | undefined;
-  let downloaded = false;
   try {
     const zipPack = buildScreenshotZipPackage(payload);
+    triggerZipDownload(zipPack.blobUrl, zipPack.filename);
+
     if (typeof chrome !== "undefined" && chrome.runtime?.id) {
       try {
-        // 直接发送 data URL 字符串而非 ArrayBuffer：字符串在消息序列化中不会丢字节，
-        // 规避 ArrayBuffer 跨上下文传递被清空/序列化成空对象的问题。
         const dataUrl = await blobToDataUrl(zipPack.blob);
         const response = (await chrome.runtime.sendMessage(
           message("screenshot/download", {
@@ -590,23 +589,12 @@ export async function processScreenshot(
         )) as
           | { ok?: boolean; downloadId?: number; absolutePath?: string }
           | undefined;
-        if (response?.ok) {
-          downloaded = true;
+        if (response?.ok && response.absolutePath) {
           zipPath = response.absolutePath;
         }
       } catch (bgErr) {
-        console.warn("Bug Lens: 经由 background 下载截图 ZIP 失败", bgErr);
+        console.warn("Bug Lens: 经由 background 解析截图 ZIP 下载失败", bgErr);
       }
-    }
-
-    if (!downloaded) {
-      triggerZipDownload(zipPack.blobUrl, zipPack.filename);
-    } else if (
-      zipPack.blobUrl &&
-      typeof URL !== "undefined" &&
-      URL.revokeObjectURL
-    ) {
-      URL.revokeObjectURL(zipPack.blobUrl);
     }
   } catch (zipErr) {
     console.warn("Bug Lens: 截图 ZIP 打包下载异常", zipErr);

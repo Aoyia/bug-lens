@@ -1,6 +1,6 @@
 # Chrome Web Store Listing & Submission Guide — Bug Lens
 
-> **Version Alignment**: Manifest `v0.7.32`  
+> **Version Alignment**: Manifest `v0.7.33`  
 > **Target Store**: [Chrome Developer Dashboard](https://chrome.google.com/webstore/devconsole)
 
 ---
@@ -184,6 +184,7 @@ pnpm run package
 
 | Version   | Date       | Changes Summary                                                                                                                                         | Store Status         |
 | :-------- | :--------- | :------------------------------------------------------------------------------------------------------------------------------------------------------ | :------------------- |
+| `v0.7.33` | 2026-09-04 | Silent export responsiveness optimization, IndexedDB write batching & transaction lock mitigation, full 21 E2E stress suite hardening.                  | Ready for Submission |
 | `v0.7.32` | 2026-08-21 | Widget position persistence across sessions, recording lock states, export toast card UI optimizations, and database loading performance optimizations. | Ready for Submission |
 | `v0.7.3`  | 2026-08-21 | Store listing and notification text refinement with Codex & AI assistant representations.                                                               | Submitted            |
 | `v0.7.2`  | 2026-08-19 | Fix silent export package missing offline HTML report template & assets.                                                                                | Submitted            |

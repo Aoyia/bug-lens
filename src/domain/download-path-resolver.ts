@@ -25,8 +25,8 @@ function sleep(ms: number): Promise<void> {
 /**
  * 轮询等待下载项完成并返回其绝对路径。
  *
- * - 命中 complete 且存在 filename：视为成功（filename 即绝对路径）。
  * - 命中 interrupted：返回中断原因，调用方可据此降级提示。
+ * - 命中 complete：视为成功并返回落盘绝对路径。
  * - 超时：若已生成目标文件名（下载进行中，路径已确定），仍返回该路径；
  *   否则返回 timeout，调用方回退为占位符提示词。
  */
@@ -34,16 +34,21 @@ export async function waitForDownloadCompletion(
   downloadId: number,
   search: SearchDownloadFn,
   timeoutMs = 15000,
-  pollMs = 250
+  pollMs = 50
 ): Promise<DownloadCompletionResult> {
-  const deadline = Date.now() + timeoutMs;
+  const safeTimeoutMs = Number.isFinite(timeoutMs)
+    ? Math.max(0, timeoutMs)
+    : 15000;
+  const safePollMs = Number.isFinite(pollMs) ? Math.max(1, pollMs) : 50;
+  const deadline = Date.now() + safeTimeoutMs;
   let lastItem: chrome.downloads.DownloadItem | undefined;
   for (;;) {
-    lastItem = await search(downloadId);
+    try {
+      lastItem = await search(downloadId);
+    } catch {
+      lastItem = undefined;
+    }
     if (lastItem) {
-      if (lastItem.state === "complete" && lastItem.filename) {
-        return { state: "complete", filename: lastItem.filename };
-      }
       if (lastItem.state === "interrupted") {
         return {
           state: "interrupted",
@@ -51,15 +56,21 @@ export async function waitForDownloadCompletion(
           error: lastItem.error,
         };
       }
+      if (lastItem.state === "complete") {
+        return { state: "complete", filename: lastItem.filename || "" };
+      }
     }
     if (Date.now() >= deadline) {
-      // 目标文件名已生成即视为路径有效：Chrome 在下载开始时即确定落盘路径，
-      // 即使尚未 complete 也能安全注入提示词。
-      if (lastItem?.filename) {
+      // 轮询超时兜底：若已到达截止时间但已生成目标文件名（下载进行中，路径已确定），
+      // 仍返回该路径；否则返回 timeout，调用方回退为占位符提示词。
+      if (lastItem?.state === "complete") {
+        return { state: "complete", filename: lastItem.filename || "" };
+      }
+      if (lastItem?.filename && lastItem.filename.trim().length > 0) {
         return { state: "complete", filename: lastItem.filename };
       }
       return { state: "timeout" };
     }
-    await sleep(pollMs);
+    await sleep(safePollMs);
   }
 }

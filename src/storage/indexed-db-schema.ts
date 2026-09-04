@@ -19,6 +19,22 @@ export type StoreName =
 /** 复用已打开的连接：避免并发调用 openEvidenceDatabase 触发多次 open。 */
 let openPromise: Promise<IDBDatabase> | undefined;
 
+/** 关闭并重置当前数据库连接（用于版本升级、重连或测试重置）。 */
+export function closeEvidenceDatabase(): void {
+  if (openPromise) {
+    const current = openPromise;
+    openPromise = undefined;
+    void current.then(
+      (database) => {
+        try {
+          database.close();
+        } catch {}
+      },
+      () => {}
+    );
+  }
+}
+
 export function openEvidenceDatabase(): Promise<IDBDatabase> {
   if (openPromise) return openPromise;
   openPromise = new Promise((resolve, reject) => {
@@ -84,8 +100,26 @@ export function openEvidenceDatabase(): Promise<IDBDatabase> {
         },
       ]);
     };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const database = request.result;
+      database.onclose = () => {
+        openPromise = undefined;
+      };
+      database.onversionchange = () => {
+        try {
+          database.close();
+        } catch {}
+        openPromise = undefined;
+      };
+      resolve(database);
+    };
+    request.onerror = () => {
+      openPromise = undefined;
+      reject(request.error);
+    };
+    request.onblocked = () => {
+      openPromise = undefined;
+    };
   });
   return openPromise;
 }

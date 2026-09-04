@@ -32,6 +32,7 @@ function isMacOSInputPermissionError(error: unknown): boolean {
 
 export interface NativeSaveDialogDriver {
   saveToDirectory(absolutePath: string, timeoutMs?: number): Promise<void>;
+  isAvailable?(): Promise<boolean>;
 }
 
 export class MacOSSaveDialogDriver implements NativeSaveDialogDriver {
@@ -41,6 +42,19 @@ export class MacOSSaveDialogDriver implements NativeSaveDialogDriver {
   constructor(browserAppName: string, browserPid?: number) {
     this.browserAppName = browserAppName;
     this.browserPid = browserPid;
+  }
+
+  async isAvailable(): Promise<boolean> {
+    if (process.platform !== "darwin") return false;
+    try {
+      const { stdout } = await run("/usr/bin/osascript", [
+        "-e",
+        'tell application "System Events" to get UI elements enabled',
+      ]);
+      return stdout.trim() === "true";
+    } catch {
+      return false;
+    }
   }
 
   async saveToDirectory(

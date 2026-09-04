@@ -202,18 +202,102 @@ export class InteractionCapture {
     );
   }
 
+  private latestTopViewport?: { width: number; height: number };
+
+  /**
+   * 多级权威顶层视口决议策略：
+   * 1. 来自主帧 (frameId === 0) 的最新交互视口；
+   * 2. 之前已确立的最新主帧视口缓存（抵消子 frame 局部退化尺寸）；
+   * 3. 会话启动时主帧上报的权威环境快照 (session.target.environment)；
+   * 4. 自身已成功解析的视口；
+   * 5. 桌面标准基线兜底 (1280x720)。
+   */
+  private resolveTopViewport(
+    session: RecordingSession,
+    interaction: InteractionRecord,
+    frameId: number
+  ): { width: number; height: number } {
+    const incomingVp = interaction.coordinates?.viewport;
+    const hasIncomingVp = Boolean(
+      incomingVp && incomingVp.width > 0 && incomingVp.height > 0
+    );
+
+    // 1. 若交互来自主帧，其视口为最新权威顶层视口
+    if (frameId === 0 && hasIncomingVp) {
+      this.latestTopViewport = {
+        width: incomingVp.width,
+        height: incomingVp.height,
+      };
+      return this.latestTopViewport;
+    }
+
+    // 2. 若已有之前由主帧交互确立的最新顶层视口
+    if (
+      this.latestTopViewport &&
+      this.latestTopViewport.width > 0 &&
+      this.latestTopViewport.height > 0
+    ) {
+      if (frameId !== 0) {
+        return this.latestTopViewport;
+      }
+    }
+
+    // 3. 检查会话录制启动时主帧上报的权威环境快照中的视口
+    const env = session.target.environment;
+    if (env && env.viewportWidth > 0 && env.viewportHeight > 0) {
+      const envViewport = {
+        width: env.viewportWidth,
+        height: env.viewportHeight,
+      };
+      this.latestTopViewport = envViewport;
+      return envViewport;
+    }
+
+    // 4. 若子 frame 自身已成功解析到有效视口
+    if (hasIncomingVp) {
+      return {
+        width: incomingVp.width,
+        height: incomingVp.height,
+      };
+    }
+
+    // 5. 最终安全兜底
+    return { width: 1280, height: 720 };
+  }
+
   private async handleInteraction(
     interaction: InteractionRecord,
     sender: chrome.runtime.MessageSender
   ): Promise<void> {
     const session = await this.repository.getActiveSession();
     if (!this.isAccepted(session, sender, interaction.sessionId)) return;
+    const authoritativeFrameId =
+      typeof sender.frameId === "number"
+        ? sender.frameId
+        : interaction.page.frameId >= 0
+          ? interaction.page.frameId
+          : 0;
+
+    const effectiveViewport = this.resolveTopViewport(
+      session,
+      interaction,
+      authoritativeFrameId
+    );
+
     // 脱敏后落库：强制绑定当前会话 id 并按隐私模式过滤，同时按会话选项
     // 关闭截图存储（captureScreenshots 未开启时置 disabled）
     const incoming = sanitizeInteractionRecord(
       {
         ...interaction,
         sessionId: session.id,
+        page: {
+          ...interaction.page,
+          frameId: authoritativeFrameId,
+        },
+        coordinates: {
+          ...interaction.coordinates,
+          viewport: effectiveViewport,
+        },
         screenshot: session.options.captureScreenshots
           ? interaction.screenshot
           : { status: "disabled" },
@@ -331,10 +415,6 @@ export class InteractionCapture {
     if (this.aborted) return;
     const endStepTimer = DevProfiler.time(`交互截图生成 #${interaction.id}`);
     try {
-      if ((sender.frameId ?? 0) !== 0)
-        throw new Error(
-          `FRAME_GEOMETRY_UNAVAILABLE: ${t("iframeCaptureUnsupported")}`
-        );
       await this.assertTargetTabIsActive(session);
       const capStartTime = performance.now();
       const rawDataUrl = await this.executeCaptureScreenshot(session);
@@ -347,6 +427,16 @@ export class InteractionCapture {
       let finalDataUrl = rawDataUrl;
       let source: "primary" | "fallback" = "primary";
 
+      const vp =
+        interaction.coordinates?.viewport?.width > 0 &&
+        interaction.coordinates?.viewport?.height > 0
+          ? interaction.coordinates.viewport
+          : this.resolveTopViewport(
+              session,
+              interaction,
+              interaction.page.frameId
+            );
+
       try {
         const annotateTask = chrome.runtime.sendMessage(
           message(
@@ -355,8 +445,8 @@ export class InteractionCapture {
               dataUrl: rawDataUrl,
               clientX: interaction.coordinates.clientX,
               clientY: interaction.coordinates.clientY,
-              viewportWidth: interaction.coordinates.viewport.width,
-              viewportHeight: interaction.coordinates.viewport.height,
+              viewportWidth: vp.width,
+              viewportHeight: vp.height,
             },
             session.id,
             "offscreen"
@@ -366,7 +456,7 @@ export class InteractionCapture {
           (resolve) =>
             setTimeout(
               () => resolve({ ok: false, error: "ANNOTATION_TIMEOUT" }),
-              1000
+              3000
             )
         );
         const annotated = (await Promise.race([annotateTask, timeoutTask])) as
@@ -400,8 +490,8 @@ export class InteractionCapture {
         kind: "interaction-screenshot",
         mimeType: "image/jpeg",
         bytes,
-        width: interaction.coordinates.viewport.width,
-        height: interaction.coordinates.viewport.height,
+        width: vp.width,
+        height: vp.height,
         createdAtEpochMs: Date.now(),
       });
       if (!assetResult.stored) {

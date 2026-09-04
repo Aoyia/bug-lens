@@ -247,10 +247,12 @@ test.describe("Bug Lens 0.4.x 1000+次真实DOM点击与万级吞吐 E2E 测试"
 
     // 3. 停止录制并校验落盘数据
     await targetPage.locator("#__wbr_stop_btn__").click();
-    await delay(4000);
-
     const finalSession = mediaProbe
-      ? await mediaProbe.getSession(sessionId)
+      ? await mediaProbe.waitForSessionStatus(
+          sessionId,
+          "PREVIEW_READY",
+          30_000
+        )
       : undefined;
     const finalChunks = mediaProbe
       ? await mediaProbe.mediaChunkCount(sessionId)
@@ -269,9 +271,11 @@ test.describe("Bug Lens 0.4.x 1000+次真实DOM点击与万级吞吐 E2E 测试"
       totalClickOperations: clickOperationCount,
     });
 
-    // 严密硬核断言：DOM 真实点击次数必须成功突破 1,000+ 次！
+    // 严密硬核断言：DOM 真实点击次数必须成功突破 1,000+ 次，控制台日志突破万级，且录像分片无饥饿！
     expect(clickOperationCount).toBeGreaterThanOrEqual(1000);
     expect(totalInteractions).toBeGreaterThan(0);
+    expect(totalConsole).toBeGreaterThan(10000);
+    expect(finalChunks).toBeGreaterThan(0);
     expect(finalSession?.status).toBe("PREVIEW_READY");
 
     logE2e(

@@ -10,7 +10,11 @@ export function filterNetworkEntries(
     const methodMatches =
       methodFilter === "all" ||
       (entry.method || "GET").toLowerCase() === methodFilter.toLowerCase();
-    const queryMatches = !query || entry.url.toLowerCase().includes(query);
+    const queryMatches =
+      !query ||
+      entry.url.toLowerCase().includes(query) ||
+      Boolean(entry.documentUrl?.toLowerCase().includes(query)) ||
+      Boolean(entry.frameId?.toLowerCase().includes(query));
     return methodMatches && queryMatches;
   });
 }

@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "__MSG_extensionName__",
   "default_locale": "zh_CN",
-  "version": "0.7.32",
+  "version": "0.7.33",
   "description": "__MSG_extensionDescription__",
   "minimum_chrome_version": "125",
   "action": {
@@ -70,7 +70,8 @@
       "matches": ["http://*/*", "https://*/*"],
       "js": ["vue-devtools-hook-inject.js"],
       "run_at": "document_start",
-      "world": "MAIN"
+      "world": "MAIN",
+      "all_frames": true
     }
   ],
   "content_security_policy": {

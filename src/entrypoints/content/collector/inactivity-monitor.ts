@@ -31,7 +31,7 @@ export class InactivityMonitor {
 
   getPausedDurationMs(): number {
     let currentPause = 0;
-    if (this._isIdlePaused && this.pauseStartMs !== undefined) {
+    if (this.isIdlePaused && this.pauseStartMs !== undefined) {
       currentPause = Date.now() - this.pauseStartMs;
     }
     return this.accumulatedPausedMs + currentPause;
@@ -78,9 +78,13 @@ export class InactivityMonitor {
       this.callbacks.onResume();
       return false;
     } else {
+      const now = Date.now();
+      if (this._isIdlePaused && this.pauseStartMs !== undefined) {
+        this.accumulatedPausedMs += now - this.pauseStartMs;
+      }
       this.isManualPaused = true;
       this._isIdlePaused = false;
-      this.pauseStartMs = Date.now();
+      this.pauseStartMs = now;
       this.callbacks.onPause();
       return true;
     }
@@ -121,6 +125,14 @@ export class InactivityMonitor {
     this.isManualPaused = false;
     this.accumulatedPausedMs = 0;
     this.pauseStartMs = undefined;
+  }
+
+  /**
+   * 外部活动信号驱动（如子 iframe 活跃心跳）：
+   * 重置空闲计时器；若当前因闲置已自动暂停，自动恢复录制。
+   */
+  recordActivity(): void {
+    this.handleActivity();
   }
 
   private handleActivity = (): void => {
