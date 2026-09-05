@@ -602,3 +602,176 @@ test("PopupApp 录制配置即时自动持久化：具备加载守卫与变更�
     "必须将更新后的 options 即时写入 chrome.storage.local"
   );
 });
+
+test("OptionsGrid 一级采集源收敛为 2×3 矩阵，移除 bodies/full-response-body chip 并下沉为独立表单行 (方案 A)", () => {
+  const optionsGrid = readFileSync(
+    resolve(process.cwd(), "src/components/popup/OptionsGrid.tsx"),
+    "utf8"
+  );
+  const popupApp = readFileSync(
+    resolve(process.cwd(), "src/components/popup/PopupApp.tsx"),
+    "utf8"
+  );
+  const popupCss = readFileSync(
+    resolve(process.cwd(), "src/entrypoints/popup/styles/popup.css"),
+    "utf8"
+  );
+  const zhDict = JSON.parse(
+    readFileSync(
+      resolve(process.cwd(), "src/_locales/zh_CN/messages.json"),
+      "utf8"
+    )
+  );
+  const enDict = JSON.parse(
+    readFileSync(
+      resolve(process.cwd(), "src/_locales/en/messages.json"),
+      "utf8"
+    )
+  );
+
+  // R1: 校验 .scopes-grid 严格只包含 6 个一级采集维度：video, audio, screenshots, console, network, framework-state
+  const scopesGridStart = optionsGrid.indexOf('className="scopes-grid"');
+  assert.ok(scopesGridStart > 0, "OptionsGrid 必须包含 .scopes-grid 容器");
+  const scopesGridEnd = optionsGrid.indexOf("</div>", scopesGridStart);
+  const scopesGridContent = optionsGrid.slice(scopesGridStart, scopesGridEnd);
+
+  const expectedChipIds = [
+    "video",
+    "audio",
+    "screenshots",
+    "console",
+    "network",
+    "framework-state",
+  ];
+  for (const id of expectedChipIds) {
+    assert.ok(
+      scopesGridContent.includes(`id="${id}"`),
+      `.scopes-grid 必须包含一级芯片 #${id}`
+    );
+  }
+
+  // 严格确保原网格中的 bodies 和 full-response-body 两个 Chip 已从网格中彻底移除
+  assert.ok(
+    !scopesGridContent.includes('id="bodies"'),
+    ".scopes-grid 不得残留 #bodies 芯片"
+  );
+  assert.ok(
+    !scopesGridContent.includes('id="full-response-body"'),
+    ".scopes-grid 不得残留 #full-response-body 芯片"
+  );
+
+  // 统计 input[type=checkbox] 数量恰好为 6 个
+  const chipMatches = scopesGridContent.match(/type="checkbox"/g);
+  assert.equal(
+    chipMatches?.length,
+    6,
+    ".scopes-grid 必须严格由 6 个元素填满（2×3 矩阵）"
+  );
+
+  // R2: 在 .scopes-grid 下方、Masking 上方新增响应正文策略控制项
+  const responseBodiesSelectIdx = optionsGrid.indexOf('id="response-bodies"');
+  const privacySelectIdx = optionsGrid.indexOf('id="privacy"');
+  assert.ok(
+    responseBodiesSelectIdx > scopesGridEnd &&
+      responseBodiesSelectIdx < privacySelectIdx,
+    "响应正文策略下拉框必须位于 .scopes-grid 下方且在 Masking (privacy) 上方"
+  );
+
+  // 样式与现有的 Masking、Language 行保持一致
+  assert.match(
+    optionsGrid,
+    /<label className="video-quality-row"[^>]*>[\s\S]*?<span className="video-quality-label">\s*\{t\("responseBodiesLabel"\)\}\s*<\/span>[\s\S]*?<select\s+id="response-bodies"\s+className="privacy-select"/,
+    "响应正文行必须复用 .video-quality-row 与 .privacy-select 统一表单样式"
+  );
+
+  // 3 档互斥选项
+  assert.match(
+    optionsGrid,
+    /<option value="disabled">\{t\("responseBodiesDisabled"\)\}<\/option>/
+  );
+  assert.match(
+    optionsGrid,
+    /<option value="standard">\{t\("responseBodiesStandard"\)\}<\/option>/
+  );
+  assert.match(
+    optionsGrid,
+    /<option value="full">\{t\("responseBodiesFull"\)\}<\/option>/
+  );
+
+  // 联动显示：未勾选 Network 时不展示响应正文行，勾选后才显示且受 controlsLocked 保护
+  assert.match(
+    optionsGrid,
+    /\{captureNetwork && \([\s\S]*?<select\s+id="response-bodies"/,
+    "响应正文下拉行必须仅在 captureNetwork 为 true 时才渲染显示"
+  );
+  assert.match(
+    optionsGrid,
+    /<select\s+id="response-bodies"[\s\S]*?disabled=\{controlsLocked\}/,
+    "响应正文下拉框在录制期间必须受 controlsLocked 禁用保护"
+  );
+
+  // R3: PopupApp 状态绑定与持久化
+  assert.match(
+    popupApp,
+    /responseBodyPolicy/,
+    "PopupApp 必须计算或管理 responseBodyPolicy"
+  );
+  assert.match(
+    popupApp,
+    /handleSetResponseBodyPolicy/,
+    "PopupApp 必须具备 handleSetResponseBodyPolicy 回调处理三态映射"
+  );
+
+  // R4: 中英语言包文案完全符合规范且无硬编码
+  const expectedKeys = [
+    "responseBodiesLabel",
+    "responseBodiesDisabled",
+    "responseBodiesStandard",
+    "responseBodiesFull",
+    "responseBodiesNeedNetwork",
+  ];
+  for (const key of expectedKeys) {
+    assert.ok(key in zhDict, `zh_CN 缺失 key: ${key}`);
+    assert.ok(key in enDict, `en 缺失 key: ${key}`);
+  }
+  assert.equal(zhDict.responseBodiesDisabled.message, "不采集");
+  assert.equal(zhDict.responseBodiesStandard.message, "标准采集（截断至 2MB）");
+  assert.equal(zhDict.responseBodiesFull.message, "完整采集（无截断）");
+  assert.equal(zhDict.responseBodiesLabel.message, "响应正文");
+
+  assert.equal(enDict.responseBodiesDisabled.message, "Disabled");
+  assert.equal(
+    enDict.responseBodiesStandard.message,
+    "Standard (Truncate at 2MB)"
+  );
+  assert.equal(enDict.responseBodiesFull.message, "Full (No Truncation)");
+  assert.equal(enDict.responseBodiesLabel.message, "Response Bodies");
+
+  // 视觉规范：.video-quality-label 具有固定宽度保证左侧标签与右侧 Select 完美垂直对齐
+  assert.match(
+    popupCss,
+    /\.video-quality-label\s*\{[^}]*width:\s*\d+px/,
+    "popup.css 必须为 .video-quality-label 指定固定宽度以实现下拉行完美垂直对齐"
+  );
+});
+
+test("PopupApp 响应正文配置持久化：在 Network 切换时不丢失偏好且防御异常历史组合", () => {
+  const popupApp = readFileSync(
+    resolve(process.cwd(), "src/components/popup/PopupApp.tsx"),
+    "utf8"
+  );
+
+  // 1. 回填时若存在旧版 captureNetworkBodies: false 但 captureFullResponseBody: true 异常组合，必须校正为 false
+  assert.match(
+    popupApp,
+    /last\.captureFullResponseBody\s*&&\s*last\.captureNetworkBodies\s*!==\s*false/,
+    "历史异常组合回填必须受 last.captureNetworkBodies !== false 守卫"
+  );
+
+  // 2. 自动存盘 effect 必须保持用户设置的 captureNetworkBodies 与 captureFullResponseBody，避免 Network 关闭时覆写丢失
+  assert.match(
+    popupApp,
+    /captureNetworkBodies,\s*captureFullResponseBody:\s*captureNetworkBodies\s*\?\s*captureFullResponseBody\s*:\s*false/,
+    "自动存盘 effect 必须持久化用户的正文策略偏好"
+  );
+});

@@ -289,6 +289,27 @@
   "responseBodies": {
     "message": "响应正文"
   },
+  "responseBodiesLabel": {
+    "message": "响应正文"
+  },
+  "responseBodiesDisabled": {
+    "message": "不采集"
+  },
+  "responseBodiesStandard": {
+    "message": "标准采集（截断至 2MB）"
+  },
+  "responseBodiesFull": {
+    "message": "完整采集（无截断）"
+  },
+  "responseBodiesNeedNetwork": {
+    "message": "响应正文需要开启网络录制"
+  },
+  "fullResponseBody": {
+    "message": "完整正文（无截断）"
+  },
+  "fullResponseBodyNeedsBodies": {
+    "message": "完整正文需要开启响应正文录制"
+  },
   "frameworkStates": {
     "message": "框架状态"
   },

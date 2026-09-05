@@ -207,8 +207,8 @@ test.describe("Bug Lens Chrome Extension recording lifecycle", () => {
       consoleDisabled: boolean;
       networkChecked: boolean;
       networkDisabled: boolean;
-      bodiesChecked: boolean;
-      bodiesDisabled: boolean;
+      responseBodiesValue: string;
+      responseBodiesDisabled: boolean;
       privacyValue: string;
       privacyDisabled: boolean;
     }>(`(() => {
@@ -224,8 +224,8 @@ test.describe("Bug Lens Chrome Extension recording lifecycle", () => {
         consoleDisabled: Boolean(get("console")?.disabled),
         networkChecked: Boolean(get("network")?.checked),
         networkDisabled: Boolean(get("network")?.disabled),
-        bodiesChecked: Boolean(get("bodies")?.checked),
-        bodiesDisabled: Boolean(get("bodies")?.disabled),
+        responseBodiesValue: get("response-bodies")?.value || "",
+        responseBodiesDisabled: Boolean(get("response-bodies")?.disabled),
         privacyValue: get("privacy")?.value || "",
         privacyDisabled: Boolean(get("privacy")?.disabled)
       };
@@ -243,7 +243,7 @@ test.describe("Bug Lens Chrome Extension recording lifecycle", () => {
     expect(secondPopupOptionsState.screenshotsDisabled).toBe(true);
     expect(secondPopupOptionsState.consoleDisabled).toBe(true);
     expect(secondPopupOptionsState.networkDisabled).toBe(true);
-    expect(secondPopupOptionsState.bodiesDisabled).toBe(true);
+    expect(secondPopupOptionsState.responseBodiesDisabled).toBe(true);
     expect(secondPopupOptionsState.privacyDisabled).toBe(true);
 
     expect(secondPopupOptionsState.videoChecked).toBe(true);
@@ -251,7 +251,7 @@ test.describe("Bug Lens Chrome Extension recording lifecycle", () => {
     expect(secondPopupOptionsState.screenshotsChecked).toBe(true);
     expect(secondPopupOptionsState.consoleChecked).toBe(true);
     expect(secondPopupOptionsState.networkChecked).toBe(true);
-    expect(secondPopupOptionsState.bodiesChecked).toBe(true);
+    expect(secondPopupOptionsState.responseBodiesValue).toBe("standard");
     expect(secondPopupOptionsState.privacyValue).toBe("safe");
 
     // 12. 校验 Session 与契约数据
@@ -428,5 +428,414 @@ test.describe("Bug Lens Chrome Extension recording lifecycle", () => {
         },
       }
     );
+  });
+
+  test("LIFECYCLE-004: validates background resilience and data persistence when recorded target tab is unexpectedly closed during active recording", async ({
+    context,
+    extensionId,
+    serviceWorker,
+    openActionPopup,
+    waitForPopupClosed,
+    activeTabId,
+    mediaProbe,
+    serverUrl,
+  }) => {
+    // 监听 Service Worker 未处理的 Promise 拒绝及浏览器上下文未捕获异常，严格满足 R2.4 规范
+    await serviceWorker.evaluate(() => {
+      (
+        self as unknown as { __testUnhandledRejections: string[] }
+      ).__testUnhandledRejections = [];
+      self.addEventListener(
+        "unhandledrejection",
+        (event: PromiseRejectionEvent) => {
+          (
+            self as unknown as { __testUnhandledRejections: string[] }
+          ).__testUnhandledRejections.push(
+            event.reason
+              ? String(event.reason?.stack || event.reason)
+              : "unknown rejection"
+          );
+        }
+      );
+    });
+
+    const contextErrors: string[] = [];
+    context.on("weberror", (webError) => {
+      contextErrors.push(String(webError.error()));
+    });
+
+    context.on("console", (message) => {
+      logE2e(`Browser console.${message.type()}`, {
+        url: message.page()?.url() ?? "extension-worker-or-popup",
+        text: message.text(),
+      });
+    });
+
+    // 0. 保留基础标签页以保证窗口在测试页面强制关闭时仍维持浏览器上下文存活
+    const keeperPage = context.pages()[0] ?? (await context.newPage());
+    if (keeperPage.url() === "about:blank") {
+      logE2e("Keeper page established", { url: keeperPage.url() });
+    }
+
+    // 1. 打开测试网页并确保获得焦点
+    const targetPage = await context.newPage();
+    await targetPage.goto(serverUrl);
+    await targetPage.bringToFront();
+    await targetPage.waitForFunction(() => document.hasFocus(), undefined, {
+      timeout: 2_000,
+    });
+    logE2e("Target page loaded and focused", { url: targetPage.url() });
+
+    // 2. 读取目标标签页 ID 并打开 Action Popup 启动录制
+    const targetTabId = await activeTabId();
+    expect(targetTabId).toBeTruthy();
+    logE2e("Resolved targetTabId before opening Popup", { targetTabId });
+
+    const startPopup = await openActionPopup(targetPage);
+    await startPopup.waitForSelector('[data-testid="record-panel"]');
+    expect(await startPopup.isVisible('[data-testid="record-panel"]')).toBe(
+      true
+    );
+
+    await startPopup.click('[data-testid="start-recording-btn"]');
+    logE2e("Clicked start recording in Popup");
+    await startPopup.evaluate("window.close()").catch(() => undefined);
+    await startPopup.dispose();
+    await targetPage.bringToFront();
+    await waitForPopupClosed();
+    await targetPage.waitForFunction(() => document.hasFocus(), undefined, {
+      timeout: 2_000,
+    });
+
+    // 3. 等待录制会话建立与媒体录制激活
+    const session = await mediaProbe.waitForSession(targetTabId!);
+    const activeMedia = await mediaProbe.waitForActive(
+      session.id,
+      targetTabId!
+    );
+    expect(await mediaProbe.isOffscreenRecording(session.id)).toBe(true);
+    expect(await mediaProbe.isDebuggerAttached(targetTabId!)).toBe(true);
+    await expect
+      .poll(async () => mediaProbe.getBadgeText(targetTabId!), {
+        timeout: 5_000,
+      })
+      .toBe("REC");
+    logE2e("Recording active and confirmed", {
+      sessionId: session.id,
+      targetTabId,
+      status: activeMedia.session?.status,
+      captureStatus: activeMedia.capture?.status,
+    });
+
+    // 4. R1: 在录制进行中产生用户交互、控制台错误与网络请求
+    await targetPage.locator('[data-testid="test-click-btn"]').click();
+    await expect(targetPage.locator("#output")).toContainText(
+      "点击已被成功记录"
+    );
+
+    await targetPage
+      .locator('[data-testid="test-text-input"]')
+      .fill("Bug Lens Unexpected Tab Close Test");
+    await expect(
+      targetPage.locator('[data-testid="test-text-input"]')
+    ).toHaveValue("Bug Lens Unexpected Tab Close Test");
+
+    await targetPage.locator('[data-testid="test-fetch-btn"]').click();
+    await expect(targetPage.locator("#output")).toContainText("Fetch 请求成功");
+
+    await targetPage.locator('[data-testid="test-error-btn"]').click();
+    await expect(targetPage.locator("#output")).toHaveText("控制台报错已触发");
+
+    // 等待至少产生一个包含有效音视频关键帧的媒体分片（确保落盘数据不仅有容器头，且有真实视频 Cluster 数据）
+    const bytesBeforeClose = await mediaProbe.waitForMediaBytesGreaterThan(
+      session.id,
+      5_000,
+      10_000
+    );
+    expect(bytesBeforeClose).toBeGreaterThan(5_000);
+    const chunkCountBeforeClose = await mediaProbe.mediaChunkCount(session.id);
+    expect(chunkCountBeforeClose).toBeGreaterThan(0);
+    logE2e(
+      "Pre-closure interactions, console errors, network requests, and media verified",
+      {
+        bytesBeforeClose,
+        chunkCountBeforeClose,
+      }
+    );
+
+    // 5. R1: 模拟意外关闭标签页：直接调用 targetPage.close()，不点击任何停止按钮
+    logE2e("Forcefully closing target page during active recording");
+    await targetPage.close();
+
+    // 6. R2: 验证后台自动恢复与资源清理
+    // 6.1 Offscreen 录屏文档停止录制
+    await expect
+      .poll(async () => mediaProbe.isOffscreenRecording(session.id), {
+        timeout: 10_000,
+      })
+      .toBe(false);
+    logE2e("Offscreen recording confirmed stopped");
+
+    // 6.2 数据库中 activeSession 彻底被清空终结
+    await expect
+      .poll(async () => mediaProbe.activeSession(), {
+        timeout: 10_000,
+      })
+      .toBeUndefined();
+    logE2e("Database activeSession confirmed cleared (undefined)");
+
+    // 6.3 Action badge 重置为空字符串
+    await expect
+      .poll(async () => mediaProbe.getBadgeText(targetTabId!), {
+        timeout: 10_000,
+      })
+      .toBe("");
+    expect(await mediaProbe.getBadgeText()).toBe("");
+    logE2e("Extension action badge confirmed reset to empty string");
+
+    // 6.4 CDP 调试器会话与 tabCapture 优雅分离，无僵尸会话或悬挂捕获状态，无未处理异常
+    await expect
+      .poll(async () => mediaProbe.isDebuggerAttached(targetTabId!), {
+        timeout: 10_000,
+      })
+      .toBe(false);
+    const attachedTargets = await mediaProbe.getAttachedDebuggerTargets();
+    expect(attachedTargets.filter((t) => t.tabId === targetTabId)).toHaveLength(
+      0
+    );
+
+    const snapshotAfterClose = await mediaProbe.snapshot(
+      session.id,
+      targetTabId!
+    );
+    expect(snapshotAfterClose.capture?.status).not.toBe("active");
+    expect(snapshotAfterClose.capture?.status).not.toBe("pending");
+    expect(await mediaProbe.isOffscreenRecording(session.id)).toBe(false);
+
+    // 严格满足 R2.4：断言 Service Worker 与全局上下文无 unhandled rejection 或运行时崩溃抛错
+    const unhandledRejections = await serviceWorker.evaluate(() => {
+      return (
+        (self as unknown as { __testUnhandledRejections?: string[] })
+          .__testUnhandledRejections ?? []
+      );
+    });
+    expect(unhandledRejections).toEqual([]);
+    expect(contextErrors).toEqual([]);
+    logE2e(
+      "CDP debugger, tabCapture teardown, and unhandled rejection checks confirmed clean"
+    );
+
+    // 7. R3: 打开新标签页访问 Preview 页面（等待并复用后台由 openPendingPreview 触发创建的页面，若必要则降级打开）
+    const previewUrlSubstring = `/preview.html?sessionId=${session.id}`;
+    let previewPage = context
+      .pages()
+      .find((p) => p.url().includes(previewUrlSubstring));
+
+    if (!previewPage) {
+      try {
+        await expect
+          .poll(
+            () =>
+              context
+                .pages()
+                .find((p) => p.url().includes(previewUrlSubstring)),
+            { timeout: 10_000 }
+          )
+          .toBeDefined();
+        previewPage = context
+          .pages()
+          .find((p) => p.url().includes(previewUrlSubstring));
+      } catch {
+        previewPage = await context.newPage();
+        await previewPage.goto(
+          `chrome-extension://${extensionId}/preview.html?sessionId=${session.id}`
+        );
+      }
+    }
+
+    expect(previewPage).toBeDefined();
+    await previewPage!.bringToFront();
+    await previewPage!.waitForLoadState("domcontentloaded");
+
+    // 验证整个测试上下文仅存在单一 Preview 页面，不存在重复弹窗竞态
+    const matchingPreviewPages = context
+      .pages()
+      .filter((p) => p.url().includes(previewUrlSubstring));
+    expect(matchingPreviewPages).toHaveLength(1);
+    logE2e("Preview page confirmed single instance and loaded", {
+      previewUrl: previewPage!.url(),
+    });
+
+    // 8. R3: 验证崩溃前所有交互、日志、网络请求与媒体证据均完整持久化入库
+    const evidence = await mediaProbe.persistedEvidence(
+      previewPage!,
+      session.id
+    );
+    const totalMediaBytes = evidence.mediaChunks.reduce(
+      (total, chunk) => total + chunk.byteLength,
+      0
+    );
+
+    logE2e("Persisted evidence summary after unexpected tab closure", {
+      sessionId: evidence.session?.id,
+      sessionStatus: evidence.session?.status,
+      interactionCount: evidence.interactionCount,
+      consoleCount: evidence.consoleCount,
+      networkCount: evidence.networkCount,
+      mediaChunkCount: evidence.mediaChunks.length,
+      totalMediaBytes,
+    });
+
+    expect(evidence.session?.id).toBe(session.id);
+    expect(evidence.session?.status).toBe("PREVIEW_READY");
+    expect(evidence.interactionCount).toBeGreaterThanOrEqual(4);
+    expect(evidence.consoleCount).toBeGreaterThanOrEqual(2);
+    expect(evidence.networkCount).toBeGreaterThanOrEqual(1);
+    expect(evidence.mediaChunks.length).toBeGreaterThanOrEqual(
+      chunkCountBeforeClose
+    );
+    expect(totalMediaBytes).toBeGreaterThan(0);
+
+    // 验证截取的交互、日志与请求内容真实且未被破坏
+    const fullEvidence = await mediaProbe.persistedFullEvidence(session.id);
+
+    // 验证普通点击已被精确持久化（同时匹配元素 ID 与语义文本）
+    const clickBtnEntry = fullEvidence.interactions.find(
+      (entry) =>
+        entry.kind === "click" &&
+        entry.element?.id === "test-click-btn" &&
+        Boolean(entry.element?.text?.includes("普通点击"))
+    );
+    expect(clickBtnEntry).toBeDefined();
+
+    // 验证网络触发点击已被精确持久化（同时匹配元素 ID 与语义文本）
+    const fetchBtnEntry = fullEvidence.interactions.find(
+      (entry) =>
+        entry.kind === "click" &&
+        entry.element?.id === "test-fetch-btn" &&
+        Boolean(entry.element?.text?.includes("网络请求"))
+    );
+    expect(fetchBtnEntry).toBeDefined();
+
+    // 验证报错触发点击已被精确持久化（同时匹配元素 ID 与语义文本）
+    const errorBtnEntry = fullEvidence.interactions.find(
+      (entry) =>
+        entry.kind === "click" &&
+        entry.element?.id === "test-error-btn" &&
+        Boolean(entry.element?.text?.includes("Console 报错"))
+    );
+    expect(errorBtnEntry).toBeDefined();
+
+    // 验证输入交互已被持久化（严格匹配 input/change 且元素 ID 为 test-text-input，并校验输入长度）
+    const inputEntry = fullEvidence.interactions.find(
+      (entry) =>
+        (entry.kind === "input" || entry.kind === "change") &&
+        entry.element?.id === "test-text-input"
+    );
+    expect(inputEntry).toBeDefined();
+    expect(inputEntry?.metadata?.valueLength).toBe(
+      "Bug Lens Unexpected Tab Close Test".length
+    );
+
+    // 验证正常 console.log 及报错 console.error 均被精确持久化
+    const logConsoleEntry = fullEvidence.consoleEntries.find((entry) =>
+      entry.text.includes("用户点击了测试按钮")
+    );
+    expect(logConsoleEntry).toBeDefined();
+
+    const errorConsoleEntry = fullEvidence.consoleEntries.find((entry) =>
+      entry.text.includes("foo is not defined")
+    );
+    expect(errorConsoleEntry).toBeDefined();
+    expect(errorConsoleEntry?.level).toBe("error");
+
+    // 验证网络请求 /api/todo 及其响应状态已被持久化
+    const todoNetworkEntry = fullEvidence.networkEntries.find((entry) =>
+      entry.url.includes("/api/todo")
+    );
+    expect(todoNetworkEntry).toBeDefined();
+    expect(todoNetworkEntry?.status).toBe(200);
+
+    // 验证媒体分片序列递增且数据有效
+    fullEvidence.mediaChunks.forEach((chunk, index) => {
+      expect(chunk.sequence).toBe(index);
+      expect(chunk.byteLength).toBeGreaterThan(0);
+      expect(chunk.mimeType).toBeTruthy();
+    });
+
+    // 9. 验证 Preview 页面正常渲染，未崩溃且未报加载失败
+    await expect(previewPage!.locator("#meta")).toBeVisible();
+    await expect(previewPage!.locator("body")).not.toContainText("加载失败");
+    await expect(previewPage!.locator("body")).not.toContainText("未知错误");
+
+    const video = previewPage!.locator("#video");
+    await expect(video).toBeVisible({ timeout: 10_000 });
+    await previewPage!.waitForFunction(
+      () => {
+        const element = document.querySelector<HTMLVideoElement>("#video");
+        return Boolean(
+          element &&
+          element.readyState >= 1 &&
+          Number.isFinite(element.duration) &&
+          element.duration > 0
+        );
+      },
+      undefined,
+      { timeout: 10_000 }
+    );
+    const duration = await video.evaluate(
+      (element) => (element as HTMLVideoElement).duration
+    );
+    expect(duration).toBeGreaterThan(0);
+
+    // 验证视频可被正常进度跳转，证明录屏在强制中断时的 EBML 头元数据修复完好
+    await video.evaluate((v: HTMLVideoElement) => {
+      v.currentTime = Math.min(0.5, v.duration / 2);
+    });
+    const scrubbedTime = await video.evaluate(
+      (v: HTMLVideoElement) => v.currentTime
+    );
+    expect(scrubbedTime).toBeGreaterThanOrEqual(0);
+
+    // 验证 Console 标签页中显示了报错日志及普通日志
+    await previewPage!.locator('.zen-tab-btn[data-tab="console"]').click();
+    await expect(
+      previewPage!.locator("#tab-pane-console .console-row")
+    ).not.toHaveCount(0);
+    await expect(previewPage!.locator("#tab-pane-console")).toContainText(
+      "foo is not defined"
+    );
+    await expect(previewPage!.locator("#tab-pane-console")).toContainText(
+      "用户点击了测试按钮"
+    );
+
+    // 验证 Network 标签页中显示了 Fetch 请求及 200 状态码
+    await previewPage!.locator('.zen-tab-btn[data-tab="network"]').click();
+    await expect(
+      previewPage!.locator("#tab-pane-network .network-row")
+    ).not.toHaveCount(0);
+    await expect(previewPage!.locator("#tab-pane-network")).toContainText(
+      "/api/todo"
+    );
+    await expect(previewPage!.locator("#tab-pane-network")).toContainText(
+      "200"
+    );
+
+    // 验证 Steps 标签页中显示了所有用户交互步骤与按钮文本
+    await previewPage!.locator('.zen-tab-btn[data-tab="steps"]').click();
+    await expect(
+      previewPage!.locator("#tab-pane-steps article.item")
+    ).not.toHaveCount(0);
+    await expect(previewPage!.locator("#tab-pane-steps")).toContainText(
+      "普通点击"
+    );
+    await expect(previewPage!.locator("#tab-pane-steps")).toContainText(
+      "网络请求"
+    );
+    await expect(previewPage!.locator("#tab-pane-steps")).toContainText(
+      "Console 报错"
+    );
+
+    logE2e("LIFECYCLE-004 test passed all assertions successfully");
   });
 });

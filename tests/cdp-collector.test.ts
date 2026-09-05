@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { CdpEvidenceCollector } from "../src/evidence/cdp-evidence-collector.ts";
+import {
+  CdpEvidenceCollector,
+  getNetworkEnableParams,
+} from "../src/evidence/cdp-evidence-collector.ts";
 import type { RecordingSession } from "../src/shared/protocol.ts";
 import type { EvidenceRepository } from "../src/storage/db.ts";
 
@@ -1226,4 +1229,279 @@ test("CdpEvidenceCollector completely drains late-arriving logs during in-flight
     [100, 10],
     "Should flush first 100 then drain the remaining 10 in second write"
   );
+});
+
+test("getNetworkEnableParams dynamically scales buffers based on captureFullResponseBody", () => {
+  const defaultParams = getNetworkEnableParams({
+    captureAudio: false,
+    captureVideo: true,
+    captureScreenshots: true,
+    captureConsole: true,
+    captureNetwork: true,
+    captureNetworkBodies: true,
+    privacyMode: "safe",
+    mediaTimesliceMs: 1000,
+    maxResponseBodyBytes: 2 * 1024 * 1024,
+    maxSessionBytes: 512 * 1024 * 1024,
+    captureFullResponseBody: false,
+  });
+  assert.equal(defaultParams.maxTotalBufferSize, 50 * 1024 * 1024);
+  assert.equal(defaultParams.maxResourceBufferSize, 10 * 1024 * 1024);
+  assert.equal(defaultParams.maxPostDataSize, 1024 * 1024);
+
+  const fullParams = getNetworkEnableParams({
+    captureAudio: false,
+    captureVideo: true,
+    captureScreenshots: true,
+    captureConsole: true,
+    captureNetwork: true,
+    captureNetworkBodies: true,
+    privacyMode: "safe",
+    mediaTimesliceMs: 1000,
+    maxResponseBodyBytes: 2 * 1024 * 1024,
+    maxSessionBytes: 512 * 1024 * 1024,
+    captureFullResponseBody: true,
+  });
+  assert.equal(fullParams.maxTotalBufferSize, 200 * 1024 * 1024);
+  assert.equal(fullParams.maxResourceBufferSize, 100 * 1024 * 1024);
+  assert.equal(fullParams.maxPostDataSize, 1024 * 1024);
+});
+
+test("CdpEvidenceCollector sends expanded CDP Network.enable buffers when captureFullResponseBody is true", async () => {
+  const repository = createMockRepository();
+  const sentCommands: { method: string; params: any }[] = [];
+  (globalThis as any).chrome = {
+    debugger: {
+      attach: async () => {},
+      detach: async () => {},
+      sendCommand: async (_target: any, method: string, params: any) => {
+        sentCommands.push({ method, params });
+        return {};
+      },
+    },
+  };
+
+  const session: RecordingSession = {
+    id: "sess-full-buffer",
+    schemaVersion: 2,
+    extensionVersion: "0.1.0",
+    status: "RECORDING",
+    target: {
+      tabId: 88,
+      initialUrl: "https://example.test",
+      initialTitle: "Buffer Test",
+    },
+    options: {
+      captureAudio: false,
+      captureVideo: true,
+      captureScreenshots: true,
+      captureConsole: true,
+      captureNetwork: true,
+      captureNetworkBodies: true,
+      captureFullResponseBody: true,
+      privacyMode: "safe",
+      mediaTimesliceMs: 1000,
+      maxResponseBodyBytes: 2 * 1024 * 1024,
+      maxSessionBytes: 512 * 1024 * 1024,
+    },
+    timeline: { createdAtEpochMs: Date.now() },
+    quality: {
+      overall: "complete",
+      primaryScreenshotCount: 0,
+      consoleEntryCount: 0,
+      networkEntryCount: 0,
+      issues: [],
+    },
+    nonce: "nonce-fb",
+  };
+
+  const collector = new CdpEvidenceCollector(
+    repository,
+    async () => session,
+    () => false
+  );
+  await collector.attach(88, session);
+
+  const networkEnableCmd = sentCommands.find(
+    (c) => c.method === "Network.enable"
+  );
+  assert.ok(networkEnableCmd, "Network.enable command must be sent");
+  assert.equal(networkEnableCmd.params.maxTotalBufferSize, 200 * 1024 * 1024);
+  assert.equal(
+    networkEnableCmd.params.maxResourceBufferSize,
+    100 * 1024 * 1024
+  );
+});
+
+test("CdpEvidenceCollector recovers gracefully when Network.getResponseBody fails or times out (aborted/slow stream)", async () => {
+  const repository = createMockRepository();
+  (globalThis as any).chrome = {
+    debugger: {
+      attach: async () => {},
+      detach: async () => {},
+      sendCommand: async (_target: any, method: string) => {
+        if (method === "Network.getResponseBody") {
+          throw new Error(
+            "No resource with given identifier found (stream aborted)"
+          );
+        }
+        return {};
+      },
+    },
+  };
+
+  const session: RecordingSession = {
+    id: "sess-stream-abort",
+    schemaVersion: 2,
+    extensionVersion: "0.1.0",
+    status: "RECORDING",
+    target: {
+      tabId: 99,
+      initialUrl: "https://stream.test",
+      initialTitle: "Stream Abort Test",
+    },
+    options: {
+      captureAudio: false,
+      captureVideo: true,
+      captureScreenshots: true,
+      captureConsole: true,
+      captureNetwork: true,
+      captureNetworkBodies: true,
+      captureFullResponseBody: true,
+      privacyMode: "safe",
+      mediaTimesliceMs: 1000,
+      maxResponseBodyBytes: 2 * 1024 * 1024,
+      maxSessionBytes: 512 * 1024 * 1024,
+    },
+    timeline: { createdAtEpochMs: Date.now() },
+    quality: {
+      overall: "complete",
+      primaryScreenshotCount: 0,
+      consoleEntryCount: 0,
+      networkEntryCount: 0,
+      issues: [],
+    },
+    nonce: "nonce-stream-abort",
+  };
+  (repository as any).setActiveSession(session);
+
+  const collector = new CdpEvidenceCollector(
+    repository,
+    async () => session,
+    () => false
+  );
+  collector.markAttached(99);
+
+  // 1. Request
+  collector.handleEvent({ tabId: 99 }, "Network.requestWillBeSent", {
+    requestId: "req-aborted-1",
+    request: {
+      url: "https://stream.test/api/chunked-aborted",
+      method: "GET",
+      headers: {},
+    },
+    timestamp: 200,
+    wallTime: Date.now() / 1000,
+    type: "XHR",
+  });
+
+  // 2. Response received
+  collector.handleEvent({ tabId: 99 }, "Network.responseReceived", {
+    requestId: "req-aborted-1",
+    response: {
+      status: 200,
+      statusText: "OK",
+      headers: { "content-type": "application/json" },
+      mimeType: "application/json",
+    },
+    timestamp: 201,
+  });
+
+  // 3. Loading finished, triggering fetchResponseBody which throws
+  collector.handleEvent({ tabId: 99 }, "Network.loadingFinished", {
+    requestId: "req-aborted-1",
+    timestamp: 205,
+  });
+
+  await collector.drain();
+  await collector.finalizeNetworkBodies(session);
+
+  const entries = await repository.getNetwork("sess-stream-abort");
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].response?.bodyStatus, "unavailable");
+  assert.ok(
+    entries[0].response?.error?.includes("stream aborted"),
+    "Error message must record stream abort details"
+  );
+});
+
+test("CdpEvidenceCollector handles Network.loadingFailed by marking entry unavailable", async () => {
+  const repository = createMockRepository();
+  const session: RecordingSession = {
+    id: "sess-net-failed",
+    schemaVersion: 2,
+    extensionVersion: "0.1.0",
+    status: "RECORDING",
+    target: {
+      tabId: 101,
+      initialUrl: "https://fail.test",
+      initialTitle: "Fail Test",
+    },
+    options: {
+      captureAudio: false,
+      captureVideo: true,
+      captureScreenshots: true,
+      captureConsole: true,
+      captureNetwork: true,
+      captureNetworkBodies: true,
+      captureFullResponseBody: true,
+      privacyMode: "safe",
+      mediaTimesliceMs: 1000,
+      maxResponseBodyBytes: 2 * 1024 * 1024,
+      maxSessionBytes: 512 * 1024 * 1024,
+    },
+    timeline: { createdAtEpochMs: Date.now() },
+    quality: {
+      overall: "complete",
+      primaryScreenshotCount: 0,
+      consoleEntryCount: 0,
+      networkEntryCount: 0,
+      issues: [],
+    },
+    nonce: "nonce-net-fail",
+  };
+  (repository as any).setActiveSession(session);
+
+  const collector = new CdpEvidenceCollector(
+    repository,
+    async () => session,
+    () => false
+  );
+  collector.markAttached(101);
+
+  collector.handleEvent({ tabId: 101 }, "Network.requestWillBeSent", {
+    requestId: "req-failed-1",
+    request: {
+      url: "https://fail.test/api/reset",
+      method: "GET",
+      headers: {},
+    },
+    timestamp: 300,
+    wallTime: Date.now() / 1000,
+    type: "XHR",
+  });
+
+  collector.handleEvent({ tabId: 101 }, "Network.loadingFailed", {
+    requestId: "req-failed-1",
+    errorText: "net::ERR_CONNECTION_RESET",
+    canceled: false,
+    timestamp: 302,
+  });
+
+  await collector.drain();
+
+  const entries = await repository.getNetwork("sess-net-failed");
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].response?.bodyStatus, "unavailable");
+  assert.equal(entries[0].response?.error, "net::ERR_CONNECTION_RESET");
 });

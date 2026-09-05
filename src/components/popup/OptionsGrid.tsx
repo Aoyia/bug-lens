@@ -1,7 +1,9 @@
 import { memo } from "preact/compat";
 import { t, type LanguagePreference } from "../../shared/i18n";
 
-interface OptionsGridProps {
+export type ResponseBodyPolicy = "disabled" | "standard" | "full";
+
+export interface OptionsGridProps {
   controlsLocked: boolean;
   advancedOpen: boolean;
   captureVideo: boolean;
@@ -9,7 +11,9 @@ interface OptionsGridProps {
   captureScreenshots: boolean;
   captureConsole: boolean;
   captureNetwork: boolean;
-  captureNetworkBodies: boolean;
+  captureNetworkBodies?: boolean;
+  captureFullResponseBody?: boolean;
+  responseBodyPolicy?: ResponseBodyPolicy;
   captureFrameworkState: boolean;
   privacyMode: "safe" | "raw";
   languagePreference: LanguagePreference;
@@ -19,7 +23,9 @@ interface OptionsGridProps {
   onSetCaptureScreenshots: (val: boolean) => void;
   onSetCaptureConsole: (val: boolean) => void;
   onSetCaptureNetwork: (val: boolean) => void;
-  onSetCaptureNetworkBodies: (val: boolean) => void;
+  onSetCaptureNetworkBodies?: (val: boolean) => void;
+  onSetCaptureFullResponseBody?: (val: boolean) => void;
+  onSetResponseBodyPolicy?: (policy: ResponseBodyPolicy) => void;
   onSetCaptureFrameworkState: (val: boolean) => void;
   onSetPrivacyMode: (mode: "safe" | "raw") => void;
   onSetLanguagePreference: (pref: LanguagePreference) => void;
@@ -34,6 +40,8 @@ export const OptionsGrid = memo(function OptionsGrid({
   captureConsole,
   captureNetwork,
   captureNetworkBodies,
+  captureFullResponseBody,
+  responseBodyPolicy,
   captureFrameworkState,
   privacyMode,
   languagePreference,
@@ -44,6 +52,8 @@ export const OptionsGrid = memo(function OptionsGrid({
   onSetCaptureConsole,
   onSetCaptureNetwork,
   onSetCaptureNetworkBodies,
+  onSetCaptureFullResponseBody,
+  onSetResponseBodyPolicy,
   onSetCaptureFrameworkState,
   onSetPrivacyMode,
   onSetLanguagePreference,
@@ -51,6 +61,28 @@ export const OptionsGrid = memo(function OptionsGrid({
   const lockedTitle = controlsLocked
     ? t("configLockedDuringRecording")
     : undefined;
+
+  const currentResponseBodyPolicy: ResponseBodyPolicy =
+    responseBodyPolicy ??
+    (!captureNetworkBodies
+      ? "disabled"
+      : captureFullResponseBody
+        ? "full"
+        : "standard");
+
+  const responseBodiesTitle = lockedTitle;
+
+  const handleResponseBodyPolicyChange = (policy: ResponseBodyPolicy) => {
+    if (onSetResponseBodyPolicy) {
+      onSetResponseBodyPolicy(policy);
+    }
+    if (onSetCaptureNetworkBodies) {
+      onSetCaptureNetworkBodies(policy !== "disabled");
+    }
+    if (onSetCaptureFullResponseBody) {
+      onSetCaptureFullResponseBody(policy === "full");
+    }
+  };
 
   return (
     <div>
@@ -139,23 +171,9 @@ export const OptionsGrid = memo(function OptionsGrid({
                 disabled={controlsLocked}
                 onChange={(e) => {
                   onSetCaptureNetwork(e.currentTarget.checked);
-                  if (!e.currentTarget.checked)
-                    onSetCaptureNetworkBodies(false);
                 }}
               />
               <span>{t("network")}</span>
-            </label>
-            <label className="scope-chip" title={lockedTitle}>
-              <input
-                id="bodies"
-                type="checkbox"
-                checked={captureNetworkBodies}
-                disabled={controlsLocked || !captureNetwork}
-                onChange={(e) =>
-                  onSetCaptureNetworkBodies(e.currentTarget.checked)
-                }
-              />
-              <span>{t("responseBodies")}</span>
             </label>
             <label className="scope-chip" title={lockedTitle}>
               <input
@@ -170,6 +188,29 @@ export const OptionsGrid = memo(function OptionsGrid({
               <span>{t("frameworkStates")}</span>
             </label>
           </div>
+          {captureNetwork && (
+            <label className="video-quality-row" title={responseBodiesTitle}>
+              <span className="video-quality-label">
+                {t("responseBodiesLabel")}
+              </span>
+              <select
+                id="response-bodies"
+                className="privacy-select"
+                value={currentResponseBodyPolicy}
+                disabled={controlsLocked}
+                title={responseBodiesTitle}
+                onChange={(e) =>
+                  handleResponseBodyPolicyChange(
+                    e.currentTarget.value as ResponseBodyPolicy
+                  )
+                }
+              >
+                <option value="disabled">{t("responseBodiesDisabled")}</option>
+                <option value="standard">{t("responseBodiesStandard")}</option>
+                <option value="full">{t("responseBodiesFull")}</option>
+              </select>
+            </label>
+          )}
           <label className="video-quality-row" title={lockedTitle}>
             <span className="video-quality-label">{t("privacyModeLabel")}</span>
             <select

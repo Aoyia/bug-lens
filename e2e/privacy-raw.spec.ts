@@ -98,12 +98,12 @@ test.describe("Bug Lens Chrome Extension E2E PRIV-002: Raw Mode Risk Warning & E
     );
     expect(targetTabId).toBeTruthy();
 
-    if (!(await popup.isVisible(".privacy-select"))) {
+    if (!(await popup.isVisible("#privacy"))) {
       await popup.click("#toggle-options");
     }
-    await popup.waitForSelector(".privacy-select");
+    await popup.waitForSelector("#privacy");
 
-    await popup.selectOptionByKeys(".privacy-select", "raw");
+    await popup.selectOptionByKeys("#privacy", "raw");
     const autoExportChecked = await popup.evaluate<boolean>(
       "Boolean(document.querySelector('#opt-auto-export')?.checked)"
     );
@@ -112,7 +112,7 @@ test.describe("Bug Lens Chrome Extension E2E PRIV-002: Raw Mode Risk Warning & E
       await waitForPopupChecked(popup, "#opt-auto-export", false);
     }
     const selectedMode = await popup.evaluate<string>(
-      "document.querySelector('.privacy-select')?.value || ''"
+      "document.querySelector('#privacy')?.value || ''"
     );
     expect(selectedMode).toBe("raw");
 

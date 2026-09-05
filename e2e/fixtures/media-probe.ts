@@ -248,6 +248,51 @@ export class MediaProbe {
     }, sessionId);
   }
 
+  async mediaTotalBytes(sessionId: string): Promise<number> {
+    return this.evaluateWorker(async (id) => {
+      const database = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open("web-bug-recorder");
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      try {
+        return await new Promise<number>((resolve, reject) => {
+          const request = database
+            .transaction("mediaChunks")
+            .objectStore("mediaChunks")
+            .index("sessionId")
+            .getAll(id);
+          request.onsuccess = () => {
+            const chunks = (request.result ?? []) as Array<{
+              chunk?: ArrayBuffer;
+            }>;
+            const total = chunks.reduce(
+              (acc, c) => acc + (c.chunk?.byteLength ?? 0),
+              0
+            );
+            resolve(total);
+          };
+          request.onerror = () => reject(request.error);
+        });
+      } finally {
+        database.close();
+      }
+    }, sessionId);
+  }
+
+  async waitForMediaBytesGreaterThan(
+    sessionId: string,
+    minBytes: number,
+    timeoutMs = 10_000
+  ): Promise<number> {
+    return poll(
+      () => this.mediaTotalBytes(sessionId),
+      (bytes) => bytes > minBytes,
+      timeoutMs,
+      `MEDIA_BYTES_TIMEOUT: sessionId=${sessionId} minBytes=${minBytes}`
+    );
+  }
+
   async exportArtifact(
     sessionId: string
   ): Promise<
@@ -369,10 +414,49 @@ export class MediaProbe {
     );
   }
 
-  async getBadgeText(tabId: number): Promise<string> {
+  async getBadgeText(tabId?: number): Promise<string> {
     return this.evaluateWorker(async (targetId) => {
-      return chrome.action.getBadgeText({ tabId: targetId });
+      try {
+        return await chrome.action.getBadgeText(
+          targetId !== undefined ? { tabId: targetId } : {}
+        );
+      } catch {
+        return await chrome.action.getBadgeText({});
+      }
     }, tabId);
+  }
+
+  async isDebuggerAttached(tabId: number): Promise<boolean> {
+    return this.evaluateWorker(async (targetId) => {
+      const targets = await chrome.debugger.getTargets().catch(() => []);
+      const match = targets.find((t) => t.tabId === targetId);
+      return Boolean(match?.attached);
+    }, tabId);
+  }
+
+  async getAttachedDebuggerTargets(): Promise<
+    Array<{
+      id: string;
+      type: string;
+      title: string;
+      url: string;
+      attached: boolean;
+      tabId?: number;
+    }>
+  > {
+    return this.evaluateWorker(async () => {
+      const targets = await chrome.debugger.getTargets().catch(() => []);
+      return targets
+        .filter((t) => t.attached)
+        .map((t) => ({
+          id: t.id,
+          type: t.type,
+          title: t.title,
+          url: t.url,
+          attached: t.attached,
+          tabId: t.tabId,
+        }));
+    }, undefined);
   }
 
   async isOffscreenRecording(sessionId: string): Promise<boolean> {

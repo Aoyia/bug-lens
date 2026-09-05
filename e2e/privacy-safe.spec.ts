@@ -132,9 +132,9 @@ test.describe("Bug Lens Chrome Extension E2E PRIV-001: Safe Mode Sensitive Data 
     expect(targetTabId).toBeTruthy();
 
     await popup.click("#toggle-options");
-    await popup.waitForSelector(".privacy-select");
+    await popup.waitForSelector("#privacy");
     const privacyModeVal = await popup.evaluate<string>(
-      "document.querySelector('.privacy-select')?.value || ''"
+      "document.querySelector('#privacy')?.value || ''"
     );
     expect(privacyModeVal).toBe("safe");
 
@@ -163,7 +163,7 @@ test.describe("Bug Lens Chrome Extension E2E PRIV-001: Safe Mode Sensitive Data 
     ).toBe(true);
     expect(
       await popup.evaluate<boolean>(
-        "Boolean(document.querySelector('#bodies')?.checked)"
+        "document.querySelector('#response-bodies')?.value === 'standard'"
       )
     ).toBe(true);
 

@@ -18,7 +18,11 @@ import type { RecordingSessionEvent } from "../domain/recording-session.ts";
 import type { EvidenceRepository } from "../storage/db.ts";
 import { flushStorageBatchQueue } from "../storage/storage-budget.ts";
 import { RECORDING_STATUSES } from "../shared/protocol.ts";
-import type { CaptureIssue, RecordingSession } from "../shared/protocol.ts";
+import type {
+  CaptureIssue,
+  RecordingOptions,
+  RecordingSession,
+} from "../shared/protocol.ts";
 import { t } from "../shared/i18n.ts";
 
 type SessionEventWriter = (
@@ -81,6 +85,19 @@ function captureIssue(
   source: CaptureIssue["source"] = "debugger"
 ): CaptureIssue {
   return { code, message, source, recoverable: true, occurredAt: Date.now() };
+}
+
+export function getNetworkEnableParams(options?: RecordingOptions): {
+  maxTotalBufferSize: number;
+  maxResourceBufferSize: number;
+  maxPostDataSize: number;
+} {
+  const isFullCapture = Boolean(options?.captureFullResponseBody);
+  return {
+    maxTotalBufferSize: isFullCapture ? 200 * 1024 * 1024 : 50 * 1024 * 1024,
+    maxResourceBufferSize: isFullCapture ? 100 * 1024 * 1024 : 10 * 1024 * 1024,
+    maxPostDataSize: 1024 * 1024,
+  };
 }
 
 function sanitizeRequestBody(postData: string, mode: "safe" | "raw"): string {
@@ -278,11 +295,11 @@ export class CdpEvidenceCollector {
       }
       if (session.options.captureNetwork) {
         await chrome.debugger
-          .sendCommand({ tabId }, "Network.enable", {
-            maxTotalBufferSize: 50 * 1024 * 1024,
-            maxResourceBufferSize: 10 * 1024 * 1024,
-            maxPostDataSize: 1024 * 1024,
-          })
+          .sendCommand(
+            { tabId },
+            "Network.enable",
+            getNetworkEnableParams(session.options)
+          )
           .catch(() => undefined);
       }
       await chrome.debugger
@@ -600,6 +617,7 @@ export class CdpEvidenceCollector {
         resourceType: current.type,
         mode: session.options.privacyMode,
         maxBytes: session.options.maxResponseBodyBytes,
+        captureFullResponseBody: session.options.captureFullResponseBody,
       });
       const stored = await this.repository.updateNetworkEntryWithinBudget(
         id,
@@ -675,11 +693,11 @@ export class CdpEvidenceCollector {
         if (session.options.captureNetwork) {
           initTasks.push(
             chrome.debugger
-              .sendCommand(childTarget, "Network.enable", {
-                maxTotalBufferSize: 50 * 1024 * 1024,
-                maxResourceBufferSize: 10 * 1024 * 1024,
-                maxPostDataSize: 1024 * 1024,
-              })
+              .sendCommand(
+                childTarget,
+                "Network.enable",
+                getNetworkEnableParams(session.options)
+              )
               .catch(() => undefined)
           );
         }

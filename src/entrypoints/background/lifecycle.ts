@@ -703,8 +703,16 @@ export function createSessionLifecycle(
       (await chrome.tabs
         .create({ url: previewUrl })
         .then(() => true)
-        .catch(() => false));
-    if (!opened) return session;
+        .catch(async () =>
+          chrome.windows
+            .create({ url: previewUrl })
+            .then(() => true)
+            .catch(() => false)
+        ));
+    if (!opened) {
+      await db.clearActive(session.id);
+      return session;
+    }
     return (
       (await db.updateSessionAndClearActive(session.id, (current) => ({
         ...current,

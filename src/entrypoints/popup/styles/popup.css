@@ -377,9 +377,11 @@ body {
   margin-top: 6px;
 }
 .video-quality-label {
+  width: 96px;
   font-size: 11px;
   color: var(--ink-sub);
   flex-shrink: 0;
+  white-space: nowrap;
 }
 .video-quality-row .privacy-select {
   width: auto;

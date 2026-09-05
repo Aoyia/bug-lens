@@ -58,6 +58,20 @@
         >
           触发网络请求 (Network Fetch)
         </button>
+        <button
+          id="test-large-fetch-btn"
+          data-testid="test-large-fetch-btn"
+          onclick="triggerLargeFetch()"
+        >
+          触发大报文请求 (Large JSON Fetch)
+        </button>
+      </div>
+      <div
+        id="large-fetch-status"
+        data-testid="large-fetch-status"
+        style="margin-top: 8px; font-size: 13px; color: #64748b"
+      >
+        未请求
       </div>
       <div style="margin-top: 15px">
         <label for="test-text-input">文本输入：</label>
@@ -104,6 +118,23 @@
             "Fetch 请求成功: " + JSON.stringify(data);
         } catch (err) {
           console.error("[E2E-TEST] Fetch 失败", err);
+        }
+      }
+
+      async function triggerLargeFetch() {
+        const statusEl = document.getElementById("large-fetch-status");
+        if (statusEl) statusEl.textContent = "正在请求大报文...";
+        try {
+          const res = await fetch("/api/large-json", { cache: "no-store" });
+          const data = await res.json();
+          const msg = `Large Fetch 成功: size=${data.largeText ? data.largeText.length : 0}, token=${Boolean(data.token)}`;
+          if (statusEl) statusEl.textContent = msg;
+          document.getElementById("output").textContent = msg;
+        } catch (err) {
+          console.error("[E2E-TEST] Large Fetch 失败", err);
+          const errMsg = "Large Fetch 失败: " + err.message;
+          if (statusEl) statusEl.textContent = errMsg;
+          document.getElementById("output").textContent = errMsg;
         }
       }
     </script>

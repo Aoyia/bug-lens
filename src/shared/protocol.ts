@@ -114,6 +114,7 @@ export type RecordingOptions = {
   captureNetwork: boolean;
   captureNetworkBodies: boolean;
   captureStaticBodies?: boolean;
+  captureFullResponseBody?: boolean;
   captureFrameworkState?: boolean;
   privacyMode: "safe" | "raw";
   mediaTimesliceMs: number;

@@ -55,4 +55,27 @@ describe("Recording video compression", () => {
     });
     assert.equal(disabled.captureFrameworkState, false);
   });
+
+  test("captureFullResponseBody is disabled by default and follows network bodies dependency", () => {
+    const defaults = normalizeRecordingOptions({});
+    assert.equal(defaults.captureFullResponseBody, false);
+
+    const enabled = normalizeRecordingOptions({
+      captureFullResponseBody: true,
+    });
+    assert.equal(enabled.captureFullResponseBody, true);
+
+    const disabledWithNoBodies = normalizeRecordingOptions({
+      captureFullResponseBody: true,
+      captureNetworkBodies: false,
+    });
+    assert.equal(disabledWithNoBodies.captureFullResponseBody, false);
+
+    const disabledWithNoNetwork = normalizeRecordingOptions({
+      captureFullResponseBody: true,
+      captureNetwork: false,
+    });
+    assert.equal(disabledWithNoNetwork.captureFullResponseBody, false);
+    assert.equal(disabledWithNoNetwork.captureNetworkBodies, false);
+  });
 });

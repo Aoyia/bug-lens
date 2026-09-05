@@ -85,13 +85,18 @@ export function sanitizeUrl(value: string, mode: PrivacyMode): string {
   }
 }
 
-export function sanitizeText(
+export interface SanitizedTextResult {
+  text: string;
+  truncated: boolean;
+}
+
+export function sanitizeTextWithDetails(
   value: string,
   mode: PrivacyMode,
   maxLength = 8_192,
   sanitizeUrls = true
-): string {
-  if (mode === "raw") return value;
+): SanitizedTextResult {
+  if (mode === "raw") return { text: value, truncated: false };
   let result = String(value ?? "");
   if (sanitizeUrls) {
     result = result.replace(/https?:\/\/[^\s<>"']+/gi, (url) =>
@@ -126,11 +131,25 @@ export function sanitizeText(
         valueQuote: string
       ) => `${quote}${key}${separator}${valueQuote}[REDACTED]${valueQuote}`
     )
-    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[REDACTED:email]")
     .replace(/\b(?:\d[ -]*?){13,19}\b/g, "[REDACTED:card]");
-  if (result.length > maxLength)
-    result = `${result.slice(0, maxLength)}\n[TRUNCATED]`;
-  return result;
+  if (result.includes("@")) {
+    result = result.replace(
+      /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi,
+      "[REDACTED:email]"
+    );
+  }
+  const truncated = result.length > maxLength;
+  if (truncated) result = `${result.slice(0, maxLength)}\n[TRUNCATED]`;
+  return { text: result, truncated };
+}
+
+export function sanitizeText(
+  value: string,
+  mode: PrivacyMode,
+  maxLength = 8_192,
+  sanitizeUrls = true
+): string {
+  return sanitizeTextWithDetails(value, mode, maxLength, sanitizeUrls).text;
 }
 
 export function sanitizeHeaders(
@@ -159,6 +178,7 @@ export function sanitizeResponseBody(input: {
   base64Encoded: boolean;
   mode: PrivacyMode;
   maxBytes?: number;
+  captureFullResponseBody?: boolean;
 }): SanitizedResponseBody {
   const byteLength = input.base64Encoded
     ? Math.max(
@@ -167,6 +187,7 @@ export function sanitizeResponseBody(input: {
           (input.body.endsWith("==") ? 2 : input.body.endsWith("=") ? 1 : 0)
       )
     : new TextEncoder().encode(input.body).byteLength;
+  const isFullCapture = Boolean(input.captureFullResponseBody);
   const resType = (input.resourceType || "").toLowerCase();
   const mime = (input.mimeType || "").toLowerCase();
   const isStaticResource =
@@ -194,7 +215,7 @@ export function sanitizeResponseBody(input: {
     value: string
   ): { value: string; truncated: boolean; byteLength: number } => {
     const bytes = new TextEncoder().encode(value);
-    if (bytes.byteLength <= maxBytes)
+    if (isFullCapture || bytes.byteLength <= maxBytes)
       return { value, truncated: false, byteLength: bytes.byteLength };
     const marker = "\n[TRUNCATED]";
     return {
@@ -205,6 +226,17 @@ export function sanitizeResponseBody(input: {
   };
   if (input.mode === "raw") {
     if (input.base64Encoded) {
+      if (isFullCapture) {
+        return {
+          bodyStatus: "captured",
+          body: input.body,
+          base64Encoded: true,
+          byteLength,
+          originalByteLength: byteLength,
+          capturedByteLength: byteLength,
+          truncated: false,
+        };
+      }
       const maxCharacters = Math.max(4, Math.floor((maxBytes * 4) / 3 / 4) * 4);
       const body =
         input.body.length > maxCharacters
@@ -242,8 +274,10 @@ export function sanitizeResponseBody(input: {
   }
 
   let body: string;
+  let fieldTruncated = false;
   if (input.mimeType?.includes("json") || /^[\s]*[\[{]/.test(input.body)) {
     try {
+      const fieldMaxLength = isFullCapture ? Number.MAX_SAFE_INTEGER : 8_192;
       const redactValue = (value: unknown, depth = 0): unknown => {
         if (depth > 30) return "[REDACTED:depth-limit]";
         if (Array.isArray(value))
@@ -261,16 +295,43 @@ export function sanitizeResponseBody(input: {
           }
           return result;
         }
-        return typeof value === "string"
-          ? sanitizeText(value, "safe", 8_192)
-          : value;
+        if (typeof value === "string") {
+          const sanitized = sanitizeTextWithDetails(
+            value,
+            "safe",
+            fieldMaxLength
+          );
+          if (!isFullCapture && sanitized.truncated) {
+            fieldTruncated = true;
+          }
+          return sanitized.text;
+        }
+        return value;
       };
       body = JSON.stringify(redactValue(JSON.parse(input.body)));
     } catch {
-      body = sanitizeText(input.body, "safe", maxBytes);
+      const maxTextLength = isFullCapture ? Number.MAX_SAFE_INTEGER : maxBytes;
+      const sanitized = sanitizeTextWithDetails(
+        input.body,
+        "safe",
+        maxTextLength
+      );
+      body = sanitized.text;
+      if (!isFullCapture && sanitized.truncated) {
+        fieldTruncated = true;
+      }
     }
   } else {
-    body = sanitizeText(input.body, "safe", maxBytes);
+    const maxTextLength = isFullCapture ? Number.MAX_SAFE_INTEGER : maxBytes;
+    const sanitized = sanitizeTextWithDetails(
+      input.body,
+      "safe",
+      maxTextLength
+    );
+    body = sanitized.text;
+    if (!isFullCapture && sanitized.truncated) {
+      fieldTruncated = true;
+    }
   }
   const captured = truncate(body);
   return {
@@ -280,7 +341,7 @@ export function sanitizeResponseBody(input: {
     byteLength,
     originalByteLength: byteLength,
     capturedByteLength: captured.byteLength,
-    truncated: captured.truncated,
+    truncated: captured.truncated || fieldTruncated,
   };
 }
 

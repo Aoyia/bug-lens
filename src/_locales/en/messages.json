@@ -289,6 +289,27 @@
   "responseBodies": {
     "message": "Bodies"
   },
+  "responseBodiesLabel": {
+    "message": "Response Bodies"
+  },
+  "responseBodiesDisabled": {
+    "message": "Disabled"
+  },
+  "responseBodiesStandard": {
+    "message": "Standard (Truncate at 2MB)"
+  },
+  "responseBodiesFull": {
+    "message": "Full (No Truncation)"
+  },
+  "responseBodiesNeedNetwork": {
+    "message": "Response bodies require network recording"
+  },
+  "fullResponseBody": {
+    "message": "Full bodies (no truncation)"
+  },
+  "fullResponseBodyNeedsBodies": {
+    "message": "Full bodies requires response bodies recording"
+  },
   "frameworkStates": {
     "message": "Framework"
   },

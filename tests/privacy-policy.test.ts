@@ -530,3 +530,173 @@ test("raw mode retains normal input value but omits password plaintext in intera
   assert.equal(rawPasswordRes.element.text, "[REDACTED]");
   assert.equal(rawPasswordRes.element.attributes.value, "[REDACTED]");
 });
+
+test("captureFullResponseBody === true preserves >2MB responses without truncation", () => {
+  const threeMbText = "a".repeat(3 * 1024 * 1024);
+  const result = sanitizeResponseBody({
+    body: threeMbText,
+    mimeType: "text/plain",
+    base64Encoded: false,
+    mode: "safe",
+    maxBytes: 2 * 1024 * 1024,
+    captureFullResponseBody: true,
+  });
+
+  assert.equal(result.truncated, false);
+  assert.equal(result.bodyStatus, "captured");
+  assert.equal(result.capturedByteLength, 3 * 1024 * 1024);
+  assert.equal(result.body?.length, 3 * 1024 * 1024);
+  assert.equal(result.body?.endsWith("[TRUNCATED]"), false);
+});
+
+test("captureFullResponseBody === true in safe mode preserves JSON fields >8KB while redacting sensitive keys", () => {
+  const longField = "x".repeat(16 * 1024);
+  const inputJson = {
+    token: "my-secret-token",
+    description: longField,
+    nested: {
+      password: "nested-secret",
+      data: "y".repeat(12 * 1024),
+    },
+  };
+
+  const result = sanitizeResponseBody({
+    body: JSON.stringify(inputJson),
+    mimeType: "application/json",
+    base64Encoded: false,
+    mode: "safe",
+    maxBytes: 2 * 1024 * 1024,
+    captureFullResponseBody: true,
+  });
+
+  assert.equal(result.truncated, false);
+  assert.equal(result.bodyStatus, "captured");
+  assert.equal(result.body?.endsWith("[TRUNCATED]"), false);
+
+  const parsed = JSON.parse(result.body ?? "{}");
+  assert.equal(parsed.token, "[REDACTED:token]");
+  assert.equal(parsed.nested.password, "[REDACTED:password]");
+  assert.equal(parsed.description, longField);
+  assert.equal(parsed.nested.data, "y".repeat(12 * 1024));
+});
+
+test("captureFullResponseBody === false preserves default 2MB body truncation and 8KB field truncation", () => {
+  const longField = "x".repeat(16 * 1024);
+  const inputJson = {
+    token: "my-secret-token",
+    description: longField,
+  };
+
+  const fieldTruncatedResult = sanitizeResponseBody({
+    body: JSON.stringify(inputJson),
+    mimeType: "application/json",
+    base64Encoded: false,
+    mode: "safe",
+    maxBytes: 2 * 1024 * 1024,
+    captureFullResponseBody: false,
+  });
+
+  const parsed = JSON.parse(fieldTruncatedResult.body ?? "{}");
+  assert.equal(parsed.token, "[REDACTED:token]");
+  assert.match(parsed.description, /\[TRUNCATED\]$/);
+  assert.equal(parsed.description.startsWith("x".repeat(8192)), true);
+  assert.equal(fieldTruncatedResult.truncated, true);
+
+  const threeMbText = "a".repeat(3 * 1024 * 1024);
+  const bodyTruncatedResult = sanitizeResponseBody({
+    body: threeMbText,
+    mimeType: "text/plain",
+    base64Encoded: false,
+    mode: "safe",
+    maxBytes: 2 * 1024 * 1024,
+    captureFullResponseBody: false,
+  });
+
+  assert.equal(bodyTruncatedResult.truncated, true);
+  assert.equal(bodyTruncatedResult.capturedByteLength, 2 * 1024 * 1024);
+  assert.match(bodyTruncatedResult.body ?? "", /\[TRUNCATED\]$/);
+
+  // Body naturally containing [TRUNCATED] without exceeding limits must NOT be marked truncated
+  const legitimateTruncatedMarkerJson = sanitizeResponseBody({
+    body: JSON.stringify({ message: "Task log ends here\n[TRUNCATED]" }),
+    mimeType: "application/json",
+    base64Encoded: false,
+    mode: "safe",
+    maxBytes: 2 * 1024 * 1024,
+    captureFullResponseBody: false,
+  });
+  assert.equal(legitimateTruncatedMarkerJson.truncated, false);
+});
+
+test("captureFullResponseBody === true in raw mode preserves >2MB body and base64 without truncation", () => {
+  const threeMbText = "b".repeat(3 * 1024 * 1024);
+  const textResult = sanitizeResponseBody({
+    body: threeMbText,
+    mimeType: "text/plain",
+    base64Encoded: false,
+    mode: "raw",
+    maxBytes: 2 * 1024 * 1024,
+    captureFullResponseBody: true,
+  });
+  assert.equal(textResult.truncated, false);
+  assert.equal(textResult.body, threeMbText);
+
+  // Large base64 body (approx 3MB)
+  const rawBase64 = Buffer.from("c".repeat(3 * 1024 * 1024)).toString("base64");
+  const b64Result = sanitizeResponseBody({
+    body: rawBase64,
+    mimeType: "application/octet-stream",
+    base64Encoded: true,
+    mode: "raw",
+    maxBytes: 2 * 1024 * 1024,
+    captureFullResponseBody: true,
+  });
+  assert.equal(b64Result.truncated, false);
+  assert.equal(b64Result.body, rawBase64);
+  assert.equal(b64Result.capturedByteLength, 3 * 1024 * 1024);
+});
+
+test("sanitizeResponseBody handles extreme 50MB payload safely in Standard mode without OOM", () => {
+  // 50MB text payload
+  const fiftyMbChunk = "x".repeat(50 * 1024 * 1024);
+  const t0 = performance.now();
+  const res = sanitizeResponseBody({
+    body: fiftyMbChunk,
+    mimeType: "text/plain",
+    base64Encoded: false,
+    mode: "safe",
+    maxBytes: 2 * 1024 * 1024,
+    captureFullResponseBody: false,
+  });
+  const duration = performance.now() - t0;
+  assert.equal(res.truncated, true);
+  assert.equal(res.capturedByteLength, 2 * 1024 * 1024);
+  assert.equal(res.originalByteLength, 50 * 1024 * 1024);
+  assert.ok(res.body?.endsWith("[TRUNCATED]"));
+  // Execution time should be fast (sub-second)
+  assert.ok(duration < 2_000, `Expected duration < 2000ms, got ${duration}ms`);
+});
+
+test("sanitizeResponseBody handles 50MB single JSON field by capping at 8192 chars without blowing up heap", () => {
+  const inputJson = {
+    token: "top-secret-token",
+    data: "k".repeat(50 * 1024 * 1024),
+  };
+  const jsonStr = JSON.stringify(inputJson);
+  const t0 = performance.now();
+  const res = sanitizeResponseBody({
+    body: jsonStr,
+    mimeType: "application/json",
+    base64Encoded: false,
+    mode: "safe",
+    maxBytes: 2 * 1024 * 1024,
+    captureFullResponseBody: false,
+  });
+  const duration = performance.now() - t0;
+  assert.equal(res.truncated, true);
+  const parsed = JSON.parse(res.body ?? "{}");
+  assert.equal(parsed.token, "[REDACTED:token]");
+  assert.equal(parsed.data.slice(0, 8192), "k".repeat(8192));
+  assert.ok(parsed.data.endsWith("[TRUNCATED]"));
+  assert.ok(duration < 3_000, `Expected duration < 3000ms, got ${duration}ms`);
+});

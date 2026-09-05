@@ -15,6 +15,7 @@ export const DEFAULT_RECORDING_OPTIONS: RecordingOptions = {
   captureNetwork: true,
   captureNetworkBodies: true,
   captureStaticBodies: false,
+  captureFullResponseBody: false,
   captureFrameworkState: true,
   privacyMode: "safe",
   mediaTimesliceMs: 1_000,
@@ -88,6 +89,10 @@ export function normalizeRecordingOptions(
     captureStaticBodies:
       Boolean(value?.captureStaticBodies) &&
       value?.captureNetworkBodies !== false,
+    captureFullResponseBody:
+      Boolean(value?.captureFullResponseBody) &&
+      value?.captureNetworkBodies !== false &&
+      value?.captureNetwork !== false,
     captureFrameworkState: value?.captureFrameworkState !== false,
     mediaTimesliceMs: boundedInteger(
       value?.mediaTimesliceMs,

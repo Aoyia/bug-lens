@@ -71,6 +71,8 @@ export function PopupApp() {
   const [captureNetwork, setCaptureNetwork] = useState<boolean>(true);
   const [captureNetworkBodies, setCaptureNetworkBodies] =
     useState<boolean>(true);
+  const [captureFullResponseBody, setCaptureFullResponseBody] =
+    useState<boolean>(false);
   const [captureFrameworkState, setCaptureFrameworkState] =
     useState<boolean>(true);
   const [privacyMode, setPrivacyMode] = useState<"safe" | "raw">("safe");
@@ -137,6 +139,11 @@ export function PopupApp() {
             setCaptureNetwork(last.captureNetwork);
           if (typeof last.captureNetworkBodies === "boolean")
             setCaptureNetworkBodies(last.captureNetworkBodies);
+          if (typeof last.captureFullResponseBody === "boolean")
+            setCaptureFullResponseBody(
+              last.captureFullResponseBody &&
+                last.captureNetworkBodies !== false
+            );
           if (typeof last.captureFrameworkState === "boolean")
             setCaptureFrameworkState(last.captureFrameworkState);
           if (last.privacyMode === "safe" || last.privacyMode === "raw")
@@ -160,7 +167,10 @@ export function PopupApp() {
       captureScreenshots,
       captureConsole,
       captureNetwork,
-      captureNetworkBodies: captureNetwork ? captureNetworkBodies : false,
+      captureNetworkBodies,
+      captureFullResponseBody: captureNetworkBodies
+        ? captureFullResponseBody
+        : false,
       captureFrameworkState,
       privacyMode,
       mediaTimesliceMs: DEFAULT_RECORDING_OPTIONS.mediaTimesliceMs,
@@ -178,6 +188,7 @@ export function PopupApp() {
     captureConsole,
     captureNetwork,
     captureNetworkBodies,
+    captureFullResponseBody,
     captureFrameworkState,
     privacyMode,
   ]);
@@ -189,6 +200,28 @@ export function PopupApp() {
       applyI18n();
       document.documentElement.lang = getLocale();
       setI18nVersion((v) => v + 1);
+    },
+    []
+  );
+
+  const responseBodyPolicy: "disabled" | "standard" | "full" = useMemo(() => {
+    if (!captureNetworkBodies) return "disabled";
+    if (captureFullResponseBody) return "full";
+    return "standard";
+  }, [captureNetworkBodies, captureFullResponseBody]);
+
+  const handleSetResponseBodyPolicy = useCallback(
+    (policy: "disabled" | "standard" | "full") => {
+      if (policy === "disabled") {
+        setCaptureNetworkBodies(false);
+        setCaptureFullResponseBody(false);
+      } else if (policy === "full") {
+        setCaptureNetworkBodies(true);
+        setCaptureFullResponseBody(true);
+      } else {
+        setCaptureNetworkBodies(true);
+        setCaptureFullResponseBody(false);
+      }
     },
     []
   );
@@ -438,6 +471,10 @@ export function PopupApp() {
       captureConsole,
       captureNetwork,
       captureNetworkBodies: captureNetwork ? captureNetworkBodies : false,
+      captureFullResponseBody:
+        captureNetwork && captureNetworkBodies
+          ? captureFullResponseBody
+          : false,
       captureFrameworkState,
       privacyMode,
       mediaTimesliceMs: DEFAULT_RECORDING_OPTIONS.mediaTimesliceMs,
@@ -446,9 +483,16 @@ export function PopupApp() {
       maxResponseBodyBytes: DEFAULT_RECORDING_OPTIONS.maxResponseBodyBytes,
     };
 
-    // 持久化最近一次选项，供全局快捷键一键录制复用
+    // 持久化最近一次选项，供全局快捷键一键录制与弹窗回填复用
+    const persistedOptions: RecordingOptions = {
+      ...options,
+      captureNetworkBodies,
+      captureFullResponseBody: captureNetworkBodies
+        ? captureFullResponseBody
+        : false,
+    };
     void chrome.storage.local
-      .set({ "last-recording-options": options })
+      .set({ "last-recording-options": persistedOptions })
       .catch(() => undefined);
 
     setErrorText("");
@@ -500,6 +544,7 @@ export function PopupApp() {
     captureConsole,
     captureNetwork,
     captureNetworkBodies,
+    captureFullResponseBody,
     captureFrameworkState,
     privacyMode,
   ]);
@@ -746,6 +791,8 @@ export function PopupApp() {
           captureConsole={captureConsole}
           captureNetwork={captureNetwork}
           captureNetworkBodies={captureNetworkBodies}
+          captureFullResponseBody={captureFullResponseBody}
+          responseBodyPolicy={responseBodyPolicy}
           captureFrameworkState={captureFrameworkState}
           privacyMode={privacyMode}
           languagePreference={languagePreference}
@@ -756,6 +803,8 @@ export function PopupApp() {
           onSetCaptureConsole={setCaptureConsole}
           onSetCaptureNetwork={setCaptureNetwork}
           onSetCaptureNetworkBodies={setCaptureNetworkBodies}
+          onSetCaptureFullResponseBody={setCaptureFullResponseBody}
+          onSetResponseBodyPolicy={handleSetResponseBodyPolicy}
           onSetCaptureFrameworkState={setCaptureFrameworkState}
           onSetPrivacyMode={setPrivacyMode}
           onSetLanguagePreference={handleSetLanguagePreference}

@@ -82,6 +82,12 @@ async function activeTab(
   });
 }
 
+const LARGE_JSON_PAYLOAD = JSON.stringify({
+  token: "secret-token-e2e-opt004",
+  largeText: "x".repeat(Math.round(3.35 * 1024 * 1024)),
+  status: "ok",
+});
+
 export const test = base.extend<ExtensionFixtures>({
   serverUrl: async ({}, use) => {
     const mockHtmlPath = path.resolve(
@@ -99,6 +105,14 @@ export const test = base.extend<ExtensionFixtures>({
       );
       const pathname = parsedUrl.pathname;
 
+      if (pathname === "/api/large-json") {
+        res.writeHead(200, {
+          "Content-Type": "application/json; charset=utf-8",
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+        });
+        res.end(LARGE_JSON_PAYLOAD);
+        return;
+      }
       if (pathname === "/api/todo") {
         res.writeHead(200, {
           "Content-Type": "application/json; charset=utf-8",
