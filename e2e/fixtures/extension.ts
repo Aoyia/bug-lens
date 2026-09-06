@@ -10,6 +10,7 @@ import path from "node:path";
 import os from "node:os";
 import fs from "node:fs";
 import http from "node:http";
+import { execFileSync } from "node:child_process";
 import {
   browserAppNameFromExecutable,
   createNativeShortcutDriver,
@@ -70,6 +71,10 @@ export type ExtensionFixtures = {
   activeTabId: () => Promise<number | undefined>;
   mediaProbe: MediaProbe;
   serverUrl: string;
+  getAppUrl: (
+    framework: "vue2" | "vue3" | "react",
+    mode: "dev" | "prod"
+  ) => string;
 };
 
 async function activeTab(
@@ -98,6 +103,29 @@ export const test = base.extend<ExtensionFixtures>({
       process.cwd(),
       "e2e/fixtures/privacy-page.html"
     );
+    const appsDistDir = path.resolve(process.cwd(), "e2e/fixtures/apps/dist");
+    const requiredTargets = [
+      "vue2-dev/bundle.js",
+      "vue2-prod/bundle.js",
+      "vue3-dev/bundle.js",
+      "vue3-prod/bundle.js",
+      "react-dev/bundle.js",
+      "react-prod/bundle.js",
+    ];
+    const isMissingAny = requiredTargets.some(
+      (target) => !fs.existsSync(path.resolve(appsDistDir, target))
+    );
+    if (isMissingAny) {
+      try {
+        execFileSync(
+          process.execPath,
+          [path.resolve(process.cwd(), "scripts/build-fixture-apps.mjs")],
+          { stdio: "pipe" }
+        );
+      } catch (e) {
+        console.error("Auto-building fixture apps failed:", e);
+      }
+    }
     const server = http.createServer((req, res) => {
       const parsedUrl = new URL(
         req.url || "/",
@@ -231,6 +259,59 @@ export const test = base.extend<ExtensionFixtures>({
         res.end(fs.readFileSync(previewHtmlPath));
         return;
       }
+      if (pathname.startsWith("/apps/")) {
+        const match = pathname.match(/^\/apps\/([^/]+)\/([^/]+)(?:\/(.*))?$/);
+        if (!match) {
+          res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+          res.end(`Invalid fixture app path: ${pathname}`);
+          return;
+        }
+
+        const [, framework, mode, rawFile] = match;
+        const targetDir = path.resolve(
+          process.cwd(),
+          "e2e/fixtures/apps/dist",
+          `${framework}-${mode}`
+        );
+        const decodedFile = rawFile ? decodeURIComponent(rawFile) : "";
+        const fileToServe =
+          decodedFile && decodedFile.length > 0 ? decodedFile : "index.html";
+        const resolvedPath = path.resolve(targetDir, fileToServe);
+        const safeTargetPrefix = targetDir.endsWith(path.sep)
+          ? targetDir
+          : targetDir + path.sep;
+
+        if (
+          !resolvedPath.startsWith(safeTargetPrefix) &&
+          resolvedPath !== targetDir
+        ) {
+          res.writeHead(403, { "Content-Type": "text/plain; charset=utf-8" });
+          res.end("Forbidden");
+          return;
+        }
+
+        if (fs.existsSync(resolvedPath) && fs.statSync(resolvedPath).isFile()) {
+          const ext = path.extname(resolvedPath);
+          let contentType = "application/octet-stream";
+          if (ext === ".html") contentType = "text/html; charset=utf-8";
+          else if (ext === ".js")
+            contentType = "application/javascript; charset=utf-8";
+          else if (ext === ".css") contentType = "text/css; charset=utf-8";
+          else if (ext === ".json" || ext === ".map")
+            contentType = "application/json; charset=utf-8";
+
+          res.writeHead(200, {
+            "Content-Type": contentType,
+            "Access-Control-Allow-Origin": "*",
+          });
+          res.end(fs.readFileSync(resolvedPath));
+          return;
+        } else {
+          res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+          res.end(`Fixture app file not found: ${pathname}`);
+          return;
+        }
+      }
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
       res.end(fs.readFileSync(mockHtmlPath));
     });
@@ -246,6 +327,13 @@ export const test = base.extend<ExtensionFixtures>({
       server.closeAllConnections?.();
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
+  },
+
+  getAppUrl: async ({ serverUrl }, use) => {
+    const origin = new URL(serverUrl).origin;
+    await use((framework: "vue2" | "vue3" | "react", mode: "dev" | "prod") => {
+      return `${origin}/apps/${framework}/${mode}/index.html`;
+    });
   },
 
   context: async ({}, use) => {

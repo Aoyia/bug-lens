@@ -37,7 +37,7 @@
 
 ## 🚀 3 步极速上手
 
-1. **安装插件**：下载预编译安装包 [bug-lens-v0.7.33.zip](https://github.com/Aoyia/bug-lens/releases/latest) 并解压，在 Chrome 扩展管理页（`chrome://extensions/` 开启开发者模式）点击 **“加载已解压的扩展程序”**。
+1. **安装插件**：下载预编译安装包 [bug-lens-v0.7.34.zip](https://github.com/Aoyia/bug-lens/releases/latest) 并解压，在 Chrome 扩展管理页（`chrome://extensions/` 开启开发者模式）点击 **“加载已解压的扩展程序”**。
 2. **一键录制**：在目标网页点击插件图标或按 `Cmd/Ctrl+Shift+Y` 开始录制并复现问题。
 3. **丢给 AI**：点击 **“结束并导出”**，Bug Lens 自动下载离线证据包并将生成的 AI 提示词写入剪贴板，直接粘贴到 Cursor、Claude Code、Codex 或 Antigravity 等 AI 助手即可开启精准修复！
 

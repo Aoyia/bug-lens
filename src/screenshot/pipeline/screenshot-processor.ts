@@ -3,6 +3,7 @@ import {
   normalizePayloadKeyOrder,
   type AIScreenshotPayload,
   type AnnotationItem,
+  type FrameworkComponentStateSnapshot,
   type RectBounds,
 } from "../../domain/screenshot-payload";
 import { message } from "../../shared/protocol";
@@ -450,25 +451,35 @@ export async function processScreenshot(
       disablePruning: options.disablePruning,
     });
 
-    // 2. 收集 Vue/React 组件的状态（Props / Data）
-    const vueComponentStates: Array<{
-      componentName: string;
-      componentPath?: string[];
-      props?: Record<string, unknown>;
-      data?: Record<string, unknown>;
-    }> = [];
+    // 2. 收集 Vue/React 组件的状态（Props / Data / Hooks / 源码定位）
+    const frameworkComponentStates: FrameworkComponentStateSnapshot[] = [];
 
     const collectedStateComponents = new Set<string>();
     const collectStateFromTree = (
       node: NonNullable<typeof spatialDom.tree>
     ) => {
-      if (node.componentName && (node.props || node.data)) {
-        const key = `${node.componentName}_${node.componentPath?.join(">")}`;
+      if (
+        node.componentName &&
+        (node.props || node.data || node.componentFile)
+      ) {
+        const key = `${node.componentName}_${node.componentPath?.join(">")}_${node.componentFile ?? ""}`;
         if (!collectedStateComponents.has(key)) {
           collectedStateComponents.add(key);
-          vueComponentStates.push({
+          const inferredFramework: "vue" | "react" | undefined =
+            node.componentFile?.endsWith(".vue")
+              ? "vue"
+              : node.componentFile?.endsWith(".tsx") ||
+                  node.componentFile?.endsWith(".jsx") ||
+                  node.componentLine !== undefined
+                ? "react"
+                : undefined;
+
+          frameworkComponentStates.push({
             componentName: node.componentName,
             componentPath: node.componentPath,
+            framework: inferredFramework,
+            componentFile: node.componentFile,
+            componentLine: node.componentLine,
             props: node.props,
             data: node.data,
           });
@@ -480,6 +491,31 @@ export async function processScreenshot(
     };
     if (spatialDom.tree) {
       collectStateFromTree(spatialDom.tree);
+    }
+    if (spatialDom.anchors) {
+      for (const anchor of spatialDom.anchors) {
+        if (anchor.componentName && anchor.componentFile) {
+          const key = `${anchor.componentName}_${anchor.componentPath?.join(">")}_${anchor.componentFile}`;
+          if (!collectedStateComponents.has(key)) {
+            collectedStateComponents.add(key);
+            const inferredFramework: "vue" | "react" | undefined =
+              anchor.componentFile.endsWith(".vue")
+                ? "vue"
+                : anchor.componentFile.endsWith(".tsx") ||
+                    anchor.componentFile.endsWith(".jsx") ||
+                    anchor.componentLine !== undefined
+                  ? "react"
+                  : undefined;
+            frameworkComponentStates.push({
+              componentName: anchor.componentName,
+              componentPath: anchor.componentPath,
+              framework: inferredFramework,
+              componentFile: anchor.componentFile,
+              componentLine: anchor.componentLine,
+            });
+          }
+        }
+      }
     }
 
     // 3. 如果开启了样式微调模式，收集 CSS 级联快照，并通过 CDP 补全代码行号
@@ -525,12 +561,19 @@ export async function processScreenshot(
       }
     }
 
-    return { spatialDom, vueComponentStates, cascadeIndex };
+    return {
+      spatialDom,
+      frameworkComponentStates,
+      vueComponentStates: frameworkComponentStates,
+      cascadeIndex,
+    };
   })();
 
   // 双轨并行等待就绪
-  const [croppedBase64, { spatialDom, vueComponentStates, cascadeIndex }] =
-    await Promise.all([imagePromise, domAndStylePromise]);
+  const [
+    croppedBase64,
+    { spatialDom, frameworkComponentStates, cascadeIndex },
+  ] = await Promise.all([imagePromise, domAndStylePromise]);
 
   // 5. 组装完整 AIScreenshotPayload 并规范化 Key 顺序（确保意图/DOM在上，大图像/底层规则在下）
   const payload: AIScreenshotPayload = normalizePayloadKeyOrder({
@@ -561,8 +604,14 @@ export async function processScreenshot(
           : "desktop",
       recentConsoleErrors: recentErrorsTracker.getRecentConsoleErrors(5000),
       recentFailedRequests: recentErrorsTracker.getRecentFailedRequests(5000),
+      frameworkComponentStates:
+        frameworkComponentStates.length > 0
+          ? frameworkComponentStates
+          : undefined,
       vueComponentStates:
-        vueComponentStates.length > 0 ? vueComponentStates : undefined,
+        frameworkComponentStates.length > 0
+          ? frameworkComponentStates
+          : undefined,
     },
   });
 

@@ -251,6 +251,9 @@ export type FrameworkProbeEntry = {
   version?: number;
   componentName?: string;
   componentPath?: string[];
+  componentFile?: string;
+  componentLine?: number;
+  filePath?: string;
   props?: Record<string, unknown>;
   data?: Record<string, unknown>;
 };

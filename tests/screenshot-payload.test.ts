@@ -3,10 +3,17 @@ import assert from "node:assert/strict";
 import {
   formatPayloadToMarkdown,
   formatPayloadToMarkdownForZip,
+  buildAiPromptTemplate,
   formatPayloadToHtml,
   normalizePayloadKeyOrder,
   normalizeDomTreeKeyOrder,
+  normalizeDomAnchorNodeKeyOrder,
+  normalizeDomTreeNodeKeyOrder,
+  normalizeDomLeafNodeKeyOrder,
+  normalizeDomAncestorNodeKeyOrder,
   type AIScreenshotPayload,
+  type FrameworkComponentStateSnapshot,
+  type VueComponentStateSnapshot,
 } from "../src/domain/screenshot-payload.ts";
 
 import {
@@ -324,5 +331,309 @@ describe("Screenshot Payload Formatter", () => {
 
     // 3. 两个无父子关系的兄弟节点，返回它们的共同父节点 wrapper
     assert.strictEqual(findSmallestCommonAncestor([button, input]), wrapper);
+  });
+
+  test("normalizeDomTreeKeyOrder 保持 componentFile 与 componentLine 的确定性 key 顺序", () => {
+    // 1. DomAnchorNode
+    const anchorNode: any = {
+      tagName: "button",
+      computedStyles: { color: "red" },
+      componentLine: 42,
+      selector: "button#submit",
+      componentFile: "src/components/TodoItem.vue",
+      selectorPath: "div > button#submit",
+      intentFlags: { isArrowTarget: true },
+      componentName: "<TodoItem>",
+      componentPath: ["<App>", "<TodoList>", "<TodoItem>"],
+      relativeRect: { x: 0, y: 0, width: 100, height: 40 },
+    };
+    const normAnchor = normalizeDomAnchorNodeKeyOrder(anchorNode);
+    const anchorKeys = Object.keys(normAnchor);
+    const nameIdx = anchorKeys.indexOf("componentName");
+    const pathIdx = anchorKeys.indexOf("componentPath");
+    const fileIdx = anchorKeys.indexOf("componentFile");
+    const lineIdx = anchorKeys.indexOf("componentLine");
+    const tagIdx = anchorKeys.indexOf("tagName");
+    assert.ok(nameIdx < pathIdx, "componentName should precede componentPath");
+    assert.ok(pathIdx < fileIdx, "componentPath should precede componentFile");
+    assert.ok(fileIdx < lineIdx, "componentFile should precede componentLine");
+    assert.ok(lineIdx < tagIdx, "componentLine should precede tagName");
+
+    // 2. DomTreeNode
+    const treeNode: any = {
+      children: [],
+      tagName: "div",
+      data: { count: 1 },
+      componentLine: 10,
+      props: { title: "demo" },
+      selector: "div.container",
+      componentFile: "src/App.tsx",
+      componentName: "<App>",
+      componentPath: ["<App>"],
+      relativeRect: { x: 0, y: 0, width: 200, height: 100 },
+    };
+    const normTree = normalizeDomTreeNodeKeyOrder(treeNode);
+    const treeKeys = Object.keys(normTree);
+    const tNameIdx = treeKeys.indexOf("componentName");
+    const tPathIdx = treeKeys.indexOf("componentPath");
+    const tFileIdx = treeKeys.indexOf("componentFile");
+    const tLineIdx = treeKeys.indexOf("componentLine");
+    const tPropsIdx = treeKeys.indexOf("props");
+    const tDataIdx = treeKeys.indexOf("data");
+    assert.ok(
+      tNameIdx < tPathIdx,
+      "componentName should precede componentPath"
+    );
+    assert.ok(
+      tPathIdx < tFileIdx,
+      "componentPath should precede componentFile"
+    );
+    assert.ok(
+      tFileIdx < tLineIdx,
+      "componentFile should precede componentLine"
+    );
+    assert.ok(tLineIdx < tPropsIdx, "componentLine should precede props");
+    assert.ok(tPropsIdx < tDataIdx, "props should precede data");
+
+    // 3. DomLeafNode
+    const leafNode: any = {
+      computedStyles: {},
+      componentLine: 15,
+      relativeRect: { x: 0, y: 0, width: 50, height: 20 },
+      selector: "span.label",
+      componentFile: "src/components/Label.vue",
+      componentName: "<Label>",
+      tagName: "span",
+    };
+    const normLeaf = normalizeDomLeafNodeKeyOrder(leafNode);
+    const leafKeys = Object.keys(normLeaf);
+    const lNameIdx = leafKeys.indexOf("componentName");
+    const lFileIdx = leafKeys.indexOf("componentFile");
+    const lLineIdx = leafKeys.indexOf("componentLine");
+    const lTagIdx = leafKeys.indexOf("tagName");
+    assert.ok(
+      lNameIdx < lFileIdx,
+      "componentName should precede componentFile"
+    );
+    assert.ok(
+      lFileIdx < lLineIdx,
+      "componentFile should precede componentLine"
+    );
+    assert.ok(lLineIdx < lTagIdx, "componentLine should precede tagName");
+
+    // 4. DomAncestorNode
+    const ancestorNode: any = {
+      depth: 1,
+      componentFile: "src/Layout.vue",
+      selector: "div.layout",
+      componentName: "<Layout>",
+      tagName: "div",
+    };
+    const normAncestor = normalizeDomAncestorNodeKeyOrder(ancestorNode);
+    const ancKeys = Object.keys(normAncestor);
+    const aNameIdx = ancKeys.indexOf("componentName");
+    const aFileIdx = ancKeys.indexOf("componentFile");
+    const aSelIdx = ancKeys.indexOf("selector");
+    assert.ok(
+      aNameIdx < aFileIdx,
+      "componentName should precede componentFile"
+    );
+    assert.ok(aFileIdx < aSelIdx, "componentFile should precede selector");
+  });
+
+  test("buildAiPromptTemplate 生成包含「🎯 源码物理定位」的直接文件与行号排查指引（中文模式）", async () => {
+    const { setUserLanguagePreference } = await import("../src/shared/i18n.ts");
+    await setUserLanguagePreference("zh-CN");
+
+    const payloadWithSource: AIScreenshotPayload = {
+      ...mockPayload,
+      domContextTree: {
+        ...mockPayload.domContextTree,
+        anchors: [
+          {
+            selector: "button#submit-btn",
+            selectorPath: "div#app > form.login-form > button#submit-btn",
+            componentName: "<OrderSubmitButton>",
+            componentPath: ["<App>", "<OrderSubmitButton>"],
+            componentFile: "src/components/OrderSubmitButton.tsx",
+            componentLine: 42,
+            relativeRect: { x: 50, y: 20, width: 100, height: 40 },
+            computedStyles: {},
+            intentFlags: { isArrowTarget: true },
+          },
+        ],
+        tree: {
+          tagName: "form",
+          selector: "form.login-form",
+          componentName: "<LoginForm>",
+          componentFile: "src/views/LoginForm.vue",
+          componentPath: ["<App>", "<LoginForm>"],
+          children: [
+            {
+              tagName: "button",
+              selector: "button#submit-btn",
+              componentName: "<OrderSubmitButton>",
+              componentPath: ["<App>", "<OrderSubmitButton>"],
+              componentFile: "src/components/OrderSubmitButton.tsx",
+              componentLine: 42,
+              props: { disabled: false },
+              data: { submitting: false },
+            },
+          ],
+        },
+      },
+      environment: {
+        ...mockPayload.environment,
+        frameworkComponentStates: [
+          {
+            componentName: "<OrderSubmitButton>",
+            componentPath: ["<App>", "<OrderSubmitButton>"],
+            framework: "react",
+            componentFile: "src/components/OrderSubmitButton.tsx",
+            componentLine: 42,
+            props: { disabled: false },
+            data: { submitting: false },
+          },
+        ],
+        vueComponentStates: [
+          {
+            componentName: "<OrderSubmitButton>",
+            componentPath: ["<App>", "<OrderSubmitButton>"],
+            framework: "react",
+            componentFile: "src/components/OrderSubmitButton.tsx",
+            componentLine: 42,
+            props: { disabled: false },
+            data: { submitting: false },
+          },
+        ],
+      },
+    };
+
+    const md = buildAiPromptTemplate(payloadWithSource);
+    assert.match(md, /- 🎯 源码物理定位 \(Source Code Location\):/);
+    assert.match(
+      md,
+      /核心标注组件: <OrderSubmitButton> -> `src\/components\/OrderSubmitButton\.tsx:42`/
+    );
+    assert.match(
+      md,
+      /\* `src\/components\/OrderSubmitButton\.tsx:42` \(<OrderSubmitButton>\)/
+    );
+    assert.match(md, /\* `src\/views\/LoginForm\.vue` \(<LoginForm>\)/);
+    assert.match(
+      md,
+      /💡 提示：已捕获物理源码路径，请直接在 IDE 中打开对应文件及行号进行代码排查与修复。/
+    );
+    assert.match(
+      md,
+      /源码直达：若上方已定位物理源码路径，优先在 IDE 中直接打开对应文件及行号/
+    );
+    assert.match(md, /frameworkComponentStates/);
+  });
+
+  test("buildAiPromptTemplate 生成包含「🎯 源码物理定位」的直接文件与行号排查指引（英文模式）", async () => {
+    const { setUserLanguagePreference } = await import("../src/shared/i18n.ts");
+    await setUserLanguagePreference("en-US");
+
+    const payloadWithSource: AIScreenshotPayload = {
+      ...mockPayload,
+      domContextTree: {
+        ...mockPayload.domContextTree,
+        anchors: [
+          {
+            selector: "button#submit-btn",
+            selectorPath: "div#app > form.login-form > button#submit-btn",
+            componentName: "<OrderSubmitButton>",
+            componentFile: "src/components/OrderSubmitButton.tsx",
+            componentLine: 42,
+            relativeRect: { x: 50, y: 20, width: 100, height: 40 },
+            computedStyles: {},
+            intentFlags: { isArrowTarget: true },
+          },
+        ],
+      },
+      environment: {
+        ...mockPayload.environment,
+        frameworkComponentStates: [
+          {
+            componentName: "<OrderSubmitButton>",
+            framework: "react",
+            componentFile: "src/components/OrderSubmitButton.tsx",
+            componentLine: 42,
+          },
+        ],
+      },
+    };
+
+    const md = buildAiPromptTemplate(payloadWithSource);
+    assert.match(md, /- 🎯 源码物理定位 \(Source Code Location\):/);
+    assert.match(
+      md,
+      /Primary Component: <OrderSubmitButton> -> `src\/components\/OrderSubmitButton\.tsx:42`/
+    );
+    assert.match(
+      md,
+      /💡 Tip: Physical source paths captured\. Open the file and line directly in your IDE to investigate and patch\./
+    );
+    assert.match(
+      md,
+      /Source Direct Navigation: If physical source paths are identified above/
+    );
+
+    await setUserLanguagePreference("auto");
+  });
+
+  test("buildAiPromptTemplate 生产构建降级指引（无 componentFile）", async () => {
+    const { setUserLanguagePreference } = await import("../src/shared/i18n.ts");
+    await setUserLanguagePreference("zh-CN");
+
+    const prodPayload: AIScreenshotPayload = {
+      ...mockPayload,
+      domContextTree: {
+        ...mockPayload.domContextTree,
+        anchors: [],
+        tree: {
+          tagName: "div",
+          selector: "div.root",
+          componentName: "<App>",
+        },
+      },
+    };
+
+    const mdZh = buildAiPromptTemplate(prodPayload);
+    assert.match(mdZh, /- 🎯 源码物理定位 \(Source Code Location\):/);
+    assert.match(
+      mdZh,
+      /未捕获到物理源码路径（页面可能处于生产构建或混淆模式），请参考 DOM 结构与组件名/
+    );
+
+    await setUserLanguagePreference("en-US");
+    const mdEn = buildAiPromptTemplate(prodPayload);
+    assert.match(mdEn, /- 🎯 源码物理定位 \(Source Code Location\):/);
+    assert.match(
+      mdEn,
+      /No physical source paths captured \(the page may be a production build or minified\)/
+    );
+
+    await setUserLanguagePreference("auto");
+  });
+
+  test("FrameworkComponentStateSnapshot 与 VueComponentStateSnapshot 双向类型兼容与环境支持", () => {
+    const snapshot: FrameworkComponentStateSnapshot = {
+      componentName: "TodoItem",
+      componentPath: ["App", "TodoList", "TodoItem"],
+      framework: "vue",
+      componentFile: "src/components/TodoItem.vue",
+      componentLine: undefined,
+      props: { item: { id: 1, text: "Buy milk" } },
+      data: { isEditing: false },
+    };
+    const vueSnapshot: VueComponentStateSnapshot = snapshot;
+    assert.strictEqual(vueSnapshot.componentName, "TodoItem");
+    assert.strictEqual(vueSnapshot.framework, "vue");
+    assert.strictEqual(
+      vueSnapshot.componentFile,
+      "src/components/TodoItem.vue"
+    );
   });
 });

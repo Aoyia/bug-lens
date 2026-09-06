@@ -17,6 +17,24 @@ import type {
 import type { FrameworkProbeEntry } from "../../shared/protocol";
 import { isEn, t } from "../../shared/i18n";
 
+declare module "../../domain/screenshot-payload" {
+  interface DomAnchorNode {
+    componentFile?: string;
+    componentLine?: number;
+  }
+  interface DomLeafNode {
+    componentFile?: string;
+    componentLine?: number;
+  }
+  interface DomTreeNode {
+    componentFile?: string;
+    componentLine?: number;
+  }
+  interface DomAncestorNode {
+    componentFile?: string;
+  }
+}
+
 /** 主世界框架探针：content script 隔离世界读不到 __vue__/__reactFiber$ 等 expando 属性，须注入页面主世界读取 */
 export interface FrameworkProbeFn {
   (elements: Element[]): Promise<Map<Element, FrameworkProbeEntry>>;
@@ -156,9 +174,10 @@ export function findSmallestCommonAncestor(
 export function detectComponentPath(el: Element): string[] | undefined {
   const path: string[] = [];
   const push = (name: string | undefined) => {
-    if (!name || name === "undefined") return;
-    if (/^[a-z]/.test(name)) return; // 跳过 HTML 内置标签名
-    const normalized = `<${name}>`;
+    if (!name || name === "undefined" || name === "Anonymous") return;
+    const clean = name.replace(/^<|>$/g, "");
+    if (!clean) return;
+    const normalized = `<${clean}>`;
     if (!path.includes(normalized)) path.push(normalized);
   };
   try {
@@ -178,13 +197,21 @@ export function detectComponentPath(el: Element): string[] | undefined {
       let hops = 0;
       while (fiber && hops < 12) {
         const type = fiber.type;
-        push(
-          typeof type === "function"
-            ? type.name || type.displayName
-            : typeof type === "object" && type
+        const isHost = fiber.tag === 5 || typeof type === "string";
+        if (!isHost) {
+          const name =
+            typeof type === "function"
               ? type.displayName || type.name
-              : undefined
-        );
+              : typeof type === "object" && type
+                ? type.displayName ||
+                  type.name ||
+                  type.render?.displayName ||
+                  type.render?.name ||
+                  type.type?.displayName ||
+                  type.type?.name
+                : undefined;
+          push(name);
+        }
         fiber = fiber.return;
         hops += 1;
         if (path.length >= MAX_COMPONENT_PATH) break;
@@ -204,7 +231,9 @@ export function detectComponentPath(el: Element): string[] | undefined {
         let vHops = 0;
         while (vnode && vHops < 12) {
           const type = vnode.type;
-          push(type?.name || type?.__name);
+          if (typeof type !== "string") {
+            push(type?.name || type?.__name);
+          }
           vnode = vnode.parent;
           vHops += 1;
           if (path.length >= MAX_COMPONENT_PATH) break;
@@ -217,7 +246,9 @@ export function detectComponentPath(el: Element): string[] | undefined {
         let vHops = 0;
         while (vnode && vHops < 12) {
           const type = vnode.type;
-          push(type?.name || type?.__name);
+          if (typeof type !== "string") {
+            push(type?.name || type?.__name);
+          }
           vnode = vnode.parent;
           vHops += 1;
           if (path.length >= MAX_COMPONENT_PATH) break;
@@ -1356,6 +1387,7 @@ export async function collectSpatialDomTree(
       ...formatDomNodeSelectorFields(el),
       depth,
       componentName: componentOf(el)?.componentName,
+      componentFile: componentOf(el)?.componentFile,
       computedStyles: extractKeyComputedStyles(el, styleAdjustmentMode),
       layoutStyle: extractLayoutStyles(el),
     }));
@@ -1389,6 +1421,8 @@ export async function collectSpatialDomTree(
           : undefined,
         componentName: comp?.componentName,
         componentPath: comp?.componentPath,
+        componentFile: comp?.componentFile,
+        componentLine: comp?.componentLine,
         intentFlags: {
           isArrowTarget: intentFlags.isArrowTarget || undefined,
           isHighlightedFocus: intentFlags.isHighlightedFocus || undefined,
@@ -1403,6 +1437,7 @@ export async function collectSpatialDomTree(
     const bounds = boundsOf(el);
     const text = cleanText(el, textMaxLen);
     const exp = checkElementExposure(el, bounds);
+    const comp = componentOf(el);
     return {
       tagName: el.tagName.toLowerCase(),
       id: el.id || undefined,
@@ -1419,7 +1454,9 @@ export async function collectSpatialDomTree(
       obscuredBy: exp.obscuredBy,
       isErrorSignal: detectErrorSignal(el) || undefined,
       selectState: extractSelectState(el),
-      componentName: componentOf(el)?.componentName,
+      componentName: comp?.componentName,
+      componentFile: comp?.componentFile,
+      componentLine: comp?.componentLine,
       computedStyles: extractKeyComputedStyles(el, styleAdjustmentMode),
       layoutStyle: extractLayoutStyles(el),
       boxModel: styleAdjustmentMode ? extractBoxModelGeometry(el) : undefined,
@@ -1468,6 +1505,9 @@ export async function collectSpatialDomTree(
       !isSca &&
       !isAnchor &&
       !shouldKeepPath &&
+      !comp?.componentFile &&
+      !comp?.props &&
+      !comp?.data &&
       !rawText &&
       childrenEls.length === 1;
 
@@ -1496,6 +1536,10 @@ export async function collectSpatialDomTree(
         comp?.componentName ??
         comp?.componentPath?.[comp?.componentPath.length - 1],
       componentPath: shouldKeepPath ? currentPath : undefined,
+      componentFile: comp?.componentFile,
+      componentLine: comp?.componentLine,
+      props: comp?.props,
+      data: comp?.data,
       intentFlags: intentFlags
         ? {
             isArrowTarget: intentFlags.isArrowTarget || undefined,

@@ -127,4 +127,104 @@ describe("Screenshot ZIP Builder - 资源包压缩与解压验证", () => {
     const expectedImgU8 = base64ToUint8Array(dummyPayload.image.base64Data);
     assert.deepEqual(unzipped["screenshot.jpg"], expectedImgU8);
   });
+
+  test("buildScreenshotZipPackage 正确打包包含 frameworkComponentStates/vueComponentStates 与 componentFile/componentLine 的 ZIP 产物并完成解压强验证", async () => {
+    const states = [
+      {
+        componentName: "<TodoItem>",
+        componentPath: ["<App>", "<TodoList>", "<TodoItem>"],
+        framework: "vue" as const,
+        componentFile: "src/components/TodoItem.vue",
+        componentLine: 55,
+        props: { id: "item-1" },
+        data: { title: "Buy groceries" },
+      },
+    ];
+
+    const payloadWithFramework: AIScreenshotPayload = {
+      ...dummyPayload,
+      domContextTree: {
+        ...dummyPayload.domContextTree,
+        anchors: [
+          {
+            selector: "li.todo-item",
+            selectorPath: "ul > li.todo-item",
+            componentName: "<TodoItem>",
+            componentPath: ["<App>", "<TodoList>", "<TodoItem>"],
+            componentFile: "src/components/TodoItem.vue",
+            componentLine: 55,
+            relativeRect: { x: 10, y: 10, width: 80, height: 25 },
+            computedStyles: {},
+            intentFlags: { isArrowTarget: true },
+          },
+        ],
+        tree: {
+          tagName: "div",
+          selector: "div#app",
+          componentName: "<App>",
+          componentFile: "src/App.vue",
+          children: [
+            {
+              tagName: "li",
+              selector: "li.todo-item",
+              componentName: "<TodoItem>",
+              componentPath: ["<App>", "<TodoList>", "<TodoItem>"],
+              componentFile: "src/components/TodoItem.vue",
+              componentLine: 55,
+              props: { id: "item-1" },
+              data: { title: "Buy groceries" },
+            },
+          ],
+        },
+      },
+      environment: {
+        ...dummyPayload.environment,
+        frameworkComponentStates: states,
+        vueComponentStates: states,
+      },
+    };
+
+    const pack = buildScreenshotZipPackage(payloadWithFramework);
+    const u8 = new Uint8Array(await pack.blob.arrayBuffer());
+    const unzipped = unzipSync(u8);
+
+    // 1. 验证 dom-context.json
+    assert.ok(unzipped["dom-context.json"]);
+    const domParsed = JSON.parse(
+      new TextDecoder().decode(unzipped["dom-context.json"])
+    );
+    assert.equal(
+      domParsed.anchors[0].componentFile,
+      "src/components/TodoItem.vue"
+    );
+    assert.equal(domParsed.anchors[0].componentLine, 55);
+    assert.equal(domParsed.tree.componentFile, "src/App.vue");
+    assert.equal(
+      domParsed.tree.children[0].componentFile,
+      "src/components/TodoItem.vue"
+    );
+    assert.equal(domParsed.tree.children[0].componentLine, 55);
+
+    // 2. 验证 environment.json 双写
+    assert.ok(unzipped["environment.json"]);
+    const envParsed = JSON.parse(
+      new TextDecoder().decode(unzipped["environment.json"])
+    );
+    assert.deepEqual(envParsed.frameworkComponentStates, states);
+    assert.deepEqual(envParsed.vueComponentStates, states);
+
+    // 3. 验证 ai-prompt.md 源码指引
+    assert.ok(unzipped["ai-prompt.md"]);
+    const promptMd = new TextDecoder().decode(unzipped["ai-prompt.md"]);
+    assert.match(promptMd, /- 🎯 源码物理定位 \(Source Code Location\):/);
+    assert.match(promptMd, /src\/components\/TodoItem\.vue:55/);
+    assert.match(
+      promptMd,
+      /💡 提示：已捕获物理源码路径，请直接在 IDE 中打开对应文件及行号进行代码排查与修复。/
+    );
+    assert.match(
+      promptMd,
+      /源码直达：若上方已定位物理源码路径，优先在 IDE 中直接打开对应文件及行号/
+    );
+  });
 });

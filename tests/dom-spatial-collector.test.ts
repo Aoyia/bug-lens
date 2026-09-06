@@ -9,6 +9,7 @@ import {
   detectFlexSqueezeRisk,
   detectTextOverflow,
   detectGridOverflow,
+  detectComponentPath,
 } from "../src/screenshot/probes/dom-spatial-collector";
 
 function createMockElement(
@@ -355,5 +356,128 @@ describe("dom-spatial-collector 物理遮挡与曝光判定", () => {
     );
 
     await setUserLanguagePreference("auto");
+  });
+
+  test("collectSpatialDomTree 数据贯通：为 DomTreeNode 补全 props/data/componentFile/componentLine 并在 leaves 与 anchors 挂载", async () => {
+    const mockRoot = createMockElement("DIV", "", {
+      left: 0,
+      top: 0,
+      width: 1000,
+      height: 1000,
+    });
+
+    const itemEl = createMockElement(
+      "BUTTON",
+      "待办项文本",
+      { left: 10, top: 10, width: 60, height: 30 },
+      mockRoot
+    );
+
+    const leafEl = createMockElement(
+      "SPAN",
+      "状态徽标",
+      { left: 80, top: 10, width: 40, height: 20 },
+      mockRoot
+    );
+
+    mockRoot.children = [itemEl, leafEl];
+    mockRoot.contains = (other: any) =>
+      other === mockRoot || other === itemEl || other === leafEl;
+    mockRoot.querySelectorAll = () => [itemEl, leafEl];
+
+    const probeMap = new Map();
+    probeMap.set(itemEl, {
+      framework: "react",
+      version: 18,
+      componentName: "TodoItem",
+      componentPath: ["App", "TodoList", "TodoItem"],
+      componentFile: "src/components/TodoItem.tsx",
+      componentLine: 35,
+      props: { title: "Buy Milk", completed: false },
+      data: { useState_0: true },
+    });
+
+    probeMap.set(leafEl, {
+      framework: "react",
+      version: 18,
+      componentName: "TodoBadge",
+      componentPath: ["App", "TodoList", "TodoBadge"],
+      componentFile: "src/components/TodoBadge.tsx",
+      componentLine: 12,
+    });
+
+    const cropBounds = { x: 0, y: 0, width: 200, height: 200 };
+    const annotations: any[] = [
+      {
+        id: "ann-focus",
+        type: "rect",
+        bounds: { x: 10, y: 10, width: 60, height: 30 },
+      },
+    ];
+
+    const result = await collectSpatialDomTree({
+      cropBounds,
+      rootElement: mockRoot,
+      annotations,
+      probeFramework: async () => probeMap,
+    });
+
+    // 1. 验证 leaves 中的组件与物理源码信息
+    assert.ok(result.leaves.length > 0);
+    const leaf = result.leaves[0];
+    assert.equal(leaf.componentName, "TodoBadge");
+    assert.equal(leaf.componentFile, "src/components/TodoBadge.tsx");
+    assert.equal(leaf.componentLine, 12);
+
+    // 2. 验证 anchors 中的组件与物理源码信息
+    assert.ok(result.anchors.length > 0);
+    const anchor = result.anchors[0];
+    assert.equal(anchor.componentName, "TodoItem");
+    assert.equal(anchor.componentFile, "src/components/TodoItem.tsx");
+    assert.equal(anchor.componentLine, 35);
+
+    // 3. 验证 DomTreeNode 深度贯通：props, data, componentFile, componentLine
+    const findNode = (node: any): any => {
+      if (node.componentName === "TodoItem") return node;
+      if (node.children) {
+        for (const c of node.children) {
+          const found = findNode(c);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+
+    const treeNode = findNode(result.tree);
+    assert.ok(treeNode, "DOM 树中必须存在包含 TodoItem 的节点");
+    assert.equal(treeNode.componentFile, "src/components/TodoItem.tsx");
+    assert.equal(treeNode.componentLine, 35);
+    assert.deepEqual(treeNode.props, { title: "Buy Milk", completed: false });
+    assert.deepEqual(treeNode.data, { useState_0: true });
+  });
+
+  test("detectComponentPath 降级容错：混淆小写单字母组件名正常保留，废除误杀", () => {
+    function a() {}
+    function t() {}
+
+    const el: any = {
+      __reactFiber$test: {
+        tag: 5,
+        type: "button",
+        return: {
+          tag: 0,
+          type: a,
+          return: {
+            tag: 0,
+            type: t,
+            return: null,
+          },
+        },
+      },
+    };
+
+    const path = detectComponentPath(el);
+    assert.ok(path, "path 不应为 undefined");
+    assert.deepEqual(path, ["<a>", "<t>"]);
   });
 });

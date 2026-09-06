@@ -241,6 +241,8 @@ export interface DomTreeNode {
   layoutContext?: LayoutContextInfo;
   componentName?: string;
   componentPath?: string[];
+  componentFile?: string;
+  componentLine?: number;
   props?: Record<string, unknown>;
   data?: Record<string, unknown>;
   intentFlags?: {
@@ -265,13 +267,19 @@ export interface DomTreeNode {
   children?: DomTreeNode[];
 }
 
-/** Vue/React 业务组件 Data/Props 响应式状态快照 */
-export interface VueComponentStateSnapshot {
+/** Vue/React 业务组件 Data/Props/Hooks 响应式状态快照 */
+export interface FrameworkComponentStateSnapshot {
   componentName: string;
   componentPath?: string[];
+  framework?: "vue" | "react";
+  componentFile?: string;
+  componentLine?: number;
   props?: Record<string, unknown>;
   data?: Record<string, unknown>;
 }
+
+/** 兼容旧版命名 */
+export type VueComponentStateSnapshot = FrameworkComponentStateSnapshot;
 
 /** 锚点节点：标注命中的元素（完整诊断信息） */
 export interface DomAnchorNode {
@@ -289,6 +297,8 @@ export interface DomAnchorNode {
   componentName?: string;
   /** 框架组件链（最近组件到根，已处理为正向或标准继承链） */
   componentPath?: string[];
+  componentFile?: string;
+  componentLine?: number;
   visibility?: "visible" | "hidden_css" | "zero_size";
   exposure?: "exposed" | "obscured" | "clipped" | "hidden_css";
   obscuredBy?: string;
@@ -310,6 +320,8 @@ export interface DomLeafNode {
   innerText?: string;
   relativeRect: RectBounds;
   componentName?: string;
+  componentFile?: string;
+  componentLine?: number;
   computedStyles?: Record<string, string>;
   /** 仅布局差异样式（display/position/flex/zIndex/overflow） */
   layoutStyle?: Record<string, string>;
@@ -331,6 +343,7 @@ export interface DomAncestorNode {
   /** 相对 SCA 的深度（SCA 为 0） */
   depth: number;
   componentName?: string;
+  componentFile?: string;
   layoutStyle?: Record<string, string>;
 }
 
@@ -371,7 +384,8 @@ export interface AIScreenshotPayload {
     mediaBreakpoint: string;
     recentConsoleErrors: RecentConsoleError[];
     recentFailedRequests: RecentFailedNetworkRequest[];
-    vueComponentStates?: VueComponentStateSnapshot[];
+    frameworkComponentStates?: FrameworkComponentStateSnapshot[];
+    vueComponentStates?: FrameworkComponentStateSnapshot[];
   };
 }
 
@@ -443,15 +457,148 @@ function buildPromptBody(
     }
   };
 
+  // 提取源码物理定位信息
+  interface SourceLocationItem {
+    componentName?: string;
+    componentFile: string;
+    componentLine?: number;
+    isAnchor?: boolean;
+  }
+
+  const sourceMap = new Map<string, SourceLocationItem>();
+  const componentNamesSet = new Set<string>();
+
+  const registerSource = (
+    file?: string,
+    line?: number,
+    name?: string,
+    isAnchor = false
+  ) => {
+    if (name) componentNamesSet.add(name);
+    if (!file) return;
+    const key = `${file}:${line ?? ""}`;
+    const existing = sourceMap.get(key);
+    if (!existing) {
+      sourceMap.set(key, {
+        componentFile: file,
+        componentLine: line,
+        componentName: name,
+        isAnchor,
+      });
+    } else {
+      if (!existing.componentName && name) existing.componentName = name;
+      if (isAnchor) existing.isAnchor = true;
+    }
+  };
+
   if (payload.domContextTree) {
     if (Array.isArray(payload.domContextTree.anchors)) {
       for (const anchor of payload.domContextTree.anchors) {
         checkLayoutDeviations(anchor);
+        registerSource(
+          anchor.componentFile,
+          anchor.componentLine,
+          anchor.componentName,
+          true
+        );
       }
     }
+    if (Array.isArray(payload.domContextTree.leaves)) {
+      for (const leaf of payload.domContextTree.leaves) {
+        registerSource(
+          leaf.componentFile,
+          leaf.componentLine,
+          leaf.componentName
+        );
+      }
+    }
+    const scanTree = (node?: DomTreeNode) => {
+      if (!node) return;
+      registerSource(
+        node.componentFile,
+        node.componentLine,
+        node.componentName
+      );
+      if (node.children) {
+        for (const child of node.children) scanTree(child);
+      }
+    };
     if (payload.domContextTree.tree) {
       checkLayoutDeviations(payload.domContextTree.tree);
+      scanTree(payload.domContextTree.tree);
     }
+  }
+
+  const compStates =
+    payload.environment.frameworkComponentStates ||
+    payload.environment.vueComponentStates;
+  if (Array.isArray(compStates)) {
+    for (const s of compStates) {
+      registerSource(s.componentFile, s.componentLine, s.componentName);
+    }
+  }
+
+  const sourceLocations = Array.from(sourceMap.values());
+  let sourceLocationSectionZh = "";
+  let sourceLocationSectionEn = "";
+
+  if (sourceLocations.length > 0) {
+    const core = sourceLocations.find((s) => s.isAnchor) || sourceLocations[0];
+    const coreLineStr = core.componentLine ? `:${core.componentLine}` : "";
+    const coreNameStr = core.componentName
+      ? `<${core.componentName.replace(/^<|>$/g, "")}>`
+      : "Target Component";
+    const coreLocationTarget = `\`${core.componentFile}${coreLineStr}\``;
+
+    const fileListZh = sourceLocations
+      .map((s) => {
+        const lineStr = s.componentLine ? `:${s.componentLine}` : "";
+        const nameStr = s.componentName ? ` (${s.componentName})` : "";
+        return `    * \`${s.componentFile}${lineStr}\`${nameStr}`;
+      })
+      .join("\n");
+
+    const fileListEn = sourceLocations
+      .map((s) => {
+        const lineStr = s.componentLine ? `:${s.componentLine}` : "";
+        const nameStr = s.componentName ? ` (${s.componentName})` : "";
+        return `    * \`${s.componentFile}${lineStr}\`${nameStr}`;
+      })
+      .join("\n");
+
+    sourceLocationSectionZh = `\n- 🎯 源码物理定位 (Source Code Location):
+  - 核心标注组件: ${coreNameStr} -> ${coreLocationTarget}
+  - 涉及组件清单:
+${fileListZh}
+  💡 提示：已捕获物理源码路径，请直接在 IDE 中打开对应文件及行号进行代码排查与修复。`;
+
+    sourceLocationSectionEn = `\n- 🎯 源码物理定位 (Source Code Location):
+  - Primary Component: ${coreNameStr} -> ${coreLocationTarget}
+  - Involved Source Files:
+${fileListEn}
+  💡 Tip: Physical source paths captured. Open the file and line directly in your IDE to investigate and patch.`;
+  } else {
+    const compList = Array.from(componentNamesSet);
+    const compHintZh =
+      compList.length > 0
+        ? `（如 ${compList
+            .slice(0, 3)
+            .map((c) => `<${c.replace(/^<|>$/g, "")}>`)
+            .join(", ")}）`
+        : "";
+    const compHintEn =
+      compList.length > 0
+        ? ` (e.g. ${compList
+            .slice(0, 3)
+            .map((c) => `<${c.replace(/^<|>$/g, "")}>`)
+            .join(", ")})`
+        : "";
+
+    sourceLocationSectionZh = `\n- 🎯 源码物理定位 (Source Code Location):
+  - 未捕获到物理源码路径（页面可能处于生产构建或混淆模式），请参考 DOM 结构与组件名${compHintZh}在工程中进行全局搜索。`;
+
+    sourceLocationSectionEn = `\n- 🎯 源码物理定位 (Source Code Location):
+  - No physical source paths captured (the page may be a production build or minified). Please refer to DOM structure and component name(s)${compHintEn} for global codebase search.`;
   }
 
   const hasCascade = Boolean(payload.cascadeIndex);
@@ -508,7 +655,7 @@ ${pathLine}
 Metadata Summary:
 - Page & URL: ${title} (${url})
 - Crop Dimensions: ${w}x${h} (dpr: ${dpr})
-- Anomalies: ${errCount} console error(s) | ${reqCount} failed network request(s)${cascadeHint}${squeezeWarning}
+- Anomalies: ${errCount} console error(s) | ${reqCount} failed network request(s)${sourceLocationSectionEn}${cascadeHint}${squeezeWarning}
 
 Please follow the Dual-Track Intent Analysis Framework (extract ZIP to a temporary directory):
 1. Visual & Intent Identification:
@@ -519,11 +666,12 @@ Please follow the Dual-Track Intent Analysis Framework (extract ZIP to a tempora
 
 2. Scene Alignment & Deviation Analysis:
    - Carefully verify actual visuals in \`screenshot.png\` against DOM structure (\`dom-context.json\`).
+   - Source Direct Navigation: If physical source paths are identified above, prioritize opening the corresponding files and lines directly in your IDE (referencing \`componentFile\` and \`componentLine\` in \`dom-context.json\`) to inspect code logic alongside \`props\`/\`data\` and \`intentFlags\`.
    - Read \`dom-context.json\`: Combine \`tree\` root node and \`anchors\` selection hierarchy/component chain (e.g. \`["<App>", "<WidgetConfig>", "<ElFormItem>"]\`) to pinpoint relevant source components.
    - Compare user-stated expectation with code reality to infer the root deviation node.
 
 3. State & Anomaly Convergence:
-   - Read \`environment.json\` to inspect Console error stacks, Network 4xx/5xx requests, and \`vueComponentStates\` reactive Props/Data snapshots.
+   - Read \`environment.json\` to inspect Console error stacks, Network 4xx/5xx requests, and \`frameworkComponentStates\` (or \`vueComponentStates\`) reactive Props/Data snapshots.
 
 4. Root Cause & Remediation:
    - Bug Fix Track: Locate bug code/API contract, provide exact patch.
@@ -588,7 +736,7 @@ ${pathLine}
 元数据摘要：
 - 页面 & URL：${title} (${url})
 - 选区尺寸：${w}x${h} (dpr: ${dpr})
-- 异常日志：${errCount} 条 Console 报错 | ${reqCount} 个失败网络请求${cascadeHint}${squeezeWarning}
+- 异常日志：${errCount} 条 Console 报错 | ${reqCount} 个失败网络请求${sourceLocationSectionZh}${cascadeHint}${squeezeWarning}
 
 请按双轨意图分析框架展开排查（解压 ZIP 至临时目录）：
 1. 截图与意图分轨识别 (Visual & Intent Identification)：
@@ -599,11 +747,12 @@ ${pathLine}
 
 2. 现场定位与偏离分析：
    - 仔细核对 \`screenshot.jpg\` 中的实际视觉呈现与 DOM 结构 (\`dom-context.json\`)。
+   - 源码直达：若上方已定位物理源码路径，优先在 IDE 中直接打开对应文件及行号（对照 \`dom-context.json\` 中的 \`componentFile\` 与 \`componentLine\`）排查代码实现，对照 \`props\`/\`data\` 与 \`intentFlags\` 诊断偏离根因。
    - 读取 \`dom-context.json\`：结合 \`tree\` 根节点与 \`anchors\` 选区嵌套结构/组件继承链（如 \`["<App>", "<WidgetConfig>", "<ElFormItem>"]\`），精确定位涉及的源码组件文件。
    - 对比用户标注的“预期”与代码现场“实际”，推断偏离（Deviation）发生的根本节点。
 
 3. 状态与异常收敛：
-   - 读取 \`environment.json\` 查看 Console 报错堆栈、Network 4xx/5xx 请求以及 \`vueComponentStates\` 中业务组件响应式 Props/Data 状态快照。
+   - 读取 \`environment.json\` 查看 Console 报错堆栈、Network 4xx/5xx 请求以及 \`frameworkComponentStates\`（或 \`vueComponentStates\`）中业务组件响应式 Props/Data 状态快照。
 
 4. 根因推导与产出方案：
    - 缺陷修复轨：定位 Bug 代码块/接口契约，给出具体修复代码。
@@ -637,6 +786,16 @@ export function formatPayloadToMarkdown(
 }
 
 /**
+ * 构造 AI 诊断 Prompt 模板（与 formatPayloadToMarkdown 相同，支持直接调用）
+ */
+export function buildAiPromptTemplate(
+  payload: AIScreenshotPayload,
+  zipPath?: string
+): string {
+  return formatPayloadToMarkdown(payload, zipPath);
+}
+
+/**
  * 生成 zip 包内 ai-prompt.md 使用的提示词：打包先于下载，无法预知真实绝对路径，
  * 使用引导文案而非占位符，避免误导 AI 去寻找不存在的路径。
  */
@@ -657,6 +816,8 @@ export function normalizeDomTreeNodeKeyOrder(node: DomTreeNode): DomTreeNode {
     isErrorSignal,
     componentName,
     componentPath,
+    componentFile,
+    componentLine,
     props,
     data,
     tagName,
@@ -686,6 +847,8 @@ export function normalizeDomTreeNodeKeyOrder(node: DomTreeNode): DomTreeNode {
     ...(isErrorSignal !== undefined ? { isErrorSignal } : {}),
     ...(componentName !== undefined ? { componentName } : {}),
     ...(componentPath !== undefined ? { componentPath } : {}),
+    ...(componentFile !== undefined ? { componentFile } : {}),
+    ...(componentLine !== undefined ? { componentLine } : {}),
     ...(props !== undefined ? { props } : {}),
     ...(data !== undefined ? { data } : {}),
     tagName,
@@ -720,6 +883,8 @@ export function normalizeDomAnchorNodeKeyOrder(
     isErrorSignal,
     componentName,
     componentPath,
+    componentFile,
+    componentLine,
     tagName,
     id,
     className,
@@ -742,6 +907,8 @@ export function normalizeDomAnchorNodeKeyOrder(
     ...(isErrorSignal !== undefined ? { isErrorSignal } : {}),
     ...(componentName !== undefined ? { componentName } : {}),
     ...(componentPath !== undefined ? { componentPath } : {}),
+    ...(componentFile !== undefined ? { componentFile } : {}),
+    ...(componentLine !== undefined ? { componentLine } : {}),
     ...(tagName !== undefined ? { tagName } : {}),
     ...(id !== undefined ? { id } : {}),
     ...(className !== undefined ? { className } : {}),
@@ -767,6 +934,8 @@ export function normalizeDomLeafNodeKeyOrder(node: DomLeafNode): DomLeafNode {
   const {
     isErrorSignal,
     componentName,
+    componentFile,
+    componentLine,
     tagName,
     id,
     selector,
@@ -786,6 +955,8 @@ export function normalizeDomLeafNodeKeyOrder(node: DomLeafNode): DomLeafNode {
   return {
     ...(isErrorSignal !== undefined ? { isErrorSignal } : {}),
     ...(componentName !== undefined ? { componentName } : {}),
+    ...(componentFile !== undefined ? { componentFile } : {}),
+    ...(componentLine !== undefined ? { componentLine } : {}),
     tagName,
     ...(id !== undefined ? { id } : {}),
     selector,
@@ -811,6 +982,7 @@ export function normalizeDomAncestorNodeKeyOrder(
 ): DomAncestorNode {
   const {
     componentName,
+    componentFile,
     selector,
     tagName,
     id,
@@ -822,6 +994,7 @@ export function normalizeDomAncestorNodeKeyOrder(
 
   return {
     ...(componentName !== undefined ? { componentName } : {}),
+    ...(componentFile !== undefined ? { componentFile } : {}),
     selector,
     ...(tagName !== undefined ? { tagName } : {}),
     ...(id !== undefined ? { id } : {}),

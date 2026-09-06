@@ -118,4 +118,241 @@ describe("runMainWorldFrameworkProbe", () => {
       assert.equal(results["other-id"], undefined);
     });
   });
+
+  test("Vue2 $options.__file 路径归一化与 $props/$data 提取脱敏", () => {
+    const el = fakeEl("blp-v2", {
+      __vue__: {
+        $options: {
+          name: "ItemCard",
+          __file: "/Users/dev/my-project/src/components/ItemCard.vue",
+        },
+        $props: { itemId: "item-1", apiToken: "secret-123" },
+        $data: { count: 3, userPassword: "pass-xyz" },
+        $parent: { $options: { name: "App" }, $parent: null },
+      },
+    });
+    withDocument([el], () => {
+      const results = runMainWorldFrameworkProbe(["blp-v2"]);
+      const res = results["blp-v2"];
+      assert.ok(res);
+      assert.equal(res.componentName, "ItemCard");
+      assert.equal(res.componentFile, "src/components/ItemCard.vue");
+      assert.equal(res.filePath, "src/components/ItemCard.vue");
+      assert.deepEqual(res.props, {
+        itemId: "item-1",
+        apiToken: "[REDACTED_SENSITIVE_KEY]",
+      });
+      assert.deepEqual(res.data, {
+        count: 3,
+        userPassword: "[REDACTED_SENSITIVE_KEY]",
+      });
+    });
+  });
+
+  test("Vue3 type.__file 路径归一化与 setupState 解包（修复 instance.data 空对象遮蔽）", () => {
+    const el = fakeEl("blp-v3", {
+      __vueParentComponent$: {
+        type: {
+          __name: "UserDetail",
+          __file: "C:\\work\\bug-lens\\src\\views\\UserDetail.vue",
+        },
+        props: { userId: 100 },
+        setupState: {
+          userName: "Alice",
+          authSecret: "s3cr3t",
+          __v_internal: true,
+        },
+        data: {}, // 模拟 Vue 3 默认 reactive({}) 空对象
+        parent: { type: { name: "App" }, parent: null },
+      },
+    });
+    withDocument([el], () => {
+      const results = runMainWorldFrameworkProbe(["blp-v3"]);
+      const res = results["blp-v3"];
+      assert.ok(res);
+      assert.equal(res.componentName, "UserDetail");
+      assert.equal(res.componentFile, "src/views/UserDetail.vue");
+      assert.deepEqual(res.props, { userId: 100 });
+      assert.deepEqual(res.data, {
+        userName: "Alice",
+        authSecret: "[REDACTED_SENSITIVE_KEY]",
+      });
+    });
+  });
+
+  test("React _debugSource 物理源码相对路径与行号提取", () => {
+    const el = fakeEl("blp-react-source", {
+      __reactFiber$source: {
+        tag: 5,
+        type: "button",
+        _debugSource: {
+          fileName: "/Users/work/bug-lens/src/components/OrderButton.tsx",
+          lineNumber: 42,
+        },
+        return: {
+          tag: 0,
+          type: { name: "OrderButton" },
+          return: { tag: 0, type: { name: "App" }, return: null },
+        },
+      },
+    });
+    withDocument([el], () => {
+      const results = runMainWorldFrameworkProbe(["blp-react-source"]);
+      const res = results["blp-react-source"];
+      assert.ok(res);
+      assert.equal(res.componentName, "OrderButton");
+      assert.equal(res.componentFile, "src/components/OrderButton.tsx");
+      assert.equal(res.componentLine, 42);
+    });
+  });
+
+  test("React memoizedProps 解包：过滤 children/内部符号，敏感键脱敏", () => {
+    const el = fakeEl("blp-react-props", {
+      __reactFiber$props: {
+        tag: 5,
+        type: "button",
+        return: {
+          tag: 0,
+          type: { name: "SubmitBtn" },
+          memoizedProps: {
+            label: "Submit",
+            children: { $$typeof: Symbol.for("react.element") },
+            key: "submit-key",
+            ref: null,
+            apiKey: "secret-key-123",
+            onClick: () => {},
+          },
+          return: null,
+        },
+      },
+    });
+    withDocument([el], () => {
+      const results = runMainWorldFrameworkProbe(["blp-react-props"]);
+      const res = results["blp-react-props"];
+      assert.ok(res);
+      assert.ok(res.props);
+      assert.equal(res.props.label, "Submit");
+      assert.equal(res.props.apiKey, "[REDACTED_SENSITIVE_KEY]");
+      assert.equal(res.props.onClick, "[Function]");
+      assert.equal("children" in res.props, false);
+      assert.equal("key" in res.props, false);
+      assert.equal("ref" in res.props, false);
+    });
+  });
+
+  test("React memoizedState Hooks 链表遍历：解包 useState/useRef 并跳过 useEffect", () => {
+    const hook4 = {
+      memoizedState: { current: "ref-current-value" },
+      queue: null,
+      next: null,
+    };
+    const hook3 = {
+      memoizedState: { create: () => {}, destroy: () => {} }, // useEffect closure
+      queue: null,
+      next: hook4,
+    };
+    const hook2 = {
+      memoizedState: { authToken: "tok_abc_123" },
+      queue: { lastRenderedReducer: () => {} },
+      next: hook3,
+    };
+    const hook1 = {
+      memoizedState: 42,
+      queue: { lastRenderedReducer: () => {} },
+      next: hook2,
+    };
+
+    const el = fakeEl("blp-react-hooks", {
+      __reactFiber$hooks: {
+        tag: 5,
+        type: "div",
+        return: {
+          tag: 0,
+          type: { name: "CounterComponent" },
+          memoizedState: hook1,
+          return: null,
+        },
+      },
+    });
+    withDocument([el], () => {
+      const results = runMainWorldFrameworkProbe(["blp-react-hooks"]);
+      const res = results["blp-react-hooks"];
+      assert.ok(res);
+      assert.ok(res.data);
+      assert.equal(res.data.useState_0, 42);
+      assert.deepEqual(res.data.useState_1, {
+        authToken: "[REDACTED_SENSITIVE_KEY]",
+      });
+      assert.equal(res.data.useRef_0, "ref-current-value");
+      assert.equal(Object.keys(res.data).length, 3);
+    });
+  });
+
+  test("React 生产混淆单字母组件名容错：区分 HostComponent 原生 DOM 标签，保留单字母组件继承链", () => {
+    function a() {}
+    function t() {}
+
+    const el = fakeEl("blp-react-prod", {
+      __reactFiber$prod: {
+        tag: 5,
+        type: "button",
+        return: {
+          tag: 0,
+          type: a,
+          return: {
+            tag: 0,
+            type: t,
+            return: null,
+          },
+        },
+      },
+    });
+    withDocument([el], () => {
+      const results = runMainWorldFrameworkProbe(["blp-react-prod"]);
+      const res = results["blp-react-prod"];
+      assert.ok(res);
+      assert.equal(res.componentName, "a");
+      assert.deepEqual(res.componentPath, ["t", "a"]);
+      assert.equal(res.framework, "react");
+      assert.equal(res.version, 18);
+    });
+  });
+
+  test("数据序列化防爆保护：循环引用、DOM 节点、深度截断", () => {
+    const circular: any = { name: "loop" };
+    circular.self = circular;
+
+    const mockDomEl = fakeEl(null, { nodeType: 1, tagName: "DIV" });
+
+    const el = fakeEl("blp-guardrails", {
+      __reactFiber$guard: {
+        tag: 5,
+        type: "div",
+        return: {
+          tag: 0,
+          type: { name: "GuardComponent" },
+          memoizedState: {
+            memoizedState: {
+              loop: circular,
+              element: mockDomEl,
+              deep: { l1: { l2: { l3: "overflow" } } },
+            },
+            queue: { lastRenderedReducer: () => {} },
+            next: null,
+          },
+          return: null,
+        },
+      },
+    });
+    withDocument([el], () => {
+      const results = runMainWorldFrameworkProbe(["blp-guardrails"]);
+      const res = results["blp-guardrails"];
+      assert.ok(res);
+      assert.ok(res.data);
+      const state = res.data.useState_0 as any;
+      assert.equal(state.loop.self, "[Circular]");
+      assert.equal(state.element, "[DOM Element]");
+      assert.equal(state.deep.l1, "[Truncated]");
+    });
+  });
 });
