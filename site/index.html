@@ -144,44 +144,6 @@
         align-items: center;
         text-align: center;
       }
-      .hero-badge-wrap {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        background: var(--surface);
-        border: 1px solid var(--border);
-        padding: 6px 14px;
-        border-radius: var(--radius);
-        font-size: 0.78rem;
-        font-weight: 700;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-        color: var(--text-muted);
-        margin-bottom: 24px;
-        box-shadow: var(--shadow-sm);
-      }
-      .rec-pulse-dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background: var(--accent-recording);
-        box-shadow: 0 0 0 0 rgba(245, 63, 63, 0.7);
-        animation: pulse-red 2s infinite;
-      }
-      @keyframes pulse-red {
-        0% {
-          transform: scale(0.95);
-          box-shadow: 0 0 0 0 rgba(245, 63, 63, 0.7);
-        }
-        70% {
-          transform: scale(1);
-          box-shadow: 0 0 0 6px rgba(245, 63, 63, 0);
-        }
-        100% {
-          transform: scale(0.95);
-          box-shadow: 0 0 0 0 rgba(245, 63, 63, 0);
-        }
-      }
       .hero h1 {
         font-size: clamp(2.4rem, 4.5vw, 3.8rem);
         font-weight: 800;
@@ -3523,10 +3485,6 @@
     <!-- Hero -->
     <section class="grid">
       <div class="hero">
-        <div class="hero-badge-wrap reveal visible">
-          <span class="rec-pulse-dot"></span
-          ><span data-l10n="heroBadge">CHROME 扩展 · 零配置一键复现</span>
-        </div>
         <h1 class="reveal visible" data-l10n="heroTitle">
           从 Bug 复现到 <span class="hl">AI 修复</span><br />只需 3 秒，而非 5
           分钟
@@ -3567,8 +3525,19 @@
             href="https://github.com/Aoyia/bug-lens/releases"
             target="_blank"
             class="btn btn-primary"
-            data-l10n="ctaInstall"
-            >安装扩展</a
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              aria-hidden="true"
+            >
+              <path
+                d="M12 0C8.21 0 4.831 1.757 2.632 4.501l3.953 6.848A5.454 5.454 0 0 1 12 6.545h10.691A12 12 0 0 0 12 0zM1.931 5.47A11.943 11.943 0 0 0 0 12c0 6.012 4.42 10.991 10.189 11.864l3.953-6.847a5.45 5.45 0 0 1-6.865-2.29zm13.342 2.002a5.453 5.453 0 0 1 2.182 6.452l-3.953 6.848A11.996 11.996 0 0 0 24 12c0-.308-.012-.613-.035-.916H15.273zM12 7.636a4.364 4.364 0 1 0 0 8.728 4.364 4.364 0 0 0 0-8.728z"
+              ></path>
+            </svg>
+            <span data-l10n="ctaInstall">安装扩展</span></a
           >
           <a
             href="https://github.com/Aoyia/bug-lens"
