@@ -21,11 +21,11 @@
 
 ![页面录制挂件](docs/assets/in-page-recording-widget.png)
 
-### 3. 交互式证据预览与时间线排查
+### 3. 操作步骤捕获与可视化时间轴（精准红圈 + 定位器推导）
 
-录制完成后支持视频与时间线联动回放、控制台错误定位、网络请求正文解密与脱敏，以及导出前的非破坏性过滤。
+录制过程中自动捕获每个交互的关键帧截图，并在点击位置绘制红圈标记；同步解析目标元素属性（Tag、Class、Role、坐标与尺寸），自动生成带稳定性评分的 Playwright 定位器代码，帮助 AI 零歧义还原操作路径并生成自动化复现脚本。
 
-![证据预览与交互分析面板](docs/assets/evidence-preview-workspace.png)
+![操作步骤捕获与时间轴排查](docs/assets/evidence-preview-workspace.png)
 
 ### 4. 网页即时截图与 AI 提示词批注
 
@@ -51,6 +51,14 @@ pnpm run build
 # 打包生成发布 ZIP 包
 pnpm run package
 ```
+
+## 💬 交流群
+
+扫码加入微信群（反馈 Bug、提需求、催更交流）：
+
+<img src="docs/assets/wechat-group.jpg" width="200" alt="Bug Lens 交流群" />
+
+> 二维码如过期，可在 [Issues](https://github.com/Aoyia/bug-lens/issues) 或 [Discussions](https://github.com/Aoyia/bug-lens/discussions) 留言更新。
 
 ---
 

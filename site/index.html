@@ -591,59 +591,76 @@
         color: var(--text);
         margin-bottom: 36px;
       }
-      .wf-grid,
       .pillars-grid {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
-        gap: 20px;
+        gap: 16px;
       }
-      .wf-card,
       .pillar-card {
         background: var(--surface);
         border: 1px solid var(--border);
         border-radius: var(--radius);
-        padding: 24px;
+        padding: 20px;
         box-shadow: var(--shadow-sm);
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
         transition:
           transform 0.15s,
-          box-shadow 0.15s;
+          box-shadow 0.15s,
+          border-color 0.15s;
       }
-      .wf-card:hover,
       .pillar-card:hover {
         transform: translateY(-2px);
         box-shadow: var(--shadow-md);
+        border-color: var(--primary);
       }
-      .wf-num {
-        font-size: 2rem;
-        font-weight: 800;
-        color: var(--primary);
-        font-family: var(--mono);
-        line-height: 1;
-        margin-bottom: 12px;
-      }
-      .wf-card h3,
-      .pillar-card h3 {
-        font-size: 1.15rem;
-        font-weight: 700;
-        color: var(--text);
-        margin-bottom: 8px;
-      }
-      .wf-card p,
-      .pillar-card p {
-        font-size: 0.9rem;
-        color: var(--text-muted);
-        line-height: 1.5;
+      .pillar-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 4px;
       }
       .pillar-icon {
-        width: 44px;
-        height: 44px;
+        width: 36px;
+        height: 36px;
         border-radius: var(--radius);
         background: var(--primary-light);
         color: var(--primary);
         display: flex;
         align-items: center;
         justify-content: center;
-        margin-bottom: 16px;
+      }
+      .pillar-icon svg {
+        width: 20px;
+        height: 20px;
+      }
+      .pillar-tag {
+        font-size: 0.72rem;
+        font-weight: 600;
+        padding: 3px 8px;
+        border-radius: 9999px;
+        background: var(--surface-sub);
+        border: 1px solid var(--border);
+        color: var(--text-muted);
+        letter-spacing: 0.02em;
+      }
+      .pillar-tag-highlight {
+        background: rgba(0, 180, 42, 0.08);
+        border-color: rgba(0, 180, 42, 0.25);
+        color: var(--success);
+      }
+      .pillar-card h3 {
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: var(--text);
+        margin: 0;
+      }
+      .pillar-card p {
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        line-height: 1.45;
+        margin: 0;
       }
 
       /* FAQ */
@@ -703,7 +720,6 @@
       @media (max-width: 840px) {
         .eff-compare,
         .tl-step-body,
-        .wf-grid,
         .pillars-grid {
           grid-template-columns: 1fr;
         }
@@ -3607,7 +3623,7 @@
         </div>
 
         <!-- Timeline -->
-        <div class="timeline-wrap reveal">
+        <div id="workflow" class="timeline-wrap reveal">
           <div class="timeline-topbar">
             <div class="tl-dots">
               <span class="tl-dot r"></span>
@@ -3822,121 +3838,91 @@
       </div>
     </section>
 
-    <!-- Workflow -->
-    <section id="workflow" class="section section-alt">
-      <div class="grid">
-        <div>
-          <div class="section-eyebrow reveal">Essential Workflow</div>
-          <h2 class="section-title reveal" data-l10n="wfTitle">
-            3 步实现精准 AI 修复
-          </h2>
-          <div class="wf-grid reveal">
-            <div class="wf-card">
-              <div class="wf-num">01</div>
-              <h3 data-l10n="wf1t">一键录制</h3>
-              <p data-l10n="wf1d">
-                点击录制并正常操作复现问题，点击红圈轨迹、DOM 快照、Console
-                报错与网络请求自动收集。
-              </p>
-            </div>
-            <div class="wf-card">
-              <div class="wf-num">02</div>
-              <h3 data-l10n="wf2t">自动导出凭据包</h3>
-              <p data-l10n="wf2d">
-                停止录制即刻打包生成包含截图批注、原始日志与结构化 AI_PROMPT.md
-                的 ZIP 报告。
-              </p>
-            </div>
-            <div class="wf-card">
-              <div class="wf-num">03</div>
-              <h3 data-l10n="wf3t">直接粘贴给 AI</h3>
-              <p data-l10n="wf3d">
-                提示词已自动复制到剪贴板，直接粘贴至 Cursor、Claude Code 或
-                ChatGPT 即可生成修复方案。
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
     <!-- Pillars -->
     <section id="pillars" class="section">
       <div class="grid">
         <div>
-          <div class="section-eyebrow reveal">Core Value Pillars</div>
-          <h2 class="section-title reveal" data-l10n="pillarTitle">
-            为什么前端工程师选择 Bug Lens
-          </h2>
+          <div class="section-eyebrow reveal">Capabilities</div>
+          <h2 class="section-title reveal" data-l10n="pillarTitle">核心能力</h2>
           <div class="pillars-grid reveal">
             <div class="pillar-card">
-              <div class="pillar-icon">
-                <svg
-                  width="28"
-                  height="28"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path
-                    d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"
-                  ></path>
-                  <line x1="4" y1="22" x2="4" y2="15"></line>
-                </svg>
+              <div class="pillar-header">
+                <div class="pillar-icon">
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path
+                      d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"
+                    ></path>
+                    <line x1="4" y1="22" x2="4" y2="15"></line>
+                  </svg>
+                </div>
+                <span class="pillar-tag" data-l10n="p1Tag">全维度捕获</span>
               </div>
               <h3 data-l10n="p1t">全量证据链</h3>
               <p data-l10n="p1d">
-                融合点击轨迹红圈截图、DOM 计算样式、Console 报错堆栈与 XHR/Fetch
-                报文至统一时间线。
+                点击红圈轨迹、DOM 样式、Console
+                报错与网络请求一键归集至同一时序。
               </p>
             </div>
             <div class="pillar-card">
-              <div class="pillar-icon">
-                <svg
-                  width="28"
-                  height="28"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path
-                    d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
-                  ></path>
-                  <polyline points="14 2 14 8 20 8"></polyline>
-                </svg>
+              <div class="pillar-header">
+                <div class="pillar-icon">
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path
+                      d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+                    ></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                  </svg>
+                </div>
+                <span class="pillar-tag" data-l10n="p2Tag">即贴即修</span>
               </div>
-              <h3 data-l10n="p2t">AI 原生 Prompt 生成</h3>
+              <h3 data-l10n="p2t">AI 原生 Prompt</h3>
               <p data-l10n="p2d">
-                格式化为专为大模型推理优化的 Markdown 提示词，省去繁琐的手动写
-                Bug 单过程。
+                专为大模型推理优化的结构化 Markdown，免去手工撰写 Bug 报告单。
               </p>
             </div>
             <div class="pillar-card">
-              <div class="pillar-icon">
-                <svg
-                  width="28"
-                  height="28"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
+              <div class="pillar-header">
+                <div class="pillar-icon">
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <rect
+                      x="3"
+                      y="11"
+                      width="18"
+                      height="11"
+                      rx="2"
+                      ry="2"
+                    ></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                  </svg>
+                </div>
+                <span class="pillar-tag pillar-tag-highlight" data-l10n="p3Tag"
+                  >零外部中转</span
                 >
-                  <rect
-                    x="3"
-                    y="11"
-                    width="18"
-                    height="11"
-                    rx="2"
-                    ry="2"
-                  ></rect>
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                </svg>
               </div>
-              <h3 data-l10n="p3t">100% 本地私密</h3>
+              <h3 data-l10n="p3t">100% 浏览器本地私密</h3>
               <p data-l10n="p3d">
-                零后端服务器。所有录制、日志与截图只留存在浏览器本地，安全模式自动脱敏敏感数据。
+                零后端服务器。所有录制、日志与截图均在本地处理，敏感凭据永不外泄。
               </p>
             </div>
           </div>
@@ -4123,13 +4109,16 @@
             wf2d: "停止录制即刻打包生成包含截图批注、原始日志与结构化 AI_PROMPT.md 的 ZIP 报告。",
             wf3t: "直接粘贴给 AI",
             wf3d: "提示词已自动复制到剪贴板，直接粘贴至 Cursor、Claude Code 或 ChatGPT 即可生成修复方案。",
-            pillarTitle: "为什么前端工程师选择 Bug Lens",
+            pillarTitle: "核心能力",
+            p1Tag: "全维度捕获",
             p1t: "全量证据链",
-            p1d: "融合点击轨迹红圈截图、DOM 计算样式、Console 报错堆栈与 XHR/Fetch 报文至统一时间线。",
-            p2t: "AI 原生 Prompt 生成",
-            p2d: "格式化为专为大模型推理优化的 Markdown 提示词，省去繁琐的手动写 Bug 单过程。",
-            p3t: "100% 本地私密",
-            p3d: "零后端服务器。所有录制、日志与截图只留存在浏览器本地，安全模式自动脱敏敏感数据。",
+            p1d: "点击红圈轨迹、DOM 样式、Console 报错与网络请求一键归集至同一时序。",
+            p2Tag: "即贴即修",
+            p2t: "AI 原生 Prompt",
+            p2d: "专为大模型推理优化的结构化 Markdown，免去手工撰写 Bug 报告单。",
+            p3Tag: "零外部中转",
+            p3t: "100% 浏览器本地私密",
+            p3d: "零后端服务器。所有录制、日志与截图均在本地处理，敏感凭据永不外泄。",
             faqTitle: "常见问题",
             q1: "Bug Lens 会把我的数据上传到服务器吗？",
             a1: "不会。Bug Lens 是一款 100% 本地运行的扩展，没有任何后端服务器。所有数据均在浏览器本地处理与打包导出。",
@@ -4175,13 +4164,16 @@
             wf2d: "Stop recording to package a ZIP containing screenshot annotations, raw logs, and the structured AI_PROMPT.md file.",
             wf3t: "Paste Directly to AI",
             wf3d: "The prompt is auto-copied to your clipboard. Paste it directly into Cursor, Claude Code, or ChatGPT to generate instant fixes.",
-            pillarTitle: "Why Frontend Engineers Choose Bug Lens",
+            pillarTitle: "Core Capabilities",
+            p1Tag: "All-in-One",
             p1t: "Complete Evidence Chain",
-            p1d: "Merges red-ring click screenshots, DOM computed styles, console error stacks, and failed network payloads into one single timeline.",
-            p2t: "AI-Native Prompt Generation",
-            p2d: "Formats evidence into structured Markdown prompts specifically optimized for LLM reasoning, eliminating tedious manual bug reporting.",
+            p1d: "Merges click trails, DOM styles, console error stacks, and network logs into a unified timeline.",
+            p2Tag: "AI-Ready",
+            p2t: "AI-Native Prompts",
+            p2d: "Structured Markdown prompts engineered for LLM reasoning, eliminating manual bug reports.",
+            p3Tag: "Zero Telemetry",
             p3t: "100% Local & Private",
-            p3d: "Zero backend servers. All recordings, logs, and screenshots remain strictly inside your browser. Safe mode automatically redacts sensitive data.",
+            p3d: "Zero backend servers. All recordings, logs, and screenshots stay strictly inside your browser.",
             faqTitle: "Frequently Asked Questions",
             q1: "Does Bug Lens upload my data to any server?",
             a1: "No. Bug Lens is a 100% local extension without a backend server. All data lives inside your browser and your local exports.",

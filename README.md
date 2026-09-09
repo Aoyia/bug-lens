@@ -21,11 +21,11 @@ A lightweight floating widget docked during recording. Supports instant issue ma
 
 ![In-Page Recording Widget](docs/assets/in-page-recording-widget.png)
 
-### 3. Interactive Evidence Preview & Timeline Inspection
+### 3. Step-by-Step Action Capture & Visual Timeline (Click Highlights & Locators)
 
-Inspect recorded sessions with video-timeline synchronization, sanitized network payloads, console error logs, and multi-track filtering before exporting.
+Automatically captures keyframe snapshots for each interaction with precise click indicators (red visual circles). Concurrently extracts target element context (tag, class, role, coordinates) and generates stability-scored Playwright locators, enabling AI assistants to reconstruct user actions and generate automated regression tests effortlessly.
 
-![Evidence Preview & Timeline Workspace](docs/assets/evidence-preview-workspace.png)
+![Step-by-Step Action Capture & Visual Timeline](docs/assets/evidence-preview-workspace.png)
 
 ### 4. Web Screenshot & AI Prompt Annotation
 
@@ -51,6 +51,16 @@ pnpm run build
 # Package release ZIP
 pnpm run package
 ```
+
+## 💬 Community & Feedback
+
+- **Discussions & Ideas**: Join our [GitHub Discussions](https://github.com/Aoyia/bug-lens/discussions) to share ideas, ask questions, or request features.
+- **Bug Reports**: Open a [GitHub Issue](https://github.com/Aoyia/bug-lens/issues) with captured evidence.
+- **WeChat Group**: Scan the QR code below (primarily for Chinese community):
+
+<img src="docs/assets/wechat-group.jpg" width="200" alt="WeChat Group" />
+
+> If the QR code expires, please open an [Issue](https://github.com/Aoyia/bug-lens/issues).
 
 ---
 
