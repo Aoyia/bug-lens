@@ -295,16 +295,18 @@
       .demo-video-box {
         width: 100%;
         aspect-ratio: 16 / 9;
-        background: #0d1117;
+        background: #0d1117 url("assets/demo/demo-poster.png") center / contain no-repeat;
         position: relative;
         overflow: hidden;
         display: flex;
         align-items: center;
         justify-content: center;
       }
-      .demo-video-box video {
+      .demo-video-box video,
+      .demo-video-box iframe {
         width: 100%;
         height: 100%;
+        border: none;
         object-fit: contain;
         display: block;
       }
@@ -4168,6 +4170,58 @@
           );
         }
 
+        var YOUTUBE_VIDEO_ID = "zBtfJEysjx0";
+        var LOCAL_VIDEO_HTML =
+          '<video id="heroDemoVideo" poster="assets/demo/demo-poster.png" autoplay loop muted playsinline controls preload="metadata">' +
+          '<source src="assets/demo/bug-lens-demo-1080p.webm" type="video/webm" />' +
+          '您的浏览器暂不支持 HTML5 视频播放。' +
+          '</video>';
+        var YOUTUBE_IFRAME_HTML =
+          '<iframe id="heroDemoIframe" ' +
+          'src="https://www.youtube-nocookie.com/embed/' +
+          YOUTUBE_VIDEO_ID +
+          '?autoplay=1&mute=1&loop=1&playlist=' +
+          YOUTUBE_VIDEO_ID +
+          '&controls=1&rel=0" ' +
+          'title="Bug Lens Demo Video" frameborder="0" ' +
+          'allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" ' +
+          'allowfullscreen loading="lazy"></iframe>';
+
+        function isOverseasUser() {
+          try {
+            var tz = (
+              Intl.DateTimeFormat().resolvedOptions().timeZone || ""
+            ).toLowerCase();
+            var isChinaTz =
+              tz.indexOf("shanghai") !== -1 ||
+              tz.indexOf("chongqing") !== -1 ||
+              tz.indexOf("urumqi") !== -1 ||
+              tz.indexOf("beijing") !== -1 ||
+              tz.indexOf("harbin") !== -1;
+            var lang = (navigator.language || "").toLowerCase();
+            var isZh = lang.indexOf("zh") === 0;
+            return !isChinaTz && !isZh;
+          } catch (e) {
+            return false;
+          }
+        }
+
+        function updateDemoVideo(lang) {
+          var box = document.querySelector(".demo-video-box");
+          if (!box) return;
+          var useYouTube =
+            lang === "en" || (lang !== "zh" && isOverseasUser());
+          if (useYouTube) {
+            if (!box.querySelector("iframe")) {
+              box.innerHTML = YOUTUBE_IFRAME_HTML;
+            }
+          } else {
+            if (!box.querySelector("video")) {
+              box.innerHTML = LOCAL_VIDEO_HTML;
+            }
+          }
+        }
+
         function apply(lang) {
           currentLang = lang;
           var d = dict[lang] || dict.en;
@@ -4183,6 +4237,7 @@
           document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
           var btn = document.getElementById("langSwitch");
           if (btn) btn.textContent = lang === "zh" ? "EN" : "中文";
+          updateDemoVideo(lang);
         }
 
         var initLang = getSavedLang();
