@@ -1,5 +1,6 @@
 import { memo } from "preact/compat";
 import { t, type LanguagePreference } from "../../shared/i18n";
+import { Select, type SelectOption } from "../common/Select";
 
 export type ResponseBodyPolicy = "disabled" | "standard" | "full";
 
@@ -83,6 +84,23 @@ export const OptionsGrid = memo(function OptionsGrid({
       onSetCaptureFullResponseBody(policy === "full");
     }
   };
+
+  const responseBodyOptions: SelectOption<ResponseBodyPolicy>[] = [
+    { value: "disabled", label: t("responseBodiesDisabled") },
+    { value: "standard", label: t("responseBodiesStandard") },
+    { value: "full", label: t("responseBodiesFull") },
+  ];
+
+  const privacyModeOptions: SelectOption<"safe" | "raw">[] = [
+    { value: "safe", label: t("safeMode") },
+    { value: "raw", label: t("rawMode") },
+  ];
+
+  const languageOptions: SelectOption<LanguagePreference>[] = [
+    { value: "auto", label: t("languageAuto") },
+    { value: "zh-CN", label: t("languageZhCN") },
+    { value: "en-US", label: t("languageEnUS") },
+  ];
 
   return (
     <div>
@@ -189,68 +207,50 @@ export const OptionsGrid = memo(function OptionsGrid({
             </label>
           </div>
           {captureNetwork && (
-            <label className="video-quality-row" title={responseBodiesTitle}>
+            <div className="video-quality-row" title={responseBodiesTitle}>
               <span className="video-quality-label">
                 {t("responseBodiesLabel")}
               </span>
-              <select
+              <Select
                 id="response-bodies"
                 className="privacy-select"
                 value={currentResponseBodyPolicy}
+                options={responseBodyOptions}
                 disabled={controlsLocked}
                 title={responseBodiesTitle}
-                onChange={(e) =>
-                  handleResponseBodyPolicyChange(
-                    e.currentTarget.value as ResponseBodyPolicy
-                  )
-                }
-              >
-                <option value="disabled">{t("responseBodiesDisabled")}</option>
-                <option value="standard">{t("responseBodiesStandard")}</option>
-                <option value="full">{t("responseBodiesFull")}</option>
-              </select>
-            </label>
+                onChange={handleResponseBodyPolicyChange}
+              />
+            </div>
           )}
-          <label className="video-quality-row" title={lockedTitle}>
+          <div className="video-quality-row" title={lockedTitle}>
             <span className="video-quality-label">{t("privacyModeLabel")}</span>
-            <select
+            <Select
               id="privacy"
               className="privacy-select"
               value={privacyMode}
+              options={privacyModeOptions}
               disabled={controlsLocked}
               title={lockedTitle}
-              onChange={(e) =>
-                onSetPrivacyMode(e.currentTarget.value as "safe" | "raw")
-              }
-            >
-              <option value="safe">{t("safeMode")}</option>
-              <option value="raw">{t("rawMode")}</option>
-            </select>
-          </label>
+              onChange={onSetPrivacyMode}
+            />
+          </div>
           {privacyMode === "raw" && (
             <div className="raw-mode-inline-warning" role="note">
               {t("rawModeWarning")}
             </div>
           )}
-          <label className="video-quality-row" title={lockedTitle}>
+          <div className="video-quality-row" title={lockedTitle}>
             <span className="video-quality-label">{t("language")}</span>
-            <select
+            <Select
               id="language-preference"
               className="privacy-select"
               value={languagePreference}
+              options={languageOptions}
               disabled={controlsLocked}
               title={lockedTitle}
-              onChange={(e) =>
-                onSetLanguagePreference(
-                  e.currentTarget.value as LanguagePreference
-                )
-              }
-            >
-              <option value="auto">{t("languageAuto")}</option>
-              <option value="zh-CN">{t("languageZhCN")}</option>
-              <option value="en-US">{t("languageEnUS")}</option>
-            </select>
-          </label>
+              onChange={onSetLanguagePreference}
+            />
+          </div>
         </div>
       )}
     </div>

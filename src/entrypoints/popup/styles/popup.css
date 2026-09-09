@@ -343,17 +343,146 @@ body {
   outline: none;
   cursor: pointer;
 }
+
+/* Popup 纯 DOM 向上展开下拉组件规范 */
+.popup-select {
+  position: relative;
+  user-select: none;
+  box-sizing: border-box;
+}
+/* 消除容器层背景与边框，视觉统一由内部 trigger 独占 */
+.popup-select.privacy-select {
+  background: transparent;
+  border: none;
+  padding: 0;
+  height: 25px;
+  box-shadow: none;
+  outline: none;
+}
+.popup-select-trigger {
+  width: 100%;
+  height: 25px;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--ink-main);
+  background: #f4f5f7;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  outline: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-sizing: border-box;
+}
+.popup-select-trigger:hover:not(:disabled) {
+  background: #e5e6eb;
+  border-color: rgba(0, 0, 0, 0.12);
+}
+.popup-select-open .popup-select-trigger,
+.popup-select-trigger:focus-visible {
+  background: #ffffff;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(22, 93, 255, 0.2);
+}
+.popup-select-disabled .popup-select-trigger,
+.popup-select-trigger:disabled {
+  background: #f0f1f4;
+  color: var(--ink-sub);
+  border-color: rgba(0, 0, 0, 0.05);
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.popup-select-value {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+.popup-select-arrow {
+  flex-shrink: 0;
+  color: var(--ink-muted);
+  transition: transform 0.2s cubic-bezier(0, 0, 1, 1);
+}
+.popup-select-open .popup-select-arrow {
+  transform: rotate(180deg);
+}
+.popup-select-menu {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 0;
+  min-width: 100%;
+  width: max-content;
+  max-width: 220px;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.1);
+  padding: 4px;
+  z-index: 1000;
+  box-sizing: border-box;
+  transform-origin: center bottom;
+  animation: popupSelectIn 0.12s ease-out;
+}
+@keyframes popupSelectIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.popup-select-item {
+  height: 26px;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--ink-main);
+  border-radius: 2px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+  white-space: nowrap;
+}
+.popup-select-item:hover {
+  background: #f2f3f5;
+}
+.popup-select-item-selected {
+  color: var(--primary);
+  font-weight: 500;
+}
+.popup-select-item-disabled {
+  color: var(--ink-muted);
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.popup-select-check {
+  flex-shrink: 0;
+  color: var(--primary);
+}
+
 /* 禁用态与录制锁定态交互反馈：光标统一 not-allowed，透明度弱化，且保持选中项的只读对比度 */
 .scope-chip:has(input:disabled),
 .scope-chip input[type="checkbox"]:disabled,
 .privacy-select:disabled,
-.video-quality-row:has(:disabled) {
+.popup-select-disabled,
+.video-quality-row:has(:disabled),
+.video-quality-row:has(.popup-select-disabled) {
   cursor: not-allowed;
 }
 
 .scope-chip:has(input:disabled),
 .privacy-select:disabled,
-.video-quality-row:has(:disabled) .video-quality-label {
+.popup-select-disabled,
+.video-quality-row:has(:disabled) .video-quality-label,
+.video-quality-row:has(.popup-select-disabled) .video-quality-label {
   opacity: 0.55;
 }
 

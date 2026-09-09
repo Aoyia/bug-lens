@@ -680,33 +680,33 @@ test("OptionsGrid 一级采集源收敛为 2×3 矩阵，移除 bodies/full-resp
   // 样式与现有的 Masking、Language 行保持一致
   assert.match(
     optionsGrid,
-    /<label className="video-quality-row"[^>]*>[\s\S]*?<span className="video-quality-label">\s*\{t\("responseBodiesLabel"\)\}\s*<\/span>[\s\S]*?<select\s+id="response-bodies"\s+className="privacy-select"/,
+    /<(?:div|label) className="video-quality-row"[^>]*>[\s\S]*?<span className="video-quality-label">\s*\{t\("responseBodiesLabel"\)\}\s*<\/span>[\s\S]*?<(?:select|Select)[^>]*?id="response-bodies"[^>]*?className="privacy-select"/,
     "响应正文行必须复用 .video-quality-row 与 .privacy-select 统一表单样式"
   );
 
   // 3 档互斥选项
   assert.match(
     optionsGrid,
-    /<option value="disabled">\{t\("responseBodiesDisabled"\)\}<\/option>/
+    /(?:<option value="disabled">|value:\s*"disabled",\s*label:)\s*\{?t\("responseBodiesDisabled"\)\}?/
   );
   assert.match(
     optionsGrid,
-    /<option value="standard">\{t\("responseBodiesStandard"\)\}<\/option>/
+    /(?:<option value="standard">|value:\s*"standard",\s*label:)\s*\{?t\("responseBodiesStandard"\)\}?/
   );
   assert.match(
     optionsGrid,
-    /<option value="full">\{t\("responseBodiesFull"\)\}<\/option>/
+    /(?:<option value="full">|value:\s*"full",\s*label:)\s*\{?t\("responseBodiesFull"\)\}?/
   );
 
   // 联动显示：未勾选 Network 时不展示响应正文行，勾选后才显示且受 controlsLocked 保护
   assert.match(
     optionsGrid,
-    /\{captureNetwork && \([\s\S]*?<select\s+id="response-bodies"/,
+    /\{captureNetwork && \([\s\S]*?<(?:select|Select)[^>]*?id="response-bodies"/,
     "响应正文下拉行必须仅在 captureNetwork 为 true 时才渲染显示"
   );
   assert.match(
     optionsGrid,
-    /<select\s+id="response-bodies"[\s\S]*?disabled=\{controlsLocked\}/,
+    /<(?:select|Select)[^>]*?id="response-bodies"[\s\S]*?disabled=\{controlsLocked\}/,
     "响应正文下拉框在录制期间必须受 controlsLocked 禁用保护"
   );
 
