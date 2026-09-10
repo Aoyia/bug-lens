@@ -3,6 +3,11 @@ import type { PerfMetricItem, PerfReportData } from "../shared/dev-profiler";
 import { sanitizeText } from "./privacy-policy";
 import type { RecordingSessionEvent } from "./recording-session";
 import { t } from "../shared/i18n";
+import type {
+  ExportTraceContext,
+  Stage3Metrics,
+  Stage4Metrics,
+} from "../export/export-trace";
 
 /**
  * offscreen/export-pack 消息的响应结构。
@@ -18,6 +23,9 @@ export type SilentExportPackResult = {
   packTimeMs?: number;
   totalEntries?: number;
   totalBytes?: number;
+  stage3Metrics?: Stage3Metrics;
+  stage4Metrics?: Stage4Metrics;
+  traceContext?: ExportTraceContext;
 };
 
 export type SilentExportResponse = {
@@ -55,6 +63,7 @@ export function resolveSilentExportResult(
   perfReport?: PerfReportData;
   filename?: string;
   e2eMetrics?: PerfMetricItem[];
+  traceContext?: ExportTraceContext;
 } {
   if (caughtError !== undefined && caughtError !== null) {
     return { ok: false, error: String(caughtError) };
@@ -66,9 +75,13 @@ export function resolveSilentExportResult(
       perfReport?: PerfReportData;
       filename?: string;
       e2eMetrics?: PerfMetricItem[];
+      traceContext?: ExportTraceContext;
     } = { ok: true };
     if (packResult.perfReport) {
       result.perfReport = packResult.perfReport;
+    }
+    if (packResult.traceContext) {
+      result.traceContext = packResult.traceContext;
     }
     return result;
   }

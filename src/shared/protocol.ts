@@ -1,4 +1,10 @@
 import type { CascadeIndex } from "../domain/screenshot-payload.ts";
+import type {
+  ExportTraceContext,
+  Stage3Metrics,
+  Stage4Metrics,
+} from "../export/export-trace.ts";
+import type { PerfReportData } from "./dev-profiler.ts";
 
 export const PROTOCOL_VERSION = 3 as const;
 export const EXPORT_FORMAT_VERSION = "3.0" as const;
@@ -219,6 +225,8 @@ export type RecordingSession = {
       size?: string;
       note?: string;
     }>;
+    traceContext?: ExportTraceContext;
+    filename?: string;
   };
   resumedFromSessionId?: string;
   storage?: SessionStorage;
@@ -820,6 +828,7 @@ export type RuntimeMessage =
         silentExport?: boolean;
         discard?: boolean;
         traceStartMs?: number;
+        traceContext?: ExportTraceContext;
       }
     >
   | Envelope<"session/status", { session?: RecordingSession }>
@@ -949,9 +958,16 @@ export type RuntimeMessage =
       }
     >
   | Envelope<
+      "offscreen/preload-export",
+      {
+        sessionId?: string;
+      }
+    >
+  | Envelope<
       "offscreen/export-pack",
       {
         sessionId: string;
+        traceContext?: ExportTraceContext;
       }
     >;
 
@@ -1045,12 +1061,23 @@ export type RuntimeMessageResponseMap = {
     ok: true;
     cascadeIndex?: CascadeIndex;
   };
+  "offscreen/preload-export": {
+    ok: true;
+  };
   "offscreen/export-pack": {
     ok: true;
     prompt?: string;
     blobUrl?: string;
     filename?: string;
     error?: string;
+    perfReport?: PerfReportData;
+    queryTimeMs?: number;
+    packTimeMs?: number;
+    totalEntries?: number;
+    totalBytes?: number;
+    stage3Metrics?: Stage3Metrics;
+    stage4Metrics?: Stage4Metrics;
+    traceContext?: ExportTraceContext;
   };
 };
 

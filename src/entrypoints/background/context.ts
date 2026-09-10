@@ -6,7 +6,10 @@ import {
   applySessionEvent as reduceSession,
   type RecordingSessionEvent,
 } from "../../domain/recording-session";
-import { waitForDownloadCompletion } from "../../domain/download-path-resolver";
+import {
+  waitForDownloadCompletion,
+  type DownloadTimingStats,
+} from "../../domain/download-path-resolver";
 import type { CdpEvidenceCollector } from "../../evidence/cdp-evidence-collector";
 import type { ContentScriptManager } from "../../recording/content-script-manager";
 import type { InteractionCapture } from "../../recording/interaction-capture";
@@ -51,7 +54,8 @@ export interface BackgroundContext extends BackgroundDeps {
   /** 等待下载完成后返回真实绝对路径（silent export 注入 prompt 用）。 */
   resolveDownloadedFilePath(
     downloadId: number,
-    maxWaitMs?: number
+    maxWaitMs?: number,
+    onTimingStats?: (stats: DownloadTimingStats) => void
   ): Promise<string | undefined>;
 }
 
@@ -91,11 +95,17 @@ export function createBackgroundContext(
         occurredAt: Date.now(),
       };
     },
-    async resolveDownloadedFilePath(downloadId, maxWaitMs = 15000) {
+    async resolveDownloadedFilePath(
+      downloadId,
+      maxWaitMs = 15000,
+      onTimingStats
+    ) {
       const result = await waitForDownloadCompletion(
         downloadId,
         searchDownload,
-        maxWaitMs
+        maxWaitMs,
+        50,
+        onTimingStats
       );
       return result.state === "complete" ? result.filename : undefined;
     },

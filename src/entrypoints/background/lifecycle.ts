@@ -18,6 +18,16 @@ import { ensureOffscreenDocument } from "../../shared/offscreen";
 import { flushStorageBatchQueue } from "../../storage/db";
 import type { BackgroundContext } from "./context";
 
+import type { DownloadTimingStats } from "../../domain/download-path-resolver";
+import {
+  createExportTraceContext,
+  getPerformanceOrigin,
+  type CdpFinalizeStats,
+  type ExportTraceContext,
+  type Stage2Metrics,
+  type Stage5Metrics,
+} from "../../export/export-trace";
+
 export type StartSessionPayload = Extract<
   RuntimeMessage,
   { type: "session/start" }
@@ -31,7 +41,8 @@ export interface SessionLifecycle {
     autoExport?: boolean,
     discard?: boolean,
     silentExport?: boolean,
-    traceStartMs?: number
+    traceStartMs?: number,
+    traceContext?: ExportTraceContext
   ): Promise<RecordingSession | undefined>;
   continueInterrupted(
     sessionId: string,
@@ -48,14 +59,16 @@ export interface SessionLifecycle {
     autoExport?: boolean,
     discard?: boolean,
     silentExport?: boolean,
-    traceStartMs?: number
+    traceStartMs?: number,
+    traceContext?: ExportTraceContext
   ): Promise<RecordingSession | undefined>;
   stopImpl(
     commandId?: string,
     autoExport?: boolean,
     discard?: boolean,
     silentExport?: boolean,
-    traceStartMs?: number
+    traceStartMs?: number,
+    traceContext?: ExportTraceContext
   ): Promise<RecordingSession | undefined>;
   pauseMedia(sessionId: string): Promise<void>;
   resumeMedia(sessionId: string): Promise<void>;
@@ -375,9 +388,20 @@ export function createSessionLifecycle(
     autoExport = false,
     discard = false,
     silentExport = false,
-    traceStartMs?: number
+    traceStartMs?: number,
+    traceContext?: ExportTraceContext
   ): Promise<RecordingSession | undefined> {
     const tTraceStart = traceStartMs ?? performance.now();
+    let initialT0: number | undefined;
+    if (typeof traceStartMs === "number" && Number.isFinite(traceStartMs)) {
+      if (traceStartMs > 1e11) {
+        initialT0 = traceStartMs;
+      } else {
+        initialT0 = getPerformanceOrigin() + traceStartMs;
+      }
+    }
+    const effectiveTraceContext =
+      traceContext ?? createExportTraceContext(initialT0);
     const e2eMetrics: Array<{
       step: string;
       durationMs: number;
@@ -391,7 +415,12 @@ export function createSessionLifecycle(
       if (!silentExport) return session;
       recordingCoordinator.beginStopping(session.id);
       try {
-        return await performSilentExport(session, tTraceStart, e2eMetrics);
+        return await performSilentExport(
+          session,
+          tTraceStart,
+          e2eMetrics,
+          effectiveTraceContext
+        );
       } finally {
         recordingCoordinator.finishStopping(session.id);
       }
@@ -412,14 +441,49 @@ export function createSessionLifecycle(
     navigationCapture.detach();
     streamHealthMonitor.reset(session.target.tabId);
     const cleanupErrors: string[] = [];
-    const tCleanupStart = performance.now();
+
+    // 并发预热 Offscreen Document 并预加载静态报告资源模版，消除阶段 3 冷启动等待
+    let offscreenPreheatPromise: Promise<void> | undefined;
+    if (silentExport) {
+      offscreenPreheatPromise = (async () => {
+        try {
+          await ensureOffscreenDocument();
+          await chrome.runtime
+            .sendMessage(
+              message(
+                "offscreen/preload-export",
+                { sessionId: session.id },
+                session.id,
+                "offscreen"
+              )
+            )
+            .catch(() => undefined);
+        } catch {}
+      })();
+    }
 
     // 立即熔断并取消在途未截取的排队任务，防止阻塞收尾
     interactionCapture.abortPending(session.id);
 
+    const tStage2Start = performance.now();
+    let cdpFinalizeStats: CdpFinalizeStats = {
+      totalRequests: 0,
+      successCount: 0,
+      failureCount: 0,
+      totalBodyBytes: 0,
+      avgDurationMs: 0,
+      durationMs: 0,
+      throughputMBps: 0,
+    };
+    let mediaStopDurationMs = 0;
+    let queueDrainDurationMs = 0;
+    let issueSceneFinalizeDurationMs = 0;
+    let qualityReconcileDurationMs = 0;
+
     try {
       await cdpCollector.detach(session.target.tabId);
 
+      const tMediaStart = performance.now();
       const mediaResponse = await chrome.runtime
         .sendMessage(
           message(
@@ -430,6 +494,8 @@ export function createSessionLifecycle(
           )
         )
         .catch((error) => ({ ok: false, error: String(error) }));
+      mediaStopDurationMs = performance.now() - tMediaStart;
+
       if (mediaResponse?.ok === false)
         cleanupErrors.push(
           t("cleanupMediaStopFailed", [
@@ -437,16 +503,27 @@ export function createSessionLifecycle(
           ])
         );
 
+      const tDrainStart = performance.now();
       cleanupErrors.push(...(await interactionCapture.drain(1200, session.id)));
       cleanupErrors.push(...(await issueSceneCapture.drain()));
-
       cleanupErrors.push(...(await cdpCollector.drain()));
       await flushStorageBatchQueue().catch(() => {});
+      queueDrainDurationMs = performance.now() - tDrainStart;
+
+      const tCdpStart = performance.now();
       await cdpCollector
         .finalizeNetworkBodies(stopping)
+        .then((stats) => {
+          if (stats) cdpFinalizeStats = stats;
+        })
         .catch((error) =>
           cleanupErrors.push(t("cleanupNetworkFinalizeFailed", [String(error)]))
         );
+      if (cdpFinalizeStats.durationMs === 0) {
+        cdpFinalizeStats.durationMs = performance.now() - tCdpStart;
+      }
+
+      const tIssueStart = performance.now();
       await issueSceneCapture
         .finalizeUnfinished(session.id)
         .catch((error) =>
@@ -454,9 +531,13 @@ export function createSessionLifecycle(
             t("cleanupIssueSceneFinalizeFailed", [String(error)])
           )
         );
+      issueSceneFinalizeDurationMs = performance.now() - tIssueStart;
+
+      const tQualityStart = performance.now();
       await reconcileSessionQuality(session.id).catch((error) =>
         cleanupErrors.push(t("cleanupQualityReconcileFailed", [String(error)]))
       );
+      qualityReconcileDurationMs = performance.now() - tQualityStart;
     } finally {
       await cdpCollector.detach(session.target.tabId);
       if (!silentExport) {
@@ -464,11 +545,22 @@ export function createSessionLifecycle(
       }
       streamHealthMonitor.reset(session.target.tabId);
     }
-    const tCleanupEnd = performance.now();
+    const stage2DurationMs = performance.now() - tStage2Start;
+    const stage2Metrics: Stage2Metrics = {
+      mediaStopDurationMs,
+      queueDrainDurationMs,
+      cdpFinalizeStats,
+      issueSceneFinalizeDurationMs,
+      qualityReconcileDurationMs,
+      totalDurationMs: stage2DurationMs,
+    };
+    effectiveTraceContext.stage2 = stage2Metrics;
+
     e2eMetrics.push({
-      step: "1. 媒体流收尾与数据分片刷盘",
-      durationMs: tCleanupEnd - tTraceStart,
-      note: "CDP Detach / MediaRecorder 停止 / 交互与网络数据落盘",
+      step: "2. 采集器 Drain 与 CDP 萃取",
+      durationMs: stage2DurationMs,
+      size: `${cdpFinalizeStats.totalRequests} 个请求`,
+      note: `正文拉取成功 ${cdpFinalizeStats.successCount}/${cdpFinalizeStats.totalRequests}, 吞吐 ${cdpFinalizeStats.throughputMBps.toFixed(2)} MB/s`,
     });
 
     if (discard) {
@@ -502,7 +594,15 @@ export function createSessionLifecycle(
       if (!next)
         throw new Error(`未找到会话 (SESSION_NOT_FOUND:${session.id})`);
       if (silentExport) {
-        return await performSilentExport(next, tTraceStart, e2eMetrics);
+        if (offscreenPreheatPromise) {
+          await offscreenPreheatPromise.catch(() => undefined);
+        }
+        return await performSilentExport(
+          next,
+          tTraceStart,
+          e2eMetrics,
+          effectiveTraceContext
+        );
       }
       return await openPendingPreview(next, autoExport);
     } finally {
@@ -518,33 +618,49 @@ export function createSessionLifecycle(
       durationMs: number;
       size?: string;
       note?: string;
-    }>
+    }>,
+    traceContext?: ExportTraceContext
   ): Promise<RecordingSession> {
     let prompt: string | undefined;
     let packResult: SilentExportPackResult | undefined;
+    let resolvedPath: string | undefined;
     let caughtError: unknown;
-    let downloadDurationMs = 0;
     try {
       await ensureOffscreenDocument();
       packResult = (await chrome.runtime.sendMessage(
         message(
           "offscreen/export-pack",
-          { sessionId: session.id },
+          { sessionId: session.id, traceContext },
           undefined,
           "offscreen"
         )
       )) as SilentExportPackResult;
 
-      if (packResult?.queryTimeMs !== undefined) {
+      if (packResult?.stage3Metrics) {
         e2eMetrics.push({
-          step: "2. 证据数据读取与 AI 报告组装",
+          step: "3. 证据数据读取与 AI 报告组装",
+          durationMs: packResult.stage3Metrics.totalDurationMs,
+          size: `${packResult.stage3Metrics.promptCharCount} 字符`,
+          note: `IndexedDB 查询 ${packResult.stage3Metrics.dbQueryDurationMs.toFixed(2)} ms, 模版加载 ${packResult.stage3Metrics.templateLoadDurationMs.toFixed(2)} ms`,
+        });
+      } else if (packResult?.queryTimeMs !== undefined) {
+        e2eMetrics.push({
+          step: "3. 证据数据读取与 AI 报告组装",
           durationMs: packResult.queryTimeMs,
           note: "IndexedDB 读取会话/日志/截图索引并生成 Prompt",
         });
       }
-      if (packResult?.packTimeMs !== undefined) {
+
+      if (packResult?.stage4Metrics) {
         e2eMetrics.push({
-          step: "3. ZIP 封包与哈希流式写入",
+          step: "4. 流式 ZIP 封包与哈希管线",
+          durationMs: packResult.stage4Metrics.totalDurationMs,
+          size: `${(packResult.stage4Metrics.totalCompressedBytes / (1024 * 1024)).toFixed(2)} MB`,
+          note: `封包吞吐 ${packResult.stage4Metrics.overallThroughputMBps.toFixed(2)} MB/s, 压缩比 ${(packResult.stage4Metrics.compressionRatio * 100).toFixed(1)}%`,
+        });
+      } else if (packResult?.packTimeMs !== undefined) {
+        e2eMetrics.push({
+          step: "4. 流式 ZIP 封包与哈希管线",
           durationMs: packResult.packTimeMs,
           size:
             packResult.totalBytes !== undefined
@@ -556,32 +672,96 @@ export function createSessionLifecycle(
 
       if (packResult?.ok && packResult.blobUrl && packResult.filename) {
         const tDownloadStart = performance.now();
-        const downloadId = await chrome.downloads.download({
-          url: packResult.blobUrl,
-          filename: packResult.filename,
-          saveAs: false,
-        });
+        let downloadId: number | undefined;
+        let downloadCallDurationMs = 0;
+        try {
+          downloadId = await chrome.downloads.download({
+            url: packResult.blobUrl,
+            filename: packResult.filename,
+            saveAs: false,
+          });
+          downloadCallDurationMs = performance.now() - tDownloadStart;
+        } catch (downloadErr) {
+          downloadCallDurationMs = performance.now() - tDownloadStart;
+          if (traceContext) {
+            traceContext.stage5 = {
+              downloadCallDurationMs,
+              pollWaitDurationMs: 0,
+              pollCount: 0,
+              avgPollIntervalMs: 0,
+              pathResolveDurationMs: 0,
+              resolvedFilename: packResult.filename,
+              totalDurationMs: downloadCallDurationMs,
+            };
+          }
+          throw downloadErr;
+        }
+
         prompt = packResult.prompt;
-        if (downloadId && prompt) {
-          const absolutePath = await ctx.resolveDownloadedFilePath(downloadId);
+        let downloadTimingStats: DownloadTimingStats = {
+          pollWaitMs: 0,
+          pollCount: 0,
+          avgPollIntervalMs: 0,
+          pathResolveMs: 0,
+          totalDurationMs: downloadCallDurationMs,
+        };
+
+        resolvedPath = packResult.filename;
+        if (downloadId) {
+          const absolutePath = await ctx.resolveDownloadedFilePath(
+            downloadId,
+            15000,
+            (stats) => {
+              downloadTimingStats = {
+                ...stats,
+                downloadCallMs: downloadCallDurationMs,
+                totalDurationMs: downloadCallDurationMs + stats.totalDurationMs,
+              };
+            }
+          );
           if (absolutePath) {
-            prompt = injectAbsolutePathToPrompt(
-              prompt,
-              packResult.filename,
-              absolutePath
-            );
+            resolvedPath = absolutePath;
+            if (prompt) {
+              prompt = injectAbsolutePathToPrompt(
+                prompt,
+                packResult.filename,
+                absolutePath
+              );
+            }
           }
         }
-        downloadDurationMs = performance.now() - tDownloadStart;
+
+        const stage5Metrics: Stage5Metrics = {
+          downloadCallDurationMs,
+          pollWaitDurationMs: downloadTimingStats.pollWaitMs,
+          pollCount: downloadTimingStats.pollCount,
+          avgPollIntervalMs: downloadTimingStats.avgPollIntervalMs,
+          pathResolveDurationMs: downloadTimingStats.pathResolveMs,
+          resolvedFilename: resolvedPath,
+          totalDurationMs: downloadTimingStats.totalDurationMs,
+        };
+
+        if (traceContext) {
+          traceContext.stage5 = stage5Metrics;
+        }
+
         e2eMetrics.push({
-          step: "4. 浏览器下载与本地绝对路径解析",
-          durationMs: downloadDurationMs,
-          note: "chrome.downloads 下载与操作系统路径探测",
+          step: "5. 浏览器下载与本地绝对路径解析",
+          durationMs: stage5Metrics.totalDurationMs,
+          note: `API 调用 ${downloadCallDurationMs.toFixed(2)} ms, 轮询 ${stage5Metrics.pollCount} 次 (${stage5Metrics.pollWaitDurationMs.toFixed(2)} ms)`,
         });
       }
     } catch (err) {
       caughtError = err;
     }
+
+    if (traceContext && packResult?.stage3Metrics) {
+      traceContext.stage3 = packResult.stage3Metrics;
+    }
+    if (traceContext && packResult?.stage4Metrics) {
+      traceContext.stage4 = packResult.stage4Metrics;
+    }
+
     const silentExportResult = resolveSilentExportResult(
       packResult,
       caughtError
@@ -590,6 +770,12 @@ export function createSessionLifecycle(
       silentExportResult.perfReport = packResult.perfReport;
     }
     silentExportResult.e2eMetrics = e2eMetrics;
+    if (traceContext) {
+      silentExportResult.traceContext = traceContext;
+    }
+    if (packResult?.filename) {
+      silentExportResult.filename = resolvedPath;
+    }
 
     if (!silentExportResult.ok) {
       const failed = await db.updateSession(session.id, (current) => ({
@@ -621,7 +807,8 @@ export function createSessionLifecycle(
     autoExport = false,
     discard = false,
     silentExport = false,
-    traceStartMs?: number
+    traceStartMs?: number,
+    traceContext?: ExportTraceContext
   ): Promise<RecordingSession | undefined> {
     let session: RecordingSession | undefined;
     if (commandId) {
@@ -658,7 +845,8 @@ export function createSessionLifecycle(
         autoExport,
         discard,
         silentExport,
-        traceStartMs
+        traceStartMs,
+        traceContext
       )
     );
   }
@@ -669,7 +857,8 @@ export function createSessionLifecycle(
     autoExport = false,
     discard = false,
     silentExport = false,
-    traceStartMs?: number
+    traceStartMs?: number,
+    traceContext?: ExportTraceContext
   ): Promise<RecordingSession | undefined> {
     return recordingCoordinator.runLifecycle(() =>
       stopSessionImpl(
@@ -677,7 +866,8 @@ export function createSessionLifecycle(
         autoExport,
         discard,
         silentExport,
-        traceStartMs
+        traceStartMs,
+        traceContext
       )
     );
   }

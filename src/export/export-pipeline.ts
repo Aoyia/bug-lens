@@ -7,6 +7,7 @@ import {
 } from "../shared/dev-profiler";
 import type { MediaChunkRecord } from "../storage/db";
 import { Sha256, sha256 } from "./sha256.ts";
+import type { Stage4Metrics } from "./export-trace.ts";
 
 export type BinaryChunk = Uint8Array<ArrayBuffer>;
 
@@ -39,6 +40,7 @@ export type ExportProgress = {
   entriesWritten: number;
   mediaChunksWritten: number;
   bytesWritten: number;
+  stage4Metrics?: Stage4Metrics;
 };
 
 // 逐文件完整性记录（字节长度 + SHA-256），随导出清单写入供事后校验
@@ -74,8 +76,15 @@ export async function writeEvidenceArchive(input: {
   };
   const integrity: ArchiveEntryIntegrity = {};
 
+  let pendingSinkBytes = 0;
+  let itemsSinceLastFlush = 0;
+  let queueError: unknown | undefined;
+  const BACKPRESSURE_BYTE_THRESHOLD = 1024 * 1024; // 1 MB 自适应缓冲水位
+  const BACKPRESSURE_BATCH_COUNT = 16; // 批量排空阈值
+
   const zip = new Zip((error, data, final) => {
     if (error) {
+      if (!queueError) queueError = error;
       finalReject(error);
       return;
     }
@@ -83,25 +92,61 @@ export async function writeEvidenceArchive(input: {
     const stableChunk = new Uint8Array(data.byteLength);
     stableChunk.set(data);
     progress.bytesWritten += stableChunk.byteLength;
+    pendingSinkBytes += stableChunk.byteLength;
     // 追加到背压队列末尾，保证写出顺序与 zip 产出一致
-    outputQueue = outputQueue.then(() => input.sink.write(stableChunk));
+    outputQueue = outputQueue
+      .then(async () => {
+        if (queueError) return;
+        await input.sink.write(stableChunk);
+      })
+      .catch((err) => {
+        if (!queueError) queueError = err;
+      })
+      .finally(() => {
+        pendingSinkBytes -= stableChunk.byteLength;
+      });
     if (final) {
       finalSeen = true;
       // 等队列清空后再结束，确保所有字节都已落盘
-      void outputQueue.then(finalResolve, finalReject);
+      void outputQueue.then(() => {
+        if (queueError) {
+          finalReject(queueError);
+        } else {
+          finalResolve();
+        }
+      });
     }
   });
 
   // 排空队列后再回调进度，保证进度值对应已实际写入 sink 的数据
   const flushOutput = async () => {
     await outputQueue;
+    if (queueError) {
+      throw queueError;
+    }
+    itemsSinceLastFlush = 0;
     input.onProgress?.({ ...progress });
+  };
+
+  // 自适应背压控制：仅在堆积字节达到水位或条目批次到达上限时让出事件循环排空，避免单条逐次微任务挂起
+  const maybeYieldBackpressure = async () => {
+    itemsSinceLastFlush += 1;
+    if (
+      pendingSinkBytes >= BACKPRESSURE_BYTE_THRESHOLD ||
+      itemsSinceLastFlush >= BACKPRESSURE_BATCH_COUNT
+    ) {
+      await flushOutput();
+    }
   };
 
   const perfMetrics: PerfMetricItem[] = [];
   const startPipelineTime = performance.now();
 
   try {
+    const staticFilesBytes = input.files.reduce(
+      (acc, f) => acc + f.data.byteLength,
+      0
+    );
     const hashStartTime = performance.now();
     const fileHashes = await Promise.all(
       input.files.map(async (file) => ({
@@ -109,11 +154,16 @@ export async function writeEvidenceArchive(input: {
         hash: await sha256(file.data),
       }))
     );
+    const hashDurationMs = performance.now() - hashStartTime;
+    const hashThroughputMBps =
+      hashDurationMs > 0 && staticFilesBytes > 0
+        ? staticFilesBytes / (1024 * 1024) / (hashDurationMs / 1000)
+        : 0;
     perfMetrics.push({
       step: "1. 静态与证据文件 SHA-256 计算",
-      durationMs: performance.now() - hashStartTime,
+      durationMs: hashDurationMs,
       size: `${input.files.length} 个文件`,
-      note: `${(input.files.reduce((acc, f) => acc + f.data.byteLength, 0) / (1024 * 1024)).toFixed(2)} MB`,
+      note: `${(staticFilesBytes / (1024 * 1024)).toFixed(2)} MB (${hashThroughputMBps.toFixed(2)} MB/s)`,
     });
 
     const zipStartTime = performance.now();
@@ -126,11 +176,14 @@ export async function writeEvidenceArchive(input: {
       entry.push(file.data, true);
       integrity[file.name] = { byteLength: file.data.byteLength, sha256: hash };
       progress.entriesWritten += 1;
-      await flushOutput();
+      await maybeYieldBackpressure();
     }
+    // 静态文件集合写入完成，排空输出并同步进度
+    await flushOutput();
+    const deflateAndPassDurationMs = performance.now() - zipStartTime;
     perfMetrics.push({
       step: "2. 静态与证据文件写入 ZIP 条目",
-      durationMs: performance.now() - zipStartTime,
+      durationMs: deflateAndPassDurationMs,
       size: `${fileHashes.length} 条目`,
       note: "纯文本 Deflate 1 / 图片 PassThrough",
     });
@@ -139,7 +192,6 @@ export async function writeEvidenceArchive(input: {
     let mediaEntry: ZipPassThrough | undefined;
     let mediaHash: Sha256 | undefined;
     let mediaBytes = 0;
-    const usePrecomputed = Boolean(input.precomputedMediaIntegrity);
 
     let mediaFilename = "media/recording.webm";
 
@@ -165,38 +217,44 @@ export async function writeEvidenceArchive(input: {
           mediaEntry = new ZipPassThrough(mediaFilename);
           zip.add(mediaEntry);
           progress.entriesWritten += 1;
-          if (!usePrecomputed) {
-            // 分片流式回读时用增量哈希累积，避免整包缓冲媒体数据
-            mediaHash = new Sha256();
-          }
+          mediaHash = new Sha256();
         }
         const bytes = new Uint8Array(record.chunk);
         mediaEntry.push(bytes, false); // 非末片，暂不结束条目
-        if (!usePrecomputed) {
-          mediaHash!.update(bytes);
-        }
+        mediaHash?.update(bytes);
         mediaBytes += bytes.byteLength;
         progress.mediaChunksWritten += 1;
-        await flushOutput();
+        await maybeYieldBackpressure();
       }
     );
     mediaEntry?.push(new Uint8Array(), true); // 空块收尾，通知 fflate 结束媒体条目
+    await flushOutput();
+    const mediaPackDurationMs = performance.now() - mediaStartTime;
     if (mediaEntry) {
-      integrity[mediaFilename] = input.precomputedMediaIntegrity ?? {
-        byteLength: mediaBytes,
-        sha256: mediaHash ? mediaHash.digestHex() : "",
-      };
+      const isPrecomputedValid =
+        input.precomputedMediaIntegrity !== undefined &&
+        input.precomputedMediaIntegrity.byteLength === mediaBytes &&
+        typeof input.precomputedMediaIntegrity.sha256 === "string" &&
+        input.precomputedMediaIntegrity.sha256.length === 64;
+      integrity[mediaFilename] = isPrecomputedValid
+        ? input.precomputedMediaIntegrity!
+        : {
+            byteLength: mediaBytes,
+            sha256: mediaHash ? mediaHash.digestHex() : "",
+          };
       perfMetrics.push({
         step: "3. 视频分片流式封包与哈希",
-        durationMs: performance.now() - mediaStartTime,
+        durationMs: mediaPackDurationMs,
         size: `${progress.mediaChunksWritten} 个分片`,
-        note: `${(mediaBytes / (1024 * 1024)).toFixed(2)} MB (${mediaFilename.endsWith(".mp4") ? "MP4" : "WebM"})`,
+        note: `${(mediaBytes / (1024 * 1024)).toFixed(2)} MB (${mediaFilename.endsWith(".mp4") ? "MP4" : "WebM"})${isPrecomputedValid ? " [预计算命中]" : ""}`,
       });
     }
 
     const manifestStartTime = performance.now();
+    let manifestBytes = 0;
     if (input.createManifest) {
       const manifest = input.createManifest(integrity);
+      manifestBytes = manifest.data.byteLength;
       const entry = isCompressible(manifest.name)
         ? new ZipDeflate(manifest.name, { level: 1 })
         : new ZipPassThrough(manifest.name);
@@ -207,10 +265,12 @@ export async function writeEvidenceArchive(input: {
       perfMetrics.push({
         step: "4. Manifest 清单生成与追加",
         durationMs: performance.now() - manifestStartTime,
-        size: `${manifest.data.byteLength} B`,
+        size: `${manifestBytes} B`,
         note: "SHA-256 完整性指纹清单",
       });
     }
+    const manifestDurationMs = performance.now() - manifestStartTime;
+
     const finalizeStartTime = performance.now();
     zip.end();
     await finalOutput;
@@ -218,17 +278,50 @@ export async function writeEvidenceArchive(input: {
     if (!finalSeen)
       throw new Error("ZIP_STREAM_INCOMPLETE: 流式 ZIP 未产生结束标志");
     await input.sink.close();
+    const finalizeDurationMs = performance.now() - finalizeStartTime;
     perfMetrics.push({
       step: "5. ZIP 流收尾与 Sink 写入",
-      durationMs: performance.now() - finalizeStartTime,
+      durationMs: finalizeDurationMs,
       size: `${(progress.bytesWritten / (1024 * 1024)).toFixed(2)} MB`,
       note: "完成写入",
     });
 
+    const packTotalMs = performance.now() - startPipelineTime;
+    const totalRawInputBytes = staticFilesBytes + mediaBytes + manifestBytes;
+    const totalCompressedBytes = progress.bytesWritten;
+    const compressionRatio =
+      totalRawInputBytes > 0 ? totalCompressedBytes / totalRawInputBytes : 1;
+    const overallThroughputMBps =
+      packTotalMs > 0 && totalRawInputBytes > 0
+        ? totalRawInputBytes / (1024 * 1024) / (packTotalMs / 1000)
+        : 0;
+
+    const stage4Metrics: Stage4Metrics = {
+      hashDurationMs,
+      hashThroughputMBps,
+      staticFilesBytes,
+      staticFilesCount: input.files.length,
+      deflateAndPassDurationMs,
+      mediaPackDurationMs,
+      mediaBytes,
+      mediaChunksCount: progress.mediaChunksWritten,
+      manifestDurationMs,
+      manifestBytes,
+      finalizeDurationMs,
+      totalDurationMs: packTotalMs,
+      totalRawInputBytes,
+      totalCompressedBytes,
+      compressionRatio,
+      overallThroughputMBps,
+    };
+    progress.stage4Metrics = stage4Metrics;
+
     DevProfiler.printSummaryTable("ZIP 导出流水线分析报告", perfMetrics, {
       总写入字节: `${(progress.bytesWritten / (1024 * 1024)).toFixed(2)} MB`,
       写入条目数: progress.entriesWritten,
-      流水线总耗时: `${(performance.now() - startPipelineTime).toFixed(2)} ms`,
+      整体封包吞吐: `${overallThroughputMBps.toFixed(2)} MB/s`,
+      体积压缩比: `${(compressionRatio * 100).toFixed(1)}%`,
+      流水线总耗时: `${packTotalMs.toFixed(2)} ms`,
     });
     const perfReport = DevProfiler.buildSummaryReport(
       "ZIP 导出流水线分析报告",
@@ -236,7 +329,9 @@ export async function writeEvidenceArchive(input: {
       {
         总写入字节: `${(progress.bytesWritten / (1024 * 1024)).toFixed(2)} MB`,
         写入条目数: progress.entriesWritten,
-        流水线总耗时: `${(performance.now() - startPipelineTime).toFixed(2)} ms`,
+        整体封包吞吐: `${overallThroughputMBps.toFixed(2)} MB/s`,
+        体积压缩比: `${(compressionRatio * 100).toFixed(1)}%`,
+        流水线总耗时: `${packTotalMs.toFixed(2)} ms`,
       }
     );
     input.onPerfReport?.(perfReport);

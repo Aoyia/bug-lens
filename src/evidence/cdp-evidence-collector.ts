@@ -24,6 +24,7 @@ import type {
   RecordingSession,
 } from "../shared/protocol.ts";
 import { t } from "../shared/i18n.ts";
+import type { CdpFinalizeStats } from "../export/export-trace.ts";
 
 type SessionEventWriter = (
   sessionId: string,
@@ -465,60 +466,134 @@ export class CdpEvidenceCollector {
     return errors;
   }
 
-  async finalizeNetworkBodies(session: RecordingSession): Promise<void> {
-    if (!session.options.captureNetworkBodies) return;
-    for (
-      let round = 0;
-      round < 3 && this.pendingBodyCaptures.size;
-      round += 1
-    ) {
-      await Promise.allSettled([...this.pendingBodyCaptures]);
+  async finalizeNetworkBodies(
+    session: RecordingSession
+  ): Promise<CdpFinalizeStats> {
+    const startTime = performance.now();
+    let successCount = 0;
+    let failureCount = 0;
+    let totalBodyBytes = 0;
+    let totalRequests = 0;
+
+    if (!session.options.captureNetworkBodies) {
+      return {
+        totalRequests: 0,
+        successCount: 0,
+        failureCount: 0,
+        totalBodyBytes: 0,
+        avgDurationMs: 0,
+        durationMs: 0,
+        throughputMBps: 0,
+      };
     }
 
-    const pending = (await this.repository.getNetwork(session.id)).filter(
-      (entry) => entry.response?.bodyStatus === "pending"
-    );
-    let cursor = 0;
-    const deadline = Date.now() + 5_000;
-    const workers = Array.from(
-      { length: Math.min(4, pending.length) },
-      async () => {
-        while (cursor < pending.length && Date.now() < deadline) {
-          const entry = pending[cursor++];
-          const requestId = entry.id.startsWith(`${session.id}:`)
-            ? entry.id.slice(session.id.length + 1)
-            : "";
-          if (requestId) {
-            const childSessionId = this.requestSessionMap.get(entry.id);
-            await this.captureResponseBody(
-              {
-                tabId: session.target.tabId,
-                ...(childSessionId ? { sessionId: childSessionId } : {}),
-              },
-              session,
-              requestId
-            );
+    try {
+      for (
+        let round = 0;
+        round < 3 && this.pendingBodyCaptures.size;
+        round += 1
+      ) {
+        await Promise.allSettled([...this.pendingBodyCaptures]);
+      }
+
+      const pending = (await this.repository.getNetwork(session.id)).filter(
+        (entry) => entry.response?.bodyStatus === "pending"
+      );
+      totalRequests = pending.length;
+      if (totalRequests === 0) {
+        const durationMs = performance.now() - startTime;
+        return {
+          totalRequests: 0,
+          successCount: 0,
+          failureCount: 0,
+          totalBodyBytes: 0,
+          avgDurationMs: 0,
+          durationMs,
+          throughputMBps: 0,
+        };
+      }
+
+      let cursor = 0;
+      const deadline = Date.now() + 5_000;
+      const workers = Array.from(
+        { length: Math.min(4, pending.length) },
+        async () => {
+          while (cursor < pending.length && Date.now() < deadline) {
+            const entry = pending[cursor++];
+            const requestId = entry.id.startsWith(`${session.id}:`)
+              ? entry.id.slice(session.id.length + 1)
+              : "";
+            if (requestId) {
+              const childSessionId = this.requestSessionMap.get(entry.id);
+              await this.captureResponseBody(
+                {
+                  tabId: session.target.tabId,
+                  ...(childSessionId ? { sessionId: childSessionId } : {}),
+                },
+                session,
+                requestId
+              ).catch(() => undefined);
+            }
           }
         }
-      }
-    );
-    await Promise.allSettled(workers);
+      );
+      await Promise.allSettled(workers);
 
-    const unresolved = (await this.repository.getNetwork(session.id)).filter(
-      (entry) => entry.response?.bodyStatus === "pending"
-    );
-    await Promise.all(
-      unresolved.map((entry) =>
-        this.repository.updateNetworkEntry(entry.id, (current) => ({
-          ...current,
-          response: {
-            ...current.response,
-            bodyStatus: "unavailable",
-            error: `RESPONSE_BODY_INCOMPLETE: ${t("responseBodyIncomplete")}`,
-          },
-        }))
-      )
-    );
+      // 消除重复全表扫描：仅针对原始 pending 列表中的条目逐个按 key 结算未决状态并累计指标
+      await Promise.all(
+        pending.map(async (p) => {
+          let entry = await this.repository.getNetworkEntry(p.id);
+          if (entry?.response?.bodyStatus === "pending") {
+            entry = await this.repository.updateNetworkEntry(
+              p.id,
+              (current) => ({
+                ...current,
+                response: {
+                  ...current.response,
+                  bodyStatus: "unavailable",
+                  error: `RESPONSE_BODY_INCOMPLETE: ${t("responseBodyIncomplete")}`,
+                },
+              })
+            );
+          }
+          if (entry) {
+            if (
+              entry.response?.bodyStatus === "captured" ||
+              entry.response?.truncated ||
+              entry.response?.bodyStatus === "redacted"
+            ) {
+              successCount += 1;
+              totalBodyBytes +=
+                entry.response?.byteLength ?? entry.response?.body?.length ?? 0;
+            } else {
+              failureCount += 1;
+            }
+          } else {
+            failureCount += 1;
+          }
+        })
+      );
+    } catch {
+      // 容错兜底：即使部分数据库或网络查询异常，仍确保计算回传统计数据，不阻塞主流程
+      failureCount = Math.max(0, totalRequests - successCount);
+    }
+
+    const durationMs = performance.now() - startTime;
+    const avgDurationMs = totalRequests > 0 ? durationMs / totalRequests : 0;
+    const throughputMBps =
+      durationMs > 0 && totalBodyBytes > 0
+        ? totalBodyBytes / (1024 * 1024) / (durationMs / 1000)
+        : 0;
+
+    return {
+      totalRequests,
+      successCount,
+      failureCount,
+      totalBodyBytes,
+      avgDurationMs,
+      durationMs,
+      throughputMBps,
+    };
   }
 
   private enqueue(key: string, work: () => Promise<void>): Promise<void> {

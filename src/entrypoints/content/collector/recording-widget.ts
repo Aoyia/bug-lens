@@ -1,7 +1,13 @@
 import { t } from "../../../shared/i18n.ts";
+import { getEpochTimestampMs } from "../../../export/export-trace.ts";
+
+export type WidgetClickInfo = {
+  clickTimestamp?: number;
+  clickEpochMs?: number;
+};
 
 export type WidgetCallbacks = {
-  onStop(): void;
+  onStop(info?: WidgetClickInfo): void;
   /** 点击"标记问题"时触发；anchor 为鼠标点击坐标（用于速记卡就近定位）。 */
   onMarkIssue(anchor?: { x: number; y: number }): void;
   isPaused?(): boolean;
@@ -346,7 +352,9 @@ export class RecordingWidget {
               e.stopPropagation();
               e.preventDefault();
               if (this._isSaving || this._isClosing) return;
-              this.callbacks.onStop();
+              const clickTimestamp = performance.now();
+              const clickEpochMs = getEpochTimestampMs();
+              this.callbacks.onStop({ clickTimestamp, clickEpochMs });
             },
             true
           );

@@ -25,6 +25,12 @@ import { ScreenshotOverlay } from "../../screenshot";
 import { recentErrorsTracker } from "../../screenshot";
 import { DevProfiler } from "../../shared/dev-profiler";
 import {
+  buildExportPipelineDashboard,
+  createExportTraceContext,
+  getEpochTimestampMs,
+  type Stage6Metrics,
+} from "../../export/export-trace";
+import {
   ensureErrorsTrackerStarted,
   ensureScreenshotOverlayBridge,
 } from "./content-bridge";
@@ -135,17 +141,33 @@ if (existingController) {
 
   if (isTopFrame) {
     const widget: RecordingWidget = new RecordingWidget({
-      async onStop() {
-        const traceStart = performance.now();
+      async onStop(clickInfo) {
+        const t0EpochMs = clickInfo?.clickEpochMs ?? getEpochTimestampMs();
+        const t0Perf = clickInfo?.clickTimestamp ?? performance.now();
+        const clickResponseDurationMs = Math.max(0, performance.now() - t0Perf);
+        const tFreezeStart = performance.now();
         widget.setSavingState(true);
         monitor?.stop();
+        const uiFreezeDurationMs = performance.now() - tFreezeStart;
+
+        const traceContext = createExportTraceContext(t0EpochMs);
+        const tSendEpochMs = getEpochTimestampMs();
+        traceContext.stage1 = {
+          clickEpochMs: t0EpochMs,
+          clickResponseDurationMs,
+          uiFreezeDurationMs,
+          sendEpochMs: tSendEpochMs,
+          totalDurationMs: clickResponseDurationMs + uiFreezeDurationMs,
+        };
+
         try {
           const res = await chrome.runtime.sendMessage(
             message("session/stop", {
               commandId: crypto.randomUUID(),
               // 结束即导出：直出证据包下载，不打开预览页（业务契约，勿改）
               silentExport: true,
-              traceStartMs: traceStart,
+              traceStartMs: t0Perf,
+              traceContext,
             })
           );
           const exportFailure = getSilentExportFailure(res, t("stopFailed"));
@@ -154,6 +176,26 @@ if (existingController) {
             widget.setSavingState(false);
             widget.showToast(t("exportFailed", exportFailure), 5_500, "error");
             monitor?.start();
+
+            if (DevProfiler.isEnabled()) {
+              try {
+                const failureTrace =
+                  res?.session?.silentExportResult?.traceContext ??
+                  traceContext;
+                const failureDashboard = buildExportPipelineDashboard(
+                  failureTrace,
+                  getEpochTimestampMs(),
+                  {
+                    导出状态: "失败 (Failed)",
+                    失败原因: exportFailure,
+                    "会话 ID": session?.sessionId ?? "-",
+                  }
+                );
+                DevProfiler.printExportDashboard(failureDashboard);
+              } catch {
+                // 忽略调试输出异常
+              }
+            }
             return;
           }
 
@@ -166,40 +208,94 @@ if (existingController) {
               // 忽略
             }
           }
-          widget.showToast(t("exportSuccessCopied"));
-          const clipboardDuration = performance.now() - clipboardStart;
+          const clipboardWriteDurationMs = performance.now() - clipboardStart;
 
-          const serverMetrics =
-            res?.session?.silentExportResult?.e2eMetrics ?? [];
-          if (serverMetrics.length > 0) {
-            const allE2EMetrics = [
-              ...serverMetrics,
-              {
-                step: "5. 剪贴板写入与 UI Toast 反馈",
-                durationMs: clipboardDuration,
-                size: prompt ? `${prompt.length} 字符` : "-",
-                note: "AI Prompt 注入剪贴板并呈现成功状态",
-              },
-            ];
-            const totalE2EMs = performance.now() - traceStart;
-            DevProfiler.printSummaryTable(
-              "端到端（E2E）导出耗时全链路大盘",
-              allE2EMetrics,
-              {
-                端到端总感知耗时: `${totalE2EMs.toFixed(2)} ms`,
-                导出文件: res?.session?.silentExportResult?.filename ?? "-",
-              }
-            );
+          const toastStart = performance.now();
+          try {
+            widget.showToast(t("exportSuccessCopied"));
+          } catch {
+            // 忽略 Toast 展示异常
           }
-
-          const perfReport = res?.session?.silentExportResult?.perfReport;
-          if (perfReport) {
-            DevProfiler.printReport(perfReport);
-          }
+          const toastDurationMs = performance.now() - toastStart;
 
           // 导出完成并弹出 Toast 后，平滑卸载悬浮条并清理会话
-          await widget.closeSmoothly();
+          const teardownStart = performance.now();
+          try {
+            await widget.closeSmoothly();
+          } catch {
+            try {
+              widget.unmount();
+            } catch {
+              // 忽略卸载异常
+            }
+          }
           refreshSession(undefined);
+          const teardownDurationMs = performance.now() - teardownStart;
+
+          const stage6Metrics: Stage6Metrics = {
+            clipboardWriteDurationMs,
+            toastDurationMs,
+            teardownDurationMs,
+            toastAndTeardownDurationMs: toastDurationMs + teardownDurationMs,
+            totalDurationMs:
+              clipboardWriteDurationMs + toastDurationMs + teardownDurationMs,
+          };
+
+          const returnedTrace =
+            res?.session?.silentExportResult?.traceContext ?? traceContext;
+          returnedTrace.stage6 = stage6Metrics;
+
+          // 输出全流程结构化大盘（时间账本闭环 + 算法/IO看板 + 瀑布流）
+          try {
+            const dashboard = buildExportPipelineDashboard(
+              returnedTrace,
+              getEpochTimestampMs(),
+              {
+                导出文件: res?.session?.silentExportResult?.filename ?? "-",
+                "会话 ID": session?.sessionId ?? "-",
+              }
+            );
+            DevProfiler.printExportDashboard(dashboard);
+
+            const serverMetrics =
+              res?.session?.silentExportResult?.e2eMetrics ?? [];
+            if (serverMetrics.length > 0) {
+              const allE2EMetrics = [
+                {
+                  step: "1. 触发与 IPC 分发",
+                  durationMs: returnedTrace.stage1?.totalDurationMs ?? 0,
+                  note:
+                    returnedTrace.stage1?.clickResponseDurationMs !== undefined
+                      ? `点击响应 ${returnedTrace.stage1.clickResponseDurationMs.toFixed(2)} ms, UI 冻结 ${(returnedTrace.stage1.uiFreezeDurationMs ?? 0).toFixed(2)} ms, IPC ${(returnedTrace.stage1.ipcDispatchDurationMs ?? 0).toFixed(2)} ms`
+                      : `UI 冻结 ${(returnedTrace.stage1?.uiFreezeDurationMs ?? 0).toFixed(2)} ms, IPC ${(returnedTrace.stage1?.ipcDispatchDurationMs ?? 0).toFixed(2)} ms`,
+                },
+                ...serverMetrics,
+                {
+                  step: "6. 终端反馈（剪贴板与挂件卸载）",
+                  durationMs: stage6Metrics.totalDurationMs,
+                  size: prompt ? `${prompt.length} 字符` : "-",
+                  note: "AI Prompt 注入剪贴板、呈现 Toast 并平滑卸载挂件",
+                },
+              ];
+              const totalE2EMs = dashboard.totalWallClockMs;
+              DevProfiler.printSummaryTable(
+                "端到端（E2E）导出耗时全链路大盘",
+                allE2EMetrics,
+                {
+                  端到端总感知耗时: `${totalE2EMs.toFixed(2)} ms`,
+                  导出文件: res?.session?.silentExportResult?.filename ?? "-",
+                }
+              );
+            }
+
+            const perfReport = res?.session?.silentExportResult?.perfReport;
+            if (perfReport) {
+              DevProfiler.printReport(perfReport);
+            }
+          } catch (profError) {
+            // eslint-disable-next-line no-console
+            console.error("性能监控看板构建失败:", profError);
+          }
         } catch (error) {
           // 通道异常：会话大概率仍存活，恢复挂件交互以便用户重试
           widget.setSavingState(false);

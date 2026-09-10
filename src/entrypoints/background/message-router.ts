@@ -9,6 +9,7 @@ import { sanitizeText } from "../../domain/privacy-policy";
 import { t } from "../../shared/i18n";
 import { validateStorageHealthUpdate } from "../../storage/storage-health-coordinator";
 import { runMainWorldFrameworkProbe } from "../../screenshot/probes/main-world-probe";
+import { getEpochTimestampMs } from "../../export/export-trace";
 import type { BackgroundContext } from "./context";
 import type { SessionLifecycle } from "./lifecycle";
 import type { ScreenshotService } from "./screenshot";
@@ -137,7 +138,22 @@ export function createMessageRouter(
             session: await lifecycle.start(incoming.payload),
           };
         // 停止当前录制（commandId 保证幂等）
-        case "session/stop":
+        case "session/stop": {
+          const bgReceivedEpochMs = getEpochTimestampMs();
+          const traceContext = incoming.payload.traceContext;
+          if (traceContext?.stage1) {
+            traceContext.stage1.bgReceivedEpochMs = bgReceivedEpochMs;
+            const sendEpoch = traceContext.stage1.sendEpochMs;
+            const ipcDuration =
+              typeof sendEpoch === "number" && Number.isFinite(sendEpoch)
+                ? Math.max(0, bgReceivedEpochMs - sendEpoch)
+                : 0;
+            traceContext.stage1.ipcDispatchDurationMs = ipcDuration;
+            traceContext.stage1.totalDurationMs =
+              (traceContext.stage1.clickResponseDurationMs ?? 0) +
+              (traceContext.stage1.uiFreezeDurationMs ?? 0) +
+              ipcDuration;
+          }
           return {
             ok: true,
             session: await lifecycle.stop(
@@ -145,9 +161,11 @@ export function createMessageRouter(
               incoming.payload.autoExport,
               incoming.payload.discard,
               incoming.payload.silentExport,
-              incoming.payload.traceStartMs
+              incoming.payload.traceStartMs,
+              traceContext
             ),
           };
+        }
         // 查询当前活动会话
         case "session/status":
           return { ok: true, session: await db.getActiveSession() };

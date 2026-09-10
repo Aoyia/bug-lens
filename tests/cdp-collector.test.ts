@@ -1505,3 +1505,166 @@ test("CdpEvidenceCollector handles Network.loadingFailed by marking entry unavai
   assert.equal(entries[0].response?.bodyStatus, "unavailable");
   assert.equal(entries[0].response?.error, "net::ERR_CONNECTION_RESET");
 });
+
+test("finalizeNetworkBodies returns accurate algorithm-level metrics and handles repository exceptions safely", async () => {
+  const repository = createMockRepository();
+  const writeSessionEvent = async (_id: string, _event: any) =>
+    ({}) as RecordingSession;
+  const collector = new CdpEvidenceCollector(
+    repository,
+    writeSessionEvent,
+    () => false
+  );
+
+  const sessionDisabled: RecordingSession = {
+    id: "sess-no-body",
+    schemaVersion: 2,
+    status: "RECORDING",
+    target: { tabId: 1, windowId: 1, url: "https://example.com" },
+    options: {
+      includeConsole: true,
+      includeNetwork: true,
+      captureScreenshots: false,
+      recordAudio: false,
+      captureNetworkBodies: false,
+    },
+    startedAt: Date.now(),
+    sequence: 0,
+  };
+
+  const noBodyStats = await collector.finalizeNetworkBodies(sessionDisabled);
+  assert.equal(noBodyStats.totalRequests, 0);
+  assert.equal(noBodyStats.throughputMBps, 0);
+
+  const sessionActive: RecordingSession = {
+    ...sessionDisabled,
+    id: "sess-body-active",
+    options: {
+      ...sessionDisabled.options,
+      captureNetworkBodies: true,
+    },
+  };
+
+  // Seed two network entries with pending status
+  await repository.saveNetwork({
+    id: "sess-body-active:req-1",
+    sessionId: "sess-body-active",
+    timestamp: Date.now(),
+    url: "https://example.com/api/data",
+    method: "GET",
+    request: { headers: {} },
+    response: {
+      status: 200,
+      headers: {},
+      mimeType: "application/json",
+      bodyStatus: "pending",
+    },
+  });
+
+  (globalThis as any).chrome = {
+    debugger: {
+      sendCommand: async (_target: any, method: string) => {
+        if (method === "Network.getResponseBody") {
+          return {
+            body: JSON.stringify({ ok: true, data: "test" }),
+            base64Encoded: false,
+          };
+        }
+        return {};
+      },
+    },
+  };
+
+  const stats = await collector.finalizeNetworkBodies(sessionActive);
+  assert.equal(stats.totalRequests, 1);
+  assert.equal(stats.successCount, 1);
+  assert.equal(stats.failureCount, 0);
+  assert.ok(stats.totalBodyBytes > 0);
+  assert.ok(stats.durationMs >= 0);
+  assert.ok(stats.avgDurationMs >= 0);
+
+  // Test error resilience: mock repository that throws on getNetwork
+  const brokenRepository = {
+    async getNetwork() {
+      throw new Error("DB_DISK_IO_ERROR");
+    },
+  } as unknown as EvidenceRepository;
+  const brokenCollector = new CdpEvidenceCollector(
+    brokenRepository,
+    writeSessionEvent,
+    () => false
+  );
+
+  const resilientStats =
+    await brokenCollector.finalizeNetworkBodies(sessionActive);
+  assert.equal(resilientStats.totalRequests, 0);
+  assert.ok(resilientStats.durationMs >= 0);
+});
+
+test("finalizeNetworkBodies eliminates duplicate getNetwork full-table scans", async () => {
+  let getNetworkCallCount = 0;
+  const repository = createMockRepository();
+  const origGetNetwork = repository.getNetwork.bind(repository);
+  repository.getNetwork = async (sessionId: string) => {
+    getNetworkCallCount += 1;
+    return origGetNetwork(sessionId);
+  };
+
+  const writeSessionEvent = async (_id: string, _event: any) =>
+    ({}) as RecordingSession;
+  const collector = new CdpEvidenceCollector(
+    repository,
+    writeSessionEvent,
+    () => false
+  );
+
+  const session: RecordingSession = {
+    id: "sess-scan-test",
+    schemaVersion: 2,
+    status: "RECORDING",
+    target: { tabId: 1, windowId: 1, url: "https://example.com" },
+    options: {
+      includeConsole: true,
+      includeNetwork: true,
+      captureScreenshots: false,
+      recordAudio: false,
+      captureNetworkBodies: true,
+    },
+    startedAt: Date.now(),
+    sequence: 0,
+  };
+
+  // 1. 无 pending 条目时：仅执行 1 次初始扫描，绝不执行第 2、3 次全表扫描
+  const statsEmpty = await collector.finalizeNetworkBodies(session);
+  assert.equal(statsEmpty.totalRequests, 0);
+  assert.equal(
+    getNetworkCallCount,
+    1,
+    "无 pending 请求时 getNetwork 全表扫描次数必须严格为 1"
+  );
+
+  // 2. 有 pending 条目时：也仅执行 1 次初始扫描，后续按 key 单条点查，绝不重复全表扫描
+  await repository.saveNetwork({
+    id: "sess-scan-test:req-1",
+    sessionId: "sess-scan-test",
+    timestamp: Date.now(),
+    url: "https://example.com/api/data",
+    method: "GET",
+    request: { headers: {} },
+    response: {
+      status: 200,
+      headers: {},
+      mimeType: "application/json",
+      bodyStatus: "pending",
+    },
+  });
+
+  getNetworkCallCount = 0;
+  const statsWithPending = await collector.finalizeNetworkBodies(session);
+  assert.equal(statsWithPending.totalRequests, 1);
+  assert.equal(
+    getNetworkCallCount,
+    1,
+    "有 pending 请求时 getNetwork 全表扫描次数也必须严格为 1，杜绝重复扫描"
+  );
+});

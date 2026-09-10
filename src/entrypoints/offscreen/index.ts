@@ -19,6 +19,11 @@ import {
 } from "../../export/export-pipeline";
 import { Sha256 } from "../../export/sha256";
 import type { PerfReportData } from "../../shared/dev-profiler";
+import type {
+  ExportTraceContext,
+  Stage3Metrics,
+  Stage4Metrics,
+} from "../../export/export-trace";
 
 // 预先加载并初始化用户语言偏好，使 t() 在 offscreen 中与 background 保持一致
 void initI18nPreference();
@@ -142,10 +147,6 @@ async function startMedia(
       write = event.data
         .arrayBuffer()
         .then(async (buffer) => {
-          // 实时累加 SHA-256 哈希与字节数，省去导出时的重复全量计算
-          activeMediaHash?.update(new Uint8Array(buffer));
-          activeMediaBytes += buffer.byteLength;
-
           // 分片 ID 按 (sessionId:sequence) 命名，保证有序且可精确去重
           const result = await db.saveMediaChunkWithinBudget({
             id: `${sessionId}:${chunkSequence}`,
@@ -155,6 +156,11 @@ async function startMedia(
             mimeType,
             recordedAt: Date.now(),
           });
+          if (result.stored) {
+            // 仅对真正成功落库的分片累加 SHA-256 哈希与字节数，杜绝未落库分片导致的完整性指纹不一致
+            activeMediaHash?.update(new Uint8Array(buffer));
+            activeMediaBytes += buffer.byteLength;
+          }
           // 由存储健康协调器判断：是否接近上限、是否已告警过，决定是否上报
           const decision = evaluateOffscreenStorageWrite(
             sessionId,
@@ -572,7 +578,10 @@ async function renderIssueImage(
   }
 }
 
-async function exportPack(payload: { sessionId: string }): Promise<{
+async function exportPack(payload: {
+  sessionId: string;
+  traceContext?: ExportTraceContext;
+}): Promise<{
   prompt: string;
   blobUrl: string;
   filename: string;
@@ -581,22 +590,53 @@ async function exportPack(payload: { sessionId: string }): Promise<{
   packTimeMs?: number;
   totalEntries?: number;
   totalBytes?: number;
+  stage3Metrics?: Stage3Metrics;
+  stage4Metrics?: Stage4Metrics;
+  traceContext?: ExportTraceContext;
 }> {
   try {
     const t0 = performance.now();
-    // 静默导出打包：加载会话（forExport 模式跳过多余 Blob URL）→ 构建证据包 → 压缩 zip → 生成 Blob URL
+    // 1. PreviewSessionRuntime 从 IndexedDB 批量查询各表耗时
+    const tDbStart = performance.now();
     const runtime = new PreviewSessionRuntime(db);
     await runtime.load(payload.sessionId, { forExport: true });
     const snapshot = runtime.getPackageSnapshot();
     if (!snapshot) {
       throw new Error(`FAILED_TO_LOAD_SNAPSHOT: ${t("failedToLoadSnapshot")}`);
     }
+    const dbQueryDurationMs = performance.now() - tDbStart;
 
     const filename = `web-bug-report-${payload.sessionId.slice(0, 8)}.zip`;
-    const reportAssets = await loadStaticReportAssets();
 
-    // 构建证据包文件清单（截图、录制分片、元数据等）
+    // 2. 静态报告模版加载耗时
+    const tTemplateStart = performance.now();
+    const reportAssets = await loadStaticReportAssets();
+    const templateLoadDurationMs = performance.now() - tTemplateStart;
+
+    // 3. 离线 HTML/JSON 组装耗时
+    const tAssembleStart = performance.now();
     const packageFiles = buildEvidencePackage(snapshot, reportAssets);
+    const assembleDurationMs = performance.now() - tAssembleStart;
+
+    // 4. AI Prompt 提示词渲染耗时与字符规模
+    const tPromptStart = performance.now();
+    const prompt = buildAiPrompt(snapshot, filename);
+    const promptRenderDurationMs = performance.now() - tPromptStart;
+    const promptCharCount = prompt.length;
+
+    const stage3Metrics: Stage3Metrics = {
+      dbQueryDurationMs,
+      templateLoadDurationMs,
+      assembleDurationMs,
+      promptRenderDurationMs,
+      promptCharCount,
+      totalDurationMs:
+        dbQueryDurationMs +
+        templateLoadDurationMs +
+        assembleDurationMs +
+        promptRenderDurationMs,
+    };
+
     const t1 = performance.now();
     const queryTimeMs = t1 - t0;
 
@@ -615,7 +655,7 @@ async function exportPack(payload: { sessionId: string }): Promise<{
 
     let collectedPerfReport: PerfReportData | undefined;
 
-    // 压缩为 zip 并分块写入内存，避免一次性占用过大内存
+    // 4. 流式 ZIP 封包与哈希管线 (Stage 4)
     const progress = await writeEvidenceArchive({
       files: packageFiles as ArchiveFile[],
       sessionId: payload.sessionId,
@@ -645,7 +685,14 @@ async function exportPack(payload: { sessionId: string }): Promise<{
     });
     // 生成可下载的 Blob URL，交由后台侧触发下载
     const blobUrl = URL.createObjectURL(zipBlob);
-    const prompt = buildAiPrompt(snapshot, filename);
+
+    const traceContext = payload.traceContext;
+    if (traceContext) {
+      traceContext.stage3 = stage3Metrics;
+      if (progress.stage4Metrics) {
+        traceContext.stage4 = progress.stage4Metrics;
+      }
+    }
 
     return {
       prompt,
@@ -656,6 +703,9 @@ async function exportPack(payload: { sessionId: string }): Promise<{
       packTimeMs,
       totalEntries: progress.entriesWritten,
       totalBytes: progress.bytesWritten,
+      stage3Metrics,
+      stage4Metrics: progress.stage4Metrics,
+      traceContext,
     };
   } finally {
     precomputedMediaIntegrityMap.delete(payload.sessionId);
@@ -695,6 +745,9 @@ chrome.runtime.onMessage.addListener((raw: unknown, _sender, sendResponse) => {
       } else if (incoming.type === "offscreen/render-issue-image") {
         const result = await renderIssueImage(incoming.payload);
         sendResponse({ ok: true, ...result });
+      } else if (incoming.type === "offscreen/preload-export") {
+        void loadStaticReportAssets().catch(() => {});
+        sendResponse({ ok: true });
       } else if (incoming.type === "offscreen/export-pack") {
         const result = await exportPack(incoming.payload);
         sendResponse({ ok: true, ...result });
