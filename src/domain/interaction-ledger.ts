@@ -50,6 +50,7 @@ export function applyInteractionEvent(
 
     case "screenshot-unavailable":
       if (!current || current.status === "cancelled") return current;
+      if (current.screenshot?.status === "captured") return current;
       return {
         ...current,
         screenshot: { status: "unavailable", issue: event.issue },

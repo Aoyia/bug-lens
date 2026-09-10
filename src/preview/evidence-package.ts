@@ -9,7 +9,7 @@ import {
   type NetworkEntry,
   type RecordingSession,
 } from "../shared/protocol";
-import { getLocale, isEn } from "../shared/i18n.ts";
+import { getLocale, isEn, t } from "../shared/i18n.ts";
 import { generatePlaywrightScript } from "./playwright-generator.ts";
 import {
   describeBrowserFromUserAgent,
@@ -391,27 +391,56 @@ function buildSessionPayloadWithBodySplitting(
     interactionAssets.map((asset) => asset.interactionId)
   );
 
-  const issueScenes = (snapshot.issueScenes ?? []).map((scene) => ({
-    scene,
-    originalSource: originalSceneIds.has(scene.id)
-      ? `issues/${scene.id}/screenshot-original.png`
-      : undefined,
-    annotatedSource: annotatedSceneIds.has(scene.id)
-      ? `issues/${scene.id}/screenshot-annotated.png`
-      : undefined,
-  }));
+  const issueScenes = (snapshot.issueScenes ?? []).map((scene) => {
+    const origAsset = issueAssets.find(
+      (asset) => asset.sceneId === scene.id && asset.kind === "issue-original"
+    );
+    const origExt = origAsset?.mimeType === "image/jpeg" ? "jpg" : "png";
+    const annoAsset = issueAssets.find(
+      (asset) => asset.sceneId === scene.id && asset.kind === "issue-annotated"
+    );
+    const annoExt = annoAsset?.mimeType === "image/jpeg" ? "jpg" : "png";
+    return {
+      scene,
+      originalSource: origAsset
+        ? `issues/${scene.id}/screenshot-original.${origExt}`
+        : undefined,
+      annotatedSource: annoAsset
+        ? `issues/${scene.id}/screenshot-annotated.${annoExt}`
+        : undefined,
+    };
+  });
   const interactions = snapshot.interactions.map((interaction, index) => {
-    const hasBinaryAsset = capturedInteractionIds.has(interaction.id);
-    const hasDataUrl = Boolean(interaction.screenshot.dataUrl);
+    const asset = interactionAssets.find(
+      (a) => a.interactionId === interaction.id
+    );
+    const hasBinaryAsset =
+      Boolean(asset) || capturedInteractionIds.has(interaction.id);
+    const hasDataUrl = Boolean(interaction.screenshot?.dataUrl);
+    const rawDataUrl = interaction.screenshot?.dataUrl;
+    const isJpeg = rawDataUrl
+      ? rawDataUrl.startsWith("data:image/jpeg")
+      : asset?.mimeType === "image/jpeg";
+    const ext = isJpeg ? "jpg" : "png";
     const dataUrl =
       (hasBinaryAsset || hasDataUrl) &&
-      interaction.screenshot.status === "captured"
-        ? `screenshots/step-${index + 1}.png`
-        : interaction.screenshot.dataUrl;
+      interaction.screenshot?.status === "captured"
+        ? `screenshots/step-${index + 1}.${ext}`
+        : interaction.screenshot?.dataUrl;
+    const isPending = interaction.screenshot?.status === "pending";
     return {
       ...interaction,
       screenshot: {
         ...interaction.screenshot,
+        status: isPending
+          ? "unavailable"
+          : (interaction.screenshot?.status ?? "disabled"),
+        ...(isPending
+          ? {
+              issue:
+                interaction.screenshot?.issue ?? t("screenshotUnavailable"),
+            }
+          : {}),
         dataUrl,
       },
     };
@@ -746,10 +775,11 @@ export function buildEvidencePackage(
     });
   }
   snapshot.interactions.forEach((interaction, index) => {
+    if (interaction.screenshot?.status !== "captured") return;
     const asset = (snapshot.interactionAssets ?? []).find(
       (a) => a.interactionId === interaction.id
     );
-    const dataUrl = interaction.screenshot.dataUrl;
+    const dataUrl = interaction.screenshot?.dataUrl;
     const isJpeg = dataUrl
       ? dataUrl.startsWith("data:image/jpeg")
       : asset?.mimeType === "image/jpeg";

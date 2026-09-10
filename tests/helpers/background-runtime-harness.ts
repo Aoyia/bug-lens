@@ -128,7 +128,7 @@ export class FakeCdpCollector {
 
 export class FakeInteractionCapture {
   calls: string[] = [];
-  abortPending() {
+  abortPending(_sessionId?: string) {
     this.calls.push("abortPending");
   }
   async handle(_interaction: InteractionRecord, _sender: unknown) {
@@ -145,9 +145,15 @@ export class FakeInteractionCapture {
   async upgrade(_interactionId: string, _kind: string) {
     this.calls.push("upgrade");
   }
-  async drain() {
+  async drain(_timeoutMs?: number, _sessionId?: string) {
     this.calls.push("drain");
     return [];
+  }
+  reset() {
+    this.calls.push("reset");
+  }
+  async finalizePending(_sessionId: string) {
+    this.calls.push("finalizePending");
   }
 }
 

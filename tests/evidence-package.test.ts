@@ -183,6 +183,67 @@ test("evidence package exports binary interaction screenshots into screenshots/ 
   );
 });
 
+test("evidence package exports JPEG interaction screenshots with consistent .jpg paths in session-data.js and zip entries", () => {
+  const sampleInteraction = {
+    id: "step-jpeg-1",
+    sessionId: "session-12345678",
+    kind: "click" as const,
+    status: "confirmed" as const,
+    createdAt: 10,
+    page: { url: "https://example.com", title: "Test", frameId: 0 },
+    input: { pointerType: "mouse" as const, button: 0, isTrusted: true },
+    coordinates: {
+      clientX: 10,
+      clientY: 20,
+      pageX: 10,
+      pageY: 20,
+      scrollX: 0,
+      scrollY: 0,
+      devicePixelRatio: 1,
+      viewport: { width: 800, height: 600 },
+    },
+    element: {
+      tagName: "button",
+      classNames: [],
+      attributes: {},
+      boundingBox: { x: 0, y: 0, width: 50, height: 20 },
+      locators: [],
+    },
+    screenshot: {
+      status: "captured" as const,
+      source: "primary" as const,
+      assetId: "asset-jpeg-1",
+    },
+  };
+  const snapshotWithJpeg: EvidencePackageSnapshot = {
+    ...snapshot,
+    interactions: [sampleInteraction],
+    interactionAssets: [
+      {
+        interactionId: "step-jpeg-1",
+        bytes: new Uint8Array([255, 216, 255, 224]), // JPEG header
+        mimeType: "image/jpeg",
+      },
+    ],
+  };
+  const files = buildEvidencePackage(snapshotWithJpeg, reportAssets);
+  const fileNames = files.map((f) => f.name);
+  assert.ok(
+    fileNames.includes("screenshots/step-1.jpg"),
+    "ZIP 包中应当包含 step-1.jpg"
+  );
+  const sessionJsFile = files.find((f) => f.name === "data/session-data.js")!;
+  const sessionJsRaw = new TextDecoder().decode(sessionJsFile.data);
+  const sessionData = JSON.parse(
+    sessionJsRaw.replace(/^window\.__BUG_LENS_DATA__ = /, "").slice(0, -1)
+  );
+  assert.equal(
+    sessionData.interactions[0].screenshot.dataUrl,
+    "screenshots/step-1.jpg",
+    "session-data.js 中的截图路径必须与 ZIP 文件名拓展名严格一致 (.jpg)"
+  );
+});
+
 test("evidence package includes framework state snapshots and mentions the reproduction script in README", () => {
   const snapshotWithFramework: EvidencePackageSnapshot = {
     ...snapshot,
@@ -274,4 +335,59 @@ test("evidence package includes automatically captured environment info", () => 
   assert.equal(sessionData.summary.environment.os, "macOS 10.15.7");
   assert.equal(sessionData.summary.environment.browser, "Chrome 126");
   assert.equal(sessionData.summary.environment.screen, "2880x1800@2x");
+});
+
+test("evidence package does not export orphaned screenshot files into zip when screenshot status is unavailable or disabled", () => {
+  const sampleInteractionUnavailable = {
+    id: "step-unavail-1",
+    sessionId: "session-12345678",
+    kind: "click" as const,
+    status: "confirmed" as const,
+    createdAt: 10,
+    page: { url: "https://example.com", title: "Test", frameId: 0 },
+    input: { pointerType: "mouse" as const, button: 0, isTrusted: true },
+    coordinates: {
+      clientX: 10,
+      clientY: 20,
+      pageX: 10,
+      pageY: 20,
+      scrollX: 0,
+      scrollY: 0,
+      devicePixelRatio: 1,
+      viewport: { width: 800, height: 600 },
+    },
+    element: {
+      tagName: "button",
+      classNames: [],
+      attributes: {},
+      boundingBox: { x: 0, y: 0, width: 50, height: 20 },
+      locators: [],
+    },
+    screenshot: {
+      status: "unavailable" as const,
+      issue: "截图不可用",
+      dataUrl: "data:image/png;base64,QUFB",
+    },
+  };
+  const snapshotUnavailable: EvidencePackageSnapshot = {
+    ...snapshot,
+    interactions: [sampleInteractionUnavailable],
+  };
+  const files = buildEvidencePackage(snapshotUnavailable, reportAssets);
+  const fileNames = files.map((f) => f.name);
+  assert.equal(
+    fileNames.some((n) => n.startsWith("screenshots/step-")),
+    false,
+    "status 为 unavailable 的截图绝不允许在 ZIP 中生成 step-N 截图文件"
+  );
+  const sessionJsFile = files.find((f) => f.name === "data/session-data.js")!;
+  const sessionJsRaw = new TextDecoder().decode(sessionJsFile.data);
+  const sessionData = JSON.parse(
+    sessionJsRaw.replace(/^window\.__BUG_LENS_DATA__ = /, "").slice(0, -1)
+  );
+  assert.equal(
+    sessionData.interactions[0].screenshot.status,
+    "unavailable",
+    "session-data.js 中的截图状态应维持 unavailable"
+  );
 });

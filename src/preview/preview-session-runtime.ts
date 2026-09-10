@@ -116,23 +116,35 @@ export class PreviewSessionRuntime {
       .filter((item) => item.status !== "cancelled")
       .sort((left, right) => left.createdAt - right.createdAt)
       .map((item) => {
+        const isPending = item.screenshot?.status === "pending";
+        const normalizedItem: InteractionRecord = isPending
+          ? {
+              ...item,
+              screenshot: {
+                ...item.screenshot,
+                status: "unavailable",
+                issue: item.screenshot?.issue ?? t("screenshotUnavailable"),
+              },
+            }
+          : item;
         // 导出场景无需为截图生成用于 UI 渲染的 Blob URL，避免多余内存分配与泄露
-        if (!forExport && item.screenshot.status === "captured") {
+        if (!forExport && normalizedItem.screenshot?.status === "captured") {
           const asset = this.interactionAssets.find(
             (a) =>
-              a.id === item.screenshot.assetId || a.interactionId === item.id
+              a.id === normalizedItem.screenshot?.assetId ||
+              a.interactionId === normalizedItem.id
           );
           if (asset) {
             const objectUrl = URL.createObjectURL(
               new Blob([asset.bytes], { type: asset.mimeType })
             );
             return {
-              ...item,
-              screenshot: { ...item.screenshot, dataUrl: objectUrl },
+              ...normalizedItem,
+              screenshot: { ...normalizedItem.screenshot, dataUrl: objectUrl },
             };
           }
         }
-        return item;
+        return normalizedItem;
       });
 
     this.selection.loadSelection(exportSelection);

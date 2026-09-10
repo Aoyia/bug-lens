@@ -7,7 +7,10 @@ import {
   sanitizeInteractionRecord,
   sanitizeText,
 } from "../domain/privacy-policy.ts";
-import type { EvidenceRepository } from "../storage/db.ts";
+import {
+  flushStorageBatchQueue,
+  type EvidenceRepository,
+} from "../storage/db.ts";
 import { t } from "../shared/i18n.ts";
 import {
   message,
@@ -24,7 +27,10 @@ type InteractionRepository = Pick<
   | "getInteraction"
   | "saveInteractionWithinBudget"
   | "saveEvidenceAssetWithinBudget"
->;
+> & {
+  saveInteraction?: (record: InteractionRecord) => Promise<void>;
+  getInteractions?: (sessionId: string) => Promise<InteractionRecord[]>;
+};
 
 type SessionEventWriter = (
   sessionId: string,
@@ -53,22 +59,67 @@ function dataUrlToArrayBuffer(dataUrl: string): ArrayBuffer {
   return bytes.buffer;
 }
 
+function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  messageText: string,
+  signal?: AbortSignal
+): Promise<T> {
+  if (signal?.aborted) {
+    return Promise.reject(new Error("CAPTURE_ABORTED"));
+  }
+  return new Promise<T>((resolve, reject) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const onAbort = () => {
+      if (timer) clearTimeout(timer);
+      reject(new Error("CAPTURE_ABORTED"));
+    };
+    if (signal) {
+      signal.addEventListener("abort", onAbort, { once: true });
+    }
+    timer = setTimeout(() => {
+      if (signal) signal.removeEventListener("abort", onAbort);
+      reject(new Error(messageText));
+    }, timeoutMs);
+
+    promise.then(
+      (value) => {
+        if (timer) clearTimeout(timer);
+        if (signal) signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (error) => {
+        if (timer) clearTimeout(timer);
+        if (signal) signal.removeEventListener("abort", onAbort);
+        reject(error);
+      }
+    );
+  });
+}
+
 export class InteractionCapture {
   private readonly queues = new Map<string, Promise<unknown>>();
   private readonly pending = new Set<Promise<void>>();
   private readonly repository: InteractionRepository;
   private readonly writeSessionEvent: SessionEventWriter;
   private readonly isStopping: (sessionId: string) => boolean;
+  private readonly channelTimeoutMs: number;
   private aborted = false;
+  private abortedSessionId?: string;
+  private abortController = new AbortController();
+  private readonly sessionInteractions = new Map<string, Set<string>>();
+  private cdpBreakerOpen = false;
 
   constructor(
     repository: InteractionRepository,
     writeSessionEvent: SessionEventWriter,
-    isStopping: (sessionId: string) => boolean
+    isStopping: (sessionId: string) => boolean,
+    channelTimeoutMs = 1000
   ) {
     this.repository = repository;
     this.writeSessionEvent = writeSessionEvent;
     this.isStopping = isStopping;
+    this.channelTimeoutMs = channelTimeoutMs;
   }
 
   handle(
@@ -104,34 +155,122 @@ export class InteractionCapture {
     });
   }
 
-  /** 停止时调用：立即熔断取消在途未截取的队列，并在超时保护下等待当前执行完成 */
-  abortPending(): void {
-    this.aborted = true;
+  reset(): void {
+    this.aborted = false;
+    this.abortedSessionId = undefined;
+    this.abortController = new AbortController();
+    this.captureQueue = Promise.resolve();
+    this.cdpBreakerOpen = false;
+    this.latestTopViewport = undefined;
+    this.lastCaptureTime = 0;
+    this.pending.clear();
+    this.sessionInteractions.clear();
   }
 
-  async drain(timeoutMs = 1200): Promise<string[]> {
-    this.abortPending();
-    const errors: string[] = [];
-    if (!this.pending.size) return errors;
+  /** 停止时调用：立即熔断取消在途未截取的队列，并在超时保护下等待当前执行完成 */
+  abortPending(sessionId?: string): void {
+    this.aborted = true;
+    if (sessionId) {
+      this.abortedSessionId = sessionId;
+    }
+    this.abortController.abort();
+  }
 
-    const timeoutPromise = new Promise<void>((resolve) =>
-      setTimeout(resolve, timeoutMs)
-    );
-    const drainPromise = Promise.allSettled(Array.from(this.pending)).then(
-      (results) => {
-        for (const res of results) {
-          if (
-            res.status === "rejected" &&
-            res.reason?.message !== "CAPTURE_ABORTED"
-          ) {
-            errors.push(String(res.reason));
-          }
+  /** 收敛会话中仍处于 pending 状态的交互截图为 unavailable 终态 */
+  async finalizePending(sessionId: string): Promise<void> {
+    await flushStorageBatchQueue().catch(() => {});
+    let records: InteractionRecord[] = [];
+    if (this.repository.getInteractions) {
+      records = await this.repository.getInteractions(sessionId);
+    }
+    const ids = this.sessionInteractions.get(sessionId);
+    if (ids) {
+      const existingIds = new Set(records.map((r) => r.id));
+      const missingIds = Array.from(ids).filter((id) => !existingIds.has(id));
+      if (missingIds.length > 0) {
+        const fetched = await Promise.all(
+          missingIds.map((id) => this.repository.getInteraction(id))
+        );
+        for (const f of fetched) {
+          if (f) records.push(f);
         }
       }
-    );
+    }
 
-    await Promise.race([drainPromise, timeoutPromise]);
-    this.pending.clear();
+    const pending = records.filter((i) => i.screenshot?.status === "pending");
+    if (!pending.length) return;
+
+    await Promise.all(
+      pending.map(async (item) => {
+        await this.enqueue(`${sessionId}:${item.id}`, async () => {
+          const current = await this.repository.getInteraction(item.id);
+          if (current && current.screenshot?.status === "pending") {
+            const next: InteractionRecord = {
+              ...current,
+              screenshot: {
+                status: "unavailable",
+                issue: t("screenshotUnavailable"),
+              },
+            };
+            const res = await this.repository.saveInteractionWithinBudget(next);
+            if (!res.stored && this.repository.saveInteraction) {
+              await this.repository.saveInteraction(next);
+            }
+          }
+        });
+      })
+    );
+    await flushStorageBatchQueue().catch(() => {});
+  }
+
+  async drain(timeoutMs = 1200, sessionId?: string): Promise<string[]> {
+    this.abortPending(sessionId);
+    const errors: string[] = [];
+    await flushStorageBatchQueue().catch(() => {});
+    if (this.pending.size) {
+      const timeoutPromise = new Promise<void>((resolve) =>
+        setTimeout(resolve, timeoutMs)
+      );
+      const drainPromise = Promise.allSettled(Array.from(this.pending)).then(
+        (results) => {
+          for (const res of results) {
+            if (
+              res.status === "rejected" &&
+              res.reason?.message !== "CAPTURE_ABORTED"
+            ) {
+              errors.push(
+                t("cleanupInteractionWriteFailed", [String(res.reason)])
+              );
+            }
+          }
+        }
+      );
+
+      await Promise.race([drainPromise, timeoutPromise]);
+      this.pending.clear();
+    }
+
+    try {
+      const targetSessionIds = new Set<string>();
+      if (sessionId) targetSessionIds.add(sessionId);
+      if (this.abortedSessionId) targetSessionIds.add(this.abortedSessionId);
+      const activeSession = await this.repository
+        .getActiveSession()
+        .catch(() => undefined);
+      if (activeSession?.id) targetSessionIds.add(activeSession.id);
+      for (const sid of this.sessionInteractions.keys()) {
+        targetSessionIds.add(sid);
+      }
+
+      for (const sid of targetSessionIds) {
+        await this.finalizePending(sid);
+        this.sessionInteractions.delete(sid);
+      }
+    } catch (err) {
+      errors.push(String(err));
+    }
+    await flushStorageBatchQueue().catch(() => {});
+
     return errors;
   }
 
@@ -177,8 +316,16 @@ export class InteractionCapture {
       const next = applyInteractionEvent(previous, event);
       if (next && next !== previous) {
         const stored = await this.repository.saveInteractionWithinBudget(next);
-        if (!stored.stored)
+        if (!stored.stored) {
+          if (
+            event.type === "screenshot-unavailable" &&
+            this.repository.saveInteraction
+          ) {
+            await this.repository.saveInteraction(next);
+            return { previous, next };
+          }
           return { previous, next: previous, budgetRejected: true };
+        }
       }
       return { previous, next };
     });
@@ -271,6 +418,11 @@ export class InteractionCapture {
   ): Promise<void> {
     const session = await this.repository.getActiveSession();
     if (!this.isAccepted(session, sender, interaction.sessionId)) return;
+
+    if (this.aborted && !this.isStopping(session.id)) {
+      this.reset();
+    }
+
     const authoritativeFrameId =
       typeof sender.frameId === "number"
         ? sender.frameId
@@ -304,6 +456,13 @@ export class InteractionCapture {
       },
       session.options.privacyMode
     );
+    let interactionSet = this.sessionInteractions.get(session.id);
+    if (!interactionSet) {
+      interactionSet = new Set<string>();
+      this.sessionInteractions.set(session.id, interactionSet);
+    }
+    interactionSet.add(incoming.id);
+
     const event: InteractionEvent =
       incoming.status === "confirmed"
         ? { type: "confirmed", interaction: incoming }
@@ -340,8 +499,22 @@ export class InteractionCapture {
         delta: interactionDelta,
       });
     }
-    if (session.options.captureScreenshots && !previous && !this.aborted) {
+    if (
+      session.options.captureScreenshots &&
+      !previous &&
+      !this.aborted &&
+      !this.isStopping(session.id)
+    ) {
       await this.captureScreenshot(session, next, sender);
+    } else if (
+      session.options.captureScreenshots &&
+      !previous &&
+      (this.aborted || this.isStopping(session.id))
+    ) {
+      await this.persist(session.id, next.id, {
+        type: "screenshot-unavailable",
+        issue: t("screenshotUnavailable"),
+      });
     }
   }
 
@@ -356,48 +529,88 @@ export class InteractionCapture {
     session: RecordingSession
   ): Promise<string> {
     const task = this.captureQueue.then(async () => {
-      if (this.aborted) throw new Error("CAPTURE_ABORTED");
+      if (this.aborted || this.isStopping(session.id)) {
+        throw new Error("CAPTURE_ABORTED");
+      }
 
       const elapsed = Date.now() - this.lastCaptureTime;
       // 轻量防抖 40ms（支持高达 25fps 密集点击截屏）
       if (elapsed < 40) {
         await new Promise((resolve) => setTimeout(resolve, 40 - elapsed));
       }
-      if (this.aborted) throw new Error("CAPTURE_ABORTED");
+      if (this.aborted || this.isStopping(session.id)) {
+        throw new Error("CAPTURE_ABORTED");
+      }
 
       this.lastCaptureTime = Date.now();
       const tabId = session.target.tabId;
 
-      // 1. 优先尝试 CDP Page.captureScreenshot
-      if (typeof chrome !== "undefined" && chrome.debugger && tabId) {
+      // 1. 优先尝试 CDP Page.captureScreenshot（若熔断器未开启）
+      if (
+        !this.cdpBreakerOpen &&
+        typeof chrome !== "undefined" &&
+        chrome.debugger &&
+        tabId
+      ) {
         try {
-          const res = (await chrome.debugger.sendCommand(
-            { tabId },
-            "Page.captureScreenshot",
-            {
-              format: "jpeg",
-              quality: 92,
-              fromSurface: true,
-              captureBeyondViewport: false,
-            }
-          )) as { data?: string };
+          const cdpTask = Promise.resolve().then(
+            () =>
+              chrome.debugger.sendCommand({ tabId }, "Page.captureScreenshot", {
+                format: "jpeg",
+                quality: 92,
+                fromSurface: true,
+                captureBeyondViewport: false,
+              }) as Promise<{ data?: string }>
+          );
+          const res = await withTimeout(
+            cdpTask,
+            this.channelTimeoutMs,
+            "CDP_CAPTURE_TIMEOUT",
+            this.abortController.signal
+          );
           if (res?.data) {
             return `data:image/jpeg;base64,${res.data}`;
           }
-        } catch {
-          // CDP 断开或不支持时降级走 captureVisibleTab
+        } catch (err: any) {
+          if (this.aborted || err?.message === "CAPTURE_ABORTED") {
+            throw err;
+          }
+          if (err?.message === "CDP_CAPTURE_TIMEOUT") {
+            this.cdpBreakerOpen = true;
+          }
+          // CDP 超时、断开或不支持时降级走 captureVisibleTab
         }
       }
 
+      if (this.aborted || this.isStopping(session.id)) {
+        throw new Error("CAPTURE_ABORTED");
+      }
+
       // 2. 降级走 chrome.tabs.captureVisibleTab
-      const capture = chrome.tabs.captureVisibleTab as unknown as (
-        wId: number,
-        options: { format: "jpeg"; quality: number }
-      ) => Promise<string>;
-      return capture(
-        session.target.windowId ?? chrome.windows?.WINDOW_ID_CURRENT ?? -2,
-        { format: "jpeg", quality: 92 }
-      );
+      if (
+        typeof chrome !== "undefined" &&
+        chrome.tabs &&
+        typeof chrome.tabs.captureVisibleTab === "function"
+      ) {
+        const capture = chrome.tabs.captureVisibleTab as unknown as (
+          wId: number,
+          options: { format: "jpeg"; quality: number }
+        ) => Promise<string>;
+        const tabTask = Promise.resolve().then(() =>
+          capture(
+            session.target.windowId ?? chrome.windows?.WINDOW_ID_CURRENT ?? -2,
+            { format: "jpeg", quality: 92 }
+          )
+        );
+        return await withTimeout(
+          tabTask,
+          this.channelTimeoutMs,
+          "CAPTURE_VISIBLE_TAB_TIMEOUT",
+          this.abortController.signal
+        );
+      }
+
+      throw new Error("NO_SCREENSHOT_CHANNEL_AVAILABLE");
     });
 
     this.captureQueue = task.then(
@@ -412,17 +625,26 @@ export class InteractionCapture {
     interaction: InteractionRecord,
     sender: chrome.runtime.MessageSender
   ): Promise<void> {
-    if (this.aborted) return;
+    if (this.aborted || this.isStopping(session.id)) {
+      await this.persist(session.id, interaction.id, {
+        type: "screenshot-unavailable",
+        issue: t("screenshotUnavailable"),
+      });
+      return;
+    }
     const endStepTimer = DevProfiler.time(`交互截图生成 #${interaction.id}`);
     try {
       await this.assertTargetTabIsActive(session);
       const capStartTime = performance.now();
       const rawDataUrl = await this.executeCaptureScreenshot(session);
-      if (this.aborted) return;
+      if (this.aborted || this.isStopping(session.id)) {
+        throw new Error("CAPTURE_ABORTED");
+      }
       const capDuration = performance.now() - capStartTime;
-      await this.assertTargetTabIsActive(session);
       const markStartTime = performance.now();
-      if (this.aborted) return;
+      if (this.aborted || this.isStopping(session.id)) {
+        throw new Error("CAPTURE_ABORTED");
+      }
 
       let finalDataUrl = rawDataUrl;
       let source: "primary" | "fallback" = "primary";
@@ -438,42 +660,44 @@ export class InteractionCapture {
             );
 
       try {
-        const annotateTask = chrome.runtime.sendMessage(
-          message(
-            "offscreen/annotate-image",
-            {
-              dataUrl: rawDataUrl,
-              clientX: interaction.coordinates.clientX,
-              clientY: interaction.coordinates.clientY,
-              viewportWidth: vp.width,
-              viewportHeight: vp.height,
-            },
-            session.id,
-            "offscreen"
-          )
-        );
-        const timeoutTask = new Promise<{ ok: false; error: string }>(
-          (resolve) =>
-            setTimeout(
-              () => resolve({ ok: false, error: "ANNOTATION_TIMEOUT" }),
-              3000
+        const annotateTask = Promise.resolve().then(() =>
+          chrome.runtime.sendMessage(
+            message(
+              "offscreen/annotate-image",
+              {
+                dataUrl: rawDataUrl,
+                clientX: interaction.coordinates.clientX,
+                clientY: interaction.coordinates.clientY,
+                viewportWidth: vp.width,
+                viewportHeight: vp.height,
+              },
+              session.id,
+              "offscreen"
             )
+          )
+        ) as Promise<{ ok?: boolean; dataUrl?: string; error?: string }>;
+        const annotated = await withTimeout(
+          annotateTask,
+          1500,
+          "ANNOTATION_TIMEOUT",
+          this.abortController.signal
         );
-        const annotated = (await Promise.race([annotateTask, timeoutTask])) as
-          | { ok: true; dataUrl: string }
-          | { ok: false; error?: string }
-          | undefined;
 
         if (annotated?.ok && typeof annotated.dataUrl === "string") {
           finalDataUrl = annotated.dataUrl;
         } else {
           source = "fallback";
         }
-      } catch {
+      } catch (annotateErr: any) {
+        if (this.aborted || annotateErr?.message === "CAPTURE_ABORTED") {
+          throw annotateErr;
+        }
         source = "fallback";
       }
 
-      if (this.aborted) return;
+      if (this.aborted || this.isStopping(session.id)) {
+        throw new Error("CAPTURE_ABORTED");
+      }
       const markDuration = performance.now() - markStartTime;
       const assetId = `asset-interaction-${interaction.id}`;
       const bytes = dataUrlToArrayBuffer(finalDataUrl);
@@ -495,6 +719,10 @@ export class InteractionCapture {
         createdAtEpochMs: Date.now(),
       });
       if (!assetResult.stored) {
+        await this.persist(session.id, interaction.id, {
+          type: "screenshot-unavailable",
+          issue: t("screenshotStorageLimitReached"),
+        });
         await this.writeSessionEvent(session.id, {
           type: "capture-issue",
           issue: issue(
@@ -536,16 +764,26 @@ export class InteractionCapture {
       const safeError = sanitizeText(raw, session.options.privacyMode);
       // iframe 截图暂不支持：将开发者错误映射为面向用户的纯文案，避免展示内部前缀
       const isFrameGeometry = raw.includes("FRAME_GEOMETRY_UNAVAILABLE");
+      const isAborted = raw.includes("CAPTURE_ABORTED");
+      const isTimeout =
+        raw.includes("CDP_CAPTURE_TIMEOUT") ||
+        raw.includes("CAPTURE_VISIBLE_TAB_TIMEOUT");
       const userMessage = isFrameGeometry
         ? t("iframeCaptureUnsupported")
-        : safeError;
+        : isAborted
+          ? t("screenshotUnavailable")
+          : safeError;
       const issueCode = isFrameGeometry
         ? "IFRAME_CAPTURE_UNSUPPORTED"
-        : safeError.includes("MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND")
-          ? "SCREENSHOT_QUOTA_EXCEEDED"
-          : safeError.includes("TARGET_TAB_NOT_ACTIVE")
-            ? "VISIBLE_TAB_NOT_ACTIVE"
-            : "SCREENSHOT_CAPTURE_FAILED";
+        : isAborted
+          ? "SCREENSHOT_ABORTED"
+          : isTimeout
+            ? "SCREENSHOT_TIMEOUT"
+            : safeError.includes("MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND")
+              ? "SCREENSHOT_QUOTA_EXCEEDED"
+              : safeError.includes("TARGET_TAB_NOT_ACTIVE")
+                ? "VISIBLE_TAB_NOT_ACTIVE"
+                : "SCREENSHOT_CAPTURE_FAILED";
       const result = await this.persist(session.id, interaction.id, {
         type: "screenshot-unavailable",
         issue: userMessage,
@@ -581,10 +819,45 @@ export class InteractionCapture {
           session.options.privacyMode
         )
       : undefined;
-    const { previous, next } = await this.persist(session.id, interactionId, {
-      type: "cancelled",
-      interaction: cancelled,
-    });
+
+    let interactionSet = this.sessionInteractions.get(session.id);
+    if (!interactionSet) {
+      interactionSet = new Set<string>();
+      this.sessionInteractions.set(session.id, interactionSet);
+    }
+    interactionSet.add(interactionId);
+
+    const { previous, next } = await this.enqueue(
+      `${session.id}:${interactionId}`,
+      async () => {
+        const previous = await this.repository.getInteraction(interactionId);
+        let next = applyInteractionEvent(previous, {
+          type: "cancelled",
+          interaction: cancelled,
+        });
+        if (next && next.screenshot?.status === "pending") {
+          next = {
+            ...next,
+            screenshot: {
+              status: "unavailable",
+              issue: t("screenshotUnavailable"),
+            },
+          };
+        }
+        if (next && next !== previous) {
+          const stored =
+            await this.repository.saveInteractionWithinBudget(next);
+          if (!stored.stored) {
+            if (this.repository.saveInteraction) {
+              await this.repository.saveInteraction(next);
+              return { previous, next };
+            }
+            return { previous, next: previous, budgetRejected: true };
+          }
+        }
+        return { previous, next };
+      }
+    );
     if (
       !previous ||
       next?.status !== "cancelled" ||

@@ -15,6 +15,7 @@ import {
 } from "../../domain/silent-export";
 import { isEn, t } from "../../shared/i18n";
 import { ensureOffscreenDocument } from "../../shared/offscreen";
+import { flushStorageBatchQueue } from "../../storage/db";
 import type { BackgroundContext } from "./context";
 
 export type StartSessionPayload = Extract<
@@ -97,16 +98,17 @@ export function createSessionLifecycle(
         ).length,
         primaryScreenshotCount: included.filter(
           (entry) =>
-            entry.screenshot.status === "captured" &&
-            entry.screenshot.source === "primary"
+            entry.screenshot?.status === "captured" &&
+            entry.screenshot?.source === "primary"
         ).length,
         fallbackScreenshotCount: included.filter(
           (entry) =>
-            entry.screenshot.status === "captured" &&
-            entry.screenshot.source === "video-frame"
+            entry.screenshot?.status === "captured" &&
+            (entry.screenshot?.source === "fallback" ||
+              entry.screenshot?.source === "video-frame")
         ).length,
         unavailableScreenshotCount: included.filter(
-          (entry) => entry.screenshot.status === "unavailable"
+          (entry) => entry.screenshot?.status === "unavailable"
         ).length,
         issueSceneCount: issueScenes.length,
         partialIssueSceneCount: issueScenes.filter(
@@ -272,6 +274,7 @@ export function createSessionLifecycle(
         issues,
       });
       if (["RECORDING", "DEGRADED"].includes(started.status)) {
+        interactionCapture.reset?.();
         navigationCapture.attach();
         navigationCapture.setCurrentUrl(tab.url ?? "");
         streamHealthMonitor.initialize(payload.tabId, session.id, {
@@ -412,7 +415,7 @@ export function createSessionLifecycle(
     const tCleanupStart = performance.now();
 
     // 立即熔断并取消在途未截取的排队任务，防止阻塞收尾
-    interactionCapture.abortPending();
+    interactionCapture.abortPending(session.id);
 
     try {
       await cdpCollector.detach(session.target.tabId);
@@ -434,10 +437,11 @@ export function createSessionLifecycle(
           ])
         );
 
-      cleanupErrors.push(...(await interactionCapture.drain()));
+      cleanupErrors.push(...(await interactionCapture.drain(1200, session.id)));
       cleanupErrors.push(...(await issueSceneCapture.drain()));
 
       cleanupErrors.push(...(await cdpCollector.drain()));
+      await flushStorageBatchQueue().catch(() => {});
       await cdpCollector
         .finalizeNetworkBodies(stopping)
         .catch((error) =>

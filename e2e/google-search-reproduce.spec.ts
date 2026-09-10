@@ -259,6 +259,7 @@ test.describe("Bug Lens 真实用户 Bing 搜索交互截图复现测试", () =>
       logE2e("session-data summary 交互摘要", {
         snippet: summaryMatch ? summaryMatch[0] : "none",
       });
+      expect(sessionDataCode).not.toMatch(/"status":\s*"pending"/);
     }
 
     // 8. 验证预览页面 UI 表现
@@ -286,6 +287,10 @@ test.describe("Bug Lens 真实用户 Bing 搜索交互截图复现测试", () =>
       pendingBadgeCount,
     });
 
+    // 断言交互截图绝不残留 pending，且预览页无 pending 徽标
+    expect(pendingInteractions.length).toBe(0);
+    expect(pendingBadgeCount).toBe(0);
+
     // 综合判定问题是否存在
     const hasPendingIssue = pendingInteractions.length > 0;
     logE2e("=== Bing 真实测试执行结论 ===", {
@@ -297,5 +302,121 @@ test.describe("Bug Lens 真实用户 Bing 搜索交互截图复现测试", () =>
         ? "发现截屏停留为 pending 状态！问题真实存在并复现！"
         : "在当前 Playwright 环境下截屏未挂起，全部成功 captured",
     });
+  });
+
+  test("REPRO-CDP-TIMEOUT-002: 底层 CDP 截屏挂起时，通道平稳超时降级至 captureVisibleTab，队列不阻塞且不残留 pending", async ({
+    context,
+    extensionId,
+    serviceWorker,
+    openActionPopup,
+    mediaProbe,
+  }) => {
+    let targetPage = context.pages()[0];
+    if (!targetPage) targetPage = await context.newPage();
+
+    try {
+      await targetPage.goto("https://www.bing.com", {
+        waitUntil: "domcontentloaded",
+        timeout: 15_000,
+      });
+    } catch {
+      test.skip(true, "当前网络无法访问 Bing，跳过在线测试");
+      return;
+    }
+
+    // 在 Service Worker 中安装探针：使 CDP Page.captureScreenshot 永久挂起
+    await serviceWorker.evaluate(() => {
+      const originalSendCommand = chrome.debugger.sendCommand.bind(
+        chrome.debugger
+      );
+      (chrome.debugger as any).sendCommand = async function (
+        target: chrome.debugger.DebuggerSession,
+        method: string,
+        params?: object
+      ) {
+        if (method === "Page.captureScreenshot") {
+          return new Promise(() => {}); // 模拟底层 CDP 挂起
+        }
+        return (originalSendCommand as any)(target, method, params);
+      };
+    });
+
+    await targetPage.bringToFront();
+    await targetPage.waitForTimeout(500);
+
+    const startPopup = await openActionPopup(targetPage);
+    await startPopup.waitForSelector('[data-testid="record-panel"]');
+    const targetTabId = await startPopup.evaluate<number | undefined>(
+      "(async () => (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id)()"
+    );
+    expect(targetTabId).toBeTruthy();
+    await startPopup.click('[data-testid="start-recording-btn"]');
+    await startPopup.dispose();
+
+    const session = await mediaProbe.waitForSession(targetTabId!, 15_000);
+    await mediaProbe.waitForActive(session.id, targetTabId!, 15_000);
+
+    await targetPage.bringToFront();
+    await targetPage.waitForTimeout(600);
+
+    const searchInput = targetPage
+      .locator('#sb_form_q, textarea[name="q"], input[name="q"]')
+      .first();
+    if (await searchInput.isVisible()) {
+      await searchInput.click({ force: true });
+      await targetPage.waitForTimeout(1300); // 等待 1000ms 超时降级至 captureVisibleTab
+      await searchInput.fill("Bug Lens 超时降级验证");
+      await targetPage.waitForTimeout(1300);
+    }
+
+    const stopButton = targetPage.locator("#__wbr_stop_btn__");
+    await expect(stopButton).toBeVisible({ timeout: 10_000 });
+    await stopButton.click();
+
+    const exportedDownload = await mediaProbe.waitForExportDownload(30_000);
+    expect(exportedDownload.state).toBe("complete");
+
+    const fullEvidence = await mediaProbe.persistedFullEvidence(session.id);
+    console.log(
+      "REPRO-CDP-TIMEOUT-002 all interactions:",
+      JSON.stringify(
+        fullEvidence.interactions.map((i) => ({
+          id: i.id,
+          kind: i.kind,
+          status: i.status,
+          screenshot: i.screenshot,
+          element: i.element?.tagName,
+        })),
+        null,
+        2
+      )
+    );
+    const pendingList = fullEvidence.interactions.filter(
+      (i: InteractionRecord) => i.screenshot?.status === "pending"
+    );
+    expect(pendingList.length).toBe(0);
+
+    if (exportedDownload.filename && fs.existsSync(exportedDownload.filename)) {
+      const zipBuffer = fs.readFileSync(exportedDownload.filename);
+      const unzipped = unzipSync(new Uint8Array(zipBuffer));
+      if (unzipped["data/session-data.js"]) {
+        const sessionDataCode = new TextDecoder().decode(
+          unzipped["data/session-data.js"]
+        );
+        expect(sessionDataCode).not.toMatch(/"status":\s*"pending"/);
+      }
+    }
+
+    const previewPage = await context.newPage();
+    await previewPage.goto(
+      `chrome-extension://${extensionId}/preview.html?sessionId=${session.id}`
+    );
+    await previewPage.waitForLoadState("domcontentloaded");
+    const stepsTab = previewPage.locator('.zen-tab-btn[data-tab="steps"]');
+    if (await stepsTab.isVisible()) {
+      await stepsTab.click();
+    }
+    const pendingBadges = previewPage.locator(".badge:has-text('pending')");
+    expect(await pendingBadges.count()).toBe(0);
   });
 });
