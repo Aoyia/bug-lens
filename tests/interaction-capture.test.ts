@@ -883,6 +883,77 @@ test("Offscreen 标注阶段收到 abort 信号时立即中断熔断，不阻塞
   );
 });
 
+test("会话停止导致的截图熔断不生成 SCREENSHOT_ABORTED capture-issue", async () => {
+  installChromeMock({
+    tabsQuery: async () => [{ id: 7, active: true }],
+    // 让 captureVisibleTab 永远挂起，模拟截图执行中被停止
+    captureVisibleTab: async () => new Promise(() => {}),
+    sendMessage: async () => ({
+      ok: true,
+      dataUrl: "data:image/jpeg;base64,AAA",
+    }),
+  });
+
+  const storedMap = new Map<string, InteractionRecord>();
+  const sessionEvents: RecordingSessionEvent[] = [];
+  let stopping = false;
+
+  const testSession: RecordingSession = {
+    ...session,
+    id: "session-stop-no-issue",
+    options: { ...session.options, captureScreenshots: true },
+  };
+
+  const capture = new InteractionCapture(
+    {
+      getActiveSession: async () => testSession,
+      getInteraction: async (id) => storedMap.get(id),
+      saveInteractionWithinBudget: async (next) => {
+        storedMap.set(next.id, next);
+        return { stored: true, usedBytes: 1, limitReached: false };
+      },
+      saveEvidenceAssetWithinBudget: async () => {
+        return { stored: true, usedBytes: 1, limitReached: false };
+      },
+      getInteractions: async () => Array.from(storedMap.values()),
+    },
+    async (_sessionId, event) => {
+      sessionEvents.push(event);
+      return testSession;
+    },
+    () => stopping,
+    200
+  );
+
+  const int: InteractionRecord = { ...interaction, id: "int-stop-no-issue" };
+  const handlePromise = capture.handle(int, {
+    tab: { id: 7 },
+    frameId: 0,
+  } as any);
+
+  // 确保已进入截图阶段后再触发会话停止
+  await new Promise((r) => setTimeout(r, 30));
+  stopping = true;
+  capture.abortPending(testSession.id);
+
+  await handlePromise.catch(() => {});
+
+  assert.equal(
+    storedMap.get("int-stop-no-issue")?.screenshot.status,
+    "unavailable",
+    "停止后截图应收敛为 unavailable"
+  );
+
+  const issues = sessionEvents.filter((e) => e.type === "capture-issue");
+  assert.deepEqual(issues, [], "会话停止导致的截图熔断不应生成 capture-issue");
+
+  const unavailableDelta = sessionEvents.find(
+    (e) =>
+      e.type === "quality-delta" && e.delta.unavailableScreenshotCount === 1
+  );
+  assert.ok(unavailableDelta, "应上报 unavailableScreenshotCount +1");
+});
+
 test("applyInteractionEvent 防止已 captured 的截图被迟到的 screenshot-unavailable 覆写降级", () => {
   const capturedRecord: InteractionRecord = {
     ...interaction,

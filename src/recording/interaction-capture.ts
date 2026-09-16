@@ -797,10 +797,13 @@ export class InteractionCapture {
           type: "quality-delta",
           delta: { unavailableScreenshotCount: 1 },
         });
-        await this.writeSessionEvent(session.id, {
-          type: "capture-issue",
-          issue: issue(issueCode, userMessage, "screenshot"),
-        });
+        // 用户主动停止会话导致的截图熔断，不应记为质量问题
+        if (!this.isStopping(session.id)) {
+          await this.writeSessionEvent(session.id, {
+            type: "capture-issue",
+            issue: issue(issueCode, userMessage, "screenshot"),
+          });
+        }
       }
     }
   }
