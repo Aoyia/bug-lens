@@ -208,6 +208,9 @@ export type RecordingSession = {
     startedAtEpochMs?: number;
     stoppedAtEpochMs?: number;
     durationMs?: number;
+    pausedDurationMs?: number;
+    isPaused?: boolean;
+    pausedAtEpochMs?: number;
   };
   quality: QualitySummary;
   nonce: string;
@@ -829,6 +832,7 @@ export type RuntimeMessage =
         discard?: boolean;
         traceStartMs?: number;
         traceContext?: ExportTraceContext;
+        pausedDurationMs?: number;
       }
     >
   | Envelope<"session/status", { session?: RecordingSession }>
@@ -889,6 +893,15 @@ export type RuntimeMessage =
   | Envelope<"content/health-update", { health: RecordingHealthInfo }>
   | Envelope<"content/screenshot-overlay-state", { open: boolean }>
   | Envelope<"content/activity-ping", { timestamp?: number }>
+  | Envelope<
+      "recording/pause-state",
+      {
+        sessionId: string;
+        isPaused: boolean;
+        pausedDurationMs: number;
+        atEpochMs: number;
+      }
+    >
   | Envelope<"framework/state", { state: FrameworkStateEvidence }>
   | Envelope<
       "offscreen/start-media",
@@ -1037,6 +1050,7 @@ export type RuntimeMessageResponseMap = {
   "content/health-update": { ok: true };
   "content/screenshot-overlay-state": { ok: true };
   "content/activity-ping": { ok: true };
+  "recording/pause-state": { ok: true };
   "framework/state": { ok: true; stored: boolean };
   "offscreen/start-media": { ok: true };
   "offscreen/stop-media": { ok: true };

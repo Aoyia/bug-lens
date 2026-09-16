@@ -168,6 +168,7 @@ if (existingController) {
               silentExport: true,
               traceStartMs: t0Perf,
               traceContext,
+              pausedDurationMs: monitor?.getPausedDurationMs() ?? 0,
             })
           );
           const exportFailure = getSilentExportFailure(res, t("stopFailed"));
@@ -212,7 +213,27 @@ if (existingController) {
 
           const toastStart = performance.now();
           try {
-            widget.showToast(t("exportSuccessCopied"));
+            const targetSessionId =
+              res?.session?.id ??
+              (res?.session as { sessionId?: string })?.sessionId ??
+              session?.sessionId;
+            widget.showToast(
+              t("exportSuccessCopied"),
+              6000,
+              "normal",
+              targetSessionId
+                ? {
+                    label: `${t("openPreview")} ↗`,
+                    onClick: () => {
+                      void chrome.runtime.sendMessage(
+                        message("session/open-preview", {
+                          sessionId: targetSessionId,
+                        })
+                      );
+                    },
+                  }
+                : undefined
+            );
           } catch {
             // 忽略 Toast 展示异常
           }
@@ -384,7 +405,7 @@ if (existingController) {
     monitor = new InactivityMonitor({
       onPause() {
         widget?.updatePauseState(true);
-        if (session)
+        if (session) {
           void chrome.runtime.sendMessage(
             message(
               "offscreen/pause-media",
@@ -393,10 +414,24 @@ if (existingController) {
               "offscreen"
             )
           );
+          void chrome.runtime.sendMessage(
+            message(
+              "recording/pause-state",
+              {
+                sessionId: session.sessionId,
+                isPaused: true,
+                pausedDurationMs: monitor?.getPausedDurationMs() ?? 0,
+                atEpochMs: Date.now(),
+              },
+              session.sessionId,
+              "background"
+            )
+          );
+        }
       },
       onResume() {
         widget?.updatePauseState(false);
-        if (session)
+        if (session) {
           void chrome.runtime.sendMessage(
             message(
               "offscreen/resume-media",
@@ -405,6 +440,20 @@ if (existingController) {
               "offscreen"
             )
           );
+          void chrome.runtime.sendMessage(
+            message(
+              "recording/pause-state",
+              {
+                sessionId: session.sessionId,
+                isPaused: false,
+                pausedDurationMs: monitor?.getPausedDurationMs() ?? 0,
+                atEpochMs: Date.now(),
+              },
+              session.sessionId,
+              "background"
+            )
+          );
+        }
       },
       isBlocked: (): boolean =>
         (overlay?.isActive ||

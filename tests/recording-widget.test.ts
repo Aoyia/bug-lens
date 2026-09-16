@@ -70,9 +70,21 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
 
     const dispatch = (target: any, event: any) => {
       const type = typeof event === "string" ? event : event.type;
+      const evt =
+        typeof event === "object" && event !== null
+          ? {
+              stopPropagation: () => {},
+              preventDefault: () => {},
+              ...event,
+            }
+          : {
+              type,
+              stopPropagation: () => {},
+              preventDefault: () => {},
+            };
       const map = listenersMap.get(target);
       if (map && map[type]) {
-        map[type].forEach((fn) => fn(event));
+        map[type].forEach((fn) => fn(evt));
       }
     };
 
@@ -177,13 +189,33 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
         if (sel.includes("issue_btn")) return issueBtn;
         if (sel.includes("timer_display")) return timerDisplay;
         if (sel.includes("rec-tag")) return recTag;
+        if (sel.includes("toast_action")) return toastActionBtn;
         return null;
       },
       remove() {},
     };
 
+    const toastActionBtn = {
+      id: "__wbr_toast_action__",
+      textContent: "预览 ↗",
+      style: {
+        ...mockRootElement.style,
+        color: "#165dff",
+        textDecoration: "none",
+        cursor: "pointer",
+        cssText: "cursor: pointer;",
+      },
+      addEventListener: mockRootElement.addEventListener,
+      removeEventListener: mockRootElement.removeEventListener,
+      dispatchEvent: mockRootElement.dispatchEvent,
+    };
+
     const appendedElements: any[] = [];
     const doc = {
+      documentElement: {
+        clientWidth: 1024,
+        clientHeight: 768,
+      },
       body: {
         appendChild(child: any) {
           appendedElements.push(child);
@@ -688,6 +720,42 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
       toast.innerHTML.includes("<kbd"),
       "Toast 中的快捷键应被包装为 kbd 键帽"
     );
+  });
+
+  test("录制挂件 showToast 支持渲染操作按钮并响应点击", () => {
+    widget = new RecordingWidget(callbacks);
+    let clicked = false;
+    widget.showToast("主标题\n副标题", 5000, "normal", {
+      label: "预览 ↗",
+      onClick: () => {
+        clicked = true;
+      },
+    });
+
+    const toast = document.querySelector("#__wbr_toast__") as HTMLElement;
+    assert.ok(toast, "页面必须渲染 #__wbr_toast__");
+    assert.ok(toast.innerHTML.includes("·"), "Toast 第二行应包含中点分隔符");
+    const actionBtn = toast.querySelector(
+      "#__wbr_toast_action__"
+    ) as HTMLElement;
+    assert.ok(actionBtn, "Toast 中应渲染行内操作链接 #__wbr_toast_action__");
+    assert.equal(actionBtn.textContent, "预览 ↗");
+    assert.match(actionBtn.style.cssText, /cursor:\s*pointer/);
+
+    // 触发鼠标悬停与移出
+    actionBtn.dispatchEvent({ type: "mouseenter" });
+    assert.equal(actionBtn.style.color, "#0e42d2");
+    assert.equal(actionBtn.style.textDecoration, "underline");
+    actionBtn.dispatchEvent({ type: "mouseleave" });
+    assert.equal(actionBtn.style.color, "#165dff");
+    assert.equal(actionBtn.style.textDecoration, "none");
+
+    // 点击操作按钮触发回调
+    actionBtn.dispatchEvent({
+      type: "click",
+      stopPropagation: () => {},
+    });
+    assert.equal(clicked, true, "点击操作按钮必须触发 onClick 回调");
   });
 
   test("首次挂载录制悬浮条时展示跟随轻气泡，且气泡展示期间保持展开", () => {

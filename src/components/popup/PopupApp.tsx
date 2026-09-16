@@ -645,13 +645,19 @@ export function PopupApp() {
 
   const getStatusText = useCallback(() => {
     if (active) {
+      if (activeSession?.timeline.isPaused) return t("idlePaused");
       if (activeSession?.status === "PREPARING") return t("recordingStarting");
       if (activeSession?.status === "DEGRADED") return t("recordingDegraded");
       return t("recording");
     }
     if (previewReady) return t("recordingCompleted");
     return t("notRecording");
-  }, [active, previewReady, activeSession?.status]);
+  }, [
+    active,
+    previewReady,
+    activeSession?.status,
+    activeSession?.timeline.isPaused,
+  ]);
 
   return (
     <main className="shell" key={i18nVersion}>

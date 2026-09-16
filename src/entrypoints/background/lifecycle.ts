@@ -33,7 +33,7 @@ export type StartSessionPayload = Extract<
   { type: "session/start" }
 >["payload"];
 
-/** 会话生命周期服务：启动/停止/续录/预览打开/质量对账/媒体控制。 */
+/** 会话生命周期服务：启动/停止/续录/预览打开/质量对账/媒体控制/暂停状态同步。 */
 export interface SessionLifecycle {
   start(payload: StartSessionPayload): Promise<RecordingSession>;
   stop(
@@ -42,7 +42,8 @@ export interface SessionLifecycle {
     discard?: boolean,
     silentExport?: boolean,
     traceStartMs?: number,
-    traceContext?: ExportTraceContext
+    traceContext?: ExportTraceContext,
+    pausedDurationMs?: number
   ): Promise<RecordingSession | undefined>;
   continueInterrupted(
     sessionId: string,
@@ -60,7 +61,8 @@ export interface SessionLifecycle {
     discard?: boolean,
     silentExport?: boolean,
     traceStartMs?: number,
-    traceContext?: ExportTraceContext
+    traceContext?: ExportTraceContext,
+    pausedDurationMs?: number
   ): Promise<RecordingSession | undefined>;
   stopImpl(
     commandId?: string,
@@ -68,10 +70,17 @@ export interface SessionLifecycle {
     discard?: boolean,
     silentExport?: boolean,
     traceStartMs?: number,
-    traceContext?: ExportTraceContext
+    traceContext?: ExportTraceContext,
+    pausedDurationMs?: number
   ): Promise<RecordingSession | undefined>;
   pauseMedia(sessionId: string): Promise<void>;
   resumeMedia(sessionId: string): Promise<void>;
+  updatePauseState(
+    sessionId: string,
+    isPaused: boolean,
+    pausedDurationMs: number,
+    atEpochMs: number
+  ): Promise<void>;
 }
 
 export function createSessionLifecycle(
@@ -389,7 +398,8 @@ export function createSessionLifecycle(
     discard = false,
     silentExport = false,
     traceStartMs?: number,
-    traceContext?: ExportTraceContext
+    traceContext?: ExportTraceContext,
+    pausedDurationMs?: number
   ): Promise<RecordingSession | undefined> {
     const tTraceStart = traceStartMs ?? performance.now();
     let initialT0: number | undefined;
@@ -588,6 +598,7 @@ export function createSessionLifecycle(
         ...reduceSession(current, {
           type: "stop-completed",
           issue: cleanupIssue,
+          pausedDurationMs,
         }),
         previewPending: !silentExport,
       }));
@@ -808,7 +819,8 @@ export function createSessionLifecycle(
     discard = false,
     silentExport = false,
     traceStartMs?: number,
-    traceContext?: ExportTraceContext
+    traceContext?: ExportTraceContext,
+    pausedDurationMs?: number
   ): Promise<RecordingSession | undefined> {
     let session: RecordingSession | undefined;
     if (commandId) {
@@ -846,7 +858,8 @@ export function createSessionLifecycle(
         discard,
         silentExport,
         traceStartMs,
-        traceContext
+        traceContext,
+        pausedDurationMs
       )
     );
   }
@@ -858,7 +871,8 @@ export function createSessionLifecycle(
     discard = false,
     silentExport = false,
     traceStartMs?: number,
-    traceContext?: ExportTraceContext
+    traceContext?: ExportTraceContext,
+    pausedDurationMs?: number
   ): Promise<RecordingSession | undefined> {
     return recordingCoordinator.runLifecycle(() =>
       stopSessionImpl(
@@ -867,7 +881,8 @@ export function createSessionLifecycle(
         discard,
         silentExport,
         traceStartMs,
-        traceContext
+        traceContext,
+        pausedDurationMs
       )
     );
   }
@@ -947,6 +962,19 @@ export function createSessionLifecycle(
     }
   }
 
+  async function updatePauseState(
+    sessionId: string,
+    isPaused: boolean,
+    pausedDurationMs: number,
+    atEpochMs: number
+  ): Promise<void> {
+    await ctx.applySessionEvent(sessionId, {
+      type: isPaused ? "paused" : "resumed",
+      atEpochMs,
+      pausedDurationMs,
+    });
+  }
+
   return {
     start: startSession,
     stop: stopSession,
@@ -957,5 +985,6 @@ export function createSessionLifecycle(
     stopImpl: stopSessionImpl,
     pauseMedia: pauseMediaSession,
     resumeMedia: resumeMediaSession,
+    updatePauseState,
   };
 }

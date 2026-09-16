@@ -121,3 +121,45 @@ test("stop command is persisted once and duplicate stops keep the first timestam
   assert.equal(duplicate.timeline.stoppedAtEpochMs, 2_000);
   assert.equal(duplicate.commandIds?.stop, "stop-1");
 });
+
+test("session correctly transitions between paused and resumed states", () => {
+  const recording = session("RECORDING");
+  const paused = applySessionEvent(recording, {
+    type: "paused",
+    atEpochMs: 3_000,
+    pausedDurationMs: 500,
+  });
+
+  assert.equal(paused.timeline.isPaused, true);
+  assert.equal(paused.timeline.pausedAtEpochMs, 3_000);
+  assert.equal(paused.timeline.pausedDurationMs, 500);
+
+  const resumed = applySessionEvent(paused, {
+    type: "resumed",
+    atEpochMs: 5_000,
+    pausedDurationMs: 2_500,
+  });
+
+  assert.equal(resumed.timeline.isPaused, false);
+  assert.equal(resumed.timeline.pausedAtEpochMs, undefined);
+  assert.equal(resumed.timeline.pausedDurationMs, 2_500);
+});
+
+test("stop-completed deducts pausedDurationMs from durationMs", () => {
+  const recording = session("RECORDING");
+  recording.timeline.startedAtEpochMs = 1_000;
+  recording.timeline.pausedDurationMs = 2_000;
+
+  const stopped = applySessionEvent(recording, {
+    type: "stop-completed",
+    atEpochMs: 10_000,
+    pausedDurationMs: 3_000,
+  });
+
+  assert.equal(stopped.status, "PREVIEW_READY");
+  assert.equal(stopped.timeline.stoppedAtEpochMs, 10_000);
+  assert.equal(stopped.timeline.pausedDurationMs, 3_000);
+  // 10000 - 1000 - 3000 = 6000
+  assert.equal(stopped.timeline.durationMs, 6_000);
+  assert.equal(stopped.timeline.isPaused, false);
+});

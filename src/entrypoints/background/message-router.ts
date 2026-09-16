@@ -162,7 +162,8 @@ export function createMessageRouter(
               incoming.payload.discard,
               incoming.payload.silentExport,
               incoming.payload.traceStartMs,
-              traceContext
+              traceContext,
+              incoming.payload.pausedDurationMs
             ),
           };
         }
@@ -296,6 +297,16 @@ export function createMessageRouter(
               )
               .catch(() => undefined);
           }
+          return { ok: true };
+        }
+        // content script 闲置自动暂停/恢复同步：实时更新会话 timeline 中的暂停态与时长
+        case "recording/pause-state": {
+          await lifecycle.updatePauseState(
+            incoming.payload.sessionId,
+            incoming.payload.isPaused,
+            incoming.payload.pausedDurationMs,
+            incoming.payload.atEpochMs
+          );
           return { ok: true };
         }
         // content script 上报框架状态快照（在存储预算内写入）

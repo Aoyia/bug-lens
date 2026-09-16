@@ -59,6 +59,22 @@
       }
     }
   },
+  "switchToRecordingTab": {
+    "message": "Switch to Recording Tab"
+  },
+  "stopRemoteRecording": {
+    "message": "Stop Background Recording & Export"
+  },
+  "currentTabNotRecording": {
+    "message": "Current tab is not recording"
+  },
+  "recordingOtherTabNotice": {
+    "message": "Recording another tab in background",
+    "description": "Notice indicating another tab is being recorded in background"
+  },
+  "remoteRecordingTarget": {
+    "message": "Background Recording Target"
+  },
   "defaultSafeCollection": {
     "message": "Capture Settings"
   },
@@ -369,6 +385,9 @@
   },
   "reopenPreview": {
     "message": "Reopen Preview"
+  },
+  "openPreview": {
+    "message": "Preview"
   },
   "searchPlaceholder": {
     "message": "Search title, URL, or status"

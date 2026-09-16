@@ -19,6 +19,11 @@ export type WidgetCallbacks = {
 
 type ToastTone = "success" | "error";
 
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 export class RecordingWidget {
   private container: HTMLDivElement | undefined;
   private timerInterval: number | undefined;
@@ -532,9 +537,16 @@ export class RecordingWidget {
   private syncBubblePosition(root: HTMLElement): void {
     if (!this.bubbleElement) return;
     const rect = root.getBoundingClientRect();
-    const winWidth = window.innerWidth || document.documentElement.clientWidth;
+    const winWidth =
+      (typeof window !== "undefined" && window.innerWidth) ||
+      (typeof document !== "undefined" &&
+        document.documentElement?.clientWidth) ||
+      1024;
     const winHeight =
-      window.innerHeight || document.documentElement.clientHeight;
+      (typeof window !== "undefined" && window.innerHeight) ||
+      (typeof document !== "undefined" &&
+        document.documentElement?.clientHeight) ||
+      768;
     const right = Math.max(8, winWidth - rect.right);
     const bottom = winHeight - rect.top + 8;
     this.bubbleElement.style.setProperty("right", `${right}px`, "important");
@@ -973,7 +985,8 @@ export class RecordingWidget {
   showToast(
     message: string,
     durationMs: number = 4000,
-    tone: "normal" | "error" = "normal"
+    tone: "normal" | "error" = "normal",
+    action?: ToastAction
   ): void {
     const existing = document.querySelector("#__wbr_toast__");
     if (existing) existing.remove();
@@ -1008,6 +1021,11 @@ export class RecordingWidget {
 
     const isDualLine = message.includes("\n");
     let contentHtml = "";
+
+    const actionHtml = action
+      ? `<span style="color:#c9cdd4!important;margin:0 4px!important;user-select:none!important;">·</span><span id="__wbr_toast_action__" role="button" tabindex="0" style="color:#165dff!important;cursor:pointer!important;text-decoration:none!important;font-weight:500!important;white-space:nowrap!important;transition:color 0.15s ease!important;">${action.label}</span>`
+      : "";
+
     if (isDualLine) {
       const [title, ...rest] = message.split("\n");
       const desc = rest.join("\n");
@@ -1019,16 +1037,43 @@ export class RecordingWidget {
       contentHtml = `
         <div style="display:flex!important;flex-direction:column!important;gap:2px!important;align-items:flex-start!important;text-align:left!important;">
           <div style="font-size:13.5px!important;font-weight:600!important;color:#1d2129!important;line-height:1.4!important;">${title}</div>
-          <div style="font-size:12px!important;font-weight:400!important;color:#86909c!important;line-height:1.4!important;">${descHtml}</div>
+          <div style="font-size:12px!important;font-weight:400!important;color:#86909c!important;line-height:1.4!important;">${descHtml}${actionHtml}</div>
         </div>
       `;
     } else {
-      contentHtml = `<span style="line-height:1.4!important;">${message}</span>`;
+      contentHtml = `<span style="line-height:1.4!important;">${message}${actionHtml}</span>`;
     }
 
     const icon = tone === "error" ? "!" : "✓";
     const iconColor = tone === "error" ? "#d5484c" : "#00b42a";
     toast.innerHTML = `<span style="color:${iconColor};font-size:16px;font-weight:700;line-height:1;margin-top:${isDualLine ? "2px" : "0"};align-self:${isDualLine ? "flex-start" : "center"};">${icon}</span> ${contentHtml}`;
+
+    if (action) {
+      const btn = toast.querySelector(
+        "#__wbr_toast_action__"
+      ) as HTMLElement | null;
+      if (btn) {
+        btn.addEventListener("mouseenter", () => {
+          btn.style.color = "#0e42d2";
+          btn.style.textDecoration = "underline";
+        });
+        btn.addEventListener("mouseleave", () => {
+          btn.style.color = "#165dff";
+          btn.style.textDecoration = "none";
+        });
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          try {
+            action.onClick();
+          } catch {
+            // 忽略回调执行异常
+          }
+          toast.style.opacity = "0";
+          toast.style.transform = "translateX(-50%) translateY(-10px)";
+          setTimeout(() => toast.remove(), 200);
+        });
+      }
+    }
     document.body.appendChild(toast);
 
     const rAF =

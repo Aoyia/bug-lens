@@ -156,3 +156,85 @@ test("useSessionState - 计时器生命周期与卸载清理", async () => {
     "卸载后 tick 不应改变或造成异常"
   );
 });
+
+test("useSessionState - 暂停时长扣除与暂停状态时间定格", async () => {
+  setupMockDocument();
+  const container = (globalThis as any).document.createElement("div");
+
+  let mockNowTime = 1000000;
+  let hookRef: any = null;
+
+  const intervals = new Set<number>();
+  let nextId = 1;
+  let tickHandler: (() => void) | undefined;
+
+  function TestComponent() {
+    const state = useSessionState({
+      setInterval: ((handler: () => void) => {
+        tickHandler = handler;
+        const id = nextId++;
+        intervals.add(id);
+        return id;
+      }) as any,
+      clearInterval: ((id: number) => {
+        intervals.delete(id);
+      }) as any,
+      now: () => mockNowTime,
+    });
+    hookRef = state;
+    return null;
+  }
+
+  render(h(TestComponent, null), container);
+  await flushEvents();
+
+  // 1. 活跃 session 且带有 pausedDurationMs 10000ms (10s)
+  const sessionWithPause: RecordingSession = {
+    id: "s2",
+    status: "RECORDING",
+    timeline: {
+      createdAtEpochMs: 1000000,
+      startedAtEpochMs: 1000000,
+      pausedDurationMs: 10000,
+      isPaused: false,
+    },
+  } as any;
+
+  hookRef.updateSessionState(sessionWithPause);
+  await new Promise((r) => setTimeout(r, 0));
+
+  // 已经过了 30 秒 (30000ms)，扣除 10 秒暂停，应显示 20 秒 (00:20)
+  mockNowTime = 1030000;
+  hookRef.updateSessionState({
+    ...sessionWithPause,
+    timeline: { ...sessionWithPause.timeline },
+  });
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(hookRef.timerText, "00:20");
+  assert.equal(hookRef.isPaused, false);
+
+  // 2. 切换为暂停中：isPaused: true, pausedAtEpochMs: 1030000
+  const pausedSession: RecordingSession = {
+    ...sessionWithPause,
+    timeline: {
+      ...sessionWithPause.timeline,
+      isPaused: true,
+      pausedAtEpochMs: 1030000,
+    },
+  };
+
+  hookRef.updateSessionState(pausedSession);
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(hookRef.isPaused, true);
+  assert.equal(hookRef.timerText, "00:20");
+
+  // 时间推移 50 秒，但因处于暂停态，时间应定格在 00:20
+  mockNowTime = 1080000;
+  hookRef.updateSessionState({
+    ...pausedSession,
+  });
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(hookRef.timerText, "00:20", "暂停中时间不得随当前时间递增");
+
+  render(null, container);
+});

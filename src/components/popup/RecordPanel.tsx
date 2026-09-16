@@ -79,7 +79,6 @@ export const RecordPanel = memo(function RecordPanel({
 
   const isRecordingOtherTab = Boolean(
     active &&
-    activeSession?.status === "RECORDING" &&
     activeSession?.target?.tabId !== undefined &&
     activeTab?.id !== undefined &&
     activeSession.target.tabId !== activeTab.id
@@ -87,10 +86,26 @@ export const RecordPanel = memo(function RecordPanel({
 
   const otherTabTitle =
     activeSession?.target?.initialTitle?.trim() || t("unnamedTab");
-  const truncatedOtherTabTitle =
-    otherTabTitle.length > 25
-      ? `${otherTabTitle.slice(0, 25)}…`
-      : otherTabTitle;
+
+  const displayTitle = isRecordingOtherTab
+    ? otherTabTitle
+    : activeTab?.title || t("failedToReadTab");
+  const displayUrl = isRecordingOtherTab
+    ? activeSession?.target?.initialUrl || ""
+    : activeTab?.url || "";
+
+  const isPaused = Boolean(activeSession?.timeline?.isPaused);
+
+  const handleSwitchToRecordingTab = () => {
+    if (!activeSession?.target?.tabId) return;
+    void chrome.tabs.update(activeSession.target.tabId, { active: true });
+    if (activeSession.target.windowId) {
+      void chrome.windows.update(activeSession.target.windowId, {
+        focused: true,
+      });
+    }
+    window.close();
+  };
 
   const handleTakeScreenshot = () => {
     if (!activeTab?.id) {
@@ -117,27 +132,38 @@ export const RecordPanel = memo(function RecordPanel({
           data-testid="recording-conflict-banner"
           role="status"
           aria-live="polite"
-          style={{
-            padding: "8px 10px",
-            marginBottom: "8px",
-            borderRadius: "6px",
-            fontSize: "12px",
-            lineHeight: "1.4",
-            color: "#b45309",
-            backgroundColor: "#fef3c7",
-            border: "1px solid #fcd34d",
-            wordBreak: "break-all",
-          }}
         >
-          {t("recordingOtherTabBanner", [
-            truncatedOtherTabTitle,
-            timerText || "00:00",
-          ])}
+          <span className="banner-icon" aria-hidden="true">
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="16" x2="12" y2="12"></line>
+              <line x1="12" y1="8" x2="12.01" y2="8"></line>
+            </svg>
+          </span>
+          <div className="banner-content">
+            <span className="banner-title">{t("currentTabNotRecording")}</span>
+            <span className="banner-dot">·</span>
+            <span className="banner-desc">{t("recordingOtherTabNotice")}</span>
+          </div>
         </div>
       )}
       <div className="context-head">
-        <div id="title" className="target-title">
-          {activeTab?.title || t("failedToReadTab")}
+        <div id="title" className="target-title" title={displayTitle}>
+          {isRecordingOtherTab && (
+            <span className="remote-target-badge">
+              {t("remoteRecordingTarget")}
+            </span>
+          )}
+          <span className="target-title-text">{displayTitle}</span>
         </div>
         <div className="status-badge">
           {/* live region 只包状态文本（dot+status）：录制计时器每秒 tick，
@@ -152,7 +178,7 @@ export const RecordPanel = memo(function RecordPanel({
           >
             <span
               id="dot"
-              className={`dot ${active ? "rec" : ""}`}
+              className={`dot ${active ? (isPaused ? "paused" : "rec") : ""}`}
               aria-hidden="true"
             ></span>
             <span id="status">{getStatusText()}</span>
@@ -165,7 +191,7 @@ export const RecordPanel = memo(function RecordPanel({
         </div>
       </div>
       <div id="url" className="target-url">
-        {activeTab?.url || ""}
+        {displayUrl}
       </div>
       <div id="evidence" className="evidence">
         {activeEvidence(activeSession).map((item) => (
@@ -244,27 +270,75 @@ export const RecordPanel = memo(function RecordPanel({
             </button>
           </>
         )}
-        {active && (
-          <button
-            id="stop"
-            data-testid="stop-recording-btn"
-            className="action-btn stop"
-            disabled={activeSession?.status === "STOPPING"}
-            onClick={onStop}
-            aria-label={t("stopRecording")}
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-              aria-hidden="true"
+        {active &&
+          (isRecordingOtherTab ? (
+            <>
+              <button
+                id="switch-to-recording-tab"
+                data-testid="switch-to-recording-tab-btn"
+                className="action-btn switch-tab"
+                onClick={handleSwitchToRecordingTab}
+                aria-label={t("switchToRecordingTab")}
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                  <polyline points="15 3 21 3 21 9"></polyline>
+                  <line x1="10" y1="14" x2="21" y2="3"></line>
+                </svg>
+                <span>{t("switchToRecordingTab")}</span>
+              </button>
+              <button
+                id="stop"
+                data-testid="stop-recording-btn"
+                className="action-btn stop subtle-danger"
+                disabled={activeSession?.status === "STOPPING"}
+                onClick={onStop}
+                aria-label={t("stopRemoteRecording")}
+                title={t("stopRemoteRecording")}
+              >
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
+                  <rect x="6" y="6" width="12" height="12" rx="2"></rect>
+                </svg>
+                <span>{t("stopRemoteRecording")}</span>
+              </button>
+            </>
+          ) : (
+            <button
+              id="stop"
+              data-testid="stop-recording-btn"
+              className="action-btn stop"
+              disabled={activeSession?.status === "STOPPING"}
+              onClick={onStop}
+              aria-label={t("stopRecording")}
             >
-              <rect x="6" y="6" width="12" height="12" rx="2"></rect>
-            </svg>
-            <span>{t("stopRecording")}</span>
-          </button>
-        )}
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <rect x="6" y="6" width="12" height="12" rx="2"></rect>
+              </svg>
+              <span>{t("stopRecording")}</span>
+            </button>
+          ))}
         {ready && (
           <>
             <button

@@ -59,6 +59,22 @@
       }
     }
   },
+  "switchToRecordingTab": {
+    "message": "切换至录制标签页"
+  },
+  "stopRemoteRecording": {
+    "message": "结束后台录制并导出"
+  },
+  "currentTabNotRecording": {
+    "message": "当前标签页未在录制"
+  },
+  "recordingOtherTabNotice": {
+    "message": "后台正在录制其他页面",
+    "description": "非录制页轻量提示后台正在录制"
+  },
+  "remoteRecordingTarget": {
+    "message": "后台录制目标"
+  },
   "defaultSafeCollection": {
     "message": "采集配置"
   },
@@ -369,6 +385,9 @@
   },
   "reopenPreview": {
     "message": "重新打开预览"
+  },
+  "openPreview": {
+    "message": "预览"
   },
   "searchPlaceholder": {
     "message": "搜索标题、URL、状态"

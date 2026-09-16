@@ -52,7 +52,10 @@ export function useSessionState(options?: UseSessionStateOptions) {
   const clearTimer = useCallback(() => {
     if (timerRef.current !== undefined) {
       const clearIntervalFn =
-        optionsRef.current?.clearInterval ?? window.clearInterval.bind(window);
+        optionsRef.current?.clearInterval ??
+        (typeof window !== "undefined"
+          ? window.clearInterval.bind(window)
+          : clearInterval);
       clearIntervalFn(timerRef.current);
       timerRef.current = undefined;
     }
@@ -61,20 +64,33 @@ export function useSessionState(options?: UseSessionStateOptions) {
   useEffect(() => {
     isMountedRef.current = true;
     const setIntervalFn =
-      optionsRef.current?.setInterval ?? window.setInterval.bind(window);
+      optionsRef.current?.setInterval ??
+      (typeof window !== "undefined"
+        ? window.setInterval.bind(window)
+        : (h, t) => setInterval(h, t) as unknown as number);
 
-    // 活跃会话按 timeline.startedAtEpochMs 计时，每 1s 刷新一次 mm:ss 文本
+    // 活跃会话按 timeline.startedAtEpochMs 计时，扣除 pausedDurationMs，每 1s 刷新一次 mm:ss 文本
     if (isActive(activeSession) && activeSession?.timeline.startedAtEpochMs) {
       clearTimer();
       const startedAt = activeSession.timeline.startedAtEpochMs;
+      const isPaused = Boolean(activeSession.timeline.isPaused);
+      const pausedAt = activeSession.timeline.pausedAtEpochMs;
+      const pausedDurationMs = activeSession.timeline.pausedDurationMs ?? 0;
+
       const tick = () => {
         if (isMountedRef.current) {
           const nowFn = optionsRef.current?.now ?? Date.now;
-          setTimerText(formatDuration(nowFn() - startedAt));
+          const currentTimestamp =
+            isPaused && pausedAt !== undefined ? pausedAt : nowFn();
+          setTimerText(
+            formatDuration(currentTimestamp - startedAt - pausedDurationMs)
+          );
         }
       };
       tick();
-      timerRef.current = setIntervalFn(tick, 1000);
+      if (!isPaused) {
+        timerRef.current = setIntervalFn(tick, 1000);
+      }
     } else {
       clearTimer();
       setTimerText("");
@@ -97,6 +113,7 @@ export function useSessionState(options?: UseSessionStateOptions) {
   const active = isActive(activeSession);
   const previewReady = isPreviewReady(activeSession);
   const controlsLocked = active || previewReady;
+  const isPaused = Boolean(activeSession?.timeline.isPaused);
 
   return {
     activeSession,
@@ -104,6 +121,7 @@ export function useSessionState(options?: UseSessionStateOptions) {
     active,
     previewReady,
     controlsLocked,
+    isPaused,
     updateSessionState,
     isActive,
     isPreviewReady,

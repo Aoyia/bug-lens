@@ -23,11 +23,18 @@ type QualityCounters = Pick<
  */
 export type RecordingSessionEvent =
   | { type: "started"; atEpochMs: number; issues?: CaptureIssue[] }
+  | { type: "paused"; atEpochMs: number; pausedDurationMs: number }
+  | { type: "resumed"; atEpochMs: number; pausedDurationMs: number }
   | { type: "capture-issue"; issue: CaptureIssue }
   | { type: "quality-delta"; delta: Partial<QualityCounters> }
   | { type: "quality-snapshot"; counts: QualityCounters }
   | { type: "stop-requested"; atEpochMs: number; commandId?: string }
-  | { type: "stop-completed"; atEpochMs?: number; issue?: CaptureIssue }
+  | {
+      type: "stop-completed";
+      atEpochMs?: number;
+      issue?: CaptureIssue;
+      pausedDurationMs?: number;
+    }
   | { type: "recover"; atEpochMs: number; issue: CaptureIssue }
   | { type: "failed"; issue: CaptureIssue };
 
@@ -54,14 +61,19 @@ function appendIssue(
 
 function stoppedTimeline(
   session: RecordingSession,
-  stoppedAtEpochMs: number
+  stoppedAtEpochMs: number,
+  pausedDurationMs?: number
 ): RecordingSession["timeline"] {
   const startedAt =
     session.timeline.startedAtEpochMs ?? session.timeline.createdAtEpochMs;
+  const paused = pausedDurationMs ?? session.timeline.pausedDurationMs ?? 0;
   return {
     ...session.timeline,
     stoppedAtEpochMs,
-    durationMs: Math.max(0, stoppedAtEpochMs - startedAt),
+    pausedDurationMs: paused,
+    isPaused: false,
+    pausedAtEpochMs: undefined,
+    durationMs: Math.max(0, stoppedAtEpochMs - startedAt - paused),
   };
 }
 
@@ -93,6 +105,32 @@ export function applySessionEvent(
             session.timeline.startedAtEpochMs ?? event.atEpochMs,
         },
         quality,
+      };
+    }
+
+    case "paused": {
+      if (!ACTIVE_STATUSES.has(session.status)) return session;
+      return {
+        ...session,
+        timeline: {
+          ...session.timeline,
+          isPaused: true,
+          pausedAtEpochMs: event.atEpochMs,
+          pausedDurationMs: event.pausedDurationMs,
+        },
+      };
+    }
+
+    case "resumed": {
+      if (!ACTIVE_STATUSES.has(session.status)) return session;
+      return {
+        ...session,
+        timeline: {
+          ...session.timeline,
+          isPaused: false,
+          pausedAtEpochMs: undefined,
+          pausedDurationMs: event.pausedDurationMs,
+        },
       };
     }
 
@@ -158,7 +196,7 @@ export function applySessionEvent(
       return {
         ...session,
         status: "PREVIEW_READY",
-        timeline: stoppedTimeline(session, stoppedAt),
+        timeline: stoppedTimeline(session, stoppedAt, event.pausedDurationMs),
         quality: event.issue
           ? appendIssue(session.quality, event.issue)
           : session.quality,
