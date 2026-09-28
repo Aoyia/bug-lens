@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "__MSG_extensionName__",
   "default_locale": "zh_CN",
-  "version": "0.7.34",
+  "version": "0.7.35",
   "description": "__MSG_extensionDescription__",
   "minimum_chrome_version": "125",
   "action": {
@@ -14,6 +14,10 @@
       "48": "icons/icon_idle_48.png",
       "128": "icons/icon_idle_128.png"
     }
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
   },
   "commands": {
     "_execute_action": {
@@ -81,6 +85,7 @@
     {
       "resources": [
         "popup.html",
+        "options.html",
         "preview.html",
         "offscreen.html",
         "permission.html",

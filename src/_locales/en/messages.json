@@ -2210,5 +2210,170 @@
   },
   "failedToLoadSnapshot": {
     "message": "Failed to generate report snapshot"
+  },
+  "settingsTitle": {
+    "message": "Settings"
+  },
+  "navWorkflow": {
+    "message": "Workflow"
+  },
+  "navAi": {
+    "message": "AI & Export"
+  },
+  "navRecording": {
+    "message": "Default Streams"
+  },
+  "navPrivacy": {
+    "message": "Privacy & Security"
+  },
+  "navStorage": {
+    "message": "Storage & Retention"
+  },
+  "navShortcuts": {
+    "message": "Shortcuts"
+  },
+  "settingLanguage": {
+    "message": "Interface Language"
+  },
+  "settingLanguageDesc": {
+    "message": "Choose the display language for the extension"
+  },
+  "settingStopAction": {
+    "message": "Stop Recording Action"
+  },
+  "settingStopActionDesc": {
+    "message": "Default workflow after stopping a recording"
+  },
+  "stopActionPreview": {
+    "message": "Open Preview (Recommended)"
+  },
+  "stopActionSilentExport": {
+    "message": "Silent Export ZIP (Skip Preview)"
+  },
+  "settingAutoCopyPrompt": {
+    "message": "Auto-copy AI Prompt"
+  },
+  "settingAutoCopyPromptDesc": {
+    "message": "Automatically copy AI_PROMPT.md to clipboard on export"
+  },
+  "settingShowGuide": {
+    "message": "Show Workflow Guide"
+  },
+  "settingShowGuideDesc": {
+    "message": "Display the 3-step workflow guide in the popup panel"
+  },
+  "settingTargetAssistant": {
+    "message": "Target AI Assistant"
+  },
+  "settingTargetAssistantDesc": {
+    "message": "Optimize AI_PROMPT.md structure for your preferred AI tool"
+  },
+  "assistantGeneric": {
+    "message": "Generic"
+  },
+  "assistantCursor": {
+    "message": "Cursor"
+  },
+  "assistantClaudeCode": {
+    "message": "Claude Code"
+  },
+  "assistantAntigravity": {
+    "message": "Antigravity"
+  },
+  "settingPromptLanguage": {
+    "message": "Prompt Language"
+  },
+  "settingPromptLanguageDesc": {
+    "message": "Language used for generated AI diagnosis prompts"
+  },
+  "settingCustomInstructions": {
+    "message": "Custom Diagnostic Instructions"
+  },
+  "settingCustomInstructionsDesc": {
+    "message": "Custom directives appended to AI_PROMPT.md (up to 4000 characters)"
+  },
+  "settingCustomSensitiveKeys": {
+    "message": "Custom Sensitive Keys"
+  },
+  "settingCustomSensitiveKeysDesc": {
+    "message": "Extra header or JSON property names to redact (comma-separated, e.g. auth_token, user_pin)"
+  },
+  "settingExcludeUrls": {
+    "message": "URL Exclusion Rules"
+  },
+  "settingExcludeUrlsDesc": {
+    "message": "Ignore network requests matching these domains or patterns (one per line)"
+  },
+  "settingVideoQuality": {
+    "message": "Video Bitrate"
+  },
+  "settingVideoQualityDesc": {
+    "message": "Balance recording video file size and visual clarity"
+  },
+  "qualityBalanced": {
+    "message": "Balanced (2.5 Mbps)"
+  },
+  "qualityHigh": {
+    "message": "High Quality (4.0 Mbps)"
+  },
+  "qualitySmall": {
+    "message": "Compact (1.2 Mbps)"
+  },
+  "settingRetention": {
+    "message": "Session Retention Period"
+  },
+  "settingRetentionDesc": {
+    "message": "Expired sessions will be cleaned up on extension startup"
+  },
+  "retentionDays7": {
+    "message": "7 Days"
+  },
+  "retentionDays14": {
+    "message": "14 Days (Default)"
+  },
+  "retentionDays30": {
+    "message": "30 Days"
+  },
+  "retentionDays90": {
+    "message": "90 Days"
+  },
+  "settingMaxSessionBytes": {
+    "message": "Max Session Budget"
+  },
+  "settingMaxSessionBytesDesc": {
+    "message": "Maximum storage budget allocated for a single recording"
+  },
+  "clearAllData": {
+    "message": "Clear All Historical Data"
+  },
+  "clearAllDataDesc": {
+    "message": "Purge all historical recordings and screenshots in local IndexedDB (irreversible)"
+  },
+  "clearAllDataSuccess": {
+    "message": "Historical data cleared successfully"
+  },
+  "shortcutStartRecording": {
+    "message": "Start/Stop Recording"
+  },
+  "shortcutTakeScreenshot": {
+    "message": "Capture Screenshot Scene"
+  },
+  "shortcutOpenPopup": {
+    "message": "Open Extension Popup"
+  },
+  "openChromeShortcuts": {
+    "message": "Open Chrome Shortcuts Settings"
+  },
+  "saveSettings": {
+    "message": "Save Settings"
+  },
+  "resetDefaults": {
+    "message": "Reset to Defaults"
+  },
+  "savedSuccess": {
+    "message": "Auto-saved"
+  },
+  "autoSaveActive": {
+    "message": "Auto-save active"
   }
 }

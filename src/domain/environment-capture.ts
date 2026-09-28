@@ -66,7 +66,7 @@ export function describeBrowserFromUserAgent(userAgent: string): string {
 export function formatEnvironmentSummary(
   environment?: EnvironmentInfo
 ): string {
-  if (!environment) return "";
+  if (!environment || !environment.userAgent) return "";
   const os = describeOsFromUserAgent(environment.userAgent);
   const browser = describeBrowserFromUserAgent(environment.userAgent);
   const screen = `${environment.screenWidth}×${environment.screenHeight}@${environment.devicePixelRatio}x`;

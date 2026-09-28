@@ -127,6 +127,7 @@ const entries = {
   "vue-devtools-hook-inject":
     "src/entrypoints/content/vue-devtools-hook-inject.ts",
   preview: "src/entrypoints/preview/index.ts",
+  options: "src/entrypoints/options/index.tsx",
   "report-template": "src/entrypoints/report/index.ts",
 };
 
@@ -151,6 +152,7 @@ async function copyStaticAssets() {
 
   for (const file of [
     "popup.html",
+    "options.html",
     "permission.html",
     "offscreen.html",
     "preview.html",
@@ -176,6 +178,10 @@ async function copyStaticAssets() {
   await copyCssAsset(
     resolve(root, "src/entrypoints/popup/styles/popup.css"),
     resolve(outdir, "popup.css")
+  );
+  await copyCssAsset(
+    resolve(root, "src/entrypoints/options/styles/options.css"),
+    resolve(outdir, "options.css")
   );
 
   await buildMergedPreviewCss();

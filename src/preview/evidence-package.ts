@@ -95,7 +95,11 @@ function formatSourceMappedErrors(consoleEntries: ConsoleEntry[]): string {
 
 export function buildAiPrompt(
   snapshot: EvidencePackageSnapshot,
-  zipPath?: string
+  zipPath?: string,
+  promptOptions?: {
+    targetAssistant?: "generic" | "cursor" | "claude-code" | "antigravity";
+    customInstructions?: string;
+  }
 ): string {
   const issueScenes = snapshot.issueScenes ?? [];
   const sourceMappedErrorsText = formatSourceMappedErrors(
@@ -110,7 +114,18 @@ export function buildAiPrompt(
     )
       ? `- Environment: ${formatEnvironmentSummary(snapshot.session.target.environment)}`
       : "- Environment: Unknown";
-    return `Please act as a Senior Frontend/Fullstack Debugging Expert and analyze the following local Bug Lens evidence package:
+    const assistantTitle =
+      promptOptions?.targetAssistant === "cursor"
+        ? " (Tailored for Cursor Composer & Chat)"
+        : promptOptions?.targetAssistant === "claude-code"
+          ? " (Tailored for Claude Code)"
+          : promptOptions?.targetAssistant === "antigravity"
+            ? " (Tailored for Antigravity)"
+            : "";
+    const customDirectives = promptOptions?.customInstructions?.trim()
+      ? `\n\n[Custom Directives / Team Rules]\n${promptOptions.customInstructions.trim()}`
+      : "";
+    return `Please act as a Senior Frontend/Fullstack Debugging Expert${assistantTitle} and analyze the following local Bug Lens evidence package:
 
 ${path}
 
@@ -134,7 +149,7 @@ Please follow this first-principles chain of diagnosis (extract ZIP to a tempora
 1. User Intent & Issue Definition (Compare narrative.actual description with observed behavior)
 2. Chronological Evidence Chain (Interactions -> Errors/Requests -> Screenshots)
 3. Root Cause Analysis
-4. Recommended Fix & File Locations`;
+4. Recommended Fix & File Locations${customDirectives}`;
   }
 
   const path = zipPath
@@ -145,7 +160,18 @@ Please follow this first-principles chain of diagnosis (extract ZIP to a tempora
   )
     ? `- 运行环境：${formatEnvironmentSummary(snapshot.session.target.environment)}`
     : "- 运行环境：未知";
-  return `请作为高级 Frontend/Fullstack 调试专家，分析以下本地 Bug Lens 证据包：
+  const assistantTitle =
+    promptOptions?.targetAssistant === "cursor"
+      ? "（针对 Cursor Composer 与 Chat 深度调优）"
+      : promptOptions?.targetAssistant === "claude-code"
+        ? "（针对 Claude Code 终端诊断调优）"
+        : promptOptions?.targetAssistant === "antigravity"
+          ? "（针对 Antigravity 智能体调优）"
+          : "";
+  const customDirectives = promptOptions?.customInstructions?.trim()
+    ? `\n\n[团队定制诊断规范 / 补充指引]\n${promptOptions.customInstructions.trim()}`
+    : "";
+  return `请作为高级 Frontend/Fullstack 调试专家${assistantTitle}，分析以下本地 Bug Lens 证据包：
 
 ${path}
 
@@ -169,7 +195,7 @@ ${environmentLine}${sourceMappedErrorsText}
 1. 用户诉求与问题定义（对比 narrative.actual 描述与实际表现）
 2. 关键时序证据链（交互 -> 报错/请求 -> 现场截图）
 3. 根本原因定位 (Root Cause)
-4. 建议修复代码/排查位置 (Recommended Fix)`;
+4. 建议修复代码/排查位置 (Recommended Fix)${customDirectives}`;
 }
 
 function buildPackageReadme(snapshot: EvidencePackageSnapshot): string {
