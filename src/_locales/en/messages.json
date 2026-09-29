@@ -2370,6 +2370,9 @@
   "resetDefaults": {
     "message": "Reset to Defaults"
   },
+  "resetDefaultsPrompt": {
+    "message": "Are you sure you want to reset all settings to defaults?"
+  },
   "savedSuccess": {
     "message": "Auto-saved"
   },

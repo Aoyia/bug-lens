@@ -1,6 +1,7 @@
 import {
   useState,
   useEffect,
+  useLayoutEffect,
   useCallback,
   useRef,
   useMemo,
@@ -288,17 +289,76 @@ function SegmentedControl<T extends string | number>({
   onChange: (val: T) => void;
   ariaLabel?: string;
 }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [sliderStyle, setSliderStyle] = useState<{
+    left: number;
+    width: number;
+  } | null>(null);
+
+  const updateSlider = useCallback(() => {
+    if (!containerRef.current) return;
+    const activeBtn = containerRef.current.querySelector<HTMLButtonElement>(
+      ".segmented-btn.active"
+    );
+    if (activeBtn) {
+      setSliderStyle({
+        left: activeBtn.offsetLeft,
+        width: activeBtn.offsetWidth,
+      });
+    }
+  }, []);
+
+  useLayoutEffect(() => {
+    updateSlider();
+  }, [value, options, updateSlider]);
+
+  useEffect(() => {
+    window.addEventListener("resize", updateSlider);
+    return () => window.removeEventListener("resize", updateSlider);
+  }, [updateSlider]);
+
+  const activeIndex = Math.max(
+    0,
+    options.findIndex((opt) => opt.value === value)
+  );
+
   return (
-    <div className="segmented-control" role="radiogroup" aria-label={ariaLabel}>
-      {options.map((opt) => {
+    <div
+      ref={containerRef}
+      className="segmented-control"
+      role="radiogroup"
+      aria-label={ariaLabel}
+      style={
+        {
+          "--f7-segmented-count": options.length,
+          "--f7-segmented-active-index": activeIndex,
+        } as any
+      }
+    >
+      <div
+        className="segmented-slider segmented-highlight"
+        aria-hidden="true"
+        style={
+          sliderStyle
+            ? {
+                transform: `translateX(${sliderStyle.left - 2}px)`,
+                width: `${sliderStyle.width}px`,
+                opacity: 1,
+              }
+            : undefined
+        }
+      />
+      {options.map((opt, idx) => {
         const isActive = opt.value === value;
+        const isPrevActive = idx > 0 && options[idx - 1].value === value;
+
         return (
           <button
             key={String(opt.value)}
             type="button"
             role="radio"
             aria-checked={isActive}
-            className={`segmented-btn ${isActive ? "active" : ""}`}
+            className={`segmented-btn ${isActive ? "active" : ""} ${isPrevActive ? "prev-active" : ""}`}
             data-text={opt.label}
             onClick={() => onChange(opt.value)}
           >
@@ -391,34 +451,94 @@ export function OptionsApp() {
     triggerAutoSave,
   ]);
 
-  const handleReset = useCallback(async () => {
-    if (!window.confirm("确定将所有设置恢复为默认值吗？")) return;
-    setSettings(DEFAULT_APP_SETTINGS);
-    setCustomKeysText(
-      DEFAULT_APP_SETTINGS.privacy.customSensitiveKeys.join(", ")
-    );
-    setExcludeUrlsText(
-      DEFAULT_APP_SETTINGS.privacy.excludeUrlPatterns.join("\n")
-    );
-    setCustomInstructionsText(DEFAULT_APP_SETTINGS.ai.customInstructions);
-    await triggerAutoSave(DEFAULT_APP_SETTINGS);
-  }, [triggerAutoSave]);
+  interface ConfirmDialogState {
+    title: string;
+    message: string;
+    confirmLabel: string;
+    isDanger?: boolean;
+    onConfirm: () => void | Promise<void>;
+  }
 
-  const handleClearAllData = useCallback(async () => {
-    const confirmed = window.confirm(t("clearHistoryPrompt"));
-    if (!confirmed) return;
-    try {
-      const res = await send("storage/clear-all", {});
-      if (!res.ok) {
-        setClearStatus(res.error);
-      } else {
-        setClearStatus(t("clearAllDataSuccess"));
-        window.setTimeout(() => setClearStatus(""), 3000);
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(
+    null
+  );
+  const cancelBtnRef = useRef<HTMLButtonElement | null>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
+
+  const closeConfirmDialog = useCallback(() => {
+    setConfirmDialog(null);
+    triggerRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    if (!confirmDialog) return;
+    // 打开时把焦点移到安全默认操作（取消），键盘用户立即可见、回车即取消
+    cancelBtnRef.current?.focus();
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        closeConfirmDialog();
       }
-    } catch (e) {
-      setClearStatus(String(e));
-    }
-  }, [send]);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [confirmDialog, closeConfirmDialog]);
+
+  const handleReset = useCallback(
+    (e?: MouseEvent) => {
+      triggerRef.current = (e?.currentTarget as HTMLElement) || null;
+      setConfirmDialog({
+        title: t("resetDefaults"),
+        message: t("resetDefaultsPrompt"),
+        confirmLabel: t("resetDefaults"),
+        isDanger: false,
+        onConfirm: async () => {
+          setConfirmDialog(null);
+          setSettings(DEFAULT_APP_SETTINGS);
+          setCustomKeysText(
+            DEFAULT_APP_SETTINGS.privacy.customSensitiveKeys.join(", ")
+          );
+          setExcludeUrlsText(
+            DEFAULT_APP_SETTINGS.privacy.excludeUrlPatterns.join("\n")
+          );
+          setCustomInstructionsText(DEFAULT_APP_SETTINGS.ai.customInstructions);
+          await triggerAutoSave(DEFAULT_APP_SETTINGS);
+        },
+      });
+    },
+    [triggerAutoSave]
+  );
+
+  const handleClearAllData = useCallback(
+    (e?: MouseEvent) => {
+      triggerRef.current = (e?.currentTarget as HTMLElement) || null;
+      setConfirmDialog({
+        title: t("clearAllData"),
+        message: t("clearHistoryPrompt"),
+        confirmLabel: t("clearAllData"),
+        isDanger: true,
+        onConfirm: async () => {
+          setConfirmDialog(null);
+          try {
+            const res = await send("storage/clear-all", {});
+            if (!res.ok) {
+              setClearStatus(res.error);
+            } else {
+              setClearStatus(t("clearAllDataSuccess"));
+              window.setTimeout(() => setClearStatus(""), 3000);
+            }
+          } catch (e) {
+            setClearStatus(String(e));
+          }
+        },
+      });
+    },
+    [send]
+  );
 
   const openShortcutsPage = useCallback(() => {
     if (typeof chrome !== "undefined" && chrome.tabs) {
@@ -1401,6 +1521,86 @@ export function OptionsApp() {
           </main>
         </div>
       </div>
+
+      {confirmDialog && (
+        <div
+          className="options-modal-backdrop"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closeConfirmDialog();
+          }}
+        >
+          <div
+            className="options-modal-card"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="confirm-dialog-title"
+            aria-describedby="confirm-dialog-desc"
+          >
+            <div className="options-modal-header">
+              <div
+                className={`options-modal-icon ${confirmDialog.isDanger ? "danger" : "info"}`}
+              >
+                {confirmDialog.isDanger ? (
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                    <line x1="12" y1="9" x2="12" y2="13" />
+                    <line x1="12" y1="17" x2="12.01" y2="17" />
+                  </svg>
+                ) : (
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="16" x2="12" y2="12" />
+                    <line x1="12" y1="8" x2="12.01" y2="8" />
+                  </svg>
+                )}
+              </div>
+              <h3 id="confirm-dialog-title" className="options-modal-title">
+                {confirmDialog.title}
+              </h3>
+            </div>
+            <p id="confirm-dialog-desc" className="options-modal-body">
+              {confirmDialog.message}
+            </p>
+            <div className="options-modal-footer">
+              <button
+                ref={cancelBtnRef}
+                type="button"
+                className="btn btn-default"
+                data-testid="modal-cancel-btn"
+                onClick={closeConfirmDialog}
+              >
+                {t("cancel")}
+              </button>
+              <button
+                type="button"
+                className={`btn ${confirmDialog.isDanger ? "btn-danger-filled" : "btn-primary"}`}
+                data-testid="modal-confirm-btn"
+                onClick={() => void confirmDialog.onConfirm()}
+              >
+                {confirmDialog.confirmLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -296,7 +296,7 @@ body {
 /* 4. 右侧主配置卡片区 (740px 舒适阅读视距) */
 .options-main-container {
   flex: 1;
-  max-width: 760px;
+  max-width: 800px;
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -336,10 +336,11 @@ body {
 .setting-row {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: 20px;
+  align-items: center;
+  gap: 16px;
   padding-bottom: 14px;
   border-bottom: 1px solid var(--border-subtle);
+  min-width: 0;
 }
 
 .setting-row:last-child {
@@ -351,7 +352,8 @@ body {
   display: flex;
   flex-direction: column;
   gap: 3px;
-  flex: 1;
+  flex: 1 1 180px;
+  min-width: 150px;
 }
 
 .setting-label {
@@ -368,7 +370,7 @@ body {
 
 .setting-control {
   flex-shrink: 0;
-  min-width: 140px;
+  max-width: 100%;
   display: flex;
   justify-content: flex-end;
 }
@@ -449,43 +451,102 @@ input:checked + .slider:before {
   line-height: 1.5;
 }
 
-/* Chrome 风格行内分段胶囊选择器 (Segmented Control - Zero-Shift Layout) */
+/* iOS 26 液态玻璃分段选择器 (Segmented Control - iOS 26 Liquid Glass Theme) */
 .segmented-control {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  background: var(--bg-search);
-  padding: 3px;
-  border-radius: var(--radius-pill);
-  gap: 2px;
-  border: 1px solid rgba(0, 0, 0, 0.04);
+  height: 32px;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.45) 0%,
+    rgba(238, 240, 245, 0.35) 50%,
+    rgba(224, 228, 236, 0.4) 100%
+  );
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  padding: 2px;
+  border-radius: 8.5px;
+  box-sizing: border-box;
+  user-select: none;
+  border: 0.5px solid rgba(255, 255, 255, 0.7);
+  box-shadow:
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.85),
+    inset 0 -1px 1px 0 rgba(0, 0, 0, 0.03),
+    0 2px 8px 0 rgba(0, 0, 0, 0.04);
+  font-family:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+    system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  max-width: 100%;
+}
+
+/* iOS 26 物理悬浮液态玻璃透镜滑块 (Liquid Glass Lens Slider) */
+.segmented-slider {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  width: calc((100% - 4px) / var(--f7-segmented-count, 3));
+  transform: translateX(calc(var(--f7-segmented-active-index, 0) * 100%));
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(255, 255, 255, 0.82) 100%
+  );
+  backdrop-filter: blur(20px) saturate(190%);
+  -webkit-backdrop-filter: blur(20px) saturate(190%);
+  border-radius: 6.5px;
+  border: 0.5px solid rgba(255, 255, 255, 0.95);
+  box-shadow:
+    inset 0 1px 1.5px 0 rgba(255, 255, 255, 1),
+    inset 0 -1px 1px 0 rgba(0, 0, 0, 0.03),
+    0 3px 10px 0 rgba(0, 0, 0, 0.08),
+    0 1px 2px 0 rgba(0, 0, 0, 0.04);
+  transition:
+    transform 280ms cubic-bezier(0.2, 0.85, 0.25, 1),
+    width 280ms cubic-bezier(0.2, 0.85, 0.25, 1),
+    box-shadow 200ms ease;
+  pointer-events: none;
+  z-index: 1;
   box-sizing: border-box;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .segmented-slider {
+    transition: none;
+  }
+}
+
+/* iOS 26 按钮单元：光学穿透、紧凑内边距 */
 .segmented-btn {
+  position: relative;
+  z-index: 2;
   display: inline-flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  height: 28px;
+  line-height: 28px;
   border: none;
   background: transparent;
-  padding: 5px 14px;
-  border-radius: var(--radius-pill);
-  font-size: 12.5px;
+  padding: 0 10px;
+  border-radius: 6.5px;
+  font-size: 13px;
   font-weight: 500;
-  color: var(--ink-sub);
+  color: rgba(60, 60, 67, 0.72);
   cursor: pointer;
-  transition:
-    color 0.15s ease,
-    background-color 0.15s ease,
-    box-shadow 0.15s ease;
   white-space: nowrap;
-  line-height: 1.2;
   user-select: none;
   box-sizing: border-box;
+  flex: 0 0 auto;
+  transition:
+    color 180ms ease,
+    transform 120ms cubic-bezier(0.2, 0.85, 0.25, 1);
 }
 
-/* 伪元素垫片预留 600 字重真实宽度，消除字重切换带来的物理宽度变宽抖动 */
-.segmented-btn::before {
+/* 伪元素垫片预留 600 字重真实宽度，消除加粗跳动 */
+.segmented-btn::after {
   display: block;
   content: attr(data-text);
   font-weight: 600;
@@ -496,9 +557,39 @@ input:checked + .slider:before {
   pointer-events: none;
 }
 
+/* iOS 26 动态光学微分割线 (未选中相邻选项间的 14px 渐变折射微线) */
+.segmented-btn:not(:first-child)::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1px;
+  height: 14px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.7) 0%,
+    rgba(60, 60, 67, 0.16) 50%,
+    rgba(255, 255, 255, 0.3) 100%
+  );
+  border-radius: 0.5px;
+  transition: opacity 180ms ease;
+  pointer-events: none;
+}
+
+/* 当自身为 active 或前一项为 active 时，消除交界处的分割线 */
+.segmented-btn.active::before,
+.segmented-btn.prev-active::before {
+  opacity: 0;
+}
+
 .segmented-btn:hover {
-  color: var(--ink-main);
-  background: rgba(0, 0, 0, 0.04);
+  color: rgba(30, 30, 35, 0.9);
+}
+
+/* iOS 26 玻璃镜片物理下压微折射反馈 */
+.segmented-btn:active {
+  transform: scale(0.96);
 }
 
 .segmented-btn:focus-visible {
@@ -507,12 +598,60 @@ input:checked + .slider:before {
 }
 
 .segmented-btn.active {
-  background: #ffffff;
-  color: var(--primary);
+  background: transparent;
+  color: #000000;
   font-weight: 600;
-  box-shadow:
-    0 1px 3px rgba(60, 64, 67, 0.15),
-    0 1px 2px rgba(60, 64, 67, 0.1);
+  box-shadow: none;
+  text-shadow: 0 1px 1px rgba(255, 255, 255, 0.5);
+}
+
+/* iOS 26 暗色模式烟熏液态玻璃自适应 (Smoked Liquid Glass) */
+@media (prefers-color-scheme: dark) {
+  .segmented-control {
+    background: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.08) 0%,
+      rgba(255, 255, 255, 0.03) 100%
+    );
+    border-color: rgba(255, 255, 255, 0.12);
+    box-shadow:
+      inset 0 1px 1px 0 rgba(255, 255, 255, 0.15),
+      inset 0 -1px 1px 0 rgba(0, 0, 0, 0.3),
+      0 2px 10px 0 rgba(0, 0, 0, 0.25);
+  }
+
+  .segmented-slider {
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.22) 0%,
+      rgba(255, 255, 255, 0.12) 100%
+    );
+    border-color: rgba(255, 255, 255, 0.25);
+    box-shadow:
+      inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.35),
+      0 3px 12px 0 rgba(0, 0, 0, 0.35);
+  }
+
+  .segmented-btn {
+    color: rgba(235, 235, 245, 0.65);
+  }
+
+  .segmented-btn:hover {
+    color: rgba(255, 255, 255, 0.88);
+  }
+
+  .segmented-btn.active {
+    color: #ffffff;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  }
+
+  .segmented-btn:not(:first-child)::before {
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.18) 0%,
+      rgba(255, 255, 255, 0.06) 100%
+    );
+  }
 }
 
 /* Chrome 风格自绘 Web 下拉控件 (Custom Select) */
@@ -714,4 +853,125 @@ input:checked + .slider:before {
   border: 1px solid #e5e6eb;
   border-radius: 4px;
   color: var(--ink-main);
+}
+
+.btn-primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
+}
+
+.btn-primary:hover {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+}
+
+.btn-danger-filled {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #ffffff;
+}
+
+.btn-danger-filled:hover {
+  background: var(--danger-hover);
+  border-color: var(--danger-hover);
+}
+
+/* 7. Chrome 风格应用内受控模态弹窗 (Custom Confirm Modal Dialog) */
+.options-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: modalFadeIn 0.15s ease;
+  backdrop-filter: blur(1.5px);
+}
+
+.options-modal-card {
+  background: #ffffff;
+  border-radius: var(--radius-md);
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.18),
+    0 1px 4px rgba(0, 0, 0, 0.08);
+  width: 100%;
+  max-width: 440px;
+  padding: 22px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  border: 1px solid var(--border-subtle);
+  animation: modalScaleUp 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
+}
+
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modalScaleUp {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.options-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.options-modal-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.options-modal-icon.danger {
+  background: #fce8e6;
+  color: var(--danger);
+}
+
+.options-modal-icon.info {
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+.options-modal-title {
+  margin: 0;
+  font-size: 15.5px;
+  font-weight: 600;
+  color: var(--ink-main);
+  letter-spacing: -0.2px;
+}
+
+.options-modal-body {
+  font-size: 13px;
+  color: var(--ink-sub);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.options-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 6px;
 }

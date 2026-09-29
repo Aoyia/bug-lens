@@ -2370,6 +2370,9 @@
   "resetDefaults": {
     "message": "恢复默认值"
   },
+  "resetDefaultsPrompt": {
+    "message": "确定将所有设置恢复为默认值吗？"
+  },
   "savedSuccess": {
     "message": "已自动保存"
   },
