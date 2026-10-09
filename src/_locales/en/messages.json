@@ -336,7 +336,7 @@
     "message": "High (larger file)"
   },
   "videoQualityBalanced": {
-    "message": "Balanced (recommended)"
+    "message": "Balanced"
   },
   "videoQualitySmall": {
     "message": "Small (lower quality)"
@@ -2245,7 +2245,7 @@
     "message": "Default workflow after stopping a recording"
   },
   "stopActionPreview": {
-    "message": "Open Preview (Recommended)"
+    "message": "Open Preview"
   },
   "stopActionSilentExport": {
     "message": "Silent Export ZIP (Skip Preview)"

@@ -280,8 +280,8 @@ const BUILTIN_FALLBACK_MESSAGES: Record<string, { zh: string; en: string }> = {
     en: "Default workflow after stopping a recording",
   },
   stopActionPreview: {
-    zh: "打开审查预览页（推荐）",
-    en: "Open Preview (Recommended)",
+    zh: "打开审查预览页",
+    en: "Open Preview",
   },
   stopActionSilentExport: {
     zh: "静默导出下载 ZIP（不打开预览）",

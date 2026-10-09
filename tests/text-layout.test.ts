@@ -71,7 +71,7 @@ describe("computeTextLayout 换行规则（浏览器 word-wrap 语义）", () =>
   test("手动换行 \\n 保留：空行占一行行高", () => {
     const layout = computeTextLayout("a\n\nb");
     assert.deepEqual(layout.lines, ["a", "", "b"]);
-    assert.equal(layout.bgHeight, 14 + 3 * 18);
+    assert.equal(layout.bgHeight, 3 * 18);
   });
 
   test("长文本多行：每行宽不超 maxWidth，bgWidth 取最长行", () => {
@@ -82,18 +82,15 @@ describe("computeTextLayout 换行规则（浏览器 word-wrap 语义）", () =>
       assert.ok(estimateTextWidth(l) <= 80, `行超宽: "${l}"`);
     }
     const maxLineW = Math.max(...layout.lines.map(estimateTextWidth));
-    assert.equal(
-      layout.bgWidth,
-      Math.max(TEXT_MIN_WIDTH, Math.min(80, maxLineW + 20))
-    );
+    assert.equal(layout.bgWidth, Math.min(80, maxLineW));
   });
 });
 
 describe("computeTextLayout 默认估算布局", () => {
-  test("短英文文本宽度受 TEXT_MIN_WIDTH 兜底", () => {
+  test("短英文文本宽度根据字符度量，高度为单行行高", () => {
     const layout = computeTextLayout("hi");
-    assert.equal(layout.bgWidth, TEXT_MIN_WIDTH);
-    assert.equal(layout.bgHeight, 14 + 18); // 2*paddingY + 2px 容差 + 1 行
+    assert.equal(layout.bgWidth, estimateTextWidth("hi"));
+    assert.equal(layout.bgHeight, 18);
     assert.deepEqual(layout.lines, ["hi"]);
   });
 
@@ -102,7 +99,6 @@ describe("computeTextLayout 默认估算布局", () => {
     const layout = computeTextLayout(text, { maxWidth: 200 });
     assert.ok(layout.lines.length >= 2, "长中文应换行");
     assert.ok(layout.bgWidth <= 200, "气泡宽度不应超过 maxWidth");
-    assert.ok(layout.bgWidth >= TEXT_MIN_WIDTH);
   });
 
   test("显式 measure 与默认估算共用同一换行/尺寸公式", () => {
@@ -145,7 +141,7 @@ describe("布局统一：命中 / 绘制共用同一布局", () => {
     assert.equal(hitTestAnnotation([textAnn], x + 500, y + 500), null);
   });
 
-  test("短文本：命中区宽度不低于 TEXT_MIN_WIDTH（与绘制一致）", () => {
+  test("短文本：命中区按文字真实宽度 + 容差判定", () => {
     const short = {
       id: "t2",
       type: "text" as const,
@@ -153,9 +149,9 @@ describe("布局统一：命中 / 绘制共用同一布局", () => {
       text: "ok",
     };
     const layout = computeTextLayout(short.text);
-    assert.equal(layout.bgWidth, TEXT_MIN_WIDTH);
+    assert.equal(layout.bgWidth, estimateTextWidth("ok"));
     assert.equal(
-      hitTestAnnotation([short], 50 + TEXT_MIN_WIDTH + 2, 50),
+      hitTestAnnotation([short], 50 + layout.bgWidth + 2, 50),
       short
     );
     assert.equal(hitTestAnnotation([short], 50 + TEXT_MAX_WIDTH, 50), null);

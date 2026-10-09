@@ -256,10 +256,10 @@ describe("RendererRegistry: text", () => {
       position: { x: 10, y: 10 },
       text: "hello world",
     };
-    // 单行 "hello world"（10 字母 + 1 空格）：估算 maxW=10*6.7+3.6=70.6 → bgW=max(80, 70.6+20)=90.6，bgH=32
-    // 命中区 = (10-4,10-4) ~ (10+93.7+4, 10+32+4) = (6,6)~(107.7,46)
+    // 单行 "hello world"（10 字母 + 1 空格）：估算 maxW=10*6.7+3.6=70.6，height=18
+    // 命中区（容差 ±6px）= (10-6, 10-6) ~ (10+70.6+6, 10+18+6) = (4, 4) ~ (86.6, 34)
     assert.equal(r.hitTest(ann, 20, 20), true); // 内部
-    assert.equal(r.hitTest(ann, 6, 44), true); // 左下角边界
+    assert.equal(r.hitTest(ann, 6, 20), true); // 左边界附近
     assert.equal(r.hitTest(ann, 167, 20), false); // 右边界外
     assert.equal(r.hitTest(ann, 500, 500), false); // 远处
   });
@@ -296,7 +296,7 @@ describe("RendererRegistry: text", () => {
     assert.deepEqual(ann.position, { x: 10, y: 10 });
   });
 
-  test("draw：measureText 换行 + 背景框 fill + fillText", () => {
+  test("draw：双通道绘制（底层 strokeText 描边 + 顶层 fillText 文本）", () => {
     const { ctx, calls } = createRecordingCtx();
     const ann = {
       id: "4",
@@ -308,15 +308,16 @@ describe("RendererRegistry: text", () => {
       selection: { x: 0, y: 0, width: 500, height: 500 },
       viewportImage: null,
     });
+    const strokeTextCalls = calls.filter((c) => c.startsWith("strokeText:"));
     const fillTextCalls = calls.filter((c) => c.startsWith("fillText:"));
-    assert.ok(fillTextCalls.length >= 1);
-    assert.ok(calls.some((c) => c.startsWith("fill:")));
+    assert.ok(strokeTextCalls.length >= 1, "底层应执行 strokeText 描边");
+    assert.ok(fillTextCalls.length >= 1, "顶层应执行 fillText 文本填充");
   });
 
-  test("draw：固定白底 + 品牌蓝描边 + 轻阴影，文字色默认近黑且可配置", () => {
+  test("draw：反色光晕描边 + 前景填充，文字色默认近黑且可配置", () => {
     const { ctx, calls } = createRecordingCtx();
 
-    // 未设置 color → 默认近黑：首次 fillStyle 为白底，末次为默认文字色
+    // 未设置 color → 默认近黑：外描边为浅色反色光晕，文字色为默认近黑
     getRenderer("text").draw(
       ctx,
       {
@@ -330,27 +331,13 @@ describe("RendererRegistry: text", () => {
         viewportImage: null,
       }
     );
-    const fillStyleSets = calls.filter((c) => c.startsWith("set:fillStyle:"));
     assert.ok(
-      fillStyleSets[0].includes("rgba(255, 255, 255, 0.94)"),
-      `气泡底应为白底，实际 ${fillStyleSets[0]}`
+      ctx.strokeStyle.includes("255, 255, 255"),
+      "深色字匹配浅色反色描边光晕"
     );
-    assert.ok(
-      fillStyleSets[fillStyleSets.length - 1].includes("#1f2937"),
-      "默认文字色应为近黑"
-    );
-    assert.equal(ctx.strokeStyle, "#0284c7", "品牌蓝描边");
-    assert.ok(
-      calls.some((c) => c === 'set:shadowColor:"rgba(0, 0, 0, 0.25)"'),
-      "轻阴影色"
-    );
-    assert.equal(
-      ctx.shadowColor,
-      "transparent",
-      "气泡画完后阴影已重置（文字不带阴影）"
-    );
+    assert.equal(ctx.fillStyle, "#FA5352", "默认文字色应为固定红 #FA5352");
 
-    // 设置 color → 文字色生效
+    // 设置 color → 文字色生效，纯白字时自动匹配深色描边
     const ctx2 = createRecordingCtx().ctx;
     getRenderer("text").draw(
       ctx2,
@@ -359,13 +346,17 @@ describe("RendererRegistry: text", () => {
         type: "text" as const,
         position: { x: 10, y: 10 },
         text: "hi",
-        color: "#dc2626",
+        color: "#ffffff",
       },
       {
         selection: { x: 0, y: 0, width: 500, height: 500 },
         viewportImage: null,
       }
     );
-    assert.equal(ctx2.fillStyle, "#dc2626", "ann.color 生效");
+    assert.equal(ctx2.fillStyle, "#ffffff", "ann.color 生效");
+    assert.ok(
+      ctx2.strokeStyle.includes("15, 23, 42"),
+      "纯白字自动匹配深色反色描边光晕"
+    );
   });
 });

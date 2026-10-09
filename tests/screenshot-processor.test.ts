@@ -23,6 +23,9 @@ describe("Screenshot Processor", () => {
       fillText: () => {
         textDrawn = true;
       },
+      strokeText: () => {
+        textDrawn = true;
+      },
       rect: () => {
         rectDrawn = true;
       },

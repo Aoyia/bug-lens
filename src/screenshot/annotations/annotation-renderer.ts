@@ -6,7 +6,15 @@ import {
   pointInRectEdgeBand,
   pointToSegmentDistance,
 } from "../overlay/overlay-geometry";
-import { computeTextLayout } from "./text-layout";
+import {
+  computeTextLayout,
+  getTextHaloColor,
+  TEXT_ANNOTATION_FONT,
+  TEXT_DEFAULT_COLOR,
+  TEXT_LINE_HEIGHT,
+  TEXT_MAX_WIDTH,
+  TEXT_STROKE_WIDTH,
+} from "./text-layout";
 
 /** renderAnnotations 的渲染输入：仅读状态，不改动任何调用方状态 */
 export interface RenderAnnotationsOptions {
@@ -150,70 +158,43 @@ export function renderAnnotations(
       const py = ann.position.y;
       const text = ann.text;
 
-      ctx.font =
-        'bold 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.save();
+      ctx.font = TEXT_ANNOTATION_FONT;
 
       const boundsRight = selection
         ? selection.x + selection.width
         : window.innerWidth;
-      const maxTextWidth = Math.max(100, Math.min(300, boundsRight - px - 24));
+      const maxTextWidth = Math.max(
+        60,
+        Math.min(TEXT_MAX_WIDTH, boundsRight - px - 8)
+      );
 
-      // 按换行符与 maxTextWidth 自动拆分多行
-      const lines: string[] = [];
-      const paragraphs = text.split("\n");
-      for (const p of paragraphs) {
-        if (!p) {
-          lines.push("");
-          continue;
-        }
-        let cur = "";
-        for (const ch of p) {
-          const test = cur + ch;
-          if (ctx.measureText(test).width > maxTextWidth && cur !== "") {
-            lines.push(cur);
-            cur = ch;
-          } else {
-            cur = test;
-          }
-        }
-        if (cur) lines.push(cur);
-      }
+      const { lines } = computeTextLayout(text, {
+        measure: (s) => ctx.measureText(s).width,
+        maxWidth: maxTextWidth,
+      });
 
-      const paddingX = 10;
-      const paddingY = 6;
-      const lineHeight = 18;
-      let maxW = 0;
-      for (const l of lines) {
-        const w = ctx.measureText(l).width;
-        if (w > maxW) maxW = w;
-      }
+      const textColor = ann.color || TEXT_DEFAULT_COLOR;
+      const haloColor = getTextHaloColor(textColor);
 
-      const bgWidth = maxW + paddingX * 2;
-      const bgHeight = paddingY * 2 + lines.length * lineHeight;
-
-      ctx.fillStyle = "rgba(15, 23, 42, 0.92)";
-      ctx.strokeStyle = "#0284c7";
-      ctx.lineWidth = 1;
-
-      ctx.beginPath();
-      if (ctx.roundRect) {
-        ctx.roundRect(px, py, bgWidth, bgHeight, 6);
-      } else {
-        ctx.rect(px, py, bgWidth, bgHeight);
-      }
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.fillStyle = "#f8fafc";
       ctx.textAlign = "left";
       ctx.textBaseline = "top";
+
+      // 通道 1：底层反色外光晕描边
+      ctx.strokeStyle = haloColor;
+      ctx.lineWidth = TEXT_STROKE_WIDTH;
+      ctx.lineJoin = "round";
+      ctx.miterLimit = 2;
       for (let i = 0; i < lines.length; i++) {
-        ctx.fillText(
-          lines[i],
-          px + paddingX,
-          py + paddingY + i * lineHeight + 1
-        );
+        ctx.strokeText(lines[i], px, py + i * TEXT_LINE_HEIGHT);
       }
+
+      // 通道 2：顶层文字填充
+      ctx.fillStyle = textColor;
+      for (let i = 0; i < lines.length; i++) {
+        ctx.fillText(lines[i], px, py + i * TEXT_LINE_HEIGHT);
+      }
+      ctx.restore();
     }
     ctx.restore();
   }
@@ -261,14 +242,13 @@ export function renderSelectionHandles(
     drawPoint(ann.startPoint.x, ann.startPoint.y);
     drawPoint(ann.endPoint.x, ann.endPoint.y);
   } else if (ann.type === "text") {
-    // 选中虚线框与绘制共用同一布局：气泡尺寸逐像素一致
     const layout = computeTextLayout(ann.text);
     const px = ann.position.x;
     const py = ann.position.y;
 
     ctx.setLineDash([3, 3]);
     ctx.strokeStyle = "rgba(0, 122, 255, 0.85)";
-    ctx.strokeRect(px - 2, py - 2, layout.bgWidth + 4, layout.bgHeight + 4);
+    ctx.strokeRect(px - 3, py - 3, layout.width + 6, layout.height + 6);
     ctx.setLineDash([]);
   }
 

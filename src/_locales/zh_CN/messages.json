@@ -336,7 +336,7 @@
     "message": "高清（体积较大）"
   },
   "videoQualityBalanced": {
-    "message": "均衡（推荐）"
+    "message": "均衡"
   },
   "videoQualitySmall": {
     "message": "省空间（画质较低）"
@@ -345,7 +345,7 @@
     "message": "脱敏模式"
   },
   "safeMode": {
-    "message": "安全模式（推荐脱敏）"
+    "message": "安全模式（脱敏）"
   },
   "rawMode": {
     "message": "原始模式（不脱敏）"
@@ -2245,7 +2245,7 @@
     "message": "点击结束录制后的默认处理流程"
   },
   "stopActionPreview": {
-    "message": "打开审查预览页（推荐）"
+    "message": "打开审查预览页"
   },
   "stopActionSilentExport": {
     "message": "静默导出下载 ZIP（不打开预览）"

@@ -1,40 +1,53 @@
 export const TEXT_ANNOTATION_FONT_SIZE = 13;
-export const TEXT_ANNOTATION_FONT_WEIGHT = 400;
+export const TEXT_ANNOTATION_FONT_WEIGHT = 600;
 export const TEXT_ANNOTATION_FONT_FAMILY =
   "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif";
-/** 保持既有字符串值不变（向后兼容），供 canvas ctx.font 直接使用 */
-export const TEXT_ANNOTATION_FONT = `${TEXT_ANNOTATION_FONT_SIZE}px ${TEXT_ANNOTATION_FONT_FAMILY}`;
-export const TEXT_MIN_WIDTH = 80;
+/** 保持既有字符串值兼容，供 canvas ctx.font 直接使用 */
+export const TEXT_ANNOTATION_FONT = `${TEXT_ANNOTATION_FONT_WEIGHT} ${TEXT_ANNOTATION_FONT_SIZE}px ${TEXT_ANNOTATION_FONT_FAMILY}`;
+export const TEXT_MIN_WIDTH = 0;
 export const TEXT_MAX_WIDTH = 600;
-export const TEXT_PADDING_X = 10;
-export const TEXT_PADDING_Y = 6;
+export const TEXT_PADDING_X = 0;
+export const TEXT_PADDING_Y = 0;
 export const TEXT_LINE_HEIGHT = 18;
-export const TEXT_CORNER_RADIUS = 6;
+export const TEXT_CORNER_RADIUS = 0;
 
-// ===== 文字批注配色（统一样式：固定白底 + 可配置深色系文字）=====
-// 设计决策（第一性原理）：任何固定色都会在相反亮度的截图上沉没，而白色是唯一
-// "永不沉没"的极端色——暗色截图上为全场最亮元素必然突出，浅色截图靠描边+阴影区分；
-// 且白底能承载未来可配置的全部深色系文字（对比度 ≥ 4.5:1），黑底只能承载亮色系。
-/** 气泡背景：半透明白 */
-export const TEXT_BUBBLE_BACKGROUND = "rgba(255, 255, 255, 0.94)";
-/** 气泡描边：品牌蓝，明暗截图均可辨 */
-export const TEXT_BUBBLE_STROKE = "#0284c7";
-/** 默认文字色：近黑，白底对比度 ≈ 17:1 */
-export const TEXT_DEFAULT_COLOR = "#1f2937";
-/** 气泡轻阴影（canvas 与 CSS box-shadow 共用同一组参数） */
-export const TEXT_BUBBLE_SHADOW_COLOR = "rgba(0, 0, 0, 0.25)";
-export const TEXT_BUBBLE_SHADOW_OFFSET_Y = 1;
-export const TEXT_BUBBLE_SHADOW_BLUR = 3;
-/** 输入态占位符色：白底上的浅灰，仍可读但不喧宾夺主 */
-export const TEXT_PLACEHOLDER_COLOR = "rgba(31, 41, 55, 0.45)";
+// ===== 无框双色描边文字（去容器化，保真优先）=====
+// 设计决策（第一性原理）：移除实心白底容器，消除对底层缺陷现场的像素遮挡。
+// 利用双通道绘制（底层反色外光晕描边 + 顶层字符填充），在纯黑、纯白及复杂底色上均保持 WCAG AA 可读性。
+export const TEXT_STROKE_WIDTH = 3.5;
+export const TEXT_HALO_LIGHT = "rgba(255, 255, 255, 0.95)";
+export const TEXT_HALO_DARK = "rgba(15, 23, 42, 0.88)";
+export const TEXT_DEFAULT_COLOR = "#FA5352";
+
+/** 根据文字前景颜色自动匹配反色外描边光晕色 */
+export function getTextHaloColor(color?: string): string {
+  const c = (color || TEXT_DEFAULT_COLOR).toLowerCase().trim();
+  if (
+    c === "#ffffff" ||
+    c === "#fff" ||
+    c === "white" ||
+    c === "rgb(255, 255, 255)" ||
+    c === "rgba(255, 255, 255, 1)"
+  ) {
+    return TEXT_HALO_DARK;
+  }
+  return TEXT_HALO_LIGHT;
+}
+
+/** 兼容旧代码引用的气泡容器常量（已废弃实体背景，设为透明） */
+export const TEXT_BUBBLE_BACKGROUND = "transparent";
+export const TEXT_BUBBLE_STROKE = "transparent";
+export const TEXT_BUBBLE_SHADOW_COLOR = "transparent";
+export const TEXT_BUBBLE_SHADOW_OFFSET_Y = 0;
+export const TEXT_BUBBLE_SHADOW_BLUR = 0;
+export const TEXT_PLACEHOLDER_COLOR = "rgba(100, 116, 139, 0.75)";
 
 /**
- * 文字批注可选色板（白底上全部 WCAG AA ≥ 4.5:1 达标）。
- * 亮色系（黄/白/浅绿）在白底不可读，不入色板——除非将来改深底方案。
+ * 文字批注可选色板。
  */
 export const TEXT_COLOR_PALETTE = [
-  "#1f2937", // 黑（默认）
-  "#dc2626", // 红
+  "#FA5352", // 红（固定默认）
+  "#1f2937", // 黑
   "#9a3412", // 橙
   "#15803d", // 绿
   "#2563eb", // 蓝
@@ -86,6 +99,8 @@ export interface TextLayoutOptions {
 
 export interface TextLayoutResult {
   lines: string[];
+  width: number;
+  height: number;
   bgWidth: number;
   bgHeight: number;
 }
@@ -186,11 +201,8 @@ export function computeTextLayout(
     if (w > maxW) maxW = w;
   }
 
-  const bgWidth = Math.max(
-    TEXT_MIN_WIDTH,
-    Math.min(maxWidth, maxW + TEXT_PADDING_X * 2)
-  );
-  const bgHeight = TEXT_PADDING_Y * 2 + lines.length * TEXT_LINE_HEIGHT + 2;
+  const width = Math.min(maxWidth, maxW);
+  const height = lines.length * TEXT_LINE_HEIGHT;
 
-  return { lines, bgWidth, bgHeight };
+  return { lines, width, height, bgWidth: width, bgHeight: height };
 }

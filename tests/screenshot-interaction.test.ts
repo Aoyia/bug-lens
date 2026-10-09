@@ -788,9 +788,10 @@ describe("ScreenshotOverlay 交互行为基线", () => {
 
     // 2. 空文本失焦关闭 → 状态机必须恢复 locked（修复点：此前残留 editing-text 阻塞后续绘制）
     const textarea = h.wrapper.children.find(
-      (c: any) => c.tagName === "TEXTAREA"
+      (c: any) =>
+        c.className?.includes("inline-text-input") || c.tagName === "TEXTAREA"
     );
-    assert.ok(textarea, "textarea 应已创建");
+    assert.ok(textarea, "输入框应已创建");
     textarea.value = "";
     const blurFns = textarea.listeners["blur"];
     assert.ok(blurFns, "blur listener should be registered");
@@ -890,9 +891,10 @@ describe("ScreenshotOverlay 交互行为基线", () => {
     h.mouseDown(420, 380);
     h.mouseUp(420, 380);
     const textarea = h.wrapper.children.find(
-      (c: any) => c.tagName === "TEXTAREA"
+      (c: any) =>
+        c.className?.includes("inline-text-input") || c.tagName === "TEXTAREA"
     );
-    assert.ok(textarea, "textarea 应已创建");
+    assert.ok(textarea, "输入框应已创建");
     textarea.value = "hello";
     textarea.listeners["blur"][0]({ type: "blur" });
     assert.equal(sm().phase, "locked");
@@ -930,7 +932,10 @@ describe("ScreenshotOverlay 交互行为基线", () => {
     fireDbl(420, 380);
     assert.equal(sm().phase, "editing-text", "双击应进入编辑态");
     assert.ok(
-      h.wrapper.children.some((c: any) => c.tagName === "TEXTAREA"),
+      h.wrapper.children.some(
+        (c: any) =>
+          c.className?.includes("inline-text-input") || c.tagName === "TEXTAREA"
+      ),
       "双击应 spawn 输入框"
     );
     // 原批注已移除，等待二次编辑提交
@@ -1487,9 +1492,14 @@ describe("刷新快捷键放行", () => {
 });
 
 describe("InlineTextEditor", () => {
-  /** wrapper.children 中按 tagName 查找 textarea（首位是幂等注入的 <style>） */
+  /** wrapper.children 中查找输入框（首位是幂等注入的 <style>） */
   const findTextarea = (wrapper: any): any =>
-    wrapper.children.find((c: any) => c.tagName === "TEXTAREA");
+    wrapper.children.find(
+      (c: any) =>
+        c.className?.includes("inline-text-input") ||
+        c.tagName === "TEXTAREA" ||
+        c.tagName === "DIV"
+    );
 
   test("输入文本后 blur 提交批注；Esc 取消还原原文", () => {
     const wrapper = createElementStub("div");
@@ -1548,35 +1558,26 @@ describe("InlineTextEditor", () => {
     const textarea = findTextarea(wrapper);
     const css = textarea.style.cssText as string;
 
-    // 渲染态 token：白底深字、实线蓝边框、轻阴影、6px 圆角、13px/400、行高 18px、padding 6/10
-    assert.ok(css.includes("background: rgba(255, 255, 255, 0.94)"), css);
-    assert.ok(css.includes("color: #1f2937"), css);
-    assert.ok(css.includes("border: 1px solid #0284c7"), css);
-    assert.ok(css.includes("box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25)"), css);
-    assert.ok(css.includes("border-radius: 6px"), css);
+    // 渲染态 token：无框透明背景、深色字、微弱聚焦虚线、双色外光晕、13px/600、行高 18px、零 padding 保真
+    assert.ok(css.includes("background: transparent"), css);
+    assert.ok(css.toLowerCase().includes("color: #fa5352"), css);
+    assert.ok(css.includes("border: none"), css);
+    assert.ok(css.includes("outline: 1px dashed rgba(2, 132, 199, 0.65)"), css);
     assert.ok(css.includes("font-size: 13px"), css);
-    assert.ok(css.includes("font-weight: 400"), css);
+    assert.ok(css.includes("font-weight: 600"), css);
     assert.ok(css.includes("line-height: 18px"), css);
-    assert.ok(css.includes("padding: 6px 10px"), css);
-    assert.ok(css.includes("min-width: 80px"), css);
+    assert.ok(css.includes("padding: 0"), css);
+    assert.ok(
+      css.includes("text-shadow: 0 0 3px rgba(255, 255, 255, 0.95)"),
+      css
+    );
 
-    // 旧输入态样式全部退役（含上一版深底白字）
-    assert.ok(!css.includes("#ff3b30"), "红色输入文字应移除");
-    assert.ok(!css.includes("dashed"), "虚线边框应移除");
-    assert.ok(!css.includes("text-shadow"), "投影应移除");
-    assert.ok(!css.includes("rgba(15, 23, 42"), "深底应移除");
-    assert.ok(!css.includes("#f8fafc"), "亮白文字应移除");
-
-    // 占位符样式幂等注入：仅一个 <style>，白底上浅灰占位符
+    // 占位符样式幂等注入：仅一个 <style>，带反色外光晕保证明暗底色均可读
     const styles = wrapper.children.filter((c: any) => c.tagName === "STYLE");
     assert.equal(styles.length, 1, "style 只注入一次");
     assert.ok(
       styles[0].textContent.includes("::placeholder"),
       "占位符配色已注入"
-    );
-    assert.ok(
-      styles[0].textContent.includes("rgba(31, 41, 55, 0.45)"),
-      "占位符为白底浅灰"
     );
   });
 
@@ -1591,12 +1592,12 @@ describe("InlineTextEditor", () => {
       rerender: () => {},
     });
 
-    // 不带 color → 默认近黑
+    // 不带 color → 默认固定红 #FA5352
     editor.spawn(100, 100, "hello");
     let textarea = findTextarea(wrapper);
     assert.ok(
-      textarea.style.cssText.includes("color: #1f2937"),
-      "默认色为近黑"
+      textarea.style.cssText.toLowerCase().includes("color: #fa5352"),
+      "默认色为固定红 #FA5352"
     );
     textarea.remove();
 
@@ -1624,17 +1625,15 @@ describe("InlineTextEditor", () => {
     const textarea = findTextarea(wrapper);
     textarea.value = "hello world";
 
-    // 触发 input → syncSize：width = bgWidth（估算 "hello world" = 10*6.7+3.6+20 ≈ 90.6px）
+    // 方案二：contenteditable 原生流式排版支持
+    assert.equal(textarea.contentEditable, "true");
+    assert.ok(textarea.style.cssText.includes("display: inline-block"));
+    assert.ok(textarea.style.cssText.includes("max-width:"));
+    assert.ok(textarea.style.cssText.includes("word-break: break-word"));
+
     const inputFns = textarea.listeners["input"];
     assert.ok(inputFns, "input listener should be registered");
     inputFns[0]({ type: "input" });
-    assert.ok(textarea.style.width.endsWith("px"), textarea.style.width);
-    assert.ok(textarea.style.height.endsWith("px"), textarea.style.height);
-
-    // 空文本回落最小宽 80px
-    textarea.value = "";
-    inputFns[0]({ type: "input" });
-    assert.equal(textarea.style.width, "80px");
   });
 
   test("空文本 blur 关闭：触发 onClose 且输入框移除", () => {
@@ -1659,8 +1658,10 @@ describe("InlineTextEditor", () => {
     blurFns[0]({ type: "blur" });
     assert.equal(closed, 1, "空文本关闭应触发 onClose（状态机恢复 locked）");
     assert.ok(
-      !wrapper.children.some((c: any) => c.tagName === "TEXTAREA"),
-      "textarea 应被移除"
+      !wrapper.children.some((c: any) =>
+        c.className?.includes("inline-text-input")
+      ),
+      "输入框应被移除"
     );
   });
 
