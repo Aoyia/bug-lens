@@ -7,7 +7,9 @@ docs/*
 !docs/assets/
 !docs/assets/**
 scripts/auto-commit.sh
-.agents
+.agents/**
+!.agents/
+!.agents/AGENTS.md
 plans
 *.zip
 test-results/
