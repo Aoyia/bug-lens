@@ -295,7 +295,8 @@
       .demo-video-box {
         width: 100%;
         aspect-ratio: 16 / 9;
-        background: #0d1117 url("assets/demo/demo-poster.png") center / contain no-repeat;
+        background: #0d1117 url("assets/demo/demo-poster.png") center / contain
+          no-repeat;
         position: relative;
         overflow: hidden;
         display: flex;
@@ -679,6 +680,178 @@
       .footer-copy {
         font-size: 0.85rem;
         color: var(--text-light);
+      }
+
+      /* Hero Live Version Badge */
+      .version-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: rgba(0, 180, 42, 0.08);
+        border: 1px solid rgba(0, 180, 42, 0.28);
+        border-radius: 999px;
+        padding: 5px 14px;
+        font-size: 0.84rem;
+        color: #009a24;
+        text-decoration: none;
+        font-weight: 600;
+        margin-bottom: 16px;
+        transition: all 0.2s ease;
+      }
+      .version-pill:hover {
+        background: rgba(0, 180, 42, 0.14);
+        border-color: rgba(0, 180, 42, 0.45);
+        transform: translateY(-1px);
+      }
+      .live-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background-color: #00b42a;
+        box-shadow: 0 0 0 0 rgba(0, 180, 42, 0.7);
+        animation: live-pulse 2s infinite;
+      }
+      @keyframes live-pulse {
+        0% {
+          box-shadow: 0 0 0 0 rgba(0, 180, 42, 0.6);
+        }
+        70% {
+          box-shadow: 0 0 0 8px rgba(0, 180, 42, 0);
+        }
+        100% {
+          box-shadow: 0 0 0 0 rgba(0, 180, 42, 0);
+        }
+      }
+
+      /* Changelog Timeline */
+      .section-desc {
+        color: var(--text-muted);
+        font-size: 1rem;
+        margin-top: -12px;
+        margin-bottom: 32px;
+      }
+      .changelog-timeline {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        position: relative;
+        padding-left: 28px;
+        margin-top: 12px;
+      }
+      .changelog-timeline::before {
+        content: "";
+        position: absolute;
+        left: 9px;
+        top: 10px;
+        bottom: 10px;
+        width: 2px;
+        background: var(--border);
+      }
+      .changelog-item {
+        position: relative;
+      }
+      .changelog-marker {
+        position: absolute;
+        left: -28px;
+        top: 14px;
+        width: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .changelog-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--surface);
+        border: 2px solid var(--text-light);
+        z-index: 1;
+      }
+      .changelog-item.latest .changelog-dot {
+        background: #00b42a;
+        border-color: #00b42a;
+        box-shadow: 0 0 0 4px rgba(0, 180, 42, 0.2);
+      }
+      .changelog-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 18px 22px;
+        transition:
+          border-color 0.2s ease,
+          box-shadow 0.2s ease;
+      }
+      .changelog-item.latest .changelog-card {
+        border-color: rgba(22, 93, 255, 0.35);
+        box-shadow: var(--shadow-sm);
+      }
+      .changelog-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
+      }
+      .changelog-meta {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .changelog-ver {
+        font-family: var(--mono);
+        font-weight: 700;
+        font-size: 1.05rem;
+        color: var(--text);
+      }
+      .changelog-tag {
+        font-size: 0.72rem;
+        font-weight: 600;
+        padding: 2px 7px;
+        border-radius: 999px;
+        background: rgba(0, 180, 42, 0.12);
+        color: #009a24;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      .changelog-date {
+        font-size: 0.85rem;
+        color: var(--text-light);
+      }
+      .changelog-content {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .changelog-feature {
+        font-size: 0.92rem;
+        line-height: 1.55;
+        color: var(--text-muted);
+      }
+      .changelog-feature strong {
+        color: var(--text);
+      }
+      .changelog-footer {
+        margin-top: 28px;
+        text-align: center;
+      }
+      .changelog-more-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.92rem;
+        font-weight: 600;
+        color: var(--primary);
+        text-decoration: none;
+        padding: 8px 16px;
+        border-radius: var(--radius);
+        background: var(--primary-light);
+        transition:
+          background 0.2s ease,
+          transform 0.2s ease;
+      }
+      .changelog-more-link:hover {
+        background: rgba(22, 93, 255, 0.15);
+        transform: translateY(-1px);
       }
 
       @media (max-width: 840px) {
@@ -3476,6 +3649,7 @@
         <div class="nav-links">
           <a href="#workflow" data-l10n="navWorkflow">工作流</a>
           <a href="#pillars" data-l10n="navFeatures">核心能力</a>
+          <a href="#changelog" data-l10n="navChangelog">更新日志</a>
           <a href="#faq" data-l10n="navFaq">FAQ</a>
           <button id="langSwitch" class="lang-switch" onclick="toggleLang()">
             EN
@@ -3487,6 +3661,12 @@
     <!-- Hero -->
     <section class="grid">
       <div class="hero">
+        <a href="#changelog" class="version-pill reveal visible">
+          <span class="live-dot"></span>
+          <span class="version-pill-text" data-l10n="heroVersionBadge"
+            >v0.7.36 现已上线 · 查看更新日志</span
+          >
+        </a>
         <h1 class="reveal visible" data-l10n="heroTitle">
           从 Bug 复现到 <span class="hl">AI 修复</span><br />只需 3 秒，而非 5
           分钟
@@ -3901,6 +4081,153 @@
       </div>
     </section>
 
+    <!-- Changelog -->
+    <section id="changelog" class="section">
+      <div class="grid">
+        <div>
+          <div class="section-eyebrow reveal" data-l10n="changelogEyebrow">
+            Releases & Activity
+          </div>
+          <h2 class="section-title reveal" data-l10n="changelogTitle">
+            版本演进与动态
+          </h2>
+          <p class="section-desc reveal" data-l10n="changelogDesc">
+            持续保持高频迭代，保障在最新前端框架生态与 AI 编程环境下的极佳体验。
+          </p>
+          <div class="changelog-timeline reveal">
+            <!-- v0.7.36 -->
+            <div class="changelog-item latest">
+              <div class="changelog-marker">
+                <span class="changelog-dot"></span>
+              </div>
+              <div class="changelog-card">
+                <div class="changelog-header">
+                  <div class="changelog-meta">
+                    <span class="changelog-ver">v0.7.36</span>
+                    <span class="changelog-tag" data-l10n="tagLatest"
+                      >Latest</span
+                    >
+                    <span class="changelog-date">2026-10-22</span>
+                  </div>
+                </div>
+                <div class="changelog-content">
+                  <div class="changelog-feature">
+                    <strong data-l10n="v36_f1_t"
+                      >全新设置页毛玻璃分段控制：</strong
+                    >
+                    <span data-l10n="v36_f1_d"
+                      >采用 iOS 26 风格 Liquid Glass
+                      交互组件与防抖动排版，响应式体验更丝滑。</span
+                    >
+                  </div>
+                  <div class="changelog-feature">
+                    <strong data-l10n="v36_f2_t">截图文字标注体验重构：</strong>
+                    <span data-l10n="v36_f2_d"
+                      >引入流式自动折行（Flow Layout）、Halo
+                      发光描边与高辨识度配色（#FA5352），大幅提升批注可读性。</span
+                    >
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- v0.7.35 -->
+            <div class="changelog-item">
+              <div class="changelog-marker">
+                <span class="changelog-dot"></span>
+              </div>
+              <div class="changelog-card">
+                <div class="changelog-header">
+                  <div class="changelog-meta">
+                    <span class="changelog-ver">v0.7.35</span>
+                    <span class="changelog-date">2026-09-28</span>
+                  </div>
+                </div>
+                <div class="changelog-content">
+                  <div class="changelog-feature">
+                    <strong data-l10n="v35_f1_t"
+                      >Chrome 原生风格设置页：</strong
+                    >
+                    <span data-l10n="v35_f1_d"
+                      >支持独立选项页、快捷键自定义、自动化采集开关与存储策略管控。</span
+                    >
+                  </div>
+                  <div class="changelog-feature">
+                    <strong data-l10n="v35_f2_t">跨标签页录制体验：</strong>
+                    <span data-l10n="v35_f2_d"
+                      >增强跨 Tab 会话感知、录制暂停与恢复状态同步及预览 Toast
+                      便捷动作。</span
+                    >
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- v0.7.34 -->
+            <div class="changelog-item">
+              <div class="changelog-marker">
+                <span class="changelog-dot"></span>
+              </div>
+              <div class="changelog-card">
+                <div class="changelog-header">
+                  <div class="changelog-meta">
+                    <span class="changelog-ver">v0.7.34</span>
+                    <span class="changelog-date">2026-09-05</span>
+                  </div>
+                </div>
+                <div class="changelog-content">
+                  <div class="changelog-feature">
+                    <strong data-l10n="v34_f1_t">前端框架源码探针：</strong>
+                    <span data-l10n="v34_f1_d"
+                      >支持 Vue 2、Vue 3 及 React
+                      源码路径与行号高精度解析，深度解包响应式状态。</span
+                    >
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- v0.7.33 -->
+            <div class="changelog-item">
+              <div class="changelog-marker">
+                <span class="changelog-dot"></span>
+              </div>
+              <div class="changelog-card">
+                <div class="changelog-header">
+                  <div class="changelog-meta">
+                    <span class="changelog-ver">v0.7.33</span>
+                    <span class="changelog-date">2026-09-04</span>
+                  </div>
+                </div>
+                <div class="changelog-content">
+                  <div class="changelog-feature">
+                    <strong data-l10n="v33_f1_t"
+                      >极限高频压力与导出性能：</strong
+                    >
+                    <span data-l10n="v33_f1_d"
+                      >优化后台 IndexedDB 批量事务与静默导出流水线，通过 21
+                      套端到端全量压力测试硬化。</span
+                    >
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="changelog-footer reveal">
+            <a
+              href="https://github.com/Aoyia/bug-lens/releases"
+              target="_blank"
+              class="changelog-more-link"
+              data-l10n="changelogMore"
+            >
+              在 GitHub 上查看完整发布历史 →
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- FAQ -->
     <section id="faq" class="section section-alt">
       <div class="grid">
@@ -4099,12 +4426,64 @@
             a3: "支持任意 AI 编程工具或对话助手，包括 Cursor, Claude Code, ChatGPT, DeepSeek, Windsurf 等。",
             footerSource: "开源仓库",
             footerIssues: "反馈问题",
+            navChangelog: "更新日志",
+            heroVersionBadge: "v0.7.36 现已上线 · 查看更新日志",
+            changelogEyebrow: "Releases & Activity",
+            changelogTitle: "版本演进与动态",
+            changelogDesc:
+              "持续保持高频迭代，保障在最新前端框架生态与 AI 编程环境下的极佳体验。",
+            tagLatest: "最新",
+            v36_f1_t: "全新设置页毛玻璃分段控制：",
+            v36_f1_d:
+              "采用 iOS 26 风格 Liquid Glass 交互组件与防抖动排版，响应式体验更丝滑。",
+            v36_f2_t: "截图文字标注体验重构：",
+            v36_f2_d:
+              "引入流式自动折行（Flow Layout）、Halo 发光描边与高辨识度配色（#FA5352），大幅提升批注可读性。",
+            v35_f1_t: "Chrome 原生风格设置页：",
+            v35_f1_d:
+              "支持独立选项页、快捷键自定义、自动化采集开关与存储策略管控。",
+            v35_f2_t: "跨标签页录制体验：",
+            v35_f2_d:
+              "增强跨 Tab 会话感知、录制暂停与恢复状态同步及预览 Toast 便捷动作。",
+            v34_f1_t: "前端框架源码探针：",
+            v34_f1_d:
+              "支持 Vue 2、Vue 3 及 React 源码路径与行号高精度解析，深度解包响应式状态。",
+            v33_f1_t: "极限高频压力与导出性能：",
+            v33_f1_d:
+              "优化后台 IndexedDB 批量事务与静默导出流水线，通过 21 套端到端全量压力测试硬化。",
+            changelogMore: "在 GitHub 上查看完整发布历史 →",
           },
           en: {
             navWorkflow: "Workflow",
             navFeatures: "Capabilities",
+            navChangelog: "Changelog",
             navFaq: "FAQ",
             heroBadge: "CHROME EXTENSION · AI CODING",
+            heroVersionBadge: "v0.7.36 is Live · See What's New",
+            changelogEyebrow: "Releases & Activity",
+            changelogTitle: "Changelog & Activity",
+            changelogDesc:
+              "Iterating relentlessly to deliver the fastest, cleanest diagnostic experience for modern web and AI agents.",
+            tagLatest: "Latest",
+            v36_f1_t: "Liquid Glass Segmented Controls: ",
+            v36_f1_d:
+              "iOS 26 style liquid glass controls with zero-shift responsive layout for seamless workflow switching.",
+            v36_f2_t: "Redesigned Screenshot Annotations: ",
+            v36_f2_d:
+              "Fluid auto-wrap flow layout, glowing halo strokes, and high-contrast #FA5352 vibrant red annotations.",
+            v35_f1_t: "Chrome-Style Options Hub: ",
+            v35_f1_d:
+              "Standalone settings dashboard with shortcut customization, automation toggles, and storage controls.",
+            v35_f2_t: "Multi-Tab Recording Polish: ",
+            v35_f2_d:
+              "Enhanced cross-tab session tracking, synchronized pause states, and instant preview toast actions.",
+            v34_f1_t: "Framework Source Code Probes: ",
+            v34_f1_d:
+              "Pinpoints Vue 2, Vue 3, and React source paths and line numbers with automated state unboxing.",
+            v33_f1_t: "High-Frequency Burst Hardening: ",
+            v33_f1_d:
+              "Mitigates transaction locks via batching and hardens performance across 21 full-suite E2E stress runs.",
+            changelogMore: "View Complete Release History on GitHub →",
             heroTitle:
               'From Bug Scene to <span class="hl">AI Fix</span><br />In 3 Seconds, Not 5 Minutes',
             heroSub:
@@ -4174,13 +4553,13 @@
         var LOCAL_VIDEO_HTML =
           '<video id="heroDemoVideo" poster="assets/demo/demo-poster.png" autoplay loop muted playsinline controls preload="metadata">' +
           '<source src="assets/demo/bug-lens-demo-1080p.webm" type="video/webm" />' +
-          '您的浏览器暂不支持 HTML5 视频播放。' +
-          '</video>';
+          "您的浏览器暂不支持 HTML5 视频播放。" +
+          "</video>";
         var YOUTUBE_IFRAME_HTML =
           '<iframe id="heroDemoIframe" ' +
           'src="https://www.youtube-nocookie.com/embed/' +
           YOUTUBE_VIDEO_ID +
-          '?autoplay=1&mute=1&loop=1&playlist=' +
+          "?autoplay=1&mute=1&loop=1&playlist=" +
           YOUTUBE_VIDEO_ID +
           '&controls=1&rel=0" ' +
           'title="Bug Lens Demo Video" frameborder="0" ' +
@@ -4209,8 +4588,7 @@
         function updateDemoVideo(lang) {
           var box = document.querySelector(".demo-video-box");
           if (!box) return;
-          var useYouTube =
-            lang === "en" || (lang !== "zh" && isOverseasUser());
+          var useYouTube = lang === "en" || (lang !== "zh" && isOverseasUser());
           if (useYouTube) {
             if (!box.querySelector("iframe")) {
               box.innerHTML = YOUTUBE_IFRAME_HTML;

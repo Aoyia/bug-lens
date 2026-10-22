@@ -763,7 +763,13 @@ export function OptionsApp() {
                 <span>{t("navShortcuts")}</span>
               </button>
             </nav>
-            <div className="sidebar-footer">Bug Lens v0.7.34</div>
+            <div className="sidebar-footer">
+              Bug Lens v
+              {typeof chrome !== "undefined" &&
+              chrome.runtime?.getManifest?.()?.version
+                ? chrome.runtime.getManifest().version
+                : "0.7.36"}
+            </div>
           </aside>
 
           {/* 右侧主配置卡片区 */}

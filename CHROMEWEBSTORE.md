@@ -1,6 +1,6 @@
 # Chrome Web Store Listing & Submission Guide — Bug Lens
 
-> **Version Alignment**: Manifest `v0.7.34`  
+> **Version Alignment**: Manifest `v0.7.36`  
 > **Target Store**: [Chrome Developer Dashboard](https://chrome.google.com/webstore/devconsole)
 
 ---
@@ -166,7 +166,7 @@ pnpm run typecheck
 pnpm run package
 ```
 
-产物位置：根目录下生成 `dist-zip/bug-lens-v0.7.34.zip`
+产物位置：根目录下生成 `dist-zip/bug-lens-v0.7.36.zip`
 
 ### 步骤 2: 提交至 Chrome Developer Dashboard
 
@@ -184,6 +184,8 @@ pnpm run package
 
 | Version   | Date       | Changes Summary                                                                                                                                                       | Store Status         |
 | :-------- | :--------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------- |
+| `v0.7.36` | 2026-10-22 | iOS 26 liquid glass segmented control in settings; redesigned flow layout text annotations with halo stroke and vibrant red `#FA5352`; website changelog timeline.    | Ready for Submission |
+| `v0.7.35` | 2026-09-28 | Standalone Chrome-style settings dashboard, zero-shift controls, enhanced multi-tab session perception, and synchronized recording status.                            | Submitted            |
 | `v0.7.34` | 2026-09-05 | High-precision source path & line number extraction for Vue 2, Vue 3 & React, Hooks reactive state unpacking, sensitive sanitization, offline fixture app E2E matrix. | Ready for Submission |
 | `v0.7.33` | 2026-09-04 | Silent export responsiveness optimization, IndexedDB write batching & transaction lock mitigation, full 21 E2E stress suite hardening.                                | Ready for Submission |
 | `v0.7.32` | 2026-08-21 | Widget position persistence across sessions, recording lock states, export toast card UI optimizations, and database loading performance optimizations.               | Ready for Submission |
