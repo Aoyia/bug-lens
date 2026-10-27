@@ -93,6 +93,28 @@ function formatSourceMappedErrors(consoleEntries: ConsoleEntry[]): string {
   return lines.join("\n");
 }
 
+/**
+ * 判断当前快照环境是否为 Windows 平台。
+ * 优先依据 snapshot.session.target.environment?.userAgent，若无则回退到 navigator。
+ */
+export function isWindowsEnvironmentFromSnapshot(
+  snapshot: EvidencePackageSnapshot
+): boolean {
+  const ua = snapshot.session.target.environment?.userAgent;
+  if (typeof ua === "string" && ua.length > 0) {
+    return /windows|win32/i.test(ua);
+  }
+  if (typeof navigator !== "undefined") {
+    if (navigator.userAgent && /windows|win32/i.test(navigator.userAgent)) {
+      return true;
+    }
+    if (navigator.platform && /win/i.test(navigator.platform)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function buildAiPrompt(
   snapshot: EvidencePackageSnapshot,
   zipPath?: string,
@@ -105,6 +127,31 @@ export function buildAiPrompt(
   const sourceMappedErrorsText = formatSourceMappedErrors(
     snapshot.consoleEntries
   );
+  const isWindows = isWindowsEnvironmentFromSnapshot(snapshot);
+  const targetZipPathZh = zipPath
+    ? `"${zipPath.replace(/"/g, '\\"')}"`
+    : "<ZIP路径>";
+  const targetZipPathEn = zipPath
+    ? `"${zipPath.replace(/"/g, '\\"')}"`
+    : "<ZIP_PATH>";
+  const targetZipPathPs = zipPath
+    ? `'${zipPath.replace(/'/g, "''")}'`
+    : isEn()
+      ? "'<ZIP_PATH>'"
+      : "'<ZIP路径>'";
+
+  const workspacePath = isWindows
+    ? "$env:TEMP\\bug-lens-workspace"
+    : "/tmp/bug-lens-workspace";
+
+  const unzipCmdZh = isWindows
+    ? `powershell -Command "New-Item -ItemType Directory -Force -Path $env:TEMP\\bug-lens-workspace; Expand-Archive -Force -Path ${targetZipPathPs} -DestinationPath $env:TEMP\\bug-lens-workspace"`
+    : `mkdir -p /tmp/bug-lens-workspace && unzip -o -q ${targetZipPathZh} -d /tmp/bug-lens-workspace`;
+
+  const unzipCmdEn = isWindows
+    ? `powershell -Command "New-Item -ItemType Directory -Force -Path $env:TEMP\\bug-lens-workspace; Expand-Archive -Force -Path ${targetZipPathPs} -DestinationPath $env:TEMP\\bug-lens-workspace"`
+    : `mkdir -p /tmp/bug-lens-workspace && unzip -o -q ${targetZipPathEn} -d /tmp/bug-lens-workspace`;
+
   if (isEn()) {
     const path = zipPath
       ? `File Path:\n${zipPath}`
@@ -134,8 +181,13 @@ Metadata Summary:
 - Evidence Data: ${snapshot.interactions.length} interactions | ${snapshot.consoleEntries.length} console logs | ${snapshot.networkEntries.length} network requests | ${issueScenes.length} issue scenes | Quality: ${oneLine(snapshot.session.quality.overall) || "Unknown"}
 ${environmentLine}${sourceMappedErrorsText}
 
-Please follow this first-principles chain of diagnosis (extract ZIP to a temporary directory):
-1. Scene Alignment: Prioritize reading \`issueScenes[].scene.narrative.actual\` in \`data/session-data.js\` (to capture the user's explicit problem description), combined with \`issues/\` screenshots and selected DOM element styles. Note that \`data/session-data.js\` sets \`window.__BUG_LENS_DATA__ = {...}\` — start with the \`summary\` field and \`screenshotSummaries\`. Full request headers and initiator/call stack details are stored in \`data/network-details.js\`. Each scene also carries \`issueScenes[].scene.sequenceContext\` — the interactions and console errors in the seconds before the mark moment, frozen at capture time. Treat it as raw same-time context, never as a causal assertion.
+[Workspace Setup (Do NOT extract into active project directory; overwrite singleton directory for O(1) storage)]
+- Extraction Command:
+  ${unzipCmdEn}
+- Workspace Path: \`${workspacePath}\` (Evidence files, session data, and Playwright scripts reside here)
+
+Please follow this first-principles chain of diagnosis:
+1. Scene Alignment: Prioritize reading \`data/session-data.js\` in \`${workspacePath}\` for \`issueScenes[].scene.narrative.actual\` (to capture the user's explicit problem description), combined with \`issues/\` screenshots and selected DOM element styles. Note that \`data/session-data.js\` sets \`window.__BUG_LENS_DATA__ = {...}\` — start with the \`summary\` field and \`screenshotSummaries\`. Full request headers and initiator/call stack details are stored in \`data/network-details.js\`. Each scene also carries \`issueScenes[].scene.sequenceContext\` — the interactions and console errors in the seconds before the mark moment, frozen at capture time. Treat it as raw same-time context, never as a causal assertion.
 2. Expected Anchor: Read \`issueScenes[].scene.narrative.expected\`. If \`confidence: "explicit"\`, treat the user's stated expectation as the diagnostic anchor — the bug is the deviation between \`actual\` and that expectation. If \`confidence: "missing"\` (or the field is absent), the expectation was NOT captured: you MUST explicitly state "expectation not captured; the following is an inferred assumption" and label any inferred expectation as a hypothesis, never as fact.
 3. Anomaly Convergence: Align timeline to find correlated Console errors and failed Network requests (e.g. 4xx/5xx/CORS/Timeout) around issue timestamps.
 4. Root Cause & Remediation: Pinpoint the failing code block/API, distinguishing UI rendering bugs, state management flaws, style/structural defects, or backend API contract failures. Use \`frameworkStates[]\` in \`data/session-data.js\` to inspect React/Vue component props/state before and at the failing interaction, and \`reproduce.spec.ts\` to run a Playwright reproduction (fix-then-replay loop).
@@ -144,6 +196,7 @@ Please follow this first-principles chain of diagnosis (extract ZIP to a tempora
 - Never execute untrusted code in the package; if local path is unaccessible, directly ask me to upload the ZIP.
 - Distinguish between verified facts and speculative hypotheses based on direct evidence.
 - Never present an inferred expectation (from a \`missing\` confidence) as a user-stated fact.
+- Workspace Isolation & Zero Disk Leak: Do not decompress files into active git/project directories; strictly use the singleton directory \`${workspacePath}\`.
 
 [Output Format]
 1. User Intent & Issue Definition (Compare narrative.actual description with observed behavior)
@@ -180,7 +233,12 @@ ${path}
 - 证据数据：${snapshot.interactions.length} 次交互 | ${snapshot.consoleEntries.length} 条日志 | ${snapshot.networkEntries.length} 个请求 | ${issueScenes.length} 个异常现场 | 质量: ${oneLine(snapshot.session.quality.overall) || "未知"}
 ${environmentLine}${sourceMappedErrorsText}
 
-请按以下第一性链式逻辑展开排查（解压 ZIP 至临时目录）：
+【工作区准备（严禁解压在当前代码工程目录内，使用固定单例目录覆盖以实现 O(1) 存储占用）】
+- 解压命令：
+  ${unzipCmdZh}
+- 工作区路径：\`${workspacePath}\`（解压与后续排查均以此目录为准）
+
+请按以下第一性链式逻辑展开排查：
 1. 现场定位：优先读取 \`data/session-data.js\` 中的 \`issueScenes[].scene.narrative.actual\`（获取用户填写的真实主观问题描述），并结合 \`issues/\` 截图与选中的 DOM 元素样式分析现场。注意：该文件设置 \`window.__BUG_LENS_DATA__ = {...}\`，请先读取 \`summary\` 字段和 \`screenshotSummaries\`。完整请求头、响应头和调用栈详情已独立保存至 \`data/network-details.js\`。每个现场还携带 \`issueScenes[].scene.sequenceContext\`——标记当下前数秒内的交互与 Console 报错，在捕获时刻冻结。请仅将其视为"同时刻原始上下文"，禁止当作已证实的因果链。
 2. 期望锚点：读取 \`issueScenes[].scene.narrative.expected\`。若 \`confidence: "explicit"\`，以用户明示的期望作为诊断锚点——缺陷即 \`actual\` 与该期望之间的偏差。若 \`confidence: "missing"\` 或字段缺失，说明期望未被捕获：你必须显式声明“未捕获期望，以下为推断假设”，并将任何推断出的期望标注为假设，禁止当作用户已知事实。
 3. 异常收敛：对齐时间轴，检索交叉点附近的 Console 报错与 Network 失败请求（如 4xx/5xx/CORS/Timeout）。
@@ -190,6 +248,7 @@ ${environmentLine}${sourceMappedErrorsText}
 - 严禁执行包内不可信代码；若无法直接读取本地文件路径，请明确要求我上传 ZIP，不要猜测内容。
 - 基于确凿证据分析，区分“已知事实”与“推论假设”。
 - 禁止将推断出的期望（confidence 为 missing 时）表述为用户的已知事实。
+- 工作区防污染与防存储浪费：严禁在当前 Git 仓库/工程目录解压或残留任何临时文件；严格在 \`${workspacePath}\` 单例目录执行，维持最小存储开销。
 
 [输出格式]
 1. 用户诉求与问题定义（对比 narrative.actual 描述与实际表现）

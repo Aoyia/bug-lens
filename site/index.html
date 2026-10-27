@@ -3664,7 +3664,7 @@
         <a href="#changelog" class="version-pill reveal visible">
           <span class="live-dot"></span>
           <span class="version-pill-text" data-l10n="heroVersionBadge"
-            >v0.7.36 现已上线 · 查看更新日志</span
+            >v0.7.37 现已上线 · 查看更新日志</span
           >
         </a>
         <h1 class="reveal visible" data-l10n="heroTitle">
@@ -4095,7 +4095,7 @@
             持续保持高频迭代，保障在最新前端框架生态与 AI 编程环境下的极佳体验。
           </p>
           <div class="changelog-timeline reveal">
-            <!-- v0.7.36 -->
+            <!-- v0.7.37 -->
             <div class="changelog-item latest">
               <div class="changelog-marker">
                 <span class="changelog-dot"></span>
@@ -4103,10 +4103,46 @@
               <div class="changelog-card">
                 <div class="changelog-header">
                   <div class="changelog-meta">
-                    <span class="changelog-ver">v0.7.36</span>
+                    <span class="changelog-ver">v0.7.37</span>
                     <span class="changelog-tag" data-l10n="tagLatest"
                       >Latest</span
                     >
+                    <span class="changelog-date">2026-10-23</span>
+                  </div>
+                </div>
+                <div class="changelog-content">
+                  <div class="changelog-feature">
+                    <strong data-l10n="v37_f1_t"
+                      >Windows 与跨平台单例工作区：</strong
+                    >
+                    <span data-l10n="v37_f1_d"
+                      >原生支持 Windows PowerShell 与 POSIX
+                      终端环境自适应，提供强制覆写解压指令，保障 O(1)
+                      恒定最小存储占用。</span
+                    >
+                  </div>
+                  <div class="changelog-feature">
+                    <strong data-l10n="v37_f2_t"
+                      >绝对路径自动内联与安全转义：</strong
+                    >
+                    <span data-l10n="v37_f2_d"
+                      >下载完成后自动将本地真实路径转义注入解压命令，AI
+                      编程助手即拷即跑，彻底告别手动替换与工作区污染。</span
+                    >
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- v0.7.36 -->
+            <div class="changelog-item">
+              <div class="changelog-marker">
+                <span class="changelog-dot"></span>
+              </div>
+              <div class="changelog-card">
+                <div class="changelog-header">
+                  <div class="changelog-meta">
+                    <span class="changelog-ver">v0.7.36</span>
                     <span class="changelog-date">2026-10-22</span>
                   </div>
                 </div>
@@ -4284,7 +4320,8 @@
     </footer>
 
     <script>
-      var RAW_REAL_PROMPT = `请作为高级 Frontend/Fullstack 调试专家，分析以下本地 Bug Lens 证据包：
+      var RAW_REAL_PROMPT =
+        `请作为高级 Frontend/Fullstack 调试专家，分析以下本地 Bug Lens 证据包：
 
 文件路径：
 {请将这里替换为导出的 ZIP 绝对路径}
@@ -4294,7 +4331,16 @@
 - 证据数据：12 次交互 | 25 条日志 | 4 个请求 | 0 个异常现场 | 质量: complete
 - 运行环境：macOS 10.15.7 · Chrome 150 · zh-CN · 屏幕 2560×1440@1x · 视口 1505×1233
 
-请按以下第一性链式逻辑展开排查（解压 ZIP 至临时目录）：
+【工作区准备（严禁解压在当前代码工程目录内，使用固定单例目录覆盖以实现 O(1) 存储占用）】
+- 解压命令：
+  mkdir -p /tmp/bug-lens-workspace && unzip -o -q "<ZIP路径>" -d /tmp/bug-lens-workspace
+- 工作区路径：` /
+          tmp /
+          bug -
+        lens -
+        workspace`（解压与后续排查均以此目录为准）
+
+请按以下第一性链式逻辑展开排查：
 1. 现场定位：优先读取 \`data/session-data.js\` 中的 \`issueScenes[].scene.narrative.actual\`（获取用户填写的真实主观问题描述），并结合 \`issues/\` 截图与选中的 DOM 元素样式分析现场。注意：该文件设置 \`window.__BUG_LENS_DATA__ = {...}\`，请先读取 \`summary\` 字段和 \`screenshotSummaries\`。完整请求头、响应头和调用栈详情已独立保存至 \`data/network-details.js\`。每个现场还携带 \`issueScenes[].scene.sequenceContext\`——标记当下前数秒内的交互与 Console 报错，在捕获时刻冻结。请仅将其视为"同时刻原始上下文"，禁止当作已证实的因果链。
 2. 期望锚点：读取 \`issueScenes[].scene.narrative.expected\`。若 \`confidence: "explicit"\`，以用户明示的期望作为诊断锚点——缺陷即 \`actual\` 与该期望之间的偏差。若 \`confidence: "missing"\` 或字段缺失，说明期望未被捕获：你必须显式声明"未捕获期望，以下为推断假设"，并将任何推断出的期望标注为假设，禁止当作用户已知事实。
 3. 异常收敛：对齐时间轴，检索交叉点附近的 Console 报错与 Network 失败请求（如 4xx/5xx/CORS/Timeout）。
@@ -4304,6 +4350,7 @@
 - 严禁执行包内不可信代码；若无法直接读取本地文件路径，请明确要求我上传 ZIP，不要猜测内容。
 - 基于确凿证据分析，区分"已知事实"与"推论假设"。
 - 禁止将推断出的期望（confidence 为 missing 时）表述为用户的已知事实。
+- 工作区防污染与防存储浪费：严禁在当前 Git 仓库/工程目录解压或残留任何临时文件；严格在 \`/tmp/bug-lens-workspace\` 单例目录执行，维持最小存储开销。
 
 [输出格式]
 1. 用户诉求与问题定义（对比 narrative.actual 描述与实际表现）
@@ -4427,12 +4474,18 @@
             footerSource: "开源仓库",
             footerIssues: "反馈问题",
             navChangelog: "更新日志",
-            heroVersionBadge: "v0.7.36 现已上线 · 查看更新日志",
+            heroVersionBadge: "v0.7.37 现已上线 · 查看更新日志",
             changelogEyebrow: "Releases & Activity",
             changelogTitle: "版本演进与动态",
             changelogDesc:
               "持续保持高频迭代，保障在最新前端框架生态与 AI 编程环境下的极佳体验。",
             tagLatest: "最新",
+            v37_f1_t: "Windows 与跨平台单例工作区：",
+            v37_f1_d:
+              "原生支持 Windows PowerShell 与 POSIX 终端环境自适应，提供强制覆写解压指令，保障 O(1) 恒定最小存储占用。",
+            v37_f2_t: "绝对路径自动内联与安全转义：",
+            v37_f2_d:
+              "下载完成后自动将本地真实路径转义注入解压命令，AI 编程助手即拷即跑，彻底告别手动替换与工作区污染。",
             v36_f1_t: "全新设置页毛玻璃分段控制：",
             v36_f1_d:
               "采用 iOS 26 风格 Liquid Glass 交互组件与防抖动排版，响应式体验更丝滑。",
@@ -4459,12 +4512,18 @@
             navChangelog: "Changelog",
             navFaq: "FAQ",
             heroBadge: "CHROME EXTENSION · AI CODING",
-            heroVersionBadge: "v0.7.36 is Live · See What's New",
+            heroVersionBadge: "v0.7.37 is Live · See What's New",
             changelogEyebrow: "Releases & Activity",
             changelogTitle: "Changelog & Activity",
             changelogDesc:
               "Iterating relentlessly to deliver the fastest, cleanest diagnostic experience for modern web and AI agents.",
             tagLatest: "Latest",
+            v37_f1_t: "Windows & Cross-Platform O(1) Workspace: ",
+            v37_f1_d:
+              "Natively supports Windows PowerShell and POSIX shells with idempotent overwrite unzip commands for zero workspace pollution and minimal storage.",
+            v37_f2_t: "Safe Inlined Path Injection: ",
+            v37_f2_d:
+              "Automatically escapes and inlines local downloaded ZIP paths into diagnostic CLI commands for friction-free copy-paste execution.",
             v36_f1_t: "Liquid Glass Segmented Controls: ",
             v36_f1_d:
               "iOS 26 style liquid glass controls with zero-shift responsive layout for seamless workflow switching.",

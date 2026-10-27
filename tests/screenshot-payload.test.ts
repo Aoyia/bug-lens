@@ -5,6 +5,7 @@ import {
   formatPayloadToMarkdownForZip,
   buildAiPromptTemplate,
   formatPayloadToHtml,
+  isWindowsEnvironment,
   normalizePayloadKeyOrder,
   normalizeDomTreeKeyOrder,
   normalizeDomAnchorNodeKeyOrder,
@@ -261,6 +262,148 @@ describe("Screenshot Payload Formatter", () => {
     assert.doesNotMatch(md, /请将这里替换为导出的 ZIP 绝对路径/);
     // 包含引导文案与剪贴板路径提示
     assert.match(md, /真实绝对路径已写入剪贴板提示词/);
+  });
+
+  test("isWindowsEnvironment 正确识别操作系统环境", () => {
+    const winPayload: AIScreenshotPayload = {
+      ...mockPayload,
+      environment: {
+        ...mockPayload.environment,
+        userAgent:
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+      },
+    };
+    const macPayload: AIScreenshotPayload = {
+      ...mockPayload,
+      environment: {
+        ...mockPayload.environment,
+        userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+      },
+    };
+    const linuxPayload: AIScreenshotPayload = {
+      ...mockPayload,
+      environment: {
+        ...mockPayload.environment,
+        userAgent: "Mozilla/5.0 (X11; Linux x86_64)",
+      },
+    };
+
+    assert.strictEqual(isWindowsEnvironment(winPayload), true);
+    assert.strictEqual(isWindowsEnvironment(macPayload), false);
+    assert.strictEqual(isWindowsEnvironment(linuxPayload), false);
+  });
+
+  test("formatPayloadToMarkdown 针对 POSIX (macOS/Linux) 生成标准的单例工作区解压指令", () => {
+    const macPayload: AIScreenshotPayload = {
+      ...mockPayload,
+      environment: {
+        ...mockPayload.environment,
+        userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+      },
+    };
+    const mdWithZip = formatPayloadToMarkdown(
+      macPayload,
+      "/Users/tester/Downloads/bug-lens-2026.zip"
+    );
+    assert.match(mdWithZip, /【工作区准备（严禁解压在当前代码工程目录内/);
+    assert.match(
+      mdWithZip,
+      /mkdir -p \/tmp\/bug-lens-workspace && unzip -o -q "\/Users\/tester\/Downloads\/bug-lens-2026\.zip" -d \/tmp\/bug-lens-workspace/
+    );
+    assert.match(mdWithZip, /工作区路径：`\/tmp\/bug-lens-workspace`/);
+    assert.match(
+      mdWithZip,
+      /严禁在当前 Git 仓库\/工程目录解压或残留任何临时文件/
+    );
+
+    // 未传递 zipPath 时保留占位符
+    const mdWithoutZip = formatPayloadToMarkdown(macPayload);
+    assert.match(
+      mdWithoutZip,
+      /mkdir -p \/tmp\/bug-lens-workspace && unzip -o -q <ZIP路径> -d \/tmp\/bug-lens-workspace/
+    );
+  });
+
+  test("formatPayloadToMarkdown 针对 Windows 生成 PowerShell 单例工作区解压指令", () => {
+    const winPayload: AIScreenshotPayload = {
+      ...mockPayload,
+      environment: {
+        ...mockPayload.environment,
+        userAgent:
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+      },
+    };
+    const mdWithZip = formatPayloadToMarkdown(
+      winPayload,
+      "C:\\Users\\tester\\Downloads\\bug-lens-2026.zip"
+    );
+    assert.match(mdWithZip, /【工作区准备（严禁解压在当前代码工程目录内/);
+    assert.match(
+      mdWithZip,
+      /powershell -Command "New-Item -ItemType Directory -Force -Path \$env:TEMP\\bug-lens-workspace; Expand-Archive -Force -Path 'C:\\Users\\tester\\Downloads\\bug-lens-2026\.zip' -DestinationPath \$env:TEMP\\bug-lens-workspace"/
+    );
+    assert.match(mdWithZip, /工作区路径：`\$env:TEMP\\bug-lens-workspace`/);
+    assert.match(
+      mdWithZip,
+      /严禁在当前 Git 仓库\/工程目录解压或残留任何临时文件；严格在 `\$env:TEMP\\bug-lens-workspace` 单例目录执行/
+    );
+
+    // 未传递 zipPath 时保留占位符
+    const mdWithoutZip = formatPayloadToMarkdown(winPayload);
+    assert.match(
+      mdWithoutZip,
+      /Expand-Archive -Force -Path '<ZIP路径>' -DestinationPath \$env:TEMP\\bug-lens-workspace/
+    );
+  });
+
+  test("formatPayloadToMarkdown 英文环境下针对 Windows 与 POSIX 分别生成对应指令", async () => {
+    const { setUserLanguagePreference } = await import("../src/shared/i18n.ts");
+    await setUserLanguagePreference("en-US");
+
+    const winPayload: AIScreenshotPayload = {
+      ...mockPayload,
+      environment: {
+        ...mockPayload.environment,
+        userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+      },
+    };
+    const posixPayload: AIScreenshotPayload = {
+      ...mockPayload,
+      environment: {
+        ...mockPayload.environment,
+        userAgent: "Mozilla/5.0 (X11; Linux x86_64)",
+      },
+    };
+
+    const winMd = formatPayloadToMarkdown(
+      winPayload,
+      "D:\\Downloads\\pack.zip"
+    );
+    assert.match(
+      winMd,
+      /\[Workspace Setup \(Do NOT extract into active project directory; overwrite singleton directory for O\(1\) storage\)\]/
+    );
+    assert.match(
+      winMd,
+      /Expand-Archive -Force -Path 'D:\\Downloads\\pack\.zip' -DestinationPath \$env:TEMP\\bug-lens-workspace/
+    );
+    assert.match(winMd, /Workspace Path: `\$env:TEMP\\bug-lens-workspace`/);
+    assert.match(
+      winMd,
+      /Never decompress files into active git\/project directories; strictly use the singleton directory `\$env:TEMP\\bug-lens-workspace`/
+    );
+
+    const posixMd = formatPayloadToMarkdown(
+      posixPayload,
+      "/home/user/pack.zip"
+    );
+    assert.match(
+      posixMd,
+      /mkdir -p \/tmp\/bug-lens-workspace && unzip -o -q "\/home\/user\/pack\.zip" -d \/tmp\/bug-lens-workspace/
+    );
+    assert.match(posixMd, /Workspace Path: `\/tmp\/bug-lens-workspace`/);
+
+    await setUserLanguagePreference("auto");
   });
 
   test("formatPayloadToHtml generates HTML with embedded image and markdown pre tag", () => {

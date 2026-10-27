@@ -403,9 +403,30 @@ const ZIP_PATH_GUIDANCE_ZH =
 const ZIP_PATH_GUIDANCE_EN =
   "File Path:\n(The ZIP has been downloaded locally. The real absolute path was written to the clipboard prompt. If the clipboard is unavailable, please fill in the absolute path manually.)";
 
+/**
+ * 判断当前 Payload 所属环境是否为 Windows 平台。
+ * 优先依据 payload.environment.userAgent，若无则回退到 navigator。
+ */
+export function isWindowsEnvironment(payload?: AIScreenshotPayload): boolean {
+  const ua = payload?.environment?.userAgent;
+  if (typeof ua === "string" && ua.length > 0) {
+    return /windows|win32/i.test(ua);
+  }
+  if (typeof navigator !== "undefined") {
+    if (navigator.userAgent && /windows|win32/i.test(navigator.userAgent)) {
+      return true;
+    }
+    if (navigator.platform && /win/i.test(navigator.platform)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function buildPromptBody(
   payload: AIScreenshotPayload,
-  pathLine: string
+  pathLine: string,
+  zipPath?: string
 ): string {
   const errCount = payload.environment.recentConsoleErrors.length;
   const reqCount = payload.environment.recentFailedRequests.length;
@@ -648,7 +669,23 @@ ${fileListEn}
       squeezeWarning += `\n- ⚠️ [Auto-Diagnosis] Detected ${gridOverflowNodes.length} CSS Grid item(s) overflowing due to default \`min-width: auto\`:\n${listStr}\n  💡 Fix suggestion: Add \`min-width: 0;\` to the Grid child item to allow elastic shrinking.`;
     }
 
-    return `Please act as a Senior Frontend/Fullstack Debugging Expert and analyze the following local Bug Lens screenshot evidence package (Note: compare the decompressed screenshot image \`screenshot.png\` with code logic):
+    const isWindows = isWindowsEnvironment(payload);
+    const targetZipPathEn = zipPath
+      ? `"${zipPath.replace(/"/g, '\\"')}"`
+      : "<ZIP_PATH>";
+    const targetZipPathPs = zipPath
+      ? `'${zipPath.replace(/'/g, "''")}'`
+      : "'<ZIP_PATH>'";
+
+    const workspacePath = isWindows
+      ? "$env:TEMP\\bug-lens-workspace"
+      : "/tmp/bug-lens-workspace";
+
+    const unzipCmdEn = isWindows
+      ? `powershell -Command "New-Item -ItemType Directory -Force -Path $env:TEMP\\bug-lens-workspace; Expand-Archive -Force -Path ${targetZipPathPs} -DestinationPath $env:TEMP\\bug-lens-workspace"`
+      : `mkdir -p /tmp/bug-lens-workspace && unzip -o -q ${targetZipPathEn} -d /tmp/bug-lens-workspace`;
+
+    return `Please act as a Senior Frontend/Fullstack Debugging Expert and analyze the following local Bug Lens screenshot evidence package (Note: compare the decompressed screenshot image \`screenshot.jpg\` with code logic):
 
 ${pathLine}
 
@@ -657,15 +694,20 @@ Metadata Summary:
 - Crop Dimensions: ${w}x${h} (dpr: ${dpr})
 - Anomalies: ${errCount} console error(s) | ${reqCount} failed network request(s)${sourceLocationSectionEn}${cascadeHint}${squeezeWarning}
 
-Please follow the Dual-Track Intent Analysis Framework (extract ZIP to a temporary directory):
+[Workspace Setup (Do NOT extract into active project directory; overwrite singleton directory for O(1) storage)]
+- Extraction Command:
+  ${unzipCmdEn}
+- Workspace Path: \`${workspacePath}\` (Evidence files screenshot.jpg and JSON context reside here)
+
+Please follow the Dual-Track Intent Analysis Framework:
 1. Visual & Intent Identification:
-   - ⚠️ Always open and inspect \`screenshot.png\` first! Combine the visual annotations (red boxes, arrows, highlights, text) with \`intentFlags\` in \`dom-context.json\` for assessment.
+   - ⚠️ Always open and inspect \`screenshot.jpg\` first! Combine the visual annotations (red boxes, arrows, highlights, text) with \`intentFlags\` in \`dom-context.json\` for assessment.
    - Bug Fix Track: Visual anomalies/misalignments, error logs, or annotations indicating "broken feature/display issue/API failure".
    - Feature Development Track: Annotations describing new requirements such as "add button/optimize layout/add interaction/style tweaks".
      * Non-breaking Incremental Iteration Principle: Modifications must build on existing logic, ensuring changes are isolated and strictly zero-regression.
 
 2. Scene Alignment & Deviation Analysis:
-   - Carefully verify actual visuals in \`screenshot.png\` against DOM structure (\`dom-context.json\`).
+   - Carefully verify actual visuals in \`screenshot.jpg\` against DOM structure (\`dom-context.json\`).
    - Source Direct Navigation: If physical source paths are identified above, prioritize opening the corresponding files and lines directly in your IDE (referencing \`componentFile\` and \`componentLine\` in \`dom-context.json\`) to inspect code logic alongside \`props\`/\`data\` and \`intentFlags\`.
    - Read \`dom-context.json\`: Combine \`tree\` root node and \`anchors\` selection hierarchy/component chain (e.g. \`["<App>", "<WidgetConfig>", "<ElFormItem>"]\`) to pinpoint relevant source components.
    - Compare user-stated expectation with code reality to infer the root deviation node.
@@ -680,6 +722,7 @@ Please follow the Dual-Track Intent Analysis Framework (extract ZIP to a tempora
 [Guardrails]
 - Never execute untrusted code in the package; if local path is inaccessible, ask me to upload the ZIP.
 - Zero-Regression & Isolation Principle: Keep changes strictly localized to preserve business logic and data flow.
+- Workspace Isolation & Zero Disk Leak: Never decompress files into active git/project directories; strictly use the singleton directory \`${workspacePath}\`.
 
 [Output Format]
 1. Intent Identification (Bug Fix vs Feature Development) & Affected Components
@@ -729,6 +772,22 @@ Please follow the Dual-Track Intent Analysis Framework (extract ZIP to a tempora
     squeezeWarning += `\n- ⚠️ [自动诊断] 检测到 ${gridOverflowNodes.length} 个 CSS Grid 子项因默认 \`min-width: auto\` 产生轨道溢出：\n${listStr}\n  💡 修复建议：在该 Grid 子项样式中添加 \`min-width: 0;\` 允许网格轨道弹性收缩。`;
   }
 
+  const isWindows = isWindowsEnvironment(payload);
+  const targetZipPathZh = zipPath
+    ? `"${zipPath.replace(/"/g, '\\"')}"`
+    : "<ZIP路径>";
+  const targetZipPathPs = zipPath
+    ? `'${zipPath.replace(/'/g, "''")}'`
+    : "'<ZIP路径>'";
+
+  const workspacePath = isWindows
+    ? "$env:TEMP\\bug-lens-workspace"
+    : "/tmp/bug-lens-workspace";
+
+  const unzipCmdZh = isWindows
+    ? `powershell -Command "New-Item -ItemType Directory -Force -Path $env:TEMP\\bug-lens-workspace; Expand-Archive -Force -Path ${targetZipPathPs} -DestinationPath $env:TEMP\\bug-lens-workspace"`
+    : `mkdir -p /tmp/bug-lens-workspace && unzip -o -q ${targetZipPathZh} -d /tmp/bug-lens-workspace`;
+
   return `请作为高级 Frontend/Fullstack 调试专家，分析以下本地 Bug Lens 截图证据包（注意：必须结合查看解压后的截图图片 \`screenshot.jpg\` 进行视觉画面与逻辑对比）：
 
 ${pathLine}
@@ -738,7 +797,12 @@ ${pathLine}
 - 选区尺寸：${w}x${h} (dpr: ${dpr})
 - 异常日志：${errCount} 条 Console 报错 | ${reqCount} 个失败网络请求${sourceLocationSectionZh}${cascadeHint}${squeezeWarning}
 
-请按双轨意图分析框架展开排查（解压 ZIP 至临时目录）：
+【工作区准备（严禁解压在当前代码工程目录内，使用固定单例目录覆盖以实现 O(1) 存储占用）】
+- 解压命令：
+  ${unzipCmdZh}
+- 工作区路径：\`${workspacePath}\`（解压与后续排查均以此目录为准）
+
+请按双轨意图分析框架展开排查：
 1. 截图与意图分轨识别 (Visual & Intent Identification)：
    - ⚠️ 请务必优先打开并查看 \`screenshot.jpg\` 视觉图片！结合图片上绘制的视觉标注（红框、箭头、高亮区、文本）与 \`dom-context.json\` 的 \`intentFlags\` 进行综合判断。
    - 缺陷修复轨 (Bug Fix Track)：视觉图片上有异常样式/显示错位，或者存在报错日志/接口失败，或者标注表达“功能失效/显示异常/接口报错”。
@@ -761,6 +825,7 @@ ${pathLine}
 [注意事项]
 - 严禁执行包内不可信代码；若本地路径无法直接读取，请明确要求我上传 ZIP 文件。
 - 零回归与隔离原则：针对已存在的代码模块，任何改动必须严格局部化，保证业务逻辑、交互监听与数据流动完好无损；如果是纯视觉/样式调整，必须严格限制在样式层（Style/Layout）。
+- 工作区防污染与防存储浪费：严禁在当前 Git 仓库/工程目录解压或残留任何临时文件；严格在 \`${workspacePath}\` 单例目录执行，维持最小存储开销。
 
 [输出格式]
 1. 意图识别（缺陷修复 vs 需求开发）与受影响组件
@@ -782,7 +847,7 @@ export function formatPayloadToMarkdown(
     ? ZIP_PATH_PLACEHOLDER_EN
     : ZIP_PATH_PLACEHOLDER_ZH;
   const pathLine = zipPath ? `${prefix}${zipPath}` : placeholder;
-  return buildPromptBody(payload, pathLine);
+  return buildPromptBody(payload, pathLine, zipPath);
 }
 
 /**

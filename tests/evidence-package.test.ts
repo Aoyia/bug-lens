@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   buildAiPrompt,
   buildEvidencePackage,
+  isWindowsEnvironmentFromSnapshot,
   type EvidencePackageSnapshot,
   type StaticReportAssets,
 } from "../src/preview/evidence-package.ts";
@@ -390,4 +391,151 @@ test("evidence package does not export orphaned screenshot files into zip when s
     "unavailable",
     "session-data.js 中的截图状态应维持 unavailable"
   );
+});
+
+test("isWindowsEnvironmentFromSnapshot detects Windows environment accurately", () => {
+  const winSnapshot: EvidencePackageSnapshot = {
+    ...snapshot,
+    session: {
+      ...snapshot.session,
+      target: {
+        ...snapshot.session.target,
+        environment: {
+          userAgent:
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126.0.0.0 Safari/537.36",
+          platform: "Win32",
+          language: "zh-CN",
+          screenWidth: 1920,
+          screenHeight: 1080,
+          devicePixelRatio: 1,
+          viewportWidth: 1920,
+          viewportHeight: 900,
+          online: true,
+          capturedAtEpochMs: 1700000000000,
+        },
+      },
+    },
+  };
+  const macSnapshot: EvidencePackageSnapshot = {
+    ...snapshot,
+    session: {
+      ...snapshot.session,
+      target: {
+        ...snapshot.session.target,
+        environment: {
+          userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+          platform: "MacIntel",
+          language: "zh-CN",
+          screenWidth: 2560,
+          screenHeight: 1440,
+          devicePixelRatio: 2,
+          viewportWidth: 1440,
+          viewportHeight: 900,
+          online: true,
+          capturedAtEpochMs: 1700000000000,
+        },
+      },
+    },
+  };
+
+  assert.equal(isWindowsEnvironmentFromSnapshot(winSnapshot), true);
+  assert.equal(isWindowsEnvironmentFromSnapshot(macSnapshot), false);
+});
+
+test("buildAiPrompt generates singleton workspace extraction commands for POSIX and Windows", async () => {
+  const macSnapshot: EvidencePackageSnapshot = {
+    ...snapshot,
+    session: {
+      ...snapshot.session,
+      target: {
+        ...snapshot.session.target,
+        environment: {
+          userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+          platform: "MacIntel",
+          language: "zh-CN",
+          screenWidth: 2560,
+          screenHeight: 1440,
+          devicePixelRatio: 2,
+          viewportWidth: 1440,
+          viewportHeight: 900,
+          online: true,
+          capturedAtEpochMs: 1700000000000,
+        },
+      },
+    },
+  };
+  const winSnapshot: EvidencePackageSnapshot = {
+    ...snapshot,
+    session: {
+      ...snapshot.session,
+      target: {
+        ...snapshot.session.target,
+        environment: {
+          userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+          platform: "Win32",
+          language: "zh-CN",
+          screenWidth: 1920,
+          screenHeight: 1080,
+          devicePixelRatio: 1,
+          viewportWidth: 1920,
+          viewportHeight: 900,
+          online: true,
+          capturedAtEpochMs: 1700000000000,
+        },
+      },
+    },
+  };
+
+  // 1. POSIX with real zipPath
+  const macPrompt = buildAiPrompt(
+    macSnapshot,
+    "/Users/tester/Downloads/report.zip"
+  );
+  assert.match(macPrompt, /【工作区准备（严禁解压在当前代码工程目录内/);
+  assert.match(
+    macPrompt,
+    /mkdir -p \/tmp\/bug-lens-workspace && unzip -o -q "\/Users\/tester\/Downloads\/report\.zip" -d \/tmp\/bug-lens-workspace/
+  );
+  assert.match(macPrompt, /工作区路径：`\/tmp\/bug-lens-workspace`/);
+  assert.match(
+    macPrompt,
+    /严禁在当前 Git 仓库\/工程目录解压或残留任何临时文件/
+  );
+
+  // 2. Windows with real zipPath
+  const winPrompt = buildAiPrompt(
+    winSnapshot,
+    "C:\\Users\\tester\\Downloads\\report.zip"
+  );
+  assert.match(winPrompt, /【工作区准备（严禁解压在当前代码工程目录内/);
+  assert.match(
+    winPrompt,
+    /powershell -Command "New-Item -ItemType Directory -Force -Path \$env:TEMP\\bug-lens-workspace; Expand-Archive -Force -Path 'C:\\Users\\tester\\Downloads\\report\.zip' -DestinationPath \$env:TEMP\\bug-lens-workspace"/
+  );
+  assert.match(winPrompt, /工作区路径：`\$env:TEMP\\bug-lens-workspace`/);
+  assert.match(
+    winPrompt,
+    /严格在 `\$env:TEMP\\bug-lens-workspace` 单例目录执行/
+  );
+
+  // 3. English mode
+  const { setUserLanguagePreference } = await import("../src/shared/i18n.ts");
+  await setUserLanguagePreference("en-US");
+
+  const enPrompt = buildAiPrompt(macSnapshot, "/home/user/report.zip");
+  assert.match(
+    enPrompt,
+    /\[Workspace Setup \(Do NOT extract into active project directory; overwrite singleton directory for O\(1\) storage\)\]/
+  );
+  assert.match(
+    enPrompt,
+    /mkdir -p \/tmp\/bug-lens-workspace && unzip -o -q "\/home\/user\/report\.zip" -d \/tmp\/bug-lens-workspace/
+  );
+  assert.match(enPrompt, /Workspace Path: `\/tmp\/bug-lens-workspace`/);
+  assert.match(
+    enPrompt,
+    /strictly use the singleton directory `\/tmp\/bug-lens-workspace`/
+  );
+
+  await setUserLanguagePreference("auto");
 });
