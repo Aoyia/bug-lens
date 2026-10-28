@@ -695,7 +695,8 @@ Metadata Summary:
 - Anomalies: ${errCount} console error(s) | ${reqCount} failed network request(s)${sourceLocationSectionEn}${cascadeHint}${squeezeWarning}
 
 [Workspace Setup (Do NOT extract into active project directory; overwrite singleton directory for O(1) storage)]
-- Extraction Command:
+- Preferred (when \`bug-lens\` MCP tools are available): Pass the ZIP path above as the \`pack\` argument to \`open_pack\`, \`get_screenshot(kind="screenshot")\`, and \`read_pack_file(path="dom-context.json")\` directly in memory. Skip shell extraction below.
+- Fallback Extraction Command (only when MCP tools are unavailable):
   ${unzipCmdEn}
 - Workspace Path: \`${workspacePath}\` (Evidence files screenshot.jpg and JSON context reside here)
 
@@ -798,7 +799,8 @@ ${pathLine}
 - 异常日志：${errCount} 条 Console 报错 | ${reqCount} 个失败网络请求${sourceLocationSectionZh}${cascadeHint}${squeezeWarning}
 
 【工作区准备（严禁解压在当前代码工程目录内，使用固定单例目录覆盖以实现 O(1) 存储占用）】
-- 解压命令：
+- 首选方式（已配置 \`bug-lens\` MCP 工具时）：直接将上方 ZIP 路径作为 \`pack\` 参数调用 \`open_pack\`、\`get_screenshot(kind="screenshot")\` 与 \`read_pack_file(path="dom-context.json")\` 内存直读分析，跳过下方命令行解压。
+- 降级解压命令（仅当未配置 MCP 工具时执行）：
   ${unzipCmdZh}
 - 工作区路径：\`${workspacePath}\`（解压与后续排查均以此目录为准）
 

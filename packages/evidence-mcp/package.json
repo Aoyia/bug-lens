@@ -1,0 +1,50 @@
+{
+  "name": "bug-lens-mcp",
+  "version": "0.1.0",
+  "description": "Model Context Protocol (MCP) server for inspecting Bug Lens offline evidence packages and screenshot bundles without executing untrusted code.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "bug-lens-mcp": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "files": [
+    "dist",
+    "README.md",
+    "README_zh.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Aoyia/bug-lens.git",
+    "directory": "packages/evidence-mcp"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "bug-lens",
+    "debugging",
+    "chrome-extension",
+    "evidence-pack",
+    "devtools"
+  ],
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc --noEmit && tsc --project tsconfig.test.json --noEmit",
+    "test": "tsx --test test/*.test.ts",
+    "prepack": "pnpm run build"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "@types/node": "^20.19.43",
+    "esbuild": "^0.28.1",
+    "fflate": "^0.8.3",
+    "tsx": "^4.23.5",
+    "typescript": "^5.8.0",
+    "zod": "^3.24.2"
+  }
+}

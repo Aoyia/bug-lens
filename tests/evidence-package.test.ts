@@ -494,6 +494,10 @@ test("buildAiPrompt generates singleton workspace extraction commands for POSIX 
   assert.match(macPrompt, /【工作区准备（严禁解压在当前代码工程目录内/);
   assert.match(
     macPrompt,
+    /首选方式（已配置 `bug-lens` MCP 工具时）：直接将上方 ZIP 路径作为 `pack` 参数调用 `open_pack`/
+  );
+  assert.match(
+    macPrompt,
     /mkdir -p \/tmp\/bug-lens-workspace && unzip -o -q "\/Users\/tester\/Downloads\/report\.zip" -d \/tmp\/bug-lens-workspace/
   );
   assert.match(macPrompt, /工作区路径：`\/tmp\/bug-lens-workspace`/);
@@ -538,4 +542,68 @@ test("buildAiPrompt generates singleton workspace extraction commands for POSIX 
   );
 
   await setUserLanguagePreference("auto");
+});
+
+test("buildEvidencePackage sanitizes ':' in split network body filenames for Windows compatibility while preserving entry.id", () => {
+  const colonNetId = `${session.id}:20535.366`;
+  const largeBody = "x".repeat(5000);
+  const snapshotWithColonNetId: EvidencePackageSnapshot = {
+    ...snapshot,
+    networkEntries: [
+      {
+        id: colonNetId,
+        sessionId: session.id,
+        createdAt: 100,
+        url: "https://example.com/api/form",
+        method: "GET",
+        type: "XHR",
+        status: 200,
+        statusText: "OK",
+        durationMs: 42,
+        initiator: { type: "script" },
+        requestHeaders: { Accept: "application/json" },
+        response: {
+          mimeType: "application/json",
+          headers: { "content-type": "application/json" },
+          bodyStatus: "captured",
+          body: largeBody,
+          byteLength: largeBody.length,
+          truncated: false,
+        },
+      },
+    ],
+  };
+
+  const files = buildEvidencePackage(snapshotWithColonNetId, reportAssets);
+  const expectedSafeBodyPath = `network/body-${session.id}_20535.366.txt`;
+  assert.ok(
+    files.some((f) => f.name === expectedSafeBodyPath),
+    "Split network body file must replace ':' with '_' for Windows compatibility"
+  );
+  assert.ok(
+    files.every((f) => !f.name.includes(":")),
+    "No file in the evidence package ZIP may contain ':' in its path"
+  );
+
+  const sessionJsRaw = new TextDecoder().decode(
+    files.find((f) => f.name === "data/session-data.js")!.data
+  );
+  const sessionData = JSON.parse(
+    sessionJsRaw.replace(/^window\.__BUG_LENS_DATA__ = /, "").slice(0, -1)
+  );
+  assert.equal(sessionData.networkEntries[0].id, colonNetId);
+  assert.equal(
+    sessionData.networkEntries[0].response.bodyPath,
+    expectedSafeBodyPath
+  );
+
+  const detailsJsRaw = new TextDecoder().decode(
+    files.find((f) => f.name === "data/network-details.js")!.data
+  );
+  const detailsData = JSON.parse(
+    detailsJsRaw
+      .replace(/^window\.__BUG_LENS_NETWORK_DETAILS__ = /, "")
+      .slice(0, -1)
+  );
+  assert.ok(colonNetId in detailsData);
 });

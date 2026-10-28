@@ -308,6 +308,10 @@ describe("Screenshot Payload Formatter", () => {
     assert.match(mdWithZip, /【工作区准备（严禁解压在当前代码工程目录内/);
     assert.match(
       mdWithZip,
+      /首选方式（已配置 `bug-lens` MCP 工具时）：直接将上方 ZIP 路径作为 `pack` 参数调用 `open_pack`/
+    );
+    assert.match(
+      mdWithZip,
       /mkdir -p \/tmp\/bug-lens-workspace && unzip -o -q "\/Users\/tester\/Downloads\/bug-lens-2026\.zip" -d \/tmp\/bug-lens-workspace/
     );
     assert.match(mdWithZip, /工作区路径：`\/tmp\/bug-lens-workspace`/);

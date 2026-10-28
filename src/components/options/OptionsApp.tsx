@@ -377,6 +377,8 @@ export function OptionsApp() {
   const [loaded, setLoaded] = useState(false);
   const [saveStatus, setSaveStatus] = useState<string>("");
   const [showPromptPreview, setShowPromptPreview] = useState(false);
+  const [showMcpConfig, setShowMcpConfig] = useState(false);
+  const [mcpCopied, setMcpCopied] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [clearStatus, setClearStatus] = useState<string>("");
 
@@ -1052,6 +1054,128 @@ export function OptionsApp() {
                       <div className="inline-prompt-preview-box">
                         <pre className="inline-code-content">
                           {liveAiPrompt}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 内联折叠查看 MCP Server 配置说明 */}
+                  <div className="inline-prompt-preview-wrap">
+                    <button
+                      type="button"
+                      className="btn-inline-toggle"
+                      onClick={() => setShowMcpConfig(!showMcpConfig)}
+                    >
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        style={{
+                          transform: showMcpConfig ? "rotate(90deg)" : "none",
+                          transition: "transform 0.15s ease",
+                        }}
+                      >
+                        <polyline points="9 18 15 12 9 6" />
+                      </svg>
+                      <span>
+                        {isEn()
+                          ? showMcpConfig
+                            ? "Hide MCP Server Configuration"
+                            : "View MCP Server Configuration (Optional)"
+                          : showMcpConfig
+                            ? "收起 MCP Server 配置说明"
+                            : "查看 MCP Server 配置说明 (可选)"}
+                      </span>
+                      <span className="inline-preview-badge">bug-lens-mcp</span>
+                    </button>
+
+                    {showMcpConfig && (
+                      <div className="inline-prompt-preview-box">
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            gap: 12,
+                            marginBottom: 8,
+                            paddingBottom: 8,
+                            borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
+                            fontFamily: "var(--font-sans, sans-serif)",
+                            fontSize: 12,
+                            color: "#94a3b8",
+                          }}
+                        >
+                          <span>
+                            {isEn()
+                              ? "Allows AI assistants to query offline evidence and screenshot ZIPs directly on demand without manual extraction."
+                              : "配置后 AI 助手可直接按需检索离线证据包与截图包，无需手动解压或编写解析脚本。"}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const snippet =
+                                settings.ai.targetAssistant === "claude-code"
+                                  ? "claude mcp add bug-lens-evidence -- npx -y bug-lens-mcp@latest"
+                                  : JSON.stringify(
+                                      {
+                                        mcpServers: {
+                                          "bug-lens-evidence": {
+                                            command: "npx",
+                                            args: ["-y", "bug-lens-mcp@latest"],
+                                          },
+                                        },
+                                      },
+                                      null,
+                                      2
+                                    );
+                              void navigator.clipboard
+                                .writeText(snippet)
+                                .then(() => {
+                                  setMcpCopied(true);
+                                  window.setTimeout(
+                                    () => setMcpCopied(false),
+                                    1800
+                                  );
+                                });
+                            }}
+                            style={{
+                              flexShrink: 0,
+                              background: "rgba(255, 255, 255, 0.1)",
+                              border: "1px solid rgba(255, 255, 255, 0.16)",
+                              color: "#e2e8f0",
+                              borderRadius: 4,
+                              padding: "3px 8px",
+                              fontSize: 11.5,
+                              cursor: "pointer",
+                            }}
+                          >
+                            {mcpCopied
+                              ? isEn()
+                                ? "Copied"
+                                : "已复制"
+                              : isEn()
+                                ? "Copy"
+                                : "复制配置"}
+                          </button>
+                        </div>
+                        <pre className="inline-code-content">
+                          {settings.ai.targetAssistant === "claude-code"
+                            ? "claude mcp add bug-lens-evidence -- npx -y bug-lens-mcp@latest"
+                            : JSON.stringify(
+                                {
+                                  mcpServers: {
+                                    "bug-lens-evidence": {
+                                      command: "npx",
+                                      args: ["-y", "bug-lens-mcp@latest"],
+                                    },
+                                  },
+                                },
+                                null,
+                                2
+                              )}
                         </pre>
                       </div>
                     )}
