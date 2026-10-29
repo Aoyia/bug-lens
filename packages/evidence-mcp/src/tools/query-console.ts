@@ -3,7 +3,7 @@ import { openPack } from "../pack/open.ts";
 import { formatConsoleItem, queryConsole } from "../query/console.ts";
 
 export function runQueryConsoleTool(args: {
-  pack: string;
+  pack?: string;
   levels?: string[];
   search?: string;
   regex?: string;

@@ -40,10 +40,12 @@ export function buildImageContentBlocks(
   }
   const base64 = Buffer.from(bytes).toString("base64");
   const blocks: McpContentBlock[] = [];
+  const offloadHint =
+    " (Tip: If your client offloads this image to a file:/// path, call read_file on that path to view the visual image directly — do NOT unzip or run scripts)";
   if (label) {
     blocks.push({
       type: "text",
-      text: `${label} (${relPath}, ${sizeKb} KB, ${mimeType})`,
+      text: `${label} (${relPath}, ${sizeKb} KB, ${mimeType})${offloadHint}`,
     });
   }
   blocks.push({

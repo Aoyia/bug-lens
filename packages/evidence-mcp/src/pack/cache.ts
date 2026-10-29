@@ -39,6 +39,14 @@ export class PackLruCache {
     this.map.set(realPath, { fingerprint, pack });
   }
 
+  getLastPath(): string | undefined {
+    let lastKey: string | undefined;
+    for (const key of this.map.keys()) {
+      lastKey = key;
+    }
+    return lastKey;
+  }
+
   clear(): void {
     this.map.clear();
   }

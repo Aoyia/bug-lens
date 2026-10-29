@@ -7,7 +7,7 @@ import {
 } from "../query/network.ts";
 
 export function runQueryNetworkTool(args: {
-  pack: string;
+  pack?: string;
   status?: NetworkStatusFilter;
   urlContains?: string;
   method?: string;

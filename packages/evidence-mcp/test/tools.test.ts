@@ -153,14 +153,42 @@ test("MCP server exposes all 12 tools and 1 prompt over InMemoryTransport", asyn
     });
     assert.match((fwRes.content as any[])[0].text, /BpmSelectFromFieldEditor/);
 
-    // 9. get_screenshot (screenshot pack)
+    // 9. open_pack + get_screenshot + get_scene + search_pack on screenshot pack (including omitted pack fallback)
+    const openSsRes = await client.callTool({
+      name: "open_pack",
+      arguments: { pack: screenshotZipPath },
+    });
+    const openSsText = (openSsRes.content as any[])[0].text;
+    assert.match(openSsText, /Layout & Overflow Diagnostics/);
+    assert.match(openSsText, /CSS Cascade Index/);
+    assert.match(openSsText, /word-break: keep-all/);
+
+    // Omit `pack` argument -> should fallback to the most recently opened pack (screenshotZipPath) without -32602 error
     const ssImgRes = await client.callTool({
       name: "get_screenshot",
-      arguments: { pack: screenshotZipPath, kind: "screenshot" },
+      arguments: { kind: "screenshot" },
     });
     assert.ok((ssImgRes.content as any[]).some((b) => b.type === "image"));
+    assert.match((ssImgRes.content as any[])[0].text, /call read_file/);
 
-    // 10. search_pack
+    const ssSceneRes = await client.callTool({
+      name: "get_scene",
+      arguments: {
+        selector: "submit-btn",
+        cssProperty: "word-break",
+        includeImage: false,
+      },
+    });
+    assert.match((ssSceneRes.content as any[])[0].text, /common\.css/);
+    assert.match((ssSceneRes.content as any[])[0].text, /word-break: keep-all/);
+
+    const ssSearchRes = await client.callTool({
+      name: "search_pack",
+      arguments: { query: "keep-all" },
+    });
+    assert.match((ssSearchRes.content as any[])[0].text, /\[cascade-rule\]/);
+
+    // 10. search_pack (session pack)
     const searchRes = await client.callTool({
       name: "search_pack",
       arguments: { pack: sessionZipPath, query: "STANDBY_CONFIG_MISSING" },

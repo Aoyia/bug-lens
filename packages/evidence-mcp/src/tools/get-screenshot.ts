@@ -5,7 +5,7 @@ import {
 } from "./image-helper.ts";
 
 export function runGetScreenshotTool(args: {
-  pack: string;
+  pack?: string;
   kind?: "step" | "issue-original" | "issue-annotated" | "screenshot";
   step?: number;
   sceneId?: string;

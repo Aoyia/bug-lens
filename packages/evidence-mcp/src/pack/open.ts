@@ -14,7 +14,12 @@ import { parseWindowAssignmentJson } from "./js-json.ts";
 import { parseManifest, verifyPackIntegrity } from "./manifest.ts";
 import { LoadedScreenshotPack } from "./screenshot-pack.ts";
 import { LoadedSessionPack } from "./session-pack.ts";
-import type { ScreenshotDomContext, SessionDataPayload } from "./types.ts";
+import type {
+  CascadeIndex,
+  ScreenshotDomContext,
+  ScreenshotEnvironment,
+  SessionDataPayload,
+} from "./types.ts";
 
 export const MAX_SINGLE_FILE_BYTES = 64 * 1024 * 1024; // 64 MB
 export const MAX_TOTAL_UNCOMPRESSED_BYTES = 512 * 1024 * 1024; // 512 MB
@@ -179,13 +184,19 @@ export function openPackFromBytes(
 }
 
 export function openPack(
-  packPath: string,
+  packPath?: string,
   cache: PackLruCache = defaultCache
 ): LoadedPack {
-  if (!packPath || typeof packPath !== "string") {
-    throw new Error("INVALID_PACK_PATH: pack path must be a non-empty string");
+  const effectivePath =
+    packPath && typeof packPath === "string" && packPath.trim().length > 0
+      ? packPath.trim()
+      : cache.getLastPath();
+  if (!effectivePath) {
+    throw new Error(
+      'INVALID_PACK_PATH: pack path is required when no pack has been opened yet. Pass the "pack" argument or call open_pack first.'
+    );
   }
-  const resolved = resolve(packPath);
+  const resolved = resolve(effectivePath);
   let realPath: string;
   let st: ReturnType<typeof statSync>;
   try {
@@ -193,7 +204,7 @@ export function openPack(
     st = statSync(realPath);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    throw new Error(`PACK_NOT_FOUND: Cannot access "${packPath}": ${msg}`);
+    throw new Error(`PACK_NOT_FOUND: Cannot access "${effectivePath}": ${msg}`);
   }
 
   const fingerprint = `${st.isDirectory() ? "dir" : "file"}:${st.mtimeMs}:${st.size}`;
@@ -258,9 +269,8 @@ function instantiatePack(
     };
 
     const domContext = parseJsonOpt<ScreenshotDomContext>("dom-context.json");
-    const environment =
-      parseJsonOpt<Record<string, unknown>>("environment.json");
-    const cascade = parseJsonOpt<Record<string, unknown>>("cascade.json");
+    const environment = parseJsonOpt<ScreenshotEnvironment>("environment.json");
+    const cascade = parseJsonOpt<CascadeIndex>("cascade.json");
     const aiPromptBytes = files.get("ai-prompt.md");
     const aiPrompt = aiPromptBytes ? decoder.decode(aiPromptBytes) : undefined;
 

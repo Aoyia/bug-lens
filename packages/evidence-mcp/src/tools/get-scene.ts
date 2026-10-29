@@ -3,23 +3,37 @@ import { formatElementCompact } from "../format/element.ts";
 import { formatRelativeTime } from "../format/time.ts";
 import { openPack } from "../pack/open.ts";
 import {
+  extractLayoutDeviations,
+  queryScreenshotDomAndCascade,
+} from "../query/cascade.ts";
+import {
   buildImageContentBlocks,
   type McpContentBlock,
 } from "./image-helper.ts";
 
 export function runGetSceneTool(args: {
-  pack: string;
+  pack?: string;
   sceneId?: string;
+  sceneIndex?: number;
+  selector?: string;
+  cssProperty?: string;
   includeImage?: boolean;
   format?: "text" | "json";
   maxChars?: number;
 }): McpContentBlock[] {
   const loaded = openPack(args.pack);
+  const effectiveSceneId =
+    args.sceneId ??
+    (args.sceneIndex !== undefined ? String(args.sceneIndex) : undefined);
+
   if (loaded.kind === "screenshot") {
     const anchors = loaded.domContext?.anchors ?? [];
     const textComments = anchors
       .map((a) => a.intentFlags?.textComment)
       .filter(Boolean);
+    const deviations = extractLayoutDeviations(loaded.domContext);
+    const filterSelector = args.selector ?? effectiveSceneId;
+
     const textOut =
       args.format === "json"
         ? applyCharBudget(
@@ -29,7 +43,14 @@ export function runGetSceneTool(args: {
                 smallestCommonAncestorSelector:
                   loaded.domContext?.smallestCommonAncestorSelector,
                 textComments,
-                anchors,
+                deviations,
+                anchors: filterSelector
+                  ? anchors.filter((a, idx) =>
+                      `${idx} ${a.selector ?? ""} ${a.selectorPath ?? ""} ${a.componentName ?? ""} ${a.innerText ?? ""}`
+                        .toLowerCase()
+                        .includes(filterSelector.toLowerCase())
+                    )
+                  : anchors,
                 screenshotPath: loaded.getScreenshotImagePath(),
               },
               null,
@@ -39,13 +60,26 @@ export function runGetSceneTool(args: {
           )
         : applyCharBudget(
             [
-              `# Screenshot Scene & Annotated Anchors (${anchors.length})`,
+              `# Screenshot Scene, DOM Anchors & CSS Cascade`,
               `- **Text Annotations**: ${textComments.length > 0 ? textComments.join(" | ") : "(none — expectation must be treated as inferred hypothesis)"}`,
               `- **Smallest Common Ancestor**: \`${loaded.domContext?.smallestCommonAncestorSelector ?? "—"}\``,
-              `\n## Anchors`,
-              ...anchors.map(
-                (a, idx) =>
-                  `- **[${idx}] \`${a.selectorPath ?? a.selector ?? "?"}\`** ${a.componentName ? `[${a.componentName}${a.componentFile ? ` @ ${a.componentFile}:${a.componentLine ?? ""}` : ""}]` : ""}\n  - flags: ${JSON.stringify(a.intentFlags ?? {})}\n  - text: "${(a.innerText ?? "").replace(/\s+/g, " ").trim().slice(0, 120)}"\n  - styles: ${JSON.stringify(a.computedStyles ?? {})}\n  - layoutContext: ${JSON.stringify(a.layoutContext ?? {})}`
+              ...(deviations.length > 0
+                ? [
+                    `\n## Auto-Detected Layout/Overflow Deviations (${deviations.length})`,
+                    ...deviations.map(
+                      (d) =>
+                        `- ⚠️ **[${d.kind}] \`${d.selectorPath ?? d.selector}\`** (anchors: [${d.anchorIndices.slice(0, 6).join(",")}]) — ${d.summary}${d.keyStyles ? ` | styles=${JSON.stringify(d.keyStyles)}` : ""}`
+                    ),
+                  ]
+                : []),
+              "",
+              ...queryScreenshotDomAndCascade(
+                loaded.domContext,
+                loaded.cascade,
+                {
+                  selector: filterSelector,
+                  cssProperty: args.cssProperty,
+                }
               ),
             ].join("\n"),
             args.maxChars
@@ -70,9 +104,9 @@ export function runGetSceneTool(args: {
     ];
   }
 
-  const target = args.sceneId
+  const target = effectiveSceneId
     ? scenes.find(
-        (s) => s.id === args.sceneId || String(s.index) === args.sceneId
+        (s) => s.id === effectiveSceneId || String(s.index) === effectiveSceneId
       )
     : scenes[0];
 

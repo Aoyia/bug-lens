@@ -17,11 +17,18 @@ import { runTimelineTool } from "./tools/timeline.ts";
 export const SERVER_NAME = "bug-lens-mcp";
 export const SERVER_VERSION = "0.1.0";
 
-const packParam = z
+const requiredPackParam = z
   .string()
   .min(1)
   .describe(
     "Absolute path to a Bug Lens evidence .zip archive (web-bug-report-*.zip or bug-lens-screenshot-*.zip) or an extracted workspace directory."
+  );
+
+const packParam = z
+  .string()
+  .optional()
+  .describe(
+    "Absolute path to a Bug Lens evidence .zip archive or extracted directory. Optional if open_pack was already called in this session (defaults to the most recently opened pack)."
   );
 
 const formatParam = z
@@ -86,9 +93,9 @@ export function createEvidenceMcpServer(): McpServer {
   // 1. open_pack
   server.tool(
     "open_pack",
-    "Open a Bug Lens evidence ZIP (or extracted folder) in memory without executing untrusted code. Returns pack kind ('session' or 'screenshot'), schema/integrity status, summary, environment, issue scene actual/expected/confidence overview, top console errors, top failed network requests, and file inventory.",
+    "Open a Bug Lens evidence ZIP (or extracted folder) in memory without executing untrusted code. Returns pack kind ('session' or 'screenshot'), schema/integrity status, summary, environment, issue scene actual/expected/confidence overview, auto-detected layout/overflow deviations, CSS cascade summary, top console errors, top failed network requests, and file inventory.",
     {
-      pack: packParam,
+      pack: requiredPackParam,
       format: formatParam,
       maxChars: maxCharsParam,
     },
@@ -98,14 +105,32 @@ export function createEvidenceMcpServer(): McpServer {
   // 2. get_scene
   server.tool(
     "get_scene",
-    "Inspect an issue scene from a session evidence pack: user narrative (actual vs. expected and confidence level), selected DOM targets (HTML, ancestor chain, styles), same-time sequenceContext, and annotated screenshot image.",
+    "Inspect an issue scene (session pack) or DOM anchors + CSS cascade rules (screenshot pack): user narrative, selected DOM targets/anchors (computedStyles, boxModel, layoutContext/textOverflow), matched CSS cascade rules & stylesheet URLs, same-time sequenceContext, and annotated screenshot image.",
     {
       pack: packParam,
       sceneId: z
         .string()
         .optional()
         .describe(
-          "Scene ID or 0-based index (e.g. '0'). Defaults to the first issue scene."
+          "Scene ID or 0-based index (e.g. '0') for session packs, or anchor selector/index filter for screenshot packs."
+        ),
+      sceneIndex: z
+        .number()
+        .int()
+        .min(0)
+        .optional()
+        .describe("0-based scene index (alternative to sceneId, e.g. 0)."),
+      selector: z
+        .string()
+        .optional()
+        .describe(
+          "For screenshot packs: filter DOM anchors and CSS cascade elements by selector, tag, component name, element ID (e.g. 'e_2' or '.cell'), or text."
+        ),
+      cssProperty: z
+        .string()
+        .optional()
+        .describe(
+          "For screenshot packs: regex or substring filter on CSS property names or values in computedStyles and cascade rules (e.g. 'word-break|white-space|overflow')."
         ),
       includeImage: z
         .boolean()

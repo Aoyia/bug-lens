@@ -4,7 +4,7 @@ import { openPack } from "../pack/open.ts";
 import { evaluateJsonPath } from "../query/json-path.ts";
 
 export function runReadPackFileTool(args: {
-  pack: string;
+  pack?: string;
   path: string;
   jsonPath?: string;
   offset?: number;

@@ -3,7 +3,7 @@ import { openPack } from "../pack/open.ts";
 import { queryTimeline, type TimelineEventKind } from "../query/timeline.ts";
 
 export function runTimelineTool(args: {
-  pack: string;
+  pack?: string;
   aroundSceneId?: string;
   fromMs?: number;
   toMs?: number;

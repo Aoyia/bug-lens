@@ -10,6 +10,11 @@ scripts/auto-commit.sh
 .agents/**
 !.agents/
 !.agents/AGENTS.md
+!.agents/skills/
+!.agents/skills/bug-lens-release/
+!.agents/skills/bug-lens-release/**
+!.agents/skills/bug-lens-triage/
+!.agents/skills/bug-lens-triage/**
 plans
 *.zip
 test-results/

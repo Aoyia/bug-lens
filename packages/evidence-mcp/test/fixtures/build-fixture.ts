@@ -514,6 +514,18 @@ export async function buildRealScreenshotZipBytes(): Promise<Uint8Array> {
           computedStyles: {
             display: "inline-flex",
             color: "rgb(255, 255, 255)",
+            overflow: "hidden",
+          },
+          layoutContext: {
+            isFlexOrGridItem: false,
+            textOverflow: {
+              isTruncated: true,
+              truncationType: "single_line",
+              scrollDimension: { width: 220, height: 40 },
+              clientDimension: { width: 140, height: 40 },
+              overflowDelta: { width: 80, height: 0 },
+              reason: "single_line truncation",
+            },
           },
           componentName: "AssignmentSubmitButton",
           componentFile: "src/components/AssignmentSubmitButton.vue",
@@ -537,7 +549,14 @@ export async function buildRealScreenshotZipBytes(): Promise<Uint8Array> {
       recentFailedRequests: [],
     },
     cascadeIndex: {
-      sheets: [{ id: "S0", rulesCount: 1, isInline: true }],
+      sheets: [
+        {
+          id: "S0",
+          href: "https://example.com/static/common.css",
+          rulesCount: 1,
+          isInline: false,
+        },
+      ],
       rules: [
         {
           id: "R0",
@@ -546,13 +565,27 @@ export async function buildRealScreenshotZipBytes(): Promise<Uint8Array> {
           cssText: "pointer-events: none;",
           styleProps: { "pointer-events": "none" },
         },
+        {
+          id: "R1",
+          sheetId: "S0",
+          selectorText: ".submit-btn",
+          cssText: ".submit-btn { word-break: keep-all; }",
+          styleProps: { "word-break": "keep-all" },
+        },
       ],
-      elements: [],
+      elements: [
+        {
+          id: "e_0",
+          selector: ".submit-btn",
+          tagName: "button",
+          matchedRuleIds: ["R0", "R1"],
+        },
+      ],
       perProperty: {},
       meta: {
         sheetCount: 1,
         ruleCount: 1,
-        elementCount: 0,
+        elementCount: 1,
         capturedAtEpochMs: 1793071570000,
       },
     },

@@ -631,7 +631,7 @@ ${fileListEn}
     const title = payload.environment.title || "Unknown Page";
     const url = payload.environment.url || "Unknown URL";
     const cascadeHint = hasCascade
-      ? `\n- Cascade Index: Style adjustment mode active. Decompressing yields \`cascade.json\`. Query CSS rule cascades and CDP source line locations via \`elements -> perProperty -> winnerRuleId -> rules -> source\`.`
+      ? `\n- Cascade Index: Style adjustment mode active. Package includes \`cascade.json\` (schema: \`sheets\` / \`rules\` / \`elements[matchedRuleIds, inheritedRules]\` / \`perProperty[prop][]{value, sourceRuleId}\`). Query matched CSS rules and stylesheet URLs directly in memory via MCP tools \`open_pack\`, \`get_scene(selector="...", cssProperty="...")\`, or \`search_pack\`.`
       : "";
 
     let squeezeWarning = "";
@@ -685,7 +685,7 @@ ${fileListEn}
       ? `powershell -Command "New-Item -ItemType Directory -Force -Path $env:TEMP\\bug-lens-workspace; Expand-Archive -Force -Path ${targetZipPathPs} -DestinationPath $env:TEMP\\bug-lens-workspace"`
       : `mkdir -p /tmp/bug-lens-workspace && unzip -o -q ${targetZipPathEn} -d /tmp/bug-lens-workspace`;
 
-    return `Please act as a Senior Frontend/Fullstack Debugging Expert and analyze the following local Bug Lens screenshot evidence package (Note: compare the decompressed screenshot image \`screenshot.jpg\` with code logic):
+    return `Please act as a Senior Frontend/Fullstack Debugging Expert and analyze the following local Bug Lens screenshot evidence package (Note: always inspect the screenshot image \`screenshot.jpg\` alongside code and DOM logic):
 
 ${pathLine}
 
@@ -695,7 +695,7 @@ Metadata Summary:
 - Anomalies: ${errCount} console error(s) | ${reqCount} failed network request(s)${sourceLocationSectionEn}${cascadeHint}${squeezeWarning}
 
 [Workspace Setup (Do NOT extract into active project directory; overwrite singleton directory for O(1) storage)]
-- Preferred (when \`bug-lens\` MCP tools are available): Pass the ZIP path above as the \`pack\` argument to \`open_pack\`, \`get_screenshot(kind="screenshot")\`, and \`read_pack_file(path="dom-context.json")\` directly in memory. Skip shell extraction below.
+- Preferred (when \`bug-lens\` MCP tools are available): Pass the ZIP path above as the \`pack\` argument to \`open_pack\`, \`get_scene(selector="...")\` (or \`get_screenshot(kind="screenshot")\`), \`search_pack\`, and \`get_framework_state\` directly in memory (keep default \`format="text"\`; if the image is offloaded to \`file:///...jpg\`, call \`read_file\` on that path to view it visually; do NOT call \`read_pack_file\` on \`ai-prompt.md\` as full instructions are already here). Skip shell extraction below and NEVER run \`unzip\` or ad-hoc \`node -e\` / \`python\` scripts.
 - Fallback Extraction Command (only when MCP tools are unavailable):
   ${unzipCmdEn}
 - Workspace Path: \`${workspacePath}\` (Evidence files screenshot.jpg and JSON context reside here)
@@ -735,7 +735,7 @@ Please follow the Dual-Track Intent Analysis Framework:
   const title = payload.environment.title || "未知页面";
   const url = payload.environment.url || "未知 URL";
   const cascadeHint = hasCascade
-    ? `\n- 级联快照 (Cascade Index)：已开启样式微调模式，解压包含 \`cascade.json\`，可通过 \`elements -> perProperty -> winnerRuleId -> rules -> source\` 正向查询 CSS 规则覆盖关系及源码位置 (CDP 行号)。`
+    ? `\n- 级联快照 (Cascade Index)：已开启样式微调模式，包内包含 \`cascade.json\`（结构：\`sheets\` / \`rules\` / \`elements[matchedRuleIds, inheritedRules]\` / \`perProperty[prop][]{value, sourceRuleId}\`）。优先通过 MCP 工具 \`open_pack\`、\`get_scene(selector="...", cssProperty="...")\` 或 \`search_pack\` 在内存中直接关联查询 CSS 规则覆盖关系与样式表 URL。`
     : "";
 
   let squeezeWarning = "";
@@ -789,7 +789,7 @@ Please follow the Dual-Track Intent Analysis Framework:
     ? `powershell -Command "New-Item -ItemType Directory -Force -Path $env:TEMP\\bug-lens-workspace; Expand-Archive -Force -Path ${targetZipPathPs} -DestinationPath $env:TEMP\\bug-lens-workspace"`
     : `mkdir -p /tmp/bug-lens-workspace && unzip -o -q ${targetZipPathZh} -d /tmp/bug-lens-workspace`;
 
-  return `请作为高级 Frontend/Fullstack 调试专家，分析以下本地 Bug Lens 截图证据包（注意：必须结合查看解压后的截图图片 \`screenshot.jpg\` 进行视觉画面与逻辑对比）：
+  return `请作为高级 Frontend/Fullstack 调试专家，分析以下本地 Bug Lens 截图证据包（注意：必须结合查看截图图片 \`screenshot.jpg\` 进行视觉画面与逻辑对比）：
 
 ${pathLine}
 
@@ -799,7 +799,7 @@ ${pathLine}
 - 异常日志：${errCount} 条 Console 报错 | ${reqCount} 个失败网络请求${sourceLocationSectionZh}${cascadeHint}${squeezeWarning}
 
 【工作区准备（严禁解压在当前代码工程目录内，使用固定单例目录覆盖以实现 O(1) 存储占用）】
-- 首选方式（已配置 \`bug-lens\` MCP 工具时）：直接将上方 ZIP 路径作为 \`pack\` 参数调用 \`open_pack\`、\`get_screenshot(kind="screenshot")\` 与 \`read_pack_file(path="dom-context.json")\` 内存直读分析，跳过下方命令行解压。
+- 首选方式（已配置 \`bug-lens\` MCP 工具时）：直接将上方 ZIP 路径作为 \`pack\` 参数调用 \`open_pack\`、\`get_scene(selector="...")\`（或 \`get_screenshot(kind="screenshot")\`）、\`search_pack\` 与 \`get_framework_state\` 内存直读分析（所有工具默认 \`format="text"\` 即可；若图片被客户端落盘为 \`file:///...jpg\`，直接对其调用 \`read_file\` 查看视觉画面；本提示词已包含完整排查指引，无需再调用 \`read_pack_file\` 读取 \`ai-prompt.md\`），跳过下方命令行解压，严禁执行 \`unzip\` 或手写 \`node -e\` / \`python\` 脚本解析 JSON。
 - 降级解压命令（仅当未配置 MCP 工具时执行）：
   ${unzipCmdZh}
 - 工作区路径：\`${workspacePath}\`（解压与后续排查均以此目录为准）

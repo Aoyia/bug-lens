@@ -7,7 +7,7 @@ import {
 } from "./image-helper.ts";
 
 export function runGetInteractionsTool(args: {
-  pack: string;
+  pack?: string;
   fromIndex?: number;
   limit?: number;
   kinds?: string[];

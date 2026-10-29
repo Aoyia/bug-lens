@@ -3,6 +3,10 @@ import { formatDuration, formatRelativeTime } from "../format/time.ts";
 import { openPack } from "../pack/open.ts";
 import type { LoadedScreenshotPack } from "../pack/screenshot-pack.ts";
 import type { LoadedSessionPack } from "../pack/session-pack.ts";
+import {
+  extractLayoutDeviations,
+  formatCascadeOverview,
+} from "../query/cascade.ts";
 import { formatConsoleItem, queryConsole } from "../query/console.ts";
 import { formatNetworkRow, queryNetwork } from "../query/network.ts";
 
@@ -229,17 +233,85 @@ function formatScreenshotPackOverview(
     lines.push(
       `- **DOM Context**: SCA=\`${dc.smallestCommonAncestorSelector ?? "?"}\` | anchors=${dc.meta?.anchorCount ?? anchors.length}, leaves=${dc.meta?.leafCount ?? dc.leaves?.length ?? 0}, ancestors=${dc.meta?.ancestorCount ?? dc.ancestors?.length ?? 0}`
     );
-    lines.push(`\n## Annotated DOM Anchors (${anchors.length})`);
-    for (const [idx, a] of anchors.entries()) {
-      const flags = a.intentFlags ? JSON.stringify(a.intentFlags) : "{}";
-      const comp = a.componentName
-        ? ` [${a.componentName}${a.componentFile ? ` @ ${a.componentFile}:${a.componentLine ?? ""}` : ""}]`
-        : "";
+
+    const deviations = extractLayoutDeviations(dc);
+    if (deviations.length > 0) {
       lines.push(
-        `- [${idx}] \`${a.selectorPath ?? a.selector ?? "?"}\`${comp} flags=${flags} text="${(a.innerText ?? "").replace(/\s+/g, " ").trim().slice(0, 80)}"`
+        `\n## Layout & Overflow Diagnostics (${deviations.length} distinct issue group(s))`
+      );
+      for (const dev of deviations) {
+        const idxInfo =
+          dev.anchorIndices.length > 0
+            ? ` (anchors: [${dev.anchorIndices.slice(0, 6).join(", ")}${dev.anchorIndices.length > 6 ? `, ... (${dev.anchorIndices.length} total)` : ""}])`
+            : "";
+        const compInfo = dev.component ? ` [${dev.component}]` : "";
+        lines.push(
+          `- ⚠️ **[${dev.kind}] \`${dev.selectorPath ?? dev.selector}\`**${compInfo}${idxInfo}: ${dev.summary}`
+        );
+        if (dev.sampleText) {
+          lines.push(`  - sampleText: "${dev.sampleText}"`);
+        }
+        if (dev.keyStyles) {
+          lines.push(`  - keyComputedStyles: ${JSON.stringify(dev.keyStyles)}`);
+        }
+      }
+    }
+
+    lines.push(`\n## Annotated DOM Anchors (${anchors.length})`);
+    const sigToIndices = new Map<string, number[]>();
+    const uniqueAnchors: Array<{
+      idx: number;
+      anchor: (typeof anchors)[number];
+      sig: string;
+    }> = [];
+    anchors.forEach((a, idx) => {
+      const sig = `${a.selectorPath ?? a.selector ?? "?"}|${a.componentName ?? ""}|${JSON.stringify(a.intentFlags ?? {})}`;
+      const list = sigToIndices.get(sig);
+      if (list) {
+        list.push(idx);
+      } else {
+        sigToIndices.set(sig, [idx]);
+        uniqueAnchors.push({ idx, anchor: a, sig });
+      }
+    });
+
+    for (const { idx, anchor: a, sig } of uniqueAnchors.slice(0, 15)) {
+      const allIdx = sigToIndices.get(sig) ?? [idx];
+      const dupNote =
+        allIdx.length > 1
+          ? ` (+${allIdx.length - 1} siblings: [${allIdx.slice(1, 5).join(",")}${allIdx.length > 5 ? ",..." : ""}])`
+          : "";
+      const flagParts: string[] = [];
+      if (a.intentFlags?.isArrowTarget) flagParts.push("arrow");
+      if (a.intentFlags?.isHighlightedFocus) flagParts.push("focus");
+      if (a.intentFlags?.textComment)
+        flagParts.push(`comment="${a.intentFlags.textComment}"`);
+      const flagStr = flagParts.length > 0 ? ` [${flagParts.join(",")}]` : "";
+      const comp = a.componentName
+        ? ` [${a.componentName}${a.componentFile ? ` @ ${a.componentFile}${a.componentLine ? `:${a.componentLine}` : ""}` : ""}]`
+        : "";
+      const rawPath = a.selectorPath ?? a.selector ?? "?";
+      const shortPath =
+        rawPath.length > 75 ? `…${rawPath.slice(-72)}` : rawPath;
+      const textPreview = (a.innerText ?? "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 50);
+      lines.push(
+        `- [${idx}] \`${shortPath}\`${comp}${flagStr}${dupNote}${textPreview ? ` text="${textPreview}"` : ""}`
+      );
+    }
+    if (uniqueAnchors.length > 15) {
+      lines.push(
+        `- ... +${uniqueAnchors.length - 15} more unique anchors (use \`get_scene(selector="...")\` to filter)`
       );
     }
   }
+
+  if (pack.cascade) {
+    lines.push(...formatCascadeOverview(pack.cascade));
+  }
+
   if (recentErrors.length > 0) {
     lines.push(`\n## Recent Console Errors (${recentErrors.length})`);
     for (const [i, err] of recentErrors.slice(0, 5).entries()) {
@@ -259,7 +331,7 @@ function formatScreenshotPackOverview(
     lines.push(`- \`${f.path}\` (${f.byteLength} B)`);
   }
   lines.push(
-    `\n**Next steps**: Call \`get_scene\` or \`get_screenshot(kind="screenshot")\` to view \`screenshot.jpg\` & anchor details, \`get_framework_state\` for component props/data, and \`read_pack_file(path="dom-context.json")\` or \`read_pack_file(path="cascade.json")\` for full DOM/CSS trees.`
+    `\n**Next steps**: Call \`get_scene(pack="${pack.packPath}", selector="...")\` or \`get_screenshot(pack="${pack.packPath}", kind="screenshot")\` to inspect \`screenshot.jpg\`, anchor \`computedStyles\`/\`layoutContext\`, and matched CSS cascade rules; call \`search_pack(pack="${pack.packPath}", query="...")\` to search across \`cascade.json\` & \`dom-context.json\`; or call \`get_framework_state(pack="${pack.packPath}")\` for component props/data.`
   );
   return applyCharBudget(lines.join("\n"), maxChars);
 }

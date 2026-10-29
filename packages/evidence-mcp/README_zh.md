@@ -63,6 +63,18 @@ claude mcp add bug-lens-evidence -- npx -y bug-lens-mcp@latest
 }
 ```
 
+### 5. 配套排障 Skill（`bug-lens-triage`）
+
+一键安装配套的 `bug-lens-triage` Skill，让 AI 助手在任意业务工程中遇到 Bug Lens 证据包时自动按标准分支（Branch A 截图批注包 / Branch B 会话录制包）调用 MCP 工具并与业务源码比对：
+
+```bash
+# 自动识别并安装到全局技能目录（~/.gemini/config/skills、~/.claude/skills、~/.cursor/skills）
+npx -y bug-lens-mcp@latest install-skill
+
+# 或仅安装到当前业务项目的 .agents/skills/bug-lens-triage/SKILL.md
+npx -y bug-lens-mcp@latest install-skill project
+```
+
 ### 本地仓库直连方式
 
 若直接使用本地构建产物：

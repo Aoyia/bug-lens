@@ -4,7 +4,7 @@ import { openPack } from "../pack/open.ts";
 import { inspectNetworkRequest } from "../query/network.ts";
 
 export function runGetRequestTool(args: {
-  pack: string;
+  pack?: string;
   id: string;
   include?: Array<"summary" | "headers" | "initiator" | "body">;
   jsonPath?: string;

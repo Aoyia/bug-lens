@@ -426,3 +426,60 @@ export interface ScreenshotEnvironment {
   frameworkComponentStates?: FrameworkComponentNode[];
   vueComponentStates?: FrameworkComponentNode[];
 }
+
+export interface CascadeSheetSource {
+  id: string;
+  href?: string;
+  ownerNodeTag?: string;
+  rulesCount?: number;
+  isInline?: boolean;
+}
+
+export interface CascadeRuleSource {
+  id: string;
+  sheetId: string;
+  selectorText: string;
+  cssText: string;
+  styleProps?: Record<string, string>;
+  source?: string;
+}
+
+export interface CascadeInheritedRuleRef {
+  ancestorSelector: string;
+  ancestorTagName: string;
+  ruleId: string;
+  inheritedProps: Record<string, string>;
+}
+
+export interface CascadeElementRef {
+  id: string;
+  selector: string;
+  tagName: string;
+  matchedRuleIds: string[];
+  inheritedRules?: CascadeInheritedRuleRef[];
+}
+
+export interface CascadePropertySource {
+  property: string;
+  value: string;
+  sourceRuleId?: string;
+  isInline?: boolean;
+  isImportant?: boolean;
+  inheritedFromSelector?: string;
+}
+
+export interface CascadeIndex {
+  sheets?: CascadeSheetSource[];
+  rules?: CascadeRuleSource[];
+  elements?: CascadeElementRef[];
+  perProperty?: Record<
+    string,
+    CascadePropertySource[] | Record<string, CascadePropertySource>
+  >;
+  meta?: {
+    sheetCount?: number;
+    ruleCount?: number;
+    elementCount?: number;
+    capturedAtEpochMs?: number;
+  };
+}

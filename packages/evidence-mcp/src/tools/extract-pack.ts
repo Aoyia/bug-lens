@@ -2,7 +2,7 @@ import { applyCharBudget } from "../format/budget.ts";
 import { extractPackToDisk, openPack } from "../pack/open.ts";
 
 export function runExtractPackTool(args: {
-  pack: string;
+  pack?: string;
   dest?: string;
   format?: "text" | "json";
 }): string {

@@ -23,7 +23,7 @@ function collectComponentNodes(
 }
 
 export function runGetFrameworkStateTool(args: {
-  pack: string;
+  pack?: string;
   index?: number;
   nearMs?: number;
   component?: string;

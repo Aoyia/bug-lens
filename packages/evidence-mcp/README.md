@@ -63,6 +63,18 @@ claude mcp add bug-lens-evidence -- npx -y bug-lens-mcp@latest
 }
 ```
 
+### 5. Companion Agent Skill (`bug-lens-triage`)
+
+Install the companion `bug-lens-triage` skill so your agent automatically follows the deterministic triage workflow (Branch A for Screenshot Packs, Branch B for Session Packs) across all workspaces:
+
+```bash
+# Auto-detects Antigravity (~/.gemini/config/skills), Claude Code (~/.claude/skills), and Cursor (~/.cursor/skills)
+npx -y bug-lens-mcp@latest install-skill
+
+# Or install into the current project's .agents/skills/bug-lens-triage/SKILL.md
+npx -y bug-lens-mcp@latest install-skill project
+```
+
 ### Local Development / Monorepo Binary
 
 If running directly from a local clone of the `bug-lens` repository:

@@ -1,4 +1,5 @@
 import type {
+  CascadeIndex,
   ExportManifest,
   IntegrityReport,
   ScreenshotDomContext,
@@ -12,7 +13,7 @@ export class LoadedScreenshotPack {
   readonly integrity: IntegrityReport;
   readonly domContext?: ScreenshotDomContext;
   readonly environment?: ScreenshotEnvironment;
-  readonly cascade?: Record<string, unknown>;
+  readonly cascade?: CascadeIndex;
   readonly aiPrompt?: string;
   readonly files: Map<string, Uint8Array>;
   readonly skippedMediaFiles: Map<
@@ -28,7 +29,7 @@ export class LoadedScreenshotPack {
     integrity: IntegrityReport;
     domContext?: ScreenshotDomContext;
     environment?: ScreenshotEnvironment;
-    cascade?: Record<string, unknown>;
+    cascade?: CascadeIndex;
     aiPrompt?: string;
     files: Map<string, Uint8Array>;
     skippedMediaFiles: Map<
