@@ -2054,7 +2054,7 @@
     }
   },
   "mediaDataChunkWriteFailed": {
-    "message": "Media data chunk write failed (MEDIA_CHUNK_WRITE_FAILED:$REASONS$)",
+    "message": "Media data chunk write failed (MEDIA_CHUNK_WRITE_FAILED:$reasons$)",
     "placeholders": {
       "reasons": {
         "content": "$1"

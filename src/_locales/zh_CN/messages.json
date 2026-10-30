@@ -2054,7 +2054,7 @@
     }
   },
   "mediaDataChunkWriteFailed": {
-    "message": "媒体数据块写入失败 (MEDIA_CHUNK_WRITE_FAILED:$REASONS$)",
+    "message": "媒体数据块写入失败 (MEDIA_CHUNK_WRITE_FAILED:$reasons$)",
     "placeholders": {
       "reasons": {
         "content": "$1"

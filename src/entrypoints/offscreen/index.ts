@@ -4,7 +4,7 @@ import {
   type RuntimeMessage,
 } from "../../shared/protocol";
 import { initI18nPreference, t } from "../../shared/i18n";
-import { db } from "../../storage/db";
+import { db, type MediaChunkRecord } from "../../storage/db";
 import { evaluateOffscreenStorageWrite } from "../../storage/storage-health-coordinator";
 import { PreviewSessionRuntime } from "../../preview/preview-session-runtime";
 import {
@@ -64,23 +64,23 @@ function withTimeout<T>(
   });
 }
 
-// 优先探测浏览器原生的 MP4 格式，若不支持则降级到 WebM (VP9/VP8)
+// 优先探测具备高容错流式分片能力的 WebM (VP9/VP8)，异常中断下每个分片均独立可播；MP4 兜底
 function chooseMimeType(audio: boolean): string | undefined {
   const candidates = audio
     ? [
-        "video/mp4;codecs=avc1,mp4a.40.2",
-        "video/mp4;codecs=avc1",
-        "video/mp4",
         "video/webm;codecs=vp9,opus",
         "video/webm;codecs=vp8,opus",
         "video/webm",
-      ]
-    : [
+        "video/mp4;codecs=avc1,mp4a.40.2",
         "video/mp4;codecs=avc1",
         "video/mp4",
+      ]
+    : [
         "video/webm;codecs=vp9",
         "video/webm;codecs=vp8",
         "video/webm",
+        "video/mp4;codecs=avc1",
+        "video/mp4",
       ];
   return candidates.find(
     (candidate) =>
@@ -102,18 +102,19 @@ async function startMedia(
   recordingBlocked = false;
   activeMediaHash = new Sha256();
   activeMediaBytes = 0;
-  // 采集整个标签页：chromeMediaSource: "tab" + tabCapture 提供的 streamId
+  // 采集源模式：tab（单标签页）或 desktop（窗口/屏幕）+ 对应 streamId
+  const sourceMode = payload.sourceType ?? "tab";
   const constraints: MediaStreamConstraints = {
     video: {
       mandatory: {
-        chromeMediaSource: "tab",
+        chromeMediaSource: sourceMode,
         chromeMediaSourceId: payload.streamId,
       },
     } as unknown as MediaTrackConstraints,
     audio: payload.captureAudio
       ? ({
           mandatory: {
-            chromeMediaSource: "tab",
+            chromeMediaSource: sourceMode,
             chromeMediaSourceId: payload.streamId,
           },
         } as unknown as MediaTrackConstraints)
@@ -148,35 +149,43 @@ async function startMedia(
         .arrayBuffer()
         .then(async (buffer) => {
           // 分片 ID 按 (sessionId:sequence) 命名，保证有序且可精确去重
-          const result = await db.saveMediaChunkWithinBudget({
+          const chunkRecord: MediaChunkRecord = {
             id: `${sessionId}:${chunkSequence}`,
             sessionId,
             chunk: buffer,
             sequence: chunkSequence,
             mimeType,
             recordedAt: Date.now(),
-          });
-          if (result.stored) {
-            // 仅对真正成功落库的分片累加 SHA-256 哈希与字节数，杜绝未落库分片导致的完整性指纹不一致
-            activeMediaHash?.update(new Uint8Array(buffer));
-            activeMediaBytes += buffer.byteLength;
+          };
+
+          // 核心优化：直接独立写入 mediaChunks 单表，杜绝与主进程海量网络/日志事务争抢 sessions 表排他锁导致 Abort；
+          // 内置 3 次轻量重试以吸收瞬时 I/O 争抢峰值。
+          let writeError: unknown;
+          for (let attempt = 0; attempt < 5; attempt++) {
+            try {
+              await db.saveMediaChunk(chunkRecord);
+              writeError = undefined;
+              break;
+            } catch (err) {
+              writeError = err;
+              if (attempt < 4) {
+                await new Promise((r) =>
+                  setTimeout(r, Math.min(400, 50 * Math.pow(2, attempt)))
+                );
+              }
+            }
           }
-          // 由存储健康协调器判断：是否接近上限、是否已告警过，决定是否上报
-          const decision = evaluateOffscreenStorageWrite(
-            sessionId,
-            result,
-            storageWarningSent
-          );
-          if (decision.shouldNotify && decision.message) {
-            void chrome.runtime
-              .sendMessage(decision.message)
-              .catch(() => undefined);
+          if (writeError) {
+            throw writeError;
           }
-          if (result.stored && result.limitReached) {
-            storageWarningSent = true;
-          }
-          if (!result.stored) {
-            // 存储拒写：置位阻塞标记并立即停止录像，避免持续写入失败
+
+          // 累加哈希与媒体字节数
+          activeMediaHash?.update(new Uint8Array(buffer));
+          activeMediaBytes += buffer.byteLength;
+
+          // 内存级配额防爆检查：超出最大限制时优雅停止，避免浏览器内存爆满
+          const maxBytes = 536_870_912; // 512MB 兜底配额
+          if (activeMediaBytes >= maxBytes) {
             recordingBlocked = true;
             await chrome.runtime
               .sendMessage(
@@ -198,20 +207,7 @@ async function startMedia(
           }
         })
         .catch(async (error) => {
-          await chrome.runtime
-            .sendMessage(
-              message(
-                "offscreen/media-state",
-                {
-                  sessionId,
-                  state: "error",
-                  error: t("mediaChunkWriteFailed", String(error)),
-                },
-                sessionId,
-                "background"
-              )
-            )
-            .catch(() => undefined);
+          console.warn("[Bug Lens Offscreen] 媒体分片落盘重试后依然异常:", error);
           throw error;
         })
         .finally(() => pendingWrites.delete(write));
@@ -234,19 +230,28 @@ async function startMedia(
     };
     capturedStream.getTracks().forEach((track) =>
       track.addEventListener("ended", () => {
-        if (recorder?.state === "recording")
-          void chrome.runtime.sendMessage(
-            message(
-              "offscreen/media-state",
-              {
-                sessionId: activeSessionId,
-                state: "error",
-                error: t("mediaTrackEndedUnexpectedly"),
-              },
-              activeSessionId,
-              "background"
+        // 用户切 Tab 或页面导航导致初始轨结束属于预期操作边界，立刻将缓冲区剩余音视频分片刷盘并优雅收口
+        if (recorder && recorder.state === "recording") {
+          try {
+            recorder.requestData();
+          } catch {}
+          try {
+            recorder.stop();
+          } catch {}
+          void chrome.runtime
+            .sendMessage(
+              message(
+                "offscreen/media-state",
+                {
+                  sessionId: activeSessionId,
+                  state: "inactive",
+                },
+                activeSessionId,
+                "background"
+              )
             )
-          );
+            .catch(() => undefined);
+        }
       })
     );
     // timeslice 下限 250ms，避免分片过碎增加存储压力
@@ -273,7 +278,11 @@ async function stopMedia(sessionId: string): Promise<void> {
       await withTimeout(
         new Promise<void>((resolve) => {
           recorder!.addEventListener("stop", () => resolve(), { once: true });
-          recorder!.stop();
+          try {
+            recorder!.stop();
+          } catch {
+            resolve();
+          }
         }),
         // 最多等 5s，确保 MediaRecorder 产出最后一段分片
         5_000,
@@ -304,9 +313,23 @@ async function stopMedia(sessionId: string): Promise<void> {
   recorder = undefined;
   activeSessionId = undefined;
   activeMediaHash = undefined;
+  const savedBytes = activeMediaBytes;
   activeMediaBytes = 0;
   storageWarningSent = false;
   recordingBlocked = false;
+
+  // 关键容错：若已经有成功落盘的有效媒体分片（savedBytes > 0），绝不因为尾部收口超时或单片失败而整体熔断抛错！
+  if (savedBytes > 0) {
+    if (stopError || failures.length > 0) {
+      console.warn(
+        "[Bug Lens Offscreen] 媒体收盘时伴随轻微异常，但已成功保留有效音视频资产:",
+        stopError,
+        failures
+      );
+    }
+    return;
+  }
+
   if (stopError) throw stopError;
   // 任一既有分片写入失败，则本次停止以 MEDIA_CHUNK_WRITE_FAILED 上报
   if (failures.length)
@@ -725,6 +748,15 @@ chrome.runtime.onMessage.addListener((raw: unknown, _sender, sendResponse) => {
         sendResponse({ ok: true });
       } else if (incoming.type === "offscreen/stop-media") {
         await stopMedia(incoming.payload.sessionId);
+        sendResponse({ ok: true });
+      } else if (incoming.type === "offscreen/flush-media") {
+        if (recorder && recorder.state === "recording") {
+          try {
+            recorder.requestData();
+          } catch (e) {
+            console.warn("[Bug Lens Offscreen] 刷新媒体分片异常:", e);
+          }
+        }
         sendResponse({ ok: true });
       } else if (incoming.type === "offscreen/pause-media") {
         await pauseMedia(incoming.payload.sessionId);

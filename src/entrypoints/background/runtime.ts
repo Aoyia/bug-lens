@@ -45,6 +45,8 @@ export function createBackgroundRuntime(deps: BackgroundDeps) {
     bootstrapPromise: bootstrap.promise,
     pauseMediaSession: lifecycle.pauseMedia,
     resumeMediaSession: lifecycle.resumeMedia,
+    updatePauseState: lifecycle.updatePauseState,
+    lifecycle,
     restoreSessionAfterNavigation: bootstrap.restoreAfterNavigation,
     startRecordingViaShortcut: screenshot.startRecordingViaShortcut,
     triggerScreenshotInTab: screenshot.triggerInTab,

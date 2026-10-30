@@ -237,13 +237,47 @@ export function createMessageRouter(
             ),
           });
           return { ok: true };
+        case "session/add-tab": {
+          const tabId = incoming.payload.tabId;
+          const targets = (await ctx.multiTabManager?.addTab(tabId)) ?? [];
+          return { ok: true, tabId, targets };
+        }
+        case "session/remove-tab": {
+          const tabId = incoming.payload.tabId;
+          const targets = (await ctx.multiTabManager?.removeTab(tabId)) ?? [];
+          return { ok: true, tabId, targets };
+        }
         // content script 握手：校验归属后下发会话上下文（nonce/隐私模式/健康度），并回填环境信息
         case "content/hello": {
           const session = await db.getActiveSession();
+          let isSenderTab =
+            session?.target.tabId === sender.tab?.id ||
+            (typeof sender.tab?.id === "number" &&
+              Boolean(ctx.multiTabManager?.hasTab(sender.tab.id)));
+
+          // 若当前有活动录制会话且启用了自动纳管，来自普通网页的握手自动纳入纳管
+          if (
+            !isSenderTab &&
+            session &&
+            RECORDING_STATUSES.includes(session.status) &&
+            session.options.autoTrackDerivedTabs !== false &&
+            typeof sender.tab?.id === "number" &&
+            incoming.payload.url &&
+            (incoming.payload.url.startsWith("http://") ||
+              incoming.payload.url.startsWith("https://"))
+          ) {
+            try {
+              await ctx.multiTabManager?.addTab(sender.tab.id);
+              isSenderTab = true;
+            } catch {
+              // 容错处理
+            }
+          }
+
           const allowed = Boolean(
             session &&
             RECORDING_STATUSES.includes(session.status) &&
-            session.target.tabId === sender.tab?.id
+            isSenderTab
           );
           // 环境信息由页面主帧自动附带，无需用户手动填写
           if (
@@ -313,11 +347,14 @@ export function createMessageRouter(
         case "framework/state": {
           const state = incoming.payload.state;
           const session = await db.getActiveSession();
+          const isTargetTab =
+            session?.target.tabId === sender.tab?.id ||
+            Boolean(session?.targets?.some((t) => t.tabId === sender.tab?.id));
           const valid =
             session &&
             state.sessionId === session.id &&
             RECORDING_STATUSES.includes(session.status) &&
-            session.target.tabId === sender.tab?.id;
+            isTargetTab;
           if (!valid) return { ok: true, stored: false };
           if (sender.frameId !== undefined) {
             state.page = {

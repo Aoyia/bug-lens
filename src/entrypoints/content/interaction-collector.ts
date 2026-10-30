@@ -137,6 +137,7 @@ if (existingController) {
   let overlay: SelectionOverlay | undefined;
   let expectedCard: ExpectedCaptureCard | undefined;
   let monitor: InactivityMonitor | undefined;
+  let isRemotePaused = false;
   let iframeReporter: IframeActivityReporter | undefined;
 
   if (isTopFrame) {
@@ -328,7 +329,7 @@ if (existingController) {
         beginIssueSelection(anchor);
       },
       isPaused() {
-        return monitor?.isIdlePaused ?? false;
+        return Boolean(monitor?.isIdlePaused || isRemotePaused);
       },
       getStartedAtEpochMs() {
         return (
@@ -550,6 +551,7 @@ if (existingController) {
       }
     } else {
       cachedStartedAtEpochMs = undefined;
+      isRemotePaused = false;
     }
     session = next;
     // 同步到 window 挂载符号，供调试与重复注入时读取
@@ -596,6 +598,38 @@ if (existingController) {
     }
     if (raw.type === "content/activity-ping" && isTopFrame) {
       monitor?.recordActivity();
+    }
+    if (raw.type === "tab/state-sync") {
+      if (!session && raw.payload?.sessionId) {
+        // 多 Tab 录制副标签页同步：主动握手挂载挂件
+        void chrome.runtime
+          .sendMessage(
+            message("content/hello", {
+              url: location.href,
+              title: document.title,
+              environment: captureEnvironment(),
+            })
+          )
+          .then((response) => {
+            if (response?.active && response.sessionId) {
+              refreshSession(
+                {
+                  sessionId: response.sessionId,
+                  nonce: response.nonce!,
+                  frameId: response.frameId ?? (isTopFrame ? 0 : -1),
+                  startedAtEpochMs: response.startedAtEpochMs,
+                  privacyMode: response.privacyMode === "raw" ? "raw" : "safe",
+                  captureFrameworkState: Boolean(response.captureFrameworkState),
+                },
+                response.health
+              );
+            }
+          })
+          .catch(() => undefined);
+      } else if (mountedWidget && raw.payload) {
+        isRemotePaused = Boolean(raw.payload.isPaused);
+        mountedWidget.updatePauseState(raw.payload.isPaused);
+      }
     }
   });
   chrome.runtime

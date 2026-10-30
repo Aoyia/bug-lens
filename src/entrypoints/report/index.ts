@@ -101,7 +101,7 @@ if (!data || data.protocolVersion !== 3) {
   const video = document.querySelector<HTMLVideoElement>("#video")!;
   const videoEmpty = document.querySelector<HTMLElement>("#video-empty")!;
   if (data.hasMedia) {
-    // 优先尝试 mp4，若不存在则回退至 webm
+    // 优先尝试流式断点高容错的 webm，若不存在则回退至 mp4
     const tryPlayVideo = (src: string, fallbackSrc?: string) => {
       video.src = src;
       video.hidden = false;
@@ -119,7 +119,7 @@ if (!data || data.protocolVersion !== 3) {
         }
       };
     };
-    tryPlayVideo("media/recording.mp4", "media/recording.webm");
+    tryPlayVideo("media/recording.webm", "media/recording.mp4");
   } else {
     videoEmpty.textContent =
       t("noVideoPlayback") !== "noVideoPlayback"

@@ -68,13 +68,40 @@ export {
  */
 
 async function put(storeName: StoreName, value: unknown): Promise<void> {
-  const db = await openDb();
-  await new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(storeName, "readwrite");
-    tx.objectStore(storeName).put(value);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
+  const executePut = async (database: IDBDatabase) => {
+    return new Promise<void>((resolve, reject) => {
+      try {
+        const tx = database.transaction(storeName, "readwrite");
+        tx.objectStore(storeName).put(value);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error ?? new Error(`IndexedDB ${storeName} 写入错误`));
+        tx.onabort = () => reject(tx.error ?? new Error(`IndexedDB ${storeName} 事务中断`));
+      } catch (err) {
+        reject(err);
+      }
+    });
+  };
+
+  let db = await openDb();
+  try {
+    await executePut(db);
+  } catch (err: any) {
+    const msg = String(err?.message ?? err);
+    // 遇到连接断开、关闭或事务中断时，自动复位连接并重试一次
+    if (
+      msg.includes("closing") ||
+      msg.includes("InvalidState") ||
+      msg.includes("closed") ||
+      msg.includes("中断") ||
+      msg.toLowerCase().includes("abort")
+    ) {
+      closeEvidenceDatabase();
+      db = await openDb();
+      await executePut(db);
+      return;
+    }
+    throw err;
+  }
 }
 
 async function get<T>(

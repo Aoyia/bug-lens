@@ -311,10 +311,10 @@ export class RecordingWidget {
           100% { box-shadow: 0 0 0 0 rgba(245, 63, 63, 0); }
         }
         .__wbr_dot {
-          width: 8px !important; height: 8px !important; border-radius: 50% !important; background: #f53f3f !important;
+          width: 8px !important; height: 8px !important; border-radius: 50% !important; background: #f53f3f;
           display: inline-block !important;
           flex-shrink: 0 !important;
-          animation: wbr-pulse 1.5s infinite !important;
+          animation: wbr-pulse 1.5s infinite;
         }
         .__wbr_btn {
           border: none !important; background: #f53f3f !important; color: #fff !important; border-radius: 4px !important;
@@ -936,8 +936,8 @@ export class RecordingWidget {
     const recTag =
       this.container.querySelector<HTMLElement>("[data-wbr-rec-tag]");
     if (dot) {
-      dot.style.background = paused ? "#ffc107" : "#f53f3f";
-      dot.style.animation = paused ? "none" : "wbr-pulse 1.5s infinite";
+      dot.style.setProperty("background", paused ? "#ffc107" : "#f53f3f", "important");
+      dot.style.setProperty("animation", paused ? "none" : "wbr-pulse 1.5s infinite", "important");
     }
     if (recTag) {
       const isIdle = paused && this.callbacks.isIdlePaused();
@@ -962,9 +962,12 @@ export class RecordingWidget {
     );
 
     if (dot) {
-      dot.style.background = health.badgeColor;
-      dot.style.animation =
-        health.code === "RECORDING" ? "wbr-pulse 1.5s infinite" : "none";
+      dot.style.setProperty("background", health.badgeColor, "important");
+      dot.style.setProperty(
+        "animation",
+        health.code === "RECORDING" ? "wbr-pulse 1.5s infinite" : "none",
+        "important"
+      );
     }
     if (recTag) {
       recTag.textContent = health.badgeText;
