@@ -75,12 +75,20 @@ export function createEventHandlers(
     }
   }
 
-  // 录制目标标签页被关闭：以系统指令停止对应会话
+  // 录制目标标签页被关闭：多 Tab 模式下仅移出该 Tab，仅当全部受纳管 Tab 关闭时才停止会话
   async function handleTabRemoved(tabId: number): Promise<void> {
     await bootstrap.promise;
     const session = await db.getActiveSession();
-    if (session?.target.tabId === tabId)
+    if (!session) return;
+
+    if (ctx.multiTabManager?.hasTab(tabId)) {
+      await ctx.multiTabManager.handleTabRemoved(tabId);
+      return;
+    }
+
+    if (session.target.tabId === tabId) {
       await lifecycle.stop(`system:tab-removed:${session.id}`);
+    }
   }
 
   // 标签页导航完成（complete）后重注入采集脚本，恢复录制挂件与 CDP 连接

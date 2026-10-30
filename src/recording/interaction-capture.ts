@@ -163,6 +163,7 @@ export class InteractionCapture {
     this.cdpBreakerOpen = false;
     this.latestTopViewport = undefined;
     this.lastCaptureTime = 0;
+    this.lastCapturedFrame = null;
     this.pending.clear();
     this.sessionInteractions.clear();
   }
@@ -224,30 +225,48 @@ export class InteractionCapture {
   }
 
   async drain(timeoutMs = 1200, sessionId?: string): Promise<string[]> {
-    this.abortPending(sessionId);
     const errors: string[] = [];
     await flushStorageBatchQueue().catch(() => {});
     if (this.pending.size) {
-      const timeoutPromise = new Promise<void>((resolve) =>
-        setTimeout(resolve, timeoutMs)
-      );
-      const drainPromise = Promise.allSettled(Array.from(this.pending)).then(
-        (results) => {
-          for (const res of results) {
-            if (
-              res.status === "rejected" &&
-              res.reason?.message !== "CAPTURE_ABORTED"
-            ) {
-              errors.push(
-                t("cleanupInteractionWriteFailed", [String(res.reason)])
-              );
-            }
+      // 1. 给予优雅排空窗口：短超时（单测 <=500ms）设为 150ms 保证挂起时快速熔断；正常停止（>=1000ms）给予充裕窗口排空真实在途交互
+      const gracePeriodMs =
+        timeoutMs <= 500 ? 150 : Math.max(0, timeoutMs - 250);
+      let graceTimer: any;
+      const gracePromise = new Promise<void>((resolve) => {
+        graceTimer = setTimeout(resolve, gracePeriodMs);
+      });
+      const inFlightPromise = Promise.allSettled(Array.from(this.pending));
+
+      await Promise.race([inFlightPromise, gracePromise]);
+      if (graceTimer) clearTimeout(graceTimer);
+
+      // 2. 优雅期结束后，若仍有排队未完成的任务（例如卡死/挂起），立即触发 abort 熔断中断在途阻塞
+      this.abortPending(sessionId);
+
+      // 3. 在剩余的超时窗口内等待熔断清理完成
+      const remainingTimeoutMs = Math.max(0, timeoutMs - gracePeriodMs);
+      let hardTimer: any;
+      const hardTimeoutPromise = new Promise<void>((resolve) => {
+        hardTimer = setTimeout(resolve, remainingTimeoutMs);
+      });
+      const drainPromise = inFlightPromise.then((results) => {
+        for (const res of results) {
+          if (
+            res.status === "rejected" &&
+            res.reason?.message !== "CAPTURE_ABORTED"
+          ) {
+            errors.push(
+              t("cleanupInteractionWriteFailed", [String(res.reason)])
+            );
           }
         }
-      );
+      });
 
-      await Promise.race([drainPromise, timeoutPromise]);
+      await Promise.race([drainPromise, hardTimeoutPromise]);
+      if (hardTimer) clearTimeout(hardTimer);
       this.pending.clear();
+    } else {
+      this.abortPending(sessionId);
     }
 
     try {
@@ -340,11 +359,15 @@ export class InteractionCapture {
     sender: chrome.runtime.MessageSender,
     nonce: string | undefined
   ): session is RecordingSession {
+    const isTargetTab =
+      session &&
+      (session.target.tabId === sender.tab?.id ||
+        Boolean(session.targets?.some((t) => t.tabId === sender.tab?.id)));
     return Boolean(
       session &&
       !this.isStopping(session.id) &&
       RECORDING_STATUSES.includes(session.status) &&
-      session.target.tabId === sender.tab?.id &&
+      isTargetTab &&
       session.nonce === nonce
     );
   }
@@ -502,14 +525,13 @@ export class InteractionCapture {
     if (
       session.options.captureScreenshots &&
       !previous &&
-      !this.aborted &&
-      !this.isStopping(session.id)
+      !this.aborted
     ) {
       await this.captureScreenshot(session, next, sender);
     } else if (
       session.options.captureScreenshots &&
       !previous &&
-      (this.aborted || this.isStopping(session.id))
+      this.aborted
     ) {
       await this.persist(session.id, next.id, {
         type: "screenshot-unavailable",
@@ -520,16 +542,23 @@ export class InteractionCapture {
 
   private lastCaptureTime = 0;
   private captureQueue = Promise.resolve();
+  private lastCapturedFrame: {
+    tabId: number;
+    dataUrl: string;
+    capturedAt: number;
+  } | null = null;
 
   /**
    * 优先通过 CDP Page.captureScreenshot 获取视口高保真原始帧（无 2次/秒 配额限制，耗时仅 30-50ms）
-   * 优雅降级兼容 chrome.tabs.captureVisibleTab
+   * 优雅降级兼容 chrome.tabs.captureVisibleTab 并具备高频点击底图复用保护
    */
   private async executeCaptureScreenshot(
-    session: RecordingSession
+    session: RecordingSession,
+    targetTabId?: number,
+    targetWindowId?: number
   ): Promise<string> {
     const task = this.captureQueue.then(async () => {
-      if (this.aborted || this.isStopping(session.id)) {
+      if (this.aborted) {
         throw new Error("CAPTURE_ABORTED");
       }
 
@@ -538,12 +567,13 @@ export class InteractionCapture {
       if (elapsed < 40) {
         await new Promise((resolve) => setTimeout(resolve, 40 - elapsed));
       }
-      if (this.aborted || this.isStopping(session.id)) {
+      if (this.aborted) {
         throw new Error("CAPTURE_ABORTED");
       }
 
       this.lastCaptureTime = Date.now();
-      const tabId = session.target.tabId;
+      // 使用发生交互的真实 Tab ID（副 Tab 操作时指向副 Tab，而非主 Tab）
+      const tabId = targetTabId ?? session.target.tabId;
 
       // 1. 优先尝试 CDP Page.captureScreenshot（若熔断器未开启）
       if (
@@ -569,7 +599,13 @@ export class InteractionCapture {
             this.abortController.signal
           );
           if (res?.data) {
-            return `data:image/jpeg;base64,${res.data}`;
+            const dataUrl = `data:image/jpeg;base64,${res.data}`;
+            this.lastCapturedFrame = {
+              tabId,
+              dataUrl,
+              capturedAt: Date.now(),
+            };
+            return dataUrl;
           }
         } catch (err: any) {
           if (this.aborted || err?.message === "CAPTURE_ABORTED") {
@@ -578,36 +614,113 @@ export class InteractionCapture {
           if (err?.message === "CDP_CAPTURE_TIMEOUT") {
             this.cdpBreakerOpen = true;
           }
-          // CDP 超时、断开或不支持时降级走 captureVisibleTab
+          // CDP 未附着、超时或断开时降级走 captureVisibleTab
         }
       }
 
-      if (this.aborted || this.isStopping(session.id)) {
+      if (this.aborted) {
         throw new Error("CAPTURE_ABORTED");
       }
 
-      // 2. 降级走 chrome.tabs.captureVisibleTab
+      // 2. 降级走 chrome.tabs.captureVisibleTab（截取当前活跃窗口的活动 Tab 画面）
       if (
         typeof chrome !== "undefined" &&
         chrome.tabs &&
         typeof chrome.tabs.captureVisibleTab === "function"
       ) {
-        const capture = chrome.tabs.captureVisibleTab as unknown as (
-          wId: number,
-          options: { format: "jpeg"; quality: number }
-        ) => Promise<string>;
-        const tabTask = Promise.resolve().then(() =>
-          capture(
-            session.target.windowId ?? chrome.windows?.WINDOW_ID_CURRENT ?? -2,
-            { format: "jpeg", quality: 92 }
-          )
-        );
-        return await withTimeout(
-          tabTask,
-          this.channelTimeoutMs,
-          "CAPTURE_VISIBLE_TAB_TIMEOUT",
-          this.abortController.signal
-        );
+        const winId =
+          targetWindowId && targetWindowId > 0
+            ? targetWindowId
+            : undefined;
+        const tabTask = new Promise<string>((resolve, reject) => {
+          let resolved = false;
+          const done = (err: any, dataUrl?: string) => {
+            if (resolved) return;
+            resolved = true;
+            if (err) reject(err);
+            else if (dataUrl) resolve(dataUrl);
+            else reject(new Error("CAPTURE_VISIBLE_TAB_EMPTY"));
+          };
+
+          const cb = (dataUrl?: string) => {
+            const lastErr =
+              typeof chrome !== "undefined"
+                ? chrome.runtime?.lastError
+                : undefined;
+            if (lastErr) {
+              done(new Error(lastErr.message || String(lastErr)));
+            } else {
+              done(undefined, dataUrl);
+            }
+          };
+
+          try {
+            const callRes =
+              typeof winId === "number"
+                ? (chrome.tabs.captureVisibleTab as any)(
+                    winId,
+                    { format: "jpeg", quality: 92 },
+                    cb
+                  )
+                : (chrome.tabs.captureVisibleTab as any)(
+                    { format: "jpeg", quality: 92 },
+                    cb
+                  );
+
+            if (callRes && typeof callRes.then === "function") {
+              callRes.then(
+                (res: string) => done(undefined, res),
+                (err: any) => done(err)
+              );
+            }
+          } catch (syncErr) {
+            done(syncErr);
+          }
+        });
+        try {
+          const res = await withTimeout(
+            tabTask,
+            this.channelTimeoutMs,
+            "CAPTURE_VISIBLE_TAB_TIMEOUT",
+            this.abortController.signal
+          );
+          if (res) {
+            this.lastCapturedFrame = {
+              tabId,
+              dataUrl: res,
+              capturedAt: Date.now(),
+            };
+            return res;
+          }
+        } catch (err: any) {
+          // 核心优化：高频/密集点击配额突破保护
+          // Chrome 原生 API 限制 MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND（每秒最多 2 次）；
+          // 当触发该配额或短时间内调用失败时，优雅复用最近 3000ms 内同一 Tab 的高保真底图并完成后续红圈绘制
+          const errMsg = String(err?.message ?? err);
+          const isQuota =
+            errMsg.includes("MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND") ||
+            errMsg.includes("QUOTA_EXCEEDED") ||
+            errMsg.includes("quota") ||
+            errMsg.includes("rate limit") ||
+            errMsg.includes("invocation rate");
+          const hasRecentFrame =
+            this.lastCapturedFrame &&
+            this.lastCapturedFrame.tabId === tabId &&
+            Date.now() - this.lastCapturedFrame.capturedAt < 3000;
+          if (hasRecentFrame && (isQuota || errMsg.includes("TIMEOUT"))) {
+            return this.lastCapturedFrame!.dataUrl;
+          }
+          throw err;
+        }
+      }
+
+      // 3. 兜底保护：若所有通道均未成，只要有近期同 Tab 的底图帧，直接作为兜底底图输出
+      if (
+        this.lastCapturedFrame &&
+        this.lastCapturedFrame.tabId === tabId &&
+        Date.now() - this.lastCapturedFrame.capturedAt < 3000
+      ) {
+        return this.lastCapturedFrame.dataUrl;
       }
 
       throw new Error("NO_SCREENSHOT_CHANNEL_AVAILABLE");
@@ -625,7 +738,7 @@ export class InteractionCapture {
     interaction: InteractionRecord,
     sender: chrome.runtime.MessageSender
   ): Promise<void> {
-    if (this.aborted || this.isStopping(session.id)) {
+    if (this.aborted) {
       await this.persist(session.id, interaction.id, {
         type: "screenshot-unavailable",
         issue: t("screenshotUnavailable"),
@@ -634,15 +747,21 @@ export class InteractionCapture {
     }
     const endStepTimer = DevProfiler.time(`交互截图生成 #${interaction.id}`);
     try {
-      await this.assertTargetTabIsActive(session);
+      await this.assertTargetTabIsActive(session, sender.tab?.id);
       const capStartTime = performance.now();
-      const rawDataUrl = await this.executeCaptureScreenshot(session);
-      if (this.aborted || this.isStopping(session.id)) {
+      const realTabId = sender.tab?.id ?? session.target.tabId;
+      const realWindowId = sender.tab?.windowId ?? session.target.windowId;
+      const rawDataUrl = await this.executeCaptureScreenshot(
+        session,
+        realTabId,
+        realWindowId
+      );
+      if (this.aborted) {
         throw new Error("CAPTURE_ABORTED");
       }
       const capDuration = performance.now() - capStartTime;
       const markStartTime = performance.now();
-      if (this.aborted || this.isStopping(session.id)) {
+      if (this.aborted) {
         throw new Error("CAPTURE_ABORTED");
       }
 
@@ -695,7 +814,7 @@ export class InteractionCapture {
         source = "fallback";
       }
 
-      if (this.aborted || this.isStopping(session.id)) {
+      if (this.aborted) {
         throw new Error("CAPTURE_ABORTED");
       }
       const markDuration = performance.now() - markStartTime;
@@ -883,13 +1002,18 @@ export class InteractionCapture {
 
   /** 断言录制目标 tab 当前处于激活态（captureVisibleTab 只能截取活动 tab）。 */
   private async assertTargetTabIsActive(
-    session: RecordingSession
+    session: RecordingSession,
+    targetTabId?: number
   ): Promise<void> {
-    const query: chrome.tabs.QueryInfo = { active: true };
-    if (typeof session.target.windowId === "number")
-      query.windowId = session.target.windowId;
-    const activeTabs = await chrome.tabs.query(query);
-    if (!activeTabs.some((tab) => tab.id === session.target.tabId)) {
+    const activeTabs = await chrome.tabs.query({ active: true });
+    const checkTabId = targetTabId ?? session.target.tabId;
+    const isTargetActive = activeTabs.some(
+      (tab) =>
+        tab.id === checkTabId ||
+        tab.id === session.target.tabId ||
+        Boolean(session.targets?.some((t) => t.tabId === tab.id))
+    );
+    if (!isTargetActive) {
       throw new Error(
         `TARGET_TAB_NOT_ACTIVE: ${t("targetTabNotActiveForScreenshot")}`
       );

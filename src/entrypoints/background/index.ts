@@ -8,6 +8,7 @@ import { CdpEvidenceCollector } from "../../evidence/cdp-evidence-collector";
 import { InteractionCapture } from "../../recording/interaction-capture";
 import { NavigationCapture } from "../../recording/navigation-capture";
 import { IssueSceneCapture } from "../../recording/issue-scene-capture";
+import { MultiTabManager } from "../../recording/multi-tab-manager";
 import { createBackgroundRuntime, type BackgroundDeps } from "./runtime";
 import { registerBackgroundEvents } from "./events";
 import { applySessionEvent } from "./context";
@@ -80,6 +81,20 @@ const issueSceneCapture = new IssueSceneCapture((sessionId) =>
   recordingCoordinator.isStopping(sessionId)
 );
 
+let runtimeRef: ReturnType<typeof createBackgroundRuntime> | undefined;
+
+const multiTabManager = new MultiTabManager(
+  db,
+  contentScripts,
+  cdpCollector,
+  async () => {
+    const session = await db.getActiveSession();
+    if (session) {
+      await runtimeRef?.stopSession(`system:all-tabs-removed:${session.id}`);
+    }
+  }
+);
+
 const deps: BackgroundDeps = {
   db,
   extensionVersion: EXTENSION_VERSION,
@@ -91,9 +106,12 @@ const deps: BackgroundDeps = {
   interactionCapture,
   issueSceneCapture,
   navigationCapture,
+  multiTabManager,
 };
 
 const runtime = createBackgroundRuntime(deps);
+runtimeRef = runtime;
+(self as unknown as { __BUGLENS_BACKGROUND_RUNTIME__?: unknown }).__BUGLENS_BACKGROUND_RUNTIME__ = runtime;
 
 // chrome 事件注册（debugger / tabs / startup / installed / alarms / commands / onMessage）
 registerBackgroundEvents(runtime);

@@ -228,23 +228,56 @@ export class PreviewSessionRuntime {
   }
 
   async loadMediaPreview(): Promise<MediaPreviewResult> {
-    if (!this.sessionId || this.mediaUrl || !this.mediaChunkCount) return {};
+    if (!this.sessionId || this.mediaUrl) return {};
     try {
       const chunks = (await this.storage.getMediaChunks(this.sessionId)).filter(
         (entry) =>
           entry.chunk instanceof ArrayBuffer && entry.chunk.byteLength > 0
       );
-      if (!chunks.length) throw new Error(t("mediaChunksEmptyOrCorrupt"));
+      if (!chunks.length) {
+        if (!this.mediaChunkCount) return {};
+        throw new Error(t("mediaChunksEmptyOrCorrupt"));
+      }
+      this.mediaChunkCount = chunks.length;
+      const mimeType = chunks[0].mimeType || this.mediaMimeType || "video/webm";
+      this.mediaMimeType = mimeType;
+
       const rawBlob = new Blob(
         chunks.map((entry) => entry.chunk),
-        { type: this.mediaMimeType }
+        { type: mimeType }
       );
-      const durationMs = this.session?.timeline.durationMs;
-      const fixedBlob =
-        this.mediaMimeType.includes("webm") && durationMs && durationMs > 0
-          ? await fixWebmDuration(rawBlob, durationMs, { logger: false })
-          : rawBlob;
-      this.mediaUrl = URL.createObjectURL(fixedBlob);
+
+      // 计算真实媒体切片的时间跨度，防止将跨 Tab 后的过长会话总时长写入 WebM 头部引发解码越界或卡死
+      const firstRecordedAt = chunks[0].recordedAt;
+      const lastRecordedAt = chunks[chunks.length - 1].recordedAt;
+      const recordedSpanMs =
+        lastRecordedAt >= firstRecordedAt ? lastRecordedAt - firstRecordedAt : 0;
+      const estimatedDurationMs = Math.max(
+        recordedSpanMs + 1000,
+        chunks.length * 500
+      );
+      const sessionDurationMs = this.session?.timeline.durationMs;
+      const effectiveDurationMs =
+        sessionDurationMs && sessionDurationMs > 0
+          ? Math.min(sessionDurationMs, estimatedDurationMs)
+          : estimatedDurationMs;
+
+      let finalBlob = rawBlob;
+      if (mimeType.includes("webm") && effectiveDurationMs > 0) {
+        try {
+          finalBlob = await fixWebmDuration(rawBlob, effectiveDurationMs, {
+            logger: false,
+          });
+        } catch (fixErr) {
+          console.warn(
+            "[Bug Lens Preview] fixWebmDuration 降级使用 rawBlob:",
+            fixErr
+          );
+          finalBlob = rawBlob;
+        }
+      }
+
+      this.mediaUrl = URL.createObjectURL(finalBlob);
       return { source: this.mediaUrl };
     } catch (error) {
       return { error: String(error) };

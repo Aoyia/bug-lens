@@ -66,7 +66,10 @@ function stoppedTimeline(
 ): RecordingSession["timeline"] {
   const startedAt =
     session.timeline.startedAtEpochMs ?? session.timeline.createdAtEpochMs;
-  const paused = pausedDurationMs ?? session.timeline.pausedDurationMs ?? 0;
+  const paused = Math.max(
+    pausedDurationMs ?? 0,
+    session.timeline.pausedDurationMs ?? 0
+  );
   return {
     ...session.timeline,
     stoppedAtEpochMs,

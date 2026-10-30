@@ -1289,3 +1289,34 @@ select:focus-visible,
 [hidden] {
   display: none !important;
 }
+
+.mode-selector {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  margin-bottom: 2px;
+}
+.mode-pill {
+  flex: 1;
+  padding: 4px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color, #e5e6eb);
+  background: var(--bg-muted, #f7f8fa);
+  color: var(--text-secondary, #4e5969);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+}
+.mode-pill.active {
+  background: var(--primary-bg-light, #e8f3ff);
+  border-color: var(--primary, #165dff);
+  color: var(--primary, #165dff);
+  font-weight: 500;
+}
+.mode-hint {
+  font-size: 11px;
+  color: var(--text-tertiary, #86909c);
+  margin-top: 6px;
+  line-height: 1.4;
+}

@@ -15,6 +15,7 @@ import type { ContentScriptManager } from "../../recording/content-script-manage
 import type { InteractionCapture } from "../../recording/interaction-capture";
 import type { IssueSceneCapture } from "../../recording/issue-scene-capture";
 import type { NavigationCapture } from "../../recording/navigation-capture";
+import type { MultiTabManager } from "../../recording/multi-tab-manager";
 import type { RecordingCoordinator } from "../../recording/recording-coordinator";
 import type { StreamHealthMonitor } from "../../recording/stream-health-monitor";
 import type { db } from "../../storage/db";
@@ -31,6 +32,7 @@ export type BackgroundDeps = {
   interactionCapture: InteractionCapture;
   issueSceneCapture: IssueSceneCapture;
   navigationCapture: NavigationCapture;
+  multiTabManager?: MultiTabManager;
 };
 
 /**

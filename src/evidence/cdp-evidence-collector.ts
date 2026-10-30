@@ -728,11 +728,15 @@ export class CdpEvidenceCollector {
     params?: object
   ): Promise<void> {
     const session = await this.repository.getActiveSession();
+    const isTargetTab =
+      session?.target.tabId === tabId ||
+      session?.targets?.some((t) => t.tabId === tabId) ||
+      this.attachedTabs.has(tabId);
     if (
       !session ||
       !RECORDING_STATUSES.includes(session.status) ||
       this.isStopping(session.id) ||
-      session.target.tabId !== tabId
+      !isTargetTab
     )
       return;
 

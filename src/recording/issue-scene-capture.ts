@@ -158,12 +158,18 @@ export class IssueSceneCapture {
 
   private async assertTargetTabIsActive(session: {
     target: { tabId: number; windowId?: number };
+    targets?: Array<{ tabId: number }>;
   }): Promise<void> {
     const query: chrome.tabs.QueryInfo = { active: true };
     if (typeof session.target.windowId === "number")
       query.windowId = session.target.windowId;
     const tabs = await chrome.tabs.query(query);
-    if (!tabs.some((tab) => tab.id === session.target.tabId))
+    const isTargetActive = tabs.some(
+      (tab) =>
+        tab.id === session.target.tabId ||
+        Boolean(session.targets?.some((t) => t.tabId === tab.id))
+    );
+    if (!isTargetActive)
       throw new Error(`TARGET_TAB_NOT_ACTIVE: ${t("issueTargetTabNotActive")}`);
   }
 

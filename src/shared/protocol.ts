@@ -112,6 +112,15 @@ export type CaptureIssue = {
   occurredAt: number;
 };
 
+export type TargetTabInfo = {
+  tabId: number;
+  windowId?: number;
+  url: string;
+  title: string;
+  isPrimary?: boolean;
+  addedAtEpochMs?: number;
+};
+
 export type RecordingOptions = {
   captureAudio: boolean;
   captureVideo: boolean;
@@ -122,6 +131,8 @@ export type RecordingOptions = {
   captureStaticBodies?: boolean;
   captureFullResponseBody?: boolean;
   captureFrameworkState?: boolean;
+  captureSource?: "tab" | "window" | "screen";
+  autoTrackDerivedTabs?: boolean;
   privacyMode: "safe" | "raw";
   mediaTimesliceMs: number;
   maxResponseBodyBytes: number;
@@ -202,6 +213,9 @@ export type RecordingSession = {
     /** 录制环境快照（系统/浏览器/分辨率），由页面主帧握手时自动附带。 */
     environment?: EnvironmentInfo;
   };
+  /** 多标签页录制模式下受纳管的全部标签页信息（首项为 primary target） */
+  targets?: TargetTabInfo[];
+  captureSource?: "tab" | "window" | "screen";
   options: RecordingOptions;
   timeline: {
     createdAtEpochMs: number;
@@ -911,9 +925,22 @@ export type RuntimeMessage =
         captureAudio: boolean;
         timesliceMs: number;
         videoBitsPerSecond?: number;
+        sourceType?: "tab" | "desktop";
+      }
+    >
+  | Envelope<"session/add-tab", { tabId: number; sessionId?: string }>
+  | Envelope<"session/remove-tab", { tabId: number; sessionId?: string }>
+  | Envelope<
+      "tab/state-sync",
+      {
+        sessionId: string;
+        isPaused: boolean;
+        durationMs: number;
+        targets: TargetTabInfo[];
       }
     >
   | Envelope<"offscreen/stop-media", { sessionId: string }>
+  | Envelope<"offscreen/flush-media", { sessionId: string }>
   | Envelope<"offscreen/pause-media", { sessionId: string }>
   | Envelope<"offscreen/resume-media", { sessionId: string }>
   | Envelope<"offscreen/status", { sessionId: string }>
@@ -1052,8 +1079,12 @@ export type RuntimeMessageResponseMap = {
   "content/activity-ping": { ok: true };
   "recording/pause-state": { ok: true };
   "framework/state": { ok: true; stored: boolean };
+  "session/add-tab": { ok: true; tabId: number; targets: TargetTabInfo[] };
+  "session/remove-tab": { ok: true; tabId: number; targets: TargetTabInfo[] };
+  "tab/state-sync": { ok: true };
   "offscreen/start-media": { ok: true };
   "offscreen/stop-media": { ok: true };
+  "offscreen/flush-media": { ok: true };
   "offscreen/pause-media": { ok: true };
   "offscreen/resume-media": { ok: true };
   "offscreen/status": { ok: true; active?: boolean };

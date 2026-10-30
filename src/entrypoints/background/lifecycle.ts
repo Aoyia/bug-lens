@@ -225,6 +225,7 @@ export function createSessionLifecycle(
 
     let mediaStarted = false;
     try {
+      // 1. 紧随用户手势第一时间获取主 Tab 媒体流 ID（纯单 Tab 捕获，零系统/窗口弹窗，秒级启动）
       const streamId = !options.captureVideo
         ? undefined
         : payload.streamId
@@ -240,6 +241,7 @@ export function createSessionLifecycle(
                       )
               )
             ).catch(() => undefined);
+
       await ensureOffscreenDocument([
         "USER_MEDIA" as chrome.offscreen.Reason,
         "BLOBS" as chrome.offscreen.Reason,
@@ -299,6 +301,7 @@ export function createSessionLifecycle(
         interactionCapture.reset?.();
         navigationCapture.attach();
         navigationCapture.setCurrentUrl(tab.url ?? "");
+        ctx.multiTabManager?.initSession(started);
         streamHealthMonitor.initialize(payload.tabId, session.id, {
           captureVideo: options.captureVideo && mediaStarted,
           captureConsoleOrNetwork:
@@ -472,9 +475,6 @@ export function createSessionLifecycle(
       })();
     }
 
-    // 立即熔断并取消在途未截取的排队任务，防止阻塞收尾
-    interactionCapture.abortPending(session.id);
-
     const tStage2Start = performance.now();
     let cdpFinalizeStats: CdpFinalizeStats = {
       totalRequests: 0,
@@ -491,6 +491,7 @@ export function createSessionLifecycle(
     let qualityReconcileDurationMs = 0;
 
     try {
+      ctx.multiTabManager?.detach();
       await cdpCollector.detach(session.target.tabId);
 
       const tMediaStart = performance.now();
@@ -968,11 +969,19 @@ export function createSessionLifecycle(
     pausedDurationMs: number,
     atEpochMs: number
   ): Promise<void> {
-    await ctx.applySessionEvent(sessionId, {
+    const updated = await ctx.applySessionEvent(sessionId, {
       type: isPaused ? "paused" : "resumed",
       atEpochMs,
       pausedDurationMs,
     });
+    if (isPaused) {
+      await pauseMediaSession(sessionId);
+    } else {
+      await resumeMediaSession(sessionId);
+    }
+    if (ctx.multiTabManager) {
+      ctx.multiTabManager.broadcastStateSync(updated);
+    }
   }
 
   return {

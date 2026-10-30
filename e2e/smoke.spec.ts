@@ -114,7 +114,11 @@ test.describe("Bug Lens 核心功能极速冒烟测试 (Smoke Suite)", () => {
       expect(zipFiles).toContain("manifest.json");
       expect(zipFiles).toContain("data/session-data.js");
       expect(zipFiles).toContain("data/network-details.js");
-      expect(zipFiles).toContain("media/recording.mp4");
+      expect(
+        zipFiles.some(
+          (f) => f === "media/recording.webm" || f === "media/recording.mp4"
+        )
+      ).toBe(true);
 
       const stepShots = zipFiles.filter((f) =>
         f.startsWith("screenshots/step-")

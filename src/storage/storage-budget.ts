@@ -2,7 +2,6 @@ import { DevProfiler } from "../shared/dev-profiler.ts";
 import { estimateBytes } from "../domain/storage-policy.ts";
 import type { RecordingSession } from "../shared/protocol.ts";
 import {
-  closeEvidenceDatabase,
   openEvidenceDatabase,
   type StoreName,
 } from "./indexed-db-schema.ts";
@@ -140,7 +139,7 @@ async function executeBatchChunk(
     try {
       transaction = database.transaction(storeNames, "readwrite");
     } catch (err) {
-      closeEvidenceDatabase();
+      // 事务创建失败时仅拒绝当前分片，绝不关闭全局数据库连接，避免连带导致媒体分片写入中断
       for (const item of chunk) {
         item.reject(err);
       }
