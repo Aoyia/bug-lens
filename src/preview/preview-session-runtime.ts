@@ -53,6 +53,8 @@ export class PreviewSessionRuntime {
   private mediaChunkCount = 0;
   private mediaMimeType = "video/webm";
   private readonly selection = new PreviewController();
+  public lastIdbReadDurationMs = 0;
+  public lastSourceMapDurationMs = 0;
 
   constructor(private readonly storage: PreviewStorage) {}
 
@@ -71,6 +73,8 @@ export class PreviewSessionRuntime {
     const forExport = Boolean(options?.forExport);
 
     // 并行读取所有 IDB 基础数据，大幅降低总 I/O 等待耗时
+    const tIdb0 =
+      typeof performance !== "undefined" ? performance.now() : Date.now();
     const [
       rawSession,
       allAssetsRaw,
@@ -93,6 +97,9 @@ export class PreviewSessionRuntime {
       this.storage.getFrameworkStates(sessionId),
       this.storage.getMediaSummary(sessionId),
     ]);
+    this.lastIdbReadDurationMs =
+      (typeof performance !== "undefined" ? performance.now() : Date.now()) -
+      tIdb0;
 
     if (!rawSession) return;
 
@@ -153,6 +160,8 @@ export class PreviewSessionRuntime {
     );
 
     // 🌟 在 Preview 加载数据时，基于异常与时空交互聚焦准入策略（方案一）丰富调用链
+    const tSm0 =
+      typeof performance !== "undefined" ? performance.now() : Date.now();
     try {
       const coordinator = new SourceMapCoordinator();
       const enriched = await coordinator.enrichEntries(
@@ -168,6 +177,10 @@ export class PreviewSessionRuntime {
     } catch {
       this.consoleEntries = sortedConsole;
       this.networkEntries = networkEntries;
+    } finally {
+      this.lastSourceMapDurationMs =
+        (typeof performance !== "undefined" ? performance.now() : Date.now()) -
+        tSm0;
     }
 
     this.issueScenes = rawIssueScenes.map((scene) =>
@@ -251,7 +264,9 @@ export class PreviewSessionRuntime {
       const firstRecordedAt = chunks[0].recordedAt;
       const lastRecordedAt = chunks[chunks.length - 1].recordedAt;
       const recordedSpanMs =
-        lastRecordedAt >= firstRecordedAt ? lastRecordedAt - firstRecordedAt : 0;
+        lastRecordedAt >= firstRecordedAt
+          ? lastRecordedAt - firstRecordedAt
+          : 0;
       const estimatedDurationMs = Math.max(
         recordedSpanMs + 1000,
         chunks.length * 500

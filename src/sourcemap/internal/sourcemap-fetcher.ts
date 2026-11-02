@@ -6,9 +6,25 @@ export type FetchResult =
   | {
       success: false;
       reason: "FETCH_FAILED" | "SIZE_EXCEEDED" | "INVALID_MAP" | "TIMEOUT";
+      status?: number;
     };
 
 export class SourceMapFetcher {
+  /**
+   * O(1) 判断脚本 URL 是否为可通过网络/内联拉取 SourceMap 的合法协议地址，
+   * 过滤 <anonymous>、eval、blob:、javascript:、extensions::、wasm: 等虚拟地址。
+   */
+  public static isFetchableScriptUrl(scriptUrl: string): boolean {
+    if (!scriptUrl || typeof scriptUrl !== "string") return false;
+    const trimmed = scriptUrl.trim();
+    return (
+      trimmed.startsWith("http://") ||
+      trimmed.startsWith("https://") ||
+      trimmed.startsWith("data:") ||
+      trimmed.startsWith("chrome-extension://")
+    );
+  }
+
   public static extractSourceMappingUrl(scriptContent: string): string | null {
     if (!scriptContent) return null;
     const match = scriptContent.match(SOURCEMAPPING_URL_REGEX);
@@ -38,16 +54,28 @@ export class SourceMapFetcher {
         return this.parseDataUri(mapUrlOrDataUri);
       }
 
+      if (!this.isFetchableScriptUrl(mapUrlOrDataUri)) {
+        return { success: false, reason: "FETCH_FAILED" };
+      }
+
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-      const response = await fetch(mapUrlOrDataUri, {
-        signal: controller.signal,
-      });
-      clearTimeout(timer);
+      let response: Response;
+      try {
+        response = await fetch(mapUrlOrDataUri, {
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timer);
+      }
 
       if (!response.ok) {
-        return { success: false, reason: "FETCH_FAILED" };
+        return {
+          success: false,
+          reason: "FETCH_FAILED",
+          status: response.status,
+        };
       }
 
       const contentLength = response.headers.get("content-length");

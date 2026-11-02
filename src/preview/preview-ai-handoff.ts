@@ -1,5 +1,6 @@
 import type { ExportArtifact } from "../shared/protocol";
 import { copyTextToClipboard } from "./clipboard";
+import { incrementPromptCopyCount } from "../diagnostics/diagnostics-store";
 import { t } from "../shared/i18n.ts";
 
 export type PreviewAiHandoffOptions = {
@@ -59,6 +60,7 @@ export class PreviewAiHandoff {
       this.options.getPrompt(this.options.getArtifact()?.filename),
       t("aiPromptCopied")
     );
+    void incrementPromptCopyCount().catch(() => undefined);
   }
 
   async copyPath(): Promise<void> {
@@ -76,6 +78,7 @@ export class PreviewAiHandoff {
         this.options.root
       );
       this.options.notify(t("exportSuccessCopied"));
+      void incrementPromptCopyCount().catch(() => undefined);
       return true;
     } catch {
       return false;

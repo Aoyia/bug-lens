@@ -2232,6 +2232,12 @@
   "navShortcuts": {
     "message": "快捷键指南"
   },
+  "navDiagnostics": {
+    "message": "性能与诊断"
+  },
+  "navDiagnosticsDesc": {
+    "message": "本地用量统计、全链路性能水线与脱敏排查日志"
+  },
   "settingLanguage": {
     "message": "界面语言"
   },

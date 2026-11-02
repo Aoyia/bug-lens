@@ -20,7 +20,15 @@ import type { BackgroundContext } from "./context";
 
 import type { DownloadTimingStats } from "../../domain/download-path-resolver";
 import {
+  captureMemorySnapshot,
+  installProcessFlightRecorder,
+  recordFlightLog,
+  recordTaskProfile,
+} from "../../diagnostics/diagnostics-store";
+import {
+  buildExportPipelineDashboard,
   createExportTraceContext,
+  getEpochTimestampMs,
   getPerformanceOrigin,
   type CdpFinalizeStats,
   type ExportTraceContext,
@@ -616,6 +624,43 @@ export function createSessionLifecycle(
           effectiveTraceContext
         );
       }
+
+      const sessionDuration =
+        next.timeline?.durationMs ??
+        (next.timeline?.stoppedAtEpochMs && next.timeline?.startedAtEpochMs
+          ? Math.max(
+              0,
+              next.timeline.stoppedAtEpochMs - next.timeline.startedAtEpochMs
+            )
+          : 0);
+
+      void recordTaskProfile({
+        id: next.id,
+        taskType: "recording",
+        status: "success",
+        durationMs: sessionDuration,
+        context: {
+          sourceType: next.captureSource === "tab" ? "tab" : "desktop",
+          captureSource: next.captureSource ?? "tab",
+          tabCount: next.targets?.length ?? 1,
+          targetUrl: next.target?.initialUrl,
+          targetTitle: next.target?.initialTitle,
+          targetUrls: next.targets?.map((t) => t.url),
+        },
+        breakdown: {
+          stage1_ipcDispatchMs: effectiveTraceContext?.stage1?.totalDurationMs,
+          stage2_cdpDrainMs: effectiveTraceContext?.stage2?.totalDurationMs,
+        },
+        metricsSummary: {
+          eventsCount: next.quality?.interactionCount,
+          requestsCount: next.quality?.networkEntryCount,
+          consoleCount: next.quality?.consoleEntryCount,
+        },
+        qualitySummary: next.quality,
+        exportTrace: effectiveTraceContext,
+        memorySnapshot: captureMemorySnapshot(),
+      }).catch(() => undefined);
+
       return await openPendingPreview(next, autoExport);
     } finally {
       recordingCoordinator.finishStopping(session.id);
@@ -789,6 +834,7 @@ export function createSessionLifecycle(
       silentExportResult.filename = resolvedPath;
     }
 
+    let finalSession = session;
     if (!silentExportResult.ok) {
       const failed = await db.updateSession(session.id, (current) => ({
         ...reduceSession(
@@ -800,17 +846,98 @@ export function createSessionLifecycle(
         ),
         previewPending: true,
       }));
-      if (failed)
-        return {
-          ...failed,
-          silentPrompt: prompt,
-          silentExportResult,
-        };
+      if (failed) {
+        finalSession = failed;
+      }
     } else {
       await db.clearActive(session.id);
       await contentScripts.remove(session.target.tabId).catch(() => undefined);
     }
-    return { ...session, silentPrompt: prompt, silentExportResult };
+
+    const sessionDuration =
+      finalSession.timeline?.durationMs ??
+      (finalSession.timeline?.stoppedAtEpochMs &&
+      finalSession.timeline?.startedAtEpochMs
+        ? Math.max(
+            0,
+            finalSession.timeline.stoppedAtEpochMs -
+              finalSession.timeline.startedAtEpochMs
+          )
+        : 0);
+
+    let exportDashboard = undefined;
+    if (traceContext) {
+      try {
+        exportDashboard = buildExportPipelineDashboard(
+          traceContext,
+          getEpochTimestampMs(),
+          {
+            导出文件: resolvedPath ?? packResult?.filename ?? "-",
+            "会话 ID": finalSession.id,
+            导出状态: silentExportResult.ok
+              ? "成功 (Success)"
+              : "失败 (Failed)",
+          }
+        );
+      } catch {
+        // 忽略看板构建异常
+      }
+    }
+
+    const caughtStack =
+      caughtError instanceof Error ? caughtError.stack : undefined;
+
+    await recordTaskProfile({
+      id: finalSession.id,
+      taskType: "recording",
+      status: silentExportResult.ok ? "success" : "error",
+      durationMs: sessionDuration,
+      pipelineWallClockMs: exportDashboard?.totalWallClockMs,
+      context: {
+        sourceType: finalSession.captureSource === "tab" ? "tab" : "desktop",
+        captureSource: finalSession.captureSource ?? "tab",
+        tabCount: finalSession.targets?.length ?? 1,
+        targetUrl: finalSession.target?.initialUrl,
+        targetTitle: finalSession.target?.initialTitle,
+        targetUrls: finalSession.targets?.map((t) => t.url),
+      },
+      breakdown: {
+        stage1_ipcDispatchMs: traceContext?.stage1?.totalDurationMs,
+        stage2_cdpDrainMs: traceContext?.stage2?.totalDurationMs,
+        stage3_assemblyMs: traceContext?.stage3?.totalDurationMs,
+        stage3_idbReadMs: traceContext?.stage3?.idbReadDurationMs,
+        stage3_sourceMapMs: traceContext?.stage3?.sourceMapDurationMs,
+        stage4_zipPackMs: traceContext?.stage4?.totalDurationMs,
+        stage5_browserDownloadMs: traceContext?.stage5?.totalDurationMs,
+        unaccountedOverheadMs: exportDashboard?.ledger?.unaccountedOverheadMs,
+      },
+      metricsSummary: {
+        producedBytes:
+          packResult?.totalBytes ?? traceContext?.stage4?.totalCompressedBytes,
+        rawInputBytes: traceContext?.stage4?.totalRawInputBytes,
+        compressionRatio: traceContext?.stage4?.compressionRatio,
+        eventsCount:
+          finalSession.quality?.interactionCount ?? packResult?.totalEntries,
+        requestsCount: finalSession.quality?.networkEntryCount,
+        consoleCount: finalSession.quality?.consoleEntryCount,
+        mediaChunksCount: traceContext?.stage4?.mediaChunksCount,
+        mediaBytes: traceContext?.stage4?.mediaBytes,
+        throughputMBps: traceContext?.stage4?.overallThroughputMBps,
+      },
+      qualitySummary: finalSession.quality,
+      exportTrace: traceContext,
+      exportDashboard,
+      memorySnapshot: captureMemorySnapshot(),
+      error: silentExportResult.ok
+        ? undefined
+        : {
+            code: "SILENT_EXPORT_FAILED",
+            message: silentExportResult.error ?? "Export failed",
+            stack: caughtStack,
+          },
+    }).catch(() => undefined);
+
+    return { ...finalSession, silentPrompt: prompt, silentExportResult };
   }
 
   /** 幂等停止：同 commandId 已入库则直接复用其关联会话，保证一条停止指令只执行一次。 */

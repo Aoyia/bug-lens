@@ -18,6 +18,10 @@ import {
   type ArchiveFile,
 } from "../../export/export-pipeline";
 import { Sha256 } from "../../export/sha256";
+import {
+  installProcessFlightRecorder,
+  recordFlightLog,
+} from "../../diagnostics/diagnostics-store";
 import type { PerfReportData } from "../../shared/dev-profiler";
 import type {
   ExportTraceContext,
@@ -34,6 +38,7 @@ let capturedStream: MediaStream | undefined; // getUserMedia 捕获的标签页�
 let playbackContext: AudioContext | undefined; // 本地回放 tab 音频的 AudioContext
 let sequence = 0; // 分片序号，拼接 (sessionId:sequence) 分片 ID
 let activeSessionId: string | undefined; // 当前录制中的会话 ID
+installProcessFlightRecorder("offscreen", () => activeSessionId);
 let storageWarningSent = false; // 单会话存储上限告警是否已上报
 let recordingBlocked = false; // 存储拒写后置位，阻止继续录制
 const pendingWrites = new Set<Promise<void>>(); // 进行中的分片写入，停止录制时需等待清空
@@ -207,7 +212,18 @@ async function startMedia(
           }
         })
         .catch(async (error) => {
-          console.warn("[Bug Lens Offscreen] 媒体分片落盘重试后依然异常:", error);
+          console.warn(
+            "[Bug Lens Offscreen] 媒体分片落盘重试后依然异常:",
+            error
+          );
+          void recordFlightLog({
+            level: "error",
+            process: "offscreen",
+            sessionId,
+            code: "MEDIA_CHUNK_WRITE_FAILED",
+            message: String(error?.message ?? error),
+            stack: error instanceof Error ? error.stack : undefined,
+          }).catch(() => undefined);
           throw error;
         })
         .finally(() => pendingWrites.delete(write));
@@ -649,6 +665,8 @@ async function exportPack(payload: {
 
     const stage3Metrics: Stage3Metrics = {
       dbQueryDurationMs,
+      idbReadDurationMs: runtime.lastIdbReadDurationMs,
+      sourceMapDurationMs: runtime.lastSourceMapDurationMs,
       templateLoadDurationMs,
       assembleDurationMs,
       promptRenderDurationMs,

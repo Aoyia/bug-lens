@@ -65,6 +65,8 @@ export type Stage2Metrics = {
 /** 阶段 3：证据读取与结构化组装指标 */
 export type Stage3Metrics = {
   dbQueryDurationMs: number;
+  idbReadDurationMs?: number;
+  sourceMapDurationMs?: number;
   templateLoadDurationMs: number;
   assembleDurationMs: number;
   promptRenderDurationMs: number;
@@ -542,10 +544,19 @@ export function buildExportPipelineDashboard(
     waterfall.push({
       step: "3.1 IndexedDB 批量查询加载",
       stageName: "阶段三: 证据读取与结构化组装",
-      durationMs: safeDuration(s3.dbQueryDurationMs),
+      durationMs: safeDuration(s3.idbReadDurationMs ?? s3.dbQueryDurationMs),
       sizeOrVolume: "-",
       statusOrNote: "PreviewSessionRuntime 加载会话、事件与资源索引",
     });
+    if (s3.sourceMapDurationMs !== undefined) {
+      waterfall.push({
+        step: "3.1b SourceMap 逆向映射增强",
+        stageName: "阶段三: 证据读取与结构化组装",
+        durationMs: safeDuration(s3.sourceMapDurationMs),
+        sizeOrVolume: "-",
+        statusOrNote: "SourceMapCoordinator 堆栈还原与源码上下文萃取",
+      });
+    }
     waterfall.push({
       step: "3.2 离线报告模版资源读取",
       stageName: "阶段三: 证据读取与结构化组装",

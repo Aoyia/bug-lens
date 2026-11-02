@@ -25,6 +25,11 @@ import {
   buildScreenshotZipPackage,
   triggerZipDownload,
 } from "./screenshot-zip-builder";
+import {
+  captureMemorySnapshot,
+  recordTaskProfile,
+  incrementPromptCopyCount,
+} from "../../diagnostics/diagnostics-store";
 
 export interface ProcessScreenshotOptions {
   viewportDataUrl: string;
@@ -299,14 +304,19 @@ async function writeTextToClipboard(text: string): Promise<boolean> {
 export async function processScreenshot(
   options: ProcessScreenshotOptions
 ): Promise<ScreenshotProcessResult> {
+  const t0 = performance.now();
   const dpr =
     options.devicePixelRatio ||
     (typeof window !== "undefined" ? window.devicePixelRatio : 1);
   const { cropBounds, annotations } = options;
   const styleAdjustmentMode = options.styleAdjustmentMode ?? true;
 
+  let imageDurationMs = 0;
+  let domDurationMs = 0;
+
   // 轨道 A：图像裁剪、DPR 映射与批注渲染烧录（与 DOM 轨完全并行）
   const imagePromise = (async () => {
+    const tImg = performance.now();
     // 优先复用已就绪的 HTMLImageElement，省去二次 Base64 字符串解析与解码
     const img =
       options.viewportImage?.complete && options.viewportImage.naturalWidth > 0
@@ -411,11 +421,14 @@ export async function processScreenshot(
       }
     }
 
-    return finalCanvas.toDataURL("image/jpeg", 0.92);
+    const dataUrl = finalCanvas.toDataURL("image/jpeg", 0.92);
+    imageDurationMs = performance.now() - tImg;
+    return dataUrl;
   })();
 
   // 轨道 B：空间 DOM 结构树采集、主世界框架探针与 CSS 级联快照（与图像轨完全并行）
   const domAndStylePromise = (async () => {
+    const tDom = performance.now();
     // 1. 收集空间 DOM 结构树（经主世界探针读取 Vue/React 组件链）
     const spatialDom = await collectSpatialDomTree({
       cropBounds,
@@ -494,7 +507,9 @@ export async function processScreenshot(
 
     // 3. 如果开启了样式微调模式，收集 CSS 级联快照，并通过 CDP 补全代码行号
     let cascadeIndex: any = undefined;
+    let styleSourceMs = 0;
     if (styleAdjustmentMode) {
+      const tCascade = performance.now();
       try {
         cascadeIndex = collectCascadeIndex({
           bounds: cropBounds,
@@ -533,22 +548,26 @@ export async function processScreenshot(
       } catch (err) {
         console.warn("Bug Lens: 级联快照收集发生非阻断异常", err);
       }
+      styleSourceMs = performance.now() - tCascade;
     }
 
+    domDurationMs = performance.now() - tDom;
     return {
       spatialDom,
       frameworkComponentStates,
       vueComponentStates: frameworkComponentStates,
       cascadeIndex,
+      styleSourceMs,
     };
   })();
 
   // 双轨并行等待就绪
   const [
     croppedBase64,
-    { spatialDom, frameworkComponentStates, cascadeIndex },
+    { spatialDom, frameworkComponentStates, cascadeIndex, styleSourceMs },
   ] = await Promise.all([imagePromise, domAndStylePromise]);
 
+  const tPromptStart = performance.now();
   // 5. 组装完整 AIScreenshotPayload 并规范化 Key 顺序（确保意图/DOM在上，大图像/底层规则在下）
   const payload: AIScreenshotPayload = normalizePayloadKeyOrder({
     version: "1.0",
@@ -597,8 +616,14 @@ export async function processScreenshot(
   //    先在页面内触发标准原生下载，确保浏览器/Playwright 均可感知下载事件；
   //    同时通知 background 监听该任务以解析真实绝对路径；若页面未生效则由 background 兜底。
   let zipPath: string | undefined;
+  let zipPackDurationMs = 0;
+  let zipBytes: number | undefined;
+  let zipFilename: string | undefined;
+  const tZipStart = performance.now();
   try {
     const zipPack = buildScreenshotZipPackage(payload);
+    zipBytes = zipPack.blob.size;
+    zipFilename = zipPack.filename;
     triggerZipDownload(zipPack.blobUrl, zipPack.filename);
 
     if (typeof chrome !== "undefined" && chrome.runtime?.id) {
@@ -622,11 +647,70 @@ export async function processScreenshot(
   } catch (zipErr) {
     console.warn("Bug Lens: 截图 ZIP 打包下载异常", zipErr);
   }
+  zipPackDurationMs = performance.now() - tZipStart;
 
   // 7. 拿到真实绝对路径后，覆盖写回带真实路径的最终提示词，替换占位符。
   let promptInjectedWithPath = false;
   const finalPrompt = formatPayloadToMarkdown(payload, zipPath);
   promptInjectedWithPath = await writeTextToClipboard(finalPrompt);
+
+  const promptDurationMs = Math.max(
+    0,
+    performance.now() - tPromptStart - zipPackDurationMs
+  );
+  const totalDurationMs = performance.now() - t0;
+
+  let domNodesCount = 0;
+  const countDomTree = (n: any) => {
+    if (!n) return;
+    domNodesCount += 1;
+    if (Array.isArray(n.children)) {
+      for (const c of n.children) countDomTree(c);
+    }
+  };
+  if (spatialDom?.tree) countDomTree(spatialDom.tree);
+
+  void recordTaskProfile({
+    taskType: "screenshot",
+    status: "success",
+    durationMs: totalDurationMs,
+    pipelineWallClockMs: totalDurationMs,
+    context: {
+      targetUrl: payload.environment.url,
+      targetTitle: payload.environment.title,
+    },
+    breakdown: {
+      imageRenderMs: Math.round(imageDurationMs),
+      domCaptureMs: Math.round(domDurationMs),
+      styleSourceMs: Math.round(styleSourceMs),
+      zipPackMs: Math.round(zipPackDurationMs),
+      promptFormatMs: Math.round(promptDurationMs),
+    },
+    metricsSummary: {
+      producedBytes: zipBytes ?? payload.image.base64Data?.length,
+      eventsCount: annotations.length,
+    },
+    screenshotDetail: {
+      viewport: payload.environment.viewport,
+      cropBounds,
+      dpr: payload.image.devicePixelRatio,
+      styleAdjustmentMode,
+      annotationCount: annotations.length,
+      domNodesCount,
+      domAnchorsCount: spatialDom?.anchors?.length ?? 0,
+      frameworkComponentsCount: frameworkComponentStates.length,
+      cascadeElementsCount: cascadeIndex?.elements?.length ?? 0,
+      recentConsoleErrorsCount:
+        payload.environment.recentConsoleErrors?.length ?? 0,
+      recentFailedRequestsCount:
+        payload.environment.recentFailedRequests?.length ?? 0,
+      zipBytes,
+      zipFilename: zipPath ?? zipFilename,
+      promptInjectedWithPath,
+    },
+    memorySnapshot: captureMemorySnapshot(),
+  }).catch(() => undefined);
+  void incrementPromptCopyCount().catch(() => undefined);
 
   return { payload, promptInjectedWithPath };
 }

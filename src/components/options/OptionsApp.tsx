@@ -26,9 +26,16 @@ import {
   buildAiPrompt,
   type EvidencePackageSnapshot,
 } from "../../preview/evidence-package";
+import { DiagnosticsTab } from "./DiagnosticsTab";
 
 type NavTab =
-  "workflow" | "ai" | "recording" | "privacy" | "storage" | "shortcuts";
+  | "workflow"
+  | "ai"
+  | "recording"
+  | "privacy"
+  | "storage"
+  | "shortcuts"
+  | "diagnostics";
 
 const SAMPLE_SNAPSHOT: EvidencePackageSnapshot = {
   interactions: [
@@ -764,6 +771,23 @@ export function OptionsApp() {
                 </svg>
                 <span>{t("navShortcuts")}</span>
               </button>
+
+              <button
+                className={`nav-item ${activeTab === "diagnostics" ? "active" : ""}`}
+                onClick={() => setActiveTab("diagnostics")}
+              >
+                <svg
+                  width="15"
+                  height="15"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+                </svg>
+                <span>{t("navDiagnostics")}</span>
+              </button>
             </nav>
             <div className="sidebar-footer">
               Bug Lens v
@@ -784,6 +808,7 @@ export function OptionsApp() {
                 {activeTab === "privacy" && t("navPrivacy")}
                 {activeTab === "storage" && t("navStorage")}
                 {activeTab === "shortcuts" && t("navShortcuts")}
+                {activeTab === "diagnostics" && t("navDiagnostics")}
               </h2>
               <p className="section-subtitle">
                 {activeTab === "workflow" && t("settingStopActionDesc")}
@@ -791,7 +816,11 @@ export function OptionsApp() {
                 {activeTab === "recording" && t("defaultSafeCollection")}
                 {activeTab === "privacy" && t("safeMode")}
                 {activeTab === "storage" && t("settingRetentionDesc")}
-                {activeTab === "shortcuts" && "Chrome 浏览器全局命令与热键支持"}
+                {activeTab === "shortcuts" &&
+                  (isEn()
+                    ? "Global commands and hotkey bindings"
+                    : "Chrome 浏览器全局命令与热键支持")}
+                {activeTab === "diagnostics" && t("navDiagnosticsDesc")}
               </p>
             </div>
 
@@ -1648,6 +1677,9 @@ export function OptionsApp() {
                 </div>
               </div>
             )}
+
+            {/* 7. 性能与用量诊断 */}
+            {activeTab === "diagnostics" && <DiagnosticsTab />}
           </main>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import { DevProfiler } from "../shared/dev-profiler.ts";
+import { recordMicroOp } from "../diagnostics/diagnostics-store.ts";
 import {
   applyInteractionEvent,
   type InteractionEvent,
@@ -522,11 +523,7 @@ export class InteractionCapture {
         delta: interactionDelta,
       });
     }
-    if (
-      session.options.captureScreenshots &&
-      !previous &&
-      !this.aborted
-    ) {
+    if (session.options.captureScreenshots && !previous && !this.aborted) {
       await this.captureScreenshot(session, next, sender);
     } else if (
       session.options.captureScreenshots &&
@@ -629,9 +626,7 @@ export class InteractionCapture {
         typeof chrome.tabs.captureVisibleTab === "function"
       ) {
         const winId =
-          targetWindowId && targetWindowId > 0
-            ? targetWindowId
-            : undefined;
+          targetWindowId && targetWindowId > 0 ? targetWindowId : undefined;
         const tabTask = new Promise<string>((resolve, reject) => {
           let resolved = false;
           const done = (err: any, dataUrl?: string) => {
@@ -826,6 +821,20 @@ export class InteractionCapture {
         单图大小: `${(bytes.byteLength / 1024).toFixed(1)} KB`,
         来源: source,
       });
+      recordMicroOp(session.id, {
+        category: "interaction-screenshot",
+        name: `capture:${source}`,
+        durationMs: capDuration + markDuration,
+        status: source === "primary" ? "ok" : "degraded",
+        detail: {
+          interactionId: interaction.id,
+          kind: interaction.kind,
+          captureMs: Math.round(capDuration * 10) / 10,
+          annotateMs: Math.round(markDuration * 10) / 10,
+          bytes: bytes.byteLength,
+          tabId: realTabId,
+        },
+      });
       const assetResult = await this.repository.saveEvidenceAssetWithinBudget({
         id: assetId,
         sessionId: session.id,
@@ -907,6 +916,20 @@ export class InteractionCapture {
         type: "screenshot-unavailable",
         issue: userMessage,
       });
+      if (!isAborted) {
+        recordMicroOp(session.id, {
+          category: "interaction-screenshot",
+          name: `failed:${issueCode}`,
+          durationMs: 0,
+          status: "error",
+          detail: {
+            interactionId: interaction.id,
+            kind: interaction.kind,
+            issueCode,
+            error: raw,
+          },
+        });
+      }
       if (
         !result.budgetRejected &&
         result.previous?.status !== "cancelled" &&

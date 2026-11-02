@@ -914,7 +914,8 @@ test.describe("Bug Lens Chrome Extension recording options", () => {
     expect(stdSessionDataJs).toContain('"truncated": true');
     expect(stdSessionDataJs).not.toContain("secret-token-e2e-opt004");
 
-    const stdBodyFileKey = `network/body-${stdLargeEntry.id}.txt`;
+    const stdSafeId = stdLargeEntry.id.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const stdBodyFileKey = `network/body-${stdSafeId}.txt`;
     expect(stdUnzipped[stdBodyFileKey]).toBeDefined();
     const stdUnzippedBodyStr = strFromU8(stdUnzipped[stdBodyFileKey]!);
     expect(stdUnzippedBodyStr).toBe(stdLargeEntry.response?.body);
@@ -1123,8 +1124,9 @@ test.describe("Bug Lens Chrome Extension recording options", () => {
     expect(unzipped["manifest.json"]).toBeDefined();
     expect(unzipped["data/session-data.js"]).toBeDefined();
 
-    // 导出的 ZIP 归档包含完整未截断的大报文正文文件 network/body-${fullLargeEntry.id}.txt
-    const bodyFileKey = `network/body-${fullLargeEntry!.id}.txt`;
+    // 导出的 ZIP 归档包含完整未截断的大报文正文文件 network/body-${fullSafeId}.txt
+    const fullSafeId = fullLargeEntry!.id.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const bodyFileKey = `network/body-${fullSafeId}.txt`;
     expect(unzipped[bodyFileKey]).toBeDefined();
     const unzippedBodyStr = strFromU8(unzipped[bodyFileKey]!);
 

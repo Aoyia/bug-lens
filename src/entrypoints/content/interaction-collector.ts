@@ -6,6 +6,10 @@ import {
 } from "../../shared/i18n";
 import { copyTextToClipboard } from "../../preview/clipboard";
 import {
+  incrementPromptCopyCount,
+  recordTaskProfile,
+} from "../../diagnostics/diagnostics-store";
+import {
   captureFrameworkState,
   isMeaningfulFrameworkState,
 } from "../../domain/framework-state-capture";
@@ -203,14 +207,19 @@ if (existingController) {
 
           const clipboardStart = performance.now();
           const prompt = res?.session?.silentPrompt;
+          let copiedPrompt = false;
           if (prompt) {
             try {
               await copyTextToClipboard(prompt);
+              copiedPrompt = true;
             } catch {
               // 忽略
             }
           }
           const clipboardWriteDurationMs = performance.now() - clipboardStart;
+          if (copiedPrompt) {
+            await incrementPromptCopyCount().catch(() => undefined);
+          }
 
           const toastStart = performance.now();
           try {
@@ -278,6 +287,35 @@ if (existingController) {
               }
             );
             DevProfiler.printExportDashboard(dashboard);
+
+            const resolvedSessionId =
+              res?.session?.id ??
+              (res?.session as { sessionId?: string })?.sessionId ??
+              session?.sessionId;
+            if (resolvedSessionId) {
+              void recordTaskProfile({
+                id: resolvedSessionId,
+                taskType: "recording",
+                status: "success",
+                durationMs: res?.session?.timeline?.durationMs ?? 0,
+                pipelineWallClockMs: dashboard.totalWallClockMs,
+                breakdown: {
+                  stage1_ipcDispatchMs: returnedTrace.stage1?.totalDurationMs,
+                  stage2_cdpDrainMs: returnedTrace.stage2?.totalDurationMs,
+                  stage3_assemblyMs: returnedTrace.stage3?.totalDurationMs,
+                  stage3_idbReadMs: returnedTrace.stage3?.idbReadDurationMs,
+                  stage3_sourceMapMs: returnedTrace.stage3?.sourceMapDurationMs,
+                  stage4_zipPackMs: returnedTrace.stage4?.totalDurationMs,
+                  stage5_browserDownloadMs:
+                    returnedTrace.stage5?.totalDurationMs,
+                  stage6_feedbackMs: stage6Metrics.totalDurationMs,
+                  unaccountedOverheadMs:
+                    dashboard.ledger?.unaccountedOverheadMs,
+                },
+                exportTrace: returnedTrace,
+                exportDashboard: dashboard,
+              }).catch(() => undefined);
+            }
 
             const serverMetrics =
               res?.session?.silentExportResult?.e2eMetrics ?? [];
@@ -619,7 +657,9 @@ if (existingController) {
                   frameId: response.frameId ?? (isTopFrame ? 0 : -1),
                   startedAtEpochMs: response.startedAtEpochMs,
                   privacyMode: response.privacyMode === "raw" ? "raw" : "safe",
-                  captureFrameworkState: Boolean(response.captureFrameworkState),
+                  captureFrameworkState: Boolean(
+                    response.captureFrameworkState
+                  ),
                 },
                 response.health
               );

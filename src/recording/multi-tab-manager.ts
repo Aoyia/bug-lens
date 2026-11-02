@@ -5,6 +5,7 @@ import {
 } from "../shared/protocol.ts";
 import type { ContentScriptManager } from "./content-script-manager.ts";
 import type { CdpEvidenceCollector } from "../evidence/cdp-evidence-collector.ts";
+import { recordMicroOp } from "../diagnostics/diagnostics-store.ts";
 
 export type MultiTabRepository = {
   getActiveSession(): Promise<RecordingSession | undefined>;
@@ -40,7 +41,8 @@ export class MultiTabManager {
     private readonly cdpCollector: CdpEvidenceCollector,
     private readonly onAllTabsClosed?: () => Promise<void>
   ) {
-    this.onCreatedTargetListener = this.handleCreatedNavigationTarget.bind(this);
+    this.onCreatedTargetListener =
+      this.handleCreatedNavigationTarget.bind(this);
     this.onCommittedListener = this.handleNavigationCommitted.bind(this);
     this.onActivatedListener = this.handleTabActivated.bind(this);
     this.onUpdatedListener = this.handleTabUpdated.bind(this);
@@ -66,7 +68,10 @@ export class MultiTabManager {
   attach(): void {
     if (this.attached) return;
     this.attached = true;
-    if (typeof chrome !== "undefined" && chrome.webNavigation?.onCreatedNavigationTarget) {
+    if (
+      typeof chrome !== "undefined" &&
+      chrome.webNavigation?.onCreatedNavigationTarget
+    ) {
       chrome.webNavigation.onCreatedNavigationTarget.addListener(
         this.onCreatedTargetListener
       );
@@ -86,7 +91,10 @@ export class MultiTabManager {
   detach(): void {
     if (!this.attached) return;
     this.attached = false;
-    if (typeof chrome !== "undefined" && chrome.webNavigation?.onCreatedNavigationTarget) {
+    if (
+      typeof chrome !== "undefined" &&
+      chrome.webNavigation?.onCreatedNavigationTarget
+    ) {
       chrome.webNavigation.onCreatedNavigationTarget.removeListener(
         this.onCreatedTargetListener
       );
@@ -116,6 +124,7 @@ export class MultiTabManager {
 
   /** 手动纳管一个新标签页（例如用户在前台点击“+ 纳入录制”） */
   async addTab(tabId: number): Promise<TargetTabInfo[]> {
+    const t0 = performance.now();
     const session = await this.repository.getActiveSession();
     if (!session || !["RECORDING", "DEGRADED"].includes(session.status)) {
       throw new Error("当前无有效录制中的会话");
@@ -148,6 +157,18 @@ export class MultiTabManager {
     // 更新持久化会话中的 targets
     await this.syncTargetsToSession(session.id);
     this.broadcastStateSync(session);
+
+    recordMicroOp(session.id, {
+      category: "multi-tab-event",
+      name: "add-tab",
+      durationMs: performance.now() - t0,
+      status: "ok",
+      detail: {
+        tabId,
+        url: targetInfo.url,
+        totalTabs: this.targets.size,
+      },
+    });
 
     return this.getTargets();
   }
@@ -265,7 +286,9 @@ export class MultiTabManager {
           .verifyOwnership(details.tabId)
           .catch(() => false);
         if (!isOwner) {
-          await this.cdpCollector.attach(details.tabId, session).catch(() => undefined);
+          await this.cdpCollector
+            .attach(details.tabId, session)
+            .catch(() => undefined);
         }
       }
 
@@ -288,8 +311,21 @@ export class MultiTabManager {
   private async handleTabActivated(
     activeInfo: chrome.tabs.OnActivatedInfo
   ): Promise<void> {
+    const t0 = performance.now();
     const session = await this.repository.getActiveSession();
     if (!session || !["RECORDING", "DEGRADED"].includes(session.status)) return;
+
+    recordMicroOp(session.id, {
+      category: "multi-tab-event",
+      name: "tab-switch",
+      durationMs: performance.now() - t0,
+      status: "ok",
+      detail: {
+        activeTabId: activeInfo.tabId,
+        windowId: activeInfo.windowId,
+        isTracked: this.targets.has(activeInfo.tabId),
+      },
+    });
 
     // 当用户切离初始录制标签页时，第一时间通知 offscreen 强行将第一标签页的视频数据刷盘固化
     if (session.target?.tabId && activeInfo.tabId !== session.target.tabId) {
@@ -338,7 +374,8 @@ export class MultiTabManager {
     if (session.options.autoTrackDerivedTabs === false) return;
 
     const targetUrl = (changeInfo.url ?? tab.url ?? "").toLowerCase();
-    if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) return;
+    if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://"))
+      return;
 
     if (!this.targets.has(tabId)) {
       await this.addTab(tabId);

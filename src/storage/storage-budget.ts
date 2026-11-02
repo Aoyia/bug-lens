@@ -1,10 +1,8 @@
 import { DevProfiler } from "../shared/dev-profiler.ts";
+import { recordMicroOp } from "../diagnostics/diagnostics-store.ts";
 import { estimateBytes } from "../domain/storage-policy.ts";
 import type { RecordingSession } from "../shared/protocol.ts";
-import {
-  openEvidenceDatabase,
-  type StoreName,
-} from "./indexed-db-schema.ts";
+import { openEvidenceDatabase, type StoreName } from "./indexed-db-schema.ts";
 import { t } from "../shared/i18n.ts";
 
 export type BudgetWriteResult = {
@@ -113,6 +111,7 @@ async function executeBatchChunk(
 ): Promise<void> {
   if (chunk.length === 0) return;
 
+  const tBatchStart = performance.now();
   const endBatchTimer = DevProfiler.time(
     `IndexedDB 批量分片写入 (${chunk.length} 条记录)`
   );
@@ -345,10 +344,23 @@ async function executeBatchChunk(
 
     // 事务成功提交后才统一 resolve：保证调用方拿到的结果对应的是已落盘状态
     transaction.oncomplete = () => {
+      const batchDurationMs = performance.now() - tBatchStart;
       endBatchTimer({
         分片写入条数: chunk.length,
         "参与 Store": storeNames.join(", "),
       });
+      if (sessionIds[0]) {
+        recordMicroOp(sessionIds[0], {
+          category: "storage-batch-flush",
+          name: "idb-batch-commit",
+          durationMs: batchDurationMs,
+          status: hasError ? "degraded" : "ok",
+          detail: {
+            itemCount: chunk.length,
+            stores: storeNames,
+          },
+        });
+      }
       for (const { item, result } of itemResults) {
         // 通过全局监听器广播每个写入的预算结果（供存储健康协调通知 UI）
         if (budgetListener && item.value?.sessionId) {

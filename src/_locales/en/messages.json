@@ -2232,6 +2232,12 @@
   "navShortcuts": {
     "message": "Shortcuts"
   },
+  "navDiagnostics": {
+    "message": "Performance & Diagnostics"
+  },
+  "navDiagnosticsDesc": {
+    "message": "Local usage metrics, pipeline latency waterline, and sanitized debug reports"
+  },
   "settingLanguage": {
     "message": "Interface Language"
   },

@@ -27,6 +27,7 @@ import {
 import { formatBytes } from "../../domain/byte-format.ts";
 import { useRpc } from "../../hooks/useRpc.ts";
 import { copyTextToClipboard } from "../../preview/clipboard";
+import { incrementPromptCopyCount } from "../../diagnostics/diagnostics-store";
 import { useSessionState } from "../../hooks/useSessionState.ts";
 import { bindConfirmDialogDismiss } from "../../popup/confirm-dialog";
 import { resolvePopupEscape } from "../../popup/popup-escape";
@@ -565,6 +566,7 @@ export function PopupApp() {
       if (prompt) {
         try {
           await copyTextToClipboard(prompt);
+          void incrementPromptCopyCount().catch(() => undefined);
         } catch {
           // 忽略
         }
