@@ -53,6 +53,12 @@ export function PopupApp() {
   const [currentView, setCurrentView] = useState<"record" | "history">(
     "record"
   );
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.scrollTo(0, 0);
+    }
+  }, [currentView]);
   const [activeTab, setActiveTab] = useState<chrome.tabs.Tab | undefined>(
     undefined
   );
@@ -753,26 +759,6 @@ export function PopupApp() {
           <span>{t("history")}</span>
         </button>
         <div className="history-actions">
-          <button
-            id="refresh-history"
-            className="icon-action-btn"
-            onClick={() => void refreshHistory()}
-            title={t("refreshList")}
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <polyline points="23 4 23 10 17 10"></polyline>
-              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
-            </svg>
-          </button>
           <button
             id="cleanup"
             className="icon-action-btn"

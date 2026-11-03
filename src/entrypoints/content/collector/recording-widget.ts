@@ -4,6 +4,7 @@ import { getEpochTimestampMs } from "../../../export/export-trace.ts";
 export type WidgetClickInfo = {
   clickTimestamp?: number;
   clickEpochMs?: number;
+  exportMode?: "ai" | "ticket";
 };
 
 export type WidgetCallbacks = {
@@ -260,7 +261,7 @@ export class RecordingWidget {
           flex-direction: row !important;
           align-items: center !important;
           gap: 8px !important;
-          max-width: 420px !important;
+          max-width: 520px !important;
           opacity: 1 !important;
           overflow: hidden !important;
           white-space: nowrap !important;
@@ -277,6 +278,7 @@ export class RecordingWidget {
           pointer-events: auto !important;
         }
         #__wbr_recording_widget__.__wbr_collapsed__ #__wbr_issue_btn__,
+        #__wbr_recording_widget__.__wbr_collapsed__ #__wbr_ticket_btn__,
         #__wbr_recording_widget__.__wbr_collapsed__ #__wbr_health_msg__ {
           display: none !important;
         }
@@ -329,6 +331,8 @@ export class RecordingWidget {
         }
         .__wbr_btn:hover { background: #f76565 !important; }
         .__wbr_btn:active { background: #cb2727 !important; }
+        #__wbr_ticket_btn__:hover { background: #4080ff !important; }
+        #__wbr_ticket_btn__:active { background: #0e42d2 !important; }
         .__wbr_timer { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important; font-size: 12px !important; color: #e5e6eb !important; font-weight: 600 !important; flex-shrink: 0 !important; }
       </style>
       <span class="__wbr_drag_handle" title="${t("dragToMove")}">⋮⋮</span>
@@ -338,6 +342,7 @@ export class RecordingWidget {
       <div class="__wbr_btn_group">
         <span id="__wbr_health_msg__" style="font-size:11px;color:#ffc107;display:none;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title=""></span>
         <button id="__wbr_issue_btn__" class="__wbr_btn" style="background:#b42318;" title="${t("widgetToolbarIssueTooltip", [this.shortcutKeyText])}">${t("markIssue")} (${this.shortcutKeyText})</button>
+        <button id="__wbr_ticket_btn__" class="__wbr_btn" style="background:#165dff;" title="${t("widgetToolbarTicketTooltip")}">${t("createTicket")}</button>
         <button id="__wbr_stop_btn__" class="__wbr_btn" title="${t("widgetToolbarStopTooltip", [this.stopShortcutKeyText])}">${t("stopRecording")}</button>
       </div>
     `;
@@ -349,6 +354,25 @@ export class RecordingWidget {
         // 恢复本会话内已保存的拖拽位置（若有），保持用户放置的位置不因重挂载丢失
         this.restoreSavedPosition(root);
 
+        const ticketBtn = root.querySelector("#__wbr_ticket_btn__");
+        if (ticketBtn) {
+          ticketBtn.addEventListener(
+            "click",
+            (e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              if (this._isSaving || this._isClosing) return;
+              const clickTimestamp = performance.now();
+              const clickEpochMs = getEpochTimestampMs();
+              this.callbacks.onStop({
+                clickTimestamp,
+                clickEpochMs,
+                exportMode: "ticket",
+              });
+            },
+            true
+          );
+        }
         const stopBtn = root.querySelector("#__wbr_stop_btn__");
         if (stopBtn) {
           stopBtn.addEventListener(
@@ -359,7 +383,11 @@ export class RecordingWidget {
               if (this._isSaving || this._isClosing) return;
               const clickTimestamp = performance.now();
               const clickEpochMs = getEpochTimestampMs();
-              this.callbacks.onStop({ clickTimestamp, clickEpochMs });
+              this.callbacks.onStop({
+                clickTimestamp,
+                clickEpochMs,
+                exportMode: "ai",
+              });
             },
             true
           );
@@ -936,8 +964,16 @@ export class RecordingWidget {
     const recTag =
       this.container.querySelector<HTMLElement>("[data-wbr-rec-tag]");
     if (dot) {
-      dot.style.setProperty("background", paused ? "#ffc107" : "#f53f3f", "important");
-      dot.style.setProperty("animation", paused ? "none" : "wbr-pulse 1.5s infinite", "important");
+      dot.style.setProperty(
+        "background",
+        paused ? "#ffc107" : "#f53f3f",
+        "important"
+      );
+      dot.style.setProperty(
+        "animation",
+        paused ? "none" : "wbr-pulse 1.5s infinite",
+        "important"
+      );
     }
     if (recTag) {
       const isIdle = paused && this.callbacks.isIdlePaused();

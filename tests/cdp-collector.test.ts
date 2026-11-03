@@ -1668,3 +1668,98 @@ test("finalizeNetworkBodies eliminates duplicate getNetwork full-table scans", a
     "有 pending 请求时 getNetwork 全表扫描次数也必须严格为 1，杜绝重复扫描"
   );
 });
+
+test("Network.loadingFinished avoids getNetwork full-table scans and batches network quality-delta updates", async () => {
+  let getNetworkCallCount = 0;
+  const repository = createMockRepository();
+  const origGetNetwork = repository.getNetwork.bind(repository);
+  repository.getNetwork = async (sessionId: string) => {
+    getNetworkCallCount += 1;
+    return origGetNetwork(sessionId);
+  };
+
+  const session: RecordingSession = {
+    id: "sess-loading-finished-opt",
+    schemaVersion: 2,
+    extensionVersion: "0.1.0",
+    status: "RECORDING",
+    target: {
+      tabId: 10,
+      initialUrl: "https://example.test",
+      initialTitle: "Test",
+    },
+    options: {
+      captureAudio: false,
+      captureVideo: false,
+      captureScreenshots: false,
+      captureConsole: true,
+      captureNetwork: true,
+      captureNetworkBodies: true,
+      privacyMode: "safe",
+      mediaTimesliceMs: 1000,
+      maxResponseBodyBytes: 1024,
+      maxSessionBytes: 100 * 1024 * 1024,
+    },
+    timeline: { createdAtEpochMs: Date.now() },
+    quality: {
+      overall: "complete",
+      interactionCount: 0,
+      confirmedInteractionCount: 0,
+      primaryScreenshotCount: 0,
+      fallbackScreenshotCount: 0,
+      unavailableScreenshotCount: 0,
+      consoleEntryCount: 0,
+      networkEntryCount: 0,
+      issues: [],
+    },
+    nonce: "nonce-opt",
+  };
+  (repository as any).setActiveSession(session);
+
+  const networkDeltas: number[] = [];
+  const collector = new CdpEvidenceCollector(
+    repository,
+    async (_id, event: any) => {
+      if (event.type === "quality-delta" && event.delta.networkEntryCount) {
+        networkDeltas.push(event.delta.networkEntryCount);
+      }
+      return session;
+    },
+    () => false
+  );
+  collector.markAttached(10);
+
+  for (let i = 0; i < 5; i++) {
+    const reqId = `img-${i}`;
+    collector.handleEvent({ tabId: 10 }, "Network.requestWillBeSent", {
+      requestId: reqId,
+      request: { url: `https://example.test/asset-${i}.png`, method: "GET" },
+      timestamp: 100 + i,
+      wallTime: Date.now() / 1000,
+      type: "Image",
+    });
+    collector.handleEvent({ tabId: 10 }, "Network.responseReceived", {
+      requestId: reqId,
+      response: { status: 200, mimeType: "image/png" },
+      timestamp: 101 + i,
+    });
+    collector.handleEvent({ tabId: 10 }, "Network.loadingFinished", {
+      requestId: reqId,
+      timestamp: 102 + i,
+      encodedDataLength: 512,
+    });
+  }
+
+  await collector.drain();
+
+  assert.equal(
+    getNetworkCallCount,
+    0,
+    "Network.loadingFinished must not trigger O(N) getNetwork full-table scans"
+  );
+  assert.deepEqual(
+    networkDeltas,
+    [5],
+    "5 network requests should coalesce into a single quality-delta update"
+  );
+});

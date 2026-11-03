@@ -8,9 +8,11 @@ import type { SourceMappedLocation } from "../../shared/protocol.js";
 
 export class SourceMapWorkerClient {
   private worker: Worker | null = null;
+  private idleTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingRequests = new Map<
     string,
     {
+      request: ResolveBatchRequest;
       resolve: (res: Record<string, SourceMappedLocation>) => void;
       reject: (err: Error) => void;
       timer: ReturnType<typeof setTimeout>;
@@ -18,15 +20,54 @@ export class SourceMapWorkerClient {
   >();
 
   constructor() {
-    // If running in browser environment with Worker support
-    if (typeof Worker !== "undefined") {
+    this.ensureWorker();
+  }
+
+  private clearIdleTimer(): void {
+    if (this.idleTimer) {
+      clearTimeout(this.idleTimer);
+      this.idleTimer = null;
+    }
+  }
+
+  private ensureWorker(): Worker | null {
+    if (this.worker) return this.worker;
+    if (
+      typeof Worker !== "undefined" &&
+      typeof document !== "undefined" &&
+      typeof chrome !== "undefined" &&
+      typeof chrome.runtime?.getURL === "function"
+    ) {
       try {
-        const workerUrl = new URL("./sourcemap.worker.js", import.meta.url);
-        this.worker = new Worker(workerUrl, { type: "module" });
+        const workerUrl = chrome.runtime.getURL("sourcemap.worker.js");
+        this.worker = new Worker(workerUrl);
         this.worker.onmessage = this.handleMessage.bind(this);
+        this.worker.onerror = () => {
+          this.fallbackAllPendingToInProcess();
+        };
       } catch {
         this.worker = null;
       }
+    }
+    return this.worker;
+  }
+
+  private fallbackAllPendingToInProcess(): void {
+    if (this.worker) {
+      try {
+        this.worker.terminate();
+      } catch {
+        // Ignore terminate error
+      }
+      this.worker = null;
+    }
+    const entries = Array.from(this.pendingRequests.entries());
+    this.pendingRequests.clear();
+    for (const [, pending] of entries) {
+      clearTimeout(pending.timer);
+      void processBatchResolution(pending.request)
+        .then((res) => pending.resolve(res.results))
+        .catch((err) => pending.reject(err));
     }
   }
 
@@ -40,6 +81,9 @@ export class SourceMapWorkerClient {
   ): Promise<Record<string, SourceMappedLocation>> {
     if (items.length === 0) return {};
 
+    this.clearIdleTimer();
+    const worker = this.ensureWorker();
+
     const requestId = `sm_req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const request: ResolveBatchRequest = {
       type: "RESOLVE_BATCH_REQUEST",
@@ -51,7 +95,7 @@ export class SourceMapWorkerClient {
     };
 
     // If Worker is not available (e.g. Node.js test environment or MV3 restricted context), run in-process directly
-    if (!this.worker) {
+    if (!worker) {
       const response = await processBatchResolution(request);
       return response.results;
     }
@@ -71,7 +115,12 @@ export class SourceMapWorkerClient {
         resolve(fallbackResults);
       }, timeoutMs);
 
-      this.pendingRequests.set(requestId, { resolve, reject, timer });
+      this.pendingRequests.set(requestId, {
+        request,
+        resolve,
+        reject,
+        timer,
+      });
       this.worker!.postMessage(request);
     });
   }
@@ -87,7 +136,20 @@ export class SourceMapWorkerClient {
     }
   }
 
+  public scheduleIdleTerminate(idleMs = 5 * 60_000): void {
+    this.clearIdleTimer();
+    if (!this.worker) return;
+    this.idleTimer = setTimeout(() => {
+      this.idleTimer = null;
+      if (this.pendingRequests.size === 0) {
+        this.terminate();
+      }
+    }, idleMs);
+    (this.idleTimer as { unref?: () => void }).unref?.();
+  }
+
   public terminate() {
+    this.clearIdleTimer();
     if (this.worker) {
       this.worker.terminate();
       this.worker = null;

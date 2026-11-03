@@ -16,9 +16,11 @@
   box-sizing: border-box;
 }
 
+html,
 body {
   width: 330px;
   margin: 0;
+  padding: 0;
   color: var(--ink-main);
   background: var(--bg-base);
   font-family:
@@ -28,6 +30,7 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   user-select: none;
+  overflow: hidden; /* 严禁根视口溢出，杜绝宿主窗口生成系统级粗白槽与粗滑块 */
 }
 
 .shell {
@@ -274,28 +277,32 @@ body {
 .evidence {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 6px;
+  align-items: center;
+  gap: 5px;
+  margin-top: 5px;
 }
 .chip {
   font-size: 10.5px;
-  padding: 0;
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
   background: transparent;
-  border: none;
   color: var(--ink-sub);
   font-weight: 400;
+  line-height: 1.35;
 }
 .chip.captured {
   background: transparent;
   color: var(--ink-sub);
 }
 .chip.partial {
-  background: transparent;
+  background: #fff7e6;
+  border: 1px solid rgba(217, 119, 6, 0.22);
   color: #d97706;
   font-weight: 500;
 }
 .chip.failed {
-  background: transparent;
+  background: #fff1f0;
+  border: 1px solid rgba(220, 38, 38, 0.22);
   color: #dc2626;
   font-weight: 500;
 }
@@ -304,12 +311,24 @@ body {
   color: var(--ink-muted);
   opacity: 0.6;
 }
+.chip.chip-all-captured {
+  background: #f6ffed;
+  border: 1px solid rgba(82, 196, 26, 0.22);
+  color: #389e0d;
+  font-weight: 500;
+  cursor: help;
+}
+.chip.chip-summary {
+  background: #f4f5f7;
+  color: var(--ink-sub);
+  cursor: help;
+}
 
 /* Inline Config Control */
 .inline-config {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   margin-top: 6px;
   padding-top: 8px;
   border-top: 1px dashed var(--border-subtle);
@@ -618,9 +637,27 @@ button.action-btn {
   letter-spacing: 0.2px;
 }
 button.action-btn.start {
+  flex: 1.618 1 0%;
   background: linear-gradient(135deg, var(--bl-primary) 0%, #0e42d2 100%);
   color: #ffffff;
   box-shadow: 0 2px 6px rgba(22, 93, 255, 0.22);
+}
+.start-kbd {
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 16px;
+  height: 16px;
+  padding: 0 4.5px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: rgba(255, 255, 255, 0.95);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: 0;
+  flex-shrink: 0;
 }
 button.action-btn.start:hover {
   background: linear-gradient(
@@ -950,23 +987,55 @@ input[type="search"]:focus {
 .sessions {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  max-height: 220px;
+  gap: 8px;
+  max-height: 420px;
   overflow-y: auto;
+  overflow-x: hidden;
+  margin-right: -10px; /* 保持与搜索框自然同宽，绝不向外凸出 */
+  padding-right: 0;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 0.25s ease;
+}
+/* 滚动中或鼠标悬停时显现标准滚动条颜色 */
+.sessions[data-scrolling="true"],
+.sessions:hover {
+  scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+}
+/* 4px 半透明微药丸滑块（消除粗白槽，卡片右侧留空，平时静止隐藏） */
+.sessions::-webkit-scrollbar {
+  width: 4px;
+}
+.sessions::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sessions::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 99px;
+  transition: background 0.25s ease;
+}
+/* 仅在滚动中或鼠标悬停在列表上时平滑展现滑块 */
+.sessions[data-scrolling="true"]::-webkit-scrollbar-thumb,
+.sessions:hover::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+}
+.sessions::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.35);
 }
 .session {
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   padding: 8px 10px;
   background: #ffffff;
-  transition: border-color 0.15s ease;
+  transition: all 0.15s ease;
   /* 整卡可点击打开预览：与 :hover 蓝色描边（可点击暗示）保持一致的光标反馈 */
   cursor: pointer;
 }
 .session:hover {
   position: relative;
   z-index: 10;
-  border-color: rgba(22, 93, 255, 0.3);
+  border-color: rgba(22, 93, 255, 0.35);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 .session-head {
   display: flex;
@@ -1152,7 +1221,9 @@ input[type="search"]:focus {
 .storage-footer {
   font-size: 10.5px;
   color: var(--ink-muted);
-  margin-top: 6px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border-subtle);
   text-align: center;
   line-height: 1.45;
   white-space: nowrap;

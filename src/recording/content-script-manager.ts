@@ -39,12 +39,36 @@ export class ContentScriptManager {
     }
   }
 
-  async remove(tabId?: number): Promise<void> {
+  async remove(tabId?: number | Iterable<number>): Promise<void> {
+    const targetIds = new Set<number>();
     if (typeof tabId === "number") {
-      await chrome.tabs
-        .sendMessage(tabId, message("content/reset", {}))
-        .catch(() => undefined);
+      targetIds.add(tabId);
+    } else if (tabId && typeof tabId[Symbol.iterator] === "function") {
+      for (const id of tabId) {
+        if (typeof id === "number") targetIds.add(id);
+      }
     }
+
+    // 兜底查询当前所有普通网页标签页，防止在动态注册期间打开但未落入 targets 的标签页残留挂件
+    if (typeof chrome !== "undefined" && chrome.tabs?.query) {
+      const openTabs = await chrome.tabs.query({}).catch(() => []);
+      for (const tab of openTabs) {
+        if (typeof tab?.id === "number") {
+          targetIds.add(tab.id);
+        }
+      }
+    }
+
+    if (typeof chrome !== "undefined" && chrome.tabs?.sendMessage) {
+      await Promise.all(
+        Array.from(targetIds).map((id) =>
+          chrome.tabs
+            .sendMessage(id, message("content/reset", {}))
+            .catch(() => undefined)
+        )
+      );
+    }
+
     const registrations = await chrome.scripting
       .getRegisteredContentScripts({ ids: [SCRIPT_ID] })
       .catch(() => []);

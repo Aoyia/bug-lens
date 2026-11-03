@@ -64,6 +64,7 @@ async function buildMergedPreviewCss() {
     "issue-scenes",
     "stream",
     "playwright",
+    "ticket-modal",
   ];
 
   const cssChunks = await Promise.all(
@@ -129,6 +130,7 @@ const entries = {
   preview: "src/entrypoints/preview/index.ts",
   options: "src/entrypoints/options/index.tsx",
   "report-template": "src/entrypoints/report/index.ts",
+  "sourcemap.worker": "src/sourcemap/internal/sourcemap.worker.ts",
 };
 
 async function copyStaticAssets() {

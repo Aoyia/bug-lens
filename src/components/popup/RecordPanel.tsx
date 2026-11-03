@@ -236,6 +236,11 @@ export const RecordPanel = memo(function RecordPanel({
               <span>
                 {starting ? t("recordingStarting") : t("startRecording")}
               </span>
+              {!starting && (
+                <kbd className="start-kbd" aria-hidden="true">
+                  {recordShortcutBadge}
+                </kbd>
+              )}
             </button>
             <button
               id="take-screenshot"

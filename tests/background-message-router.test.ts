@@ -257,3 +257,26 @@ test("路由: offscreen/media-state 错误时落 MEDIA_RECORDER_FAILED", async (
     )
   );
 });
+
+test("路由: recording/pause-state 遇到已停止会话时返回 active:false 触发前台自愈卸载", async () => {
+  const { runtime, db } = createTestRuntime();
+  const stoppedSession = makeSession({
+    id: "sess-stopped",
+    status: "EXPORTED",
+  });
+  db.sessions.set(stoppedSession.id, stoppedSession);
+  db.activeSessionId = undefined;
+
+  const result = (await runtime.handleMessage(
+    message("recording/pause-state", {
+      sessionId: "sess-stopped",
+      isPaused: true,
+      pausedDurationMs: 30000,
+      atEpochMs: Date.now(),
+    }),
+    sender(202)
+  )) as { ok: boolean; active?: boolean };
+
+  assert.equal(result.ok, true);
+  assert.equal(result.active, false);
+});

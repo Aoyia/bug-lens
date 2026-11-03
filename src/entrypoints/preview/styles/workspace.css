@@ -607,6 +607,8 @@
   border-radius: 10px;
   background: var(--zen-panel-bg);
   padding: 12px;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 180px;
 }
 
 .framework-state-card-header {

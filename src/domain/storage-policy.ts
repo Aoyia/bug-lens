@@ -137,25 +137,58 @@ export function isExpired(
   return expiresAt(createdAtEpochMs, retentionDays) <= now;
 }
 
+export function utf8ByteLength(str: string): number {
+  let bytes = 0;
+  const len = str.length;
+  for (let i = 0; i < len; i += 1) {
+    const code = str.charCodeAt(i);
+    if (code <= 0x7f) {
+      bytes += 1;
+    } else if (code <= 0x7ff) {
+      bytes += 2;
+    } else if (code >= 0xd800 && code <= 0xdbff) {
+      if (i + 1 < len) {
+        const next = str.charCodeAt(i + 1);
+        if (next >= 0xdc00 && next <= 0xdfff) {
+          bytes += 4;
+          i += 1;
+          continue;
+        }
+      }
+      bytes += 3;
+    } else {
+      bytes += 3;
+    }
+  }
+  return bytes;
+}
+
 export function estimateBytes(value: unknown): number {
   const seen = new WeakSet<object>();
   const measure = (current: unknown): number => {
     if (current == null) return 0;
-    if (typeof current === "string")
-      return new TextEncoder().encode(current).byteLength;
+    if (typeof current === "string") return utf8ByteLength(current);
     if (typeof current === "number" || typeof current === "boolean") return 8;
     if (current instanceof ArrayBuffer) return current.byteLength;
     if (ArrayBuffer.isView(current)) return current.byteLength;
-    if (Array.isArray(current))
-      return current.reduce((total, item) => total + measure(item), 0);
+    if (Array.isArray(current)) {
+      let total = 0;
+      for (let i = 0; i < current.length; i += 1) {
+        total += measure(current[i]);
+      }
+      return total;
+    }
     if (typeof current === "object") {
       if (seen.has(current)) return 0;
       seen.add(current);
-      return Object.entries(current as Record<string, unknown>).reduce(
-        (total, [key, item]) =>
-          total + new TextEncoder().encode(key).byteLength + measure(item),
-        0
-      );
+      let total = 0;
+      const record = current as Record<string, unknown>;
+      for (const key in record) {
+        if (Object.prototype.hasOwnProperty.call(record, key)) {
+          total += utf8ByteLength(key) + measure(record[key]);
+        }
+      }
+      return total;
     }
     return 0;
   };

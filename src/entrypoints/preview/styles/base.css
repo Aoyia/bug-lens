@@ -40,6 +40,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 html,
 body {
   margin: 0;
@@ -236,12 +240,21 @@ button {
   gap: 6px;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
-button#export {
+button#create-ticket-btn {
   background: linear-gradient(135deg, #165dff 0%, #0e42d2 100%);
   color: #ffffff;
 }
-button#export:hover {
+button#create-ticket-btn:hover {
   background: linear-gradient(135deg, #3676ff 0%, #165dff 100%);
+  transform: translateY(-1px);
+}
+button#export {
+  background: rgba(22, 93, 255, 0.08);
+  color: var(--zen-primary);
+  border: 1px solid rgba(22, 93, 255, 0.2);
+}
+button#export:hover {
+  background: rgba(22, 93, 255, 0.15);
   transform: translateY(-1px);
 }
 

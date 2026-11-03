@@ -1,8 +1,17 @@
 import { memo } from "preact/compat";
-import { useState, useCallback, useRef, useEffect } from "preact/hooks";
+import {
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+  useMemo,
+} from "preact/hooks";
 import type { NetworkEntry, RecordingSession } from "../../shared/protocol.ts";
 import { formatElapsedEpochTime } from "../../domain/evidence-clock.ts";
-import { formatBytes } from "../../domain/byte-format.ts";
+import {
+  formatBytes,
+  formatNetworkEntrySize,
+} from "../../domain/byte-format.ts";
 import { generateCurlCommand } from "../../domain/curl-generator.ts";
 import {
   API_SNIPPET_TARGETS,
@@ -125,11 +134,12 @@ function renderNetworkDetailHtml(entry?: NetworkEntry): string {
 
 import {
   filterNetworkEntries,
+  matchesNetworkEntry,
   selectActiveNetworkId,
 } from "../../preview/network-filter.ts";
 
 const networkFilterFn = (entry: NetworkEntry, query: string) =>
-  filterNetworkEntries([entry], query).length > 0;
+  matchesNetworkEntry(entry, query);
 
 export const NetworkTab = memo(function NetworkTab({
   snapshot,
@@ -179,6 +189,10 @@ export const NetworkTab = memo(function NetworkTab({
   );
 
   const selectedEntry = entries.find((entry) => entry.id === activeSelectedId);
+  const detailHtml = useMemo(
+    () => renderNetworkDetailHtml(selectedEntry),
+    [selectedEntry]
+  );
   const [snippetTarget, setSnippetTarget] = useState<ApiSnippetTarget>("curl");
 
   // 多语言代码片段复制逻辑
@@ -235,97 +249,107 @@ export const NetworkTab = memo(function NetworkTab({
       <div className="network-main-split">
         <div className="network-table-view">
           {entries.length > 0 ? (
-            entries
-              .slice()
-              .reverse()
-              .map((entry) => {
-                const status = entry.status ?? 0;
-                const statusClass =
-                  status >= 400 || entry.error
-                    ? "status-error"
-                    : status >= 300
-                      ? "status-3xx"
-                      : "status-2xx";
-                const size =
-                  entry.response?.byteLength != null
-                    ? formatBytes(entry.response.byteLength)
-                    : entry.response
-                      ? "0 B"
-                      : "";
-                const isSelected = entry.id === activeSelectedId;
+            (() => {
+              const extraDetails =
+                typeof window !== "undefined" &&
+                window.__BUG_LENS_NETWORK_DETAILS__
+                  ? window.__BUG_LENS_NETWORK_DETAILS__
+                  : undefined;
 
-                return (
-                  <div
-                    key={entry.id}
-                    className={`network-row ${statusClass} ${isSelected ? "selected" : ""}`}
-                    data-network-id={entry.id}
-                    tabIndex={0}
-                    aria-current={isSelected ? "true" : undefined}
-                    onClick={() => handleRowClick(entry.id, entry.createdAt)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        handleRowClick(entry.id, entry.createdAt);
-                      }
-                    }}
-                  >
-                    <span
-                      className="col-time"
-                      title={t(
-                        "absoluteTime",
-                        formatDateTime(entry.createdAt, undefined, getLocale())
-                      )}
-                    >
-                      {networkTime(entry, snapshot.session)}
-                    </span>
-                    <span className={`col-status ${statusClass}`}>
-                      {status || (entry.error ? "FAIL" : "...")}
-                    </span>
-                    <span className="col-method">
-                      {(entry.method || "GET").toUpperCase()}
-                    </span>
-                    <span className="col-url" title={entry.url}>
-                      <span
-                        className={`network-frame-badge ${entry.frameId ? "badge-subframe" : "badge-topframe"}`}
-                        title={
-                          entry.frameId
-                            ? entry.documentUrl
-                              ? `${entry.documentUrl} (Frame [${entry.frameId}])`
-                              : `Frame [${entry.frameId}]`
-                            : "Top Frame"
+              return entries
+                .slice()
+                .reverse()
+                .map((entry) => {
+                  const status = entry.status ?? 0;
+                  const statusClass =
+                    status >= 400 || entry.error
+                      ? "status-error"
+                      : status >= 300
+                        ? "status-3xx"
+                        : "status-2xx";
+                  const size = formatNetworkEntrySize(
+                    entry,
+                    extraDetails?.[entry.id]?.responseHeaders
+                  );
+                  const isSelected = entry.id === activeSelectedId;
+
+                  return (
+                    <div
+                      key={entry.id}
+                      className={`network-row ${statusClass} ${isSelected ? "selected" : ""}`}
+                      data-network-id={entry.id}
+                      tabIndex={0}
+                      aria-current={isSelected ? "true" : undefined}
+                      onClick={() => handleRowClick(entry.id, entry.createdAt)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          handleRowClick(entry.id, entry.createdAt);
                         }
+                      }}
+                    >
+                      <span
+                        className="col-time"
+                        title={t(
+                          "absoluteTime",
+                          formatDateTime(
+                            entry.createdAt,
+                            undefined,
+                            getLocale()
+                          )
+                        )}
                       >
-                        {entry.frameId
-                          ? `Frame [${entry.frameId}]`
-                          : "Top Frame"}
+                        {networkTime(entry, snapshot.session)}
                       </span>
-                      {entry.url}
-                    </span>
-                    <span className="col-size">{size}</span>
-                    {editable ? (
-                      <span className="col-actions">
-                        <button
-                          className="item-delete-btn delete"
-                          title={t("deleteRequest")}
-                          onClick={(e) => handleExclude(e, entry.id)}
+                      <span className={`col-status ${statusClass}`}>
+                        {status || (entry.error ? "FAIL" : "...")}
+                      </span>
+                      <span className="col-method">
+                        {(entry.method || "GET").toUpperCase()}
+                      </span>
+                      <span className="col-url" title={entry.url}>
+                        <span
+                          className={`network-frame-badge ${entry.frameId ? "badge-subframe" : "badge-topframe"}`}
+                          title={
+                            entry.frameId
+                              ? entry.documentUrl
+                                ? `${entry.documentUrl} (Frame [${entry.frameId}])`
+                                : `Frame [${entry.frameId}]`
+                              : "Top Frame"
+                          }
                         >
-                          <svg
-                            width="12"
-                            height="12"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                          >
-                            <polyline points="3 6 5 6 21 6"></polyline>
-                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                          </svg>
-                        </button>
+                          {entry.frameId
+                            ? `Frame [${entry.frameId}]`
+                            : "Top Frame"}
+                        </span>
+                        {entry.url}
                       </span>
-                    ) : null}
-                  </div>
-                );
-              })
+                      <span className="col-size">{size}</span>
+                      {editable ? (
+                        <span className="col-actions">
+                          <button
+                            className="item-delete-btn delete"
+                            title={t("deleteRequest")}
+                            onClick={(e) => handleExclude(e, entry.id)}
+                          >
+                            <svg
+                              width="12"
+                              height="12"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                            >
+                              <polyline points="3 6 5 6 21 6"></polyline>
+                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            </svg>
+                          </button>
+                        </span>
+                      ) : null}
+                    </div>
+                  );
+                });
+            })()
           ) : (
             <div className="empty">
               {snapshot.all.length
@@ -400,7 +424,7 @@ export const NetworkTab = memo(function NetworkTab({
             ref={detailRef}
             style={{ flex: 1 }}
             dangerouslySetInnerHTML={{
-              __html: renderNetworkDetailHtml(selectedEntry),
+              __html: detailHtml,
             }}
           />
         </div>

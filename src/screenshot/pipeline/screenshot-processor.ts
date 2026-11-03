@@ -330,6 +330,10 @@ export async function processScreenshot(
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("Failed to get 2d context");
 
+    // 预先填充纯白背景（JPEG 不支持透明，且省去 <= 2048px 时的二次 tempCanvas 拷贝）
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
     // 设置高质量图像插值平滑
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
@@ -406,18 +410,6 @@ export async function processScreenshot(
         scaledCtx.imageSmoothingQuality = "high";
         scaledCtx.drawImage(canvas, 0, 0, scaledW, scaledH);
         finalCanvas = scaledCanvas;
-      }
-    } else {
-      // 确保背景为纯白色（JPEG 不支持透明）
-      const tempCanvas = document.createElement("canvas");
-      tempCanvas.width = canvas.width;
-      tempCanvas.height = canvas.height;
-      const tempCtx = tempCanvas.getContext("2d");
-      if (tempCtx) {
-        tempCtx.fillStyle = "#ffffff";
-        tempCtx.fillRect(0, 0, canvas.width, canvas.height);
-        tempCtx.drawImage(canvas, 0, 0);
-        finalCanvas = tempCanvas;
       }
     }
 

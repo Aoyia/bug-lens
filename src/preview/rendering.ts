@@ -71,6 +71,8 @@ function highlightJson(json: string): string {
   );
 }
 
+const MAX_JSON_HIGHLIGHT_LENGTH = 30_000;
+
 export function renderCodeBlockHtml(
   rawText: string,
   isJsonCandidate = false
@@ -87,7 +89,10 @@ export function renderCodeBlockHtml(
     }
   }
 
-  const content = isFormattedJson ? highlightJson(text) : escapeHtml(text);
+  const content =
+    isFormattedJson && text.length <= MAX_JSON_HIGHLIGHT_LENGTH
+      ? highlightJson(text)
+      : escapeHtml(text);
   return `
     <div class="code-wrapper">
       <button class="code-copy-btn" type="button" title="${t("copyContentTitle")}">

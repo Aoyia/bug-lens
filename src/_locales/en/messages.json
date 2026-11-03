@@ -696,6 +696,24 @@
   "statusDisabled": {
     "message": "Disabled"
   },
+  "evidenceAllCaptured": {
+    "message": "All evidence ready ($COUNT$)",
+    "description": "Historical session card indicator when all active evidence items captured successfully",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "evidenceRemainingCaptured": {
+    "message": "$COUNT$ other items normal",
+    "description": "Historical session card indicator for remaining healthy evidence items",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
   "permissionPageTitle": {
     "message": "Bug Lens - Permission Authorization"
   },
@@ -2384,5 +2402,54 @@
   },
   "autoSaveActive": {
     "message": "Auto-save active"
+  },
+  "createTicket": {
+    "message": "Ticket"
+  },
+  "widgetToolbarTicketTooltip": {
+    "message": "Stop recording and copy ticket template"
+  },
+  "exportSuccessTicketCopied": {
+    "message": "Evidence package downloaded, ticket template copied"
+  },
+  "copyTicketTemplate": {
+    "message": "Copy Ticket Template"
+  },
+  "ticketTemplateCopied": {
+    "message": "Ticket template copied to clipboard"
+  },
+  "previewTicket": {
+    "message": "Preview Ticket"
+  },
+  "previewTicketTitle": {
+    "message": "Preview ticket draft with screenshots"
+  },
+  "ticketModalTitle": {
+    "message": "Ticket Draft Preview"
+  },
+  "ticketModalSubtitle": {
+    "message": "This content will be copied to clipboard upon creating ticket, ready to paste into TAPD, Feishu, Jira, etc."
+  },
+  "viewRichText": {
+    "message": "Rich Text (with Images)"
+  },
+  "viewMarkdown": {
+    "message": "Markdown Source"
+  },
+  "ticketStepsSummary": {
+    "message": "$COUNT$ key steps · $IMAGES$ annotated screenshots",
+    "placeholders": {
+      "count": { "content": "$1" },
+      "images": { "content": "$2" }
+    }
+  },
+  "copyTicketContent": {
+    "message": "Copy Ticket Content"
+  },
+  "createTicketAndDownload": {
+    "message": "Create Ticket & Download"
+  },
+  "stepImageCopied": {
+    "message": "Screenshot copied, ready to paste directly into Feishu / chat"
   }
 }

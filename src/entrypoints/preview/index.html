@@ -88,6 +88,47 @@
                   </svg>
                   <span data-i18n="copyAiPrompt">复制 AI 提示词</span>
                 </button>
+                <button id="copy-ticket-template" class="secondary">
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    style="margin-right: 4px; vertical-align: middle"
+                  >
+                    <path
+                      d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+                    ></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                    <polyline points="10 9 9 9 8 9"></polyline>
+                  </svg>
+                  <span data-i18n="copyTicketTemplate">复制工单模板</span>
+                </button>
+                <button id="drawer-preview-ticket" class="secondary">
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    style="margin-right: 4px; vertical-align: middle"
+                  >
+                    <path
+                      d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"
+                    ></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                  </svg>
+                  <span data-i18n="previewTicket">预览工单</span>
+                </button>
                 <button
                   id="copy-ai-path"
                   class="secondary"
@@ -135,6 +176,49 @@
                 <span data-i18n="generatePlaywright">生成 Playwright 脚本</span>
               </button>
             </section>
+          </div>
+
+          <div class="export-btn-wrapper">
+            <button
+              id="preview-ticket-btn"
+              class="secondary preview-ticket-btn"
+              type="button"
+              data-i18n-title="previewTicketTitle"
+              title="预览工单草稿图文与内容"
+            >
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                style="margin-right: 4px; vertical-align: middle"
+              >
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+              <span data-i18n="previewTicket">预览工单</span>
+            </button>
+          </div>
+
+          <div class="export-btn-wrapper">
+            <button
+              id="create-ticket-btn"
+              class="primary ticket-btn"
+              data-i18n="createTicket"
+            >
+              提工单
+            </button>
+            <div id="ticket-progress-bar" class="export-progress-bar" hidden>
+              <div
+                id="ticket-progress-fill"
+                class="export-progress-fill"
+                style="width: 0%"
+              ></div>
+            </div>
           </div>
 
           <div class="export-btn-wrapper">
@@ -1001,6 +1085,89 @@
           >
             关闭
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 工单草稿图文预览弹窗 -->
+    <div
+      id="ticket-modal"
+      class="ticket-modal"
+      hidden
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="ticket-modal-title"
+    >
+      <div class="ticket-modal-content">
+        <div class="ticket-modal-header">
+          <div class="ticket-modal-title-group">
+            <h2 id="ticket-modal-title" data-i18n="ticketModalTitle">
+              工单草稿预览
+            </h2>
+            <span class="ticket-modal-subtitle" data-i18n="ticketModalSubtitle"
+              >提工单时将自动复制此内容，支持直接粘贴到 TAPD、飞书、Jira
+              等工单系统</span
+            >
+          </div>
+          <div class="ticket-modal-tabs">
+            <button
+              id="ticket-tab-rich"
+              class="ticket-tab-btn active"
+              type="button"
+              data-i18n="viewRichText"
+            >
+              富文本预览 (含图)
+            </button>
+            <button
+              id="ticket-tab-plain"
+              class="ticket-tab-btn"
+              type="button"
+              data-i18n="viewMarkdown"
+            >
+              Markdown 源码
+            </button>
+          </div>
+          <button
+            id="ticket-modal-close"
+            class="ghost ticket-close-btn"
+            aria-label="关闭"
+            data-i18n-aria="close"
+          >
+            ×
+          </button>
+        </div>
+        <div class="ticket-modal-body">
+          <div id="ticket-rich-view" class="ticket-rich-view"></div>
+          <pre id="ticket-plain-view" class="ticket-plain-view" hidden></pre>
+        </div>
+        <div class="ticket-modal-footer">
+          <div id="ticket-modal-summary" class="ticket-modal-summary"></div>
+          <div class="ticket-modal-actions">
+            <button
+              id="ticket-modal-copy-btn"
+              class="secondary"
+              type="button"
+              data-i18n="copyTicketContent"
+            >
+              复制工单内容
+            </button>
+            <button
+              id="ticket-modal-create-btn"
+              class="primary"
+              type="button"
+              data-i18n="createTicketAndDownload"
+            >
+              立即提工单并下载
+            </button>
+            <button
+              id="ticket-modal-close-btn"
+              class="ghost"
+              type="button"
+              data-i18n="close"
+            >
+              关闭
+            </button>
+          </div>
         </div>
       </div>
     </div>

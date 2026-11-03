@@ -1,5 +1,5 @@
 import type { ExportArtifact } from "../shared/protocol";
-import { copyTextToClipboard } from "./clipboard";
+import { copyTextToClipboard, copyRichTextToClipboard } from "./clipboard";
 import { incrementPromptCopyCount } from "../diagnostics/diagnostics-store";
 import { t } from "../shared/i18n.ts";
 
@@ -7,6 +7,8 @@ export type PreviewAiHandoffOptions = {
   root: Document;
   getArtifact(): ExportArtifact | undefined;
   getPrompt(zipPath?: string): string;
+  getTicketTemplate?(zipPath?: string): string;
+  getTicketBundle?(zipPath?: string): { markdown: string; html: string };
   notify(message: string): void;
 };
 
@@ -15,6 +17,9 @@ export class PreviewAiHandoff {
     options.root
       .querySelector<HTMLButtonElement>("#copy-ai-prompt")
       ?.addEventListener("click", () => void this.copyPrompt());
+    options.root
+      .querySelector<HTMLButtonElement>("#copy-ticket-template")
+      ?.addEventListener("click", () => void this.copyTicketTemplate());
     options.root
       .querySelector<HTMLButtonElement>("#copy-ai-path")
       ?.addEventListener("click", () => void this.copyPath());
@@ -63,6 +68,27 @@ export class PreviewAiHandoff {
     void incrementPromptCopyCount().catch(() => undefined);
   }
 
+  async copyTicketTemplate(): Promise<void> {
+    const filename = this.options.getArtifact()?.filename;
+    const bundle = this.options.getTicketBundle?.(filename);
+    if (bundle) {
+      try {
+        await copyRichTextToClipboard(
+          { html: bundle.html, text: bundle.markdown },
+          this.options.root
+        );
+        this.options.notify(t("ticketTemplateCopied"));
+        return;
+      } catch (error) {
+        this.options.notify(t("copyFailed", String(error)));
+        return;
+      }
+    }
+    const template = this.options.getTicketTemplate?.(filename);
+    if (!template) return;
+    await this.copy(template, t("ticketTemplateCopied"));
+  }
+
   async copyPath(): Promise<void> {
     const path = this.options.getArtifact()?.filename;
     if (!path) return;
@@ -79,6 +105,32 @@ export class PreviewAiHandoff {
       );
       this.options.notify(t("exportSuccessCopied"));
       void incrementPromptCopyCount().catch(() => undefined);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async autoCopyTicketTemplate(silent = false): Promise<boolean> {
+    const filename = this.options.getArtifact()?.filename;
+    const bundle = this.options.getTicketBundle?.(filename);
+    if (bundle) {
+      try {
+        await copyRichTextToClipboard(
+          { html: bundle.html, text: bundle.markdown },
+          this.options.root
+        );
+        if (!silent) this.options.notify(t("exportSuccessTicketCopied"));
+        return true;
+      } catch {
+        // 回退到纯文本方式
+      }
+    }
+    const template = this.options.getTicketTemplate?.(filename);
+    if (!template) return false;
+    try {
+      await copyTextToClipboard(template, this.options.root);
+      if (!silent) this.options.notify(t("exportSuccessTicketCopied"));
       return true;
     } catch {
       return false;

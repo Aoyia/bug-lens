@@ -794,7 +794,7 @@ export function OptionsApp() {
               {typeof chrome !== "undefined" &&
               chrome.runtime?.getManifest?.()?.version
                 ? chrome.runtime.getManifest().version
-                : "0.7.37"}
+                : "0.7.38"}
             </div>
           </aside>
 
@@ -1112,11 +1112,11 @@ export function OptionsApp() {
                       <span>
                         {isEn()
                           ? showMcpConfig
-                            ? "Hide MCP Server Configuration"
-                            : "View MCP Server Configuration (Optional)"
+                            ? "Hide MCP Server & Skill Configuration"
+                            : "View MCP Server & Skill Setup (Optional)"
                           : showMcpConfig
-                            ? "收起 MCP Server 配置说明"
-                            : "查看 MCP Server 配置说明 (可选)"}
+                            ? "收起 MCP Server 与 Skill 配置说明"
+                            : "查看 MCP Server 与 Skill 配置说明 (可选)"}
                       </span>
                       <span className="inline-preview-badge">bug-lens-mcp</span>
                     </button>
@@ -1139,16 +1139,16 @@ export function OptionsApp() {
                         >
                           <span>
                             {isEn()
-                              ? "Allows AI assistants to query offline evidence and screenshot ZIPs directly on demand without manual extraction."
-                              : "配置后 AI 助手可直接按需检索离线证据包与截图包，无需手动解压或编写解析脚本。"}
+                              ? "Copy and send to your AI assistant to auto-install the MCP server and bug-lens-triage skill, or run manually."
+                              : "可直接复制发给 AI 助手让其自动完成 MCP 与 bug-lens-triage 技能安装，或手动执行。"}
                           </span>
                           <button
                             type="button"
                             onClick={() => {
                               const snippet =
                                 settings.ai.targetAssistant === "claude-code"
-                                  ? "claude mcp add bug-lens-evidence -- npx -y bug-lens-mcp@latest"
-                                  : JSON.stringify(
+                                  ? "npx -y bug-lens-mcp@latest install-skill && claude mcp add bug-lens-evidence -- npx -y bug-lens-mcp@latest"
+                                  : `# 1. Install bug-lens-triage Skill\nnpx -y bug-lens-mcp@latest install-skill\n\n# 2. MCP Server Config\n${JSON.stringify(
                                       {
                                         mcpServers: {
                                           "bug-lens-evidence": {
@@ -1159,7 +1159,7 @@ export function OptionsApp() {
                                       },
                                       null,
                                       2
-                                    );
+                                    )}`;
                               void navigator.clipboard
                                 .writeText(snippet)
                                 .then(() => {
@@ -1173,7 +1173,7 @@ export function OptionsApp() {
                             style={{
                               flexShrink: 0,
                               background: "rgba(255, 255, 255, 0.1)",
-                              border: "1px solid rgba(255, 255, 255, 0.16)",
+                              border: "1px solid rgba(255, 255, 0.16)",
                               color: "#e2e8f0",
                               borderRadius: 4,
                               padding: "3px 8px",
@@ -1192,8 +1192,8 @@ export function OptionsApp() {
                         </div>
                         <pre className="inline-code-content">
                           {settings.ai.targetAssistant === "claude-code"
-                            ? "claude mcp add bug-lens-evidence -- npx -y bug-lens-mcp@latest"
-                            : JSON.stringify(
+                            ? "npx -y bug-lens-mcp@latest install-skill && claude mcp add bug-lens-evidence -- npx -y bug-lens-mcp@latest"
+                            : `# 1. Install bug-lens-triage Skill\nnpx -y bug-lens-mcp@latest install-skill\n\n# 2. MCP Server Config\n${JSON.stringify(
                                 {
                                   mcpServers: {
                                     "bug-lens-evidence": {
@@ -1204,7 +1204,7 @@ export function OptionsApp() {
                                 },
                                 null,
                                 2
-                              )}
+                              )}`}
                         </pre>
                       </div>
                     )}

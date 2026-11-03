@@ -8,7 +8,7 @@ import {
   type RecordingSession,
 } from "../shared/protocol";
 import { ImageViewer } from "./image-viewer";
-import { PreviewPageShell } from "./page-shell";
+import { PreviewPageShell, type PreviewTab } from "./page-shell";
 import type { IssueScenePreview } from "./issue-scene-view";
 import { t } from "../shared/i18n.ts";
 import { ConsoleTab } from "../components/preview/ConsoleTab";
@@ -60,10 +60,22 @@ type EditableReportAdapter = {
 export type EvidenceReportAdapter =
   ReadOnlyReportAdapter | EditableReportAdapter;
 
+const ALL_PREVIEW_TABS: PreviewTab[] = [
+  "issues",
+  "steps",
+  "console",
+  "network",
+  "framework",
+  "stream",
+];
+
 export class EvidenceReportView {
   private readonly shell: PreviewPageShell;
   private readonly imageViewer: ImageViewer;
   private hasInitializedDefaultTab = false;
+  private readonly dirtyTabs = new Set<PreviewTab>();
+  private idleFlushHandle: number | undefined;
+  private idleFlushUsesIdleCallback = false;
 
   // Preact 挂载容器
   private readonly consoleContainer: HTMLElement;
@@ -77,7 +89,10 @@ export class EvidenceReportView {
     private readonly root: Document,
     private readonly adapter: EvidenceReportAdapter
   ) {
-    this.shell = new PreviewPageShell(root, () => this.updateRestoreButtons());
+    this.shell = new PreviewPageShell(root, () => {
+      this.flushActiveTabIfDirty();
+      this.updateRestoreButtons();
+    });
     this.imageViewer = new ImageViewer(root, (message) =>
       this.shell.notify(message)
     );
@@ -188,7 +203,7 @@ export class EvidenceReportView {
     this.shell.notify(message);
   }
 
-  render(): void {
+  render(targetTabs?: PreviewTab[]): void {
     const snapshot = this.adapter.getSnapshot();
     if (!snapshot) return;
 
@@ -198,7 +213,7 @@ export class EvidenceReportView {
       const consoleCount = snapshot.consoleEntries.included.length;
       const networkCount = snapshot.networkEntries.included.length;
 
-      let defaultTab: "issues" | "steps" | "console" | "network" = "issues";
+      let defaultTab: PreviewTab = "issues";
       if (issueCount > 0) {
         defaultTab = "issues";
       } else if (stepCount > 0) {
@@ -256,6 +271,61 @@ export class EvidenceReportView {
 
     this.renderSummary();
 
+    const tabsToMark = targetTabs ?? ALL_PREVIEW_TABS;
+    for (const tab of tabsToMark) {
+      this.dirtyTabs.add(tab);
+    }
+
+    this.flushActiveTabIfDirty(snapshot);
+    this.scheduleIdleFlush();
+  }
+
+  private flushActiveTabIfDirty(snapshot?: EvidenceReportSnapshot): void {
+    const activeTab = this.shell.activeTab;
+    if (!this.dirtyTabs.has(activeTab)) return;
+    const snap = snapshot ?? this.adapter.getSnapshot();
+    if (!snap) return;
+    this.dirtyTabs.delete(activeTab);
+    this.renderSingleTab(activeTab, snap);
+  }
+
+  private scheduleIdleFlush(): void {
+    if (this.dirtyTabs.size === 0 || this.idleFlushHandle !== undefined) return;
+    const flushRemaining = () => {
+      this.idleFlushHandle = undefined;
+      const snap = this.adapter.getSnapshot();
+      if (!snap) {
+        this.dirtyTabs.clear();
+        return;
+      }
+      const tabs = Array.from(this.dirtyTabs);
+      this.dirtyTabs.clear();
+      for (const tab of tabs) {
+        this.renderSingleTab(tab, snap);
+      }
+    };
+
+    const g = globalThis as unknown as {
+      requestIdleCallback?: (
+        cb: () => void,
+        opts?: { timeout: number }
+      ) => number;
+    };
+    if (typeof g.requestIdleCallback === "function") {
+      this.idleFlushUsesIdleCallback = true;
+      this.idleFlushHandle = g.requestIdleCallback(flushRemaining, {
+        timeout: 120,
+      });
+    } else {
+      this.idleFlushUsesIdleCallback = false;
+      this.idleFlushHandle = setTimeout(flushRemaining, 0) as unknown as number;
+    }
+  }
+
+  private renderSingleTab(
+    tab: PreviewTab,
+    snapshot: EvidenceReportSnapshot
+  ): void {
     const editable = this.adapter.mode === "editable";
     const seekVideo = (timestampMs: number) => {
       const originEpochMs =
@@ -268,153 +338,165 @@ export class EvidenceReportView {
       }
     };
 
-    // Console 标签页
-    render(
-      h(ConsoleTab, {
-        snapshot: {
-          session: snapshot.session,
-          all: snapshot.consoleEntries.all,
-          included: snapshot.consoleEntries.included,
-        },
-        editable,
-        onExclude: editable
-          ? async (id: string) => {
-              if (this.adapter.mode !== "editable") return;
-              await this.adapter.excludeDiagnostic("console", id);
-              this.render();
-            }
-          : undefined,
-        onSelectionChanged: () => this.renderSummary(),
-        onSeekVideo: seekVideo,
-      }),
-      this.consoleContainer
-    );
+    switch (tab) {
+      case "console":
+        render(
+          h(ConsoleTab, {
+            snapshot: {
+              session: snapshot.session,
+              all: snapshot.consoleEntries.all,
+              included: snapshot.consoleEntries.included,
+            },
+            editable,
+            onExclude: editable
+              ? async (id: string) => {
+                  if (this.adapter.mode !== "editable") return;
+                  await this.adapter.excludeDiagnostic("console", id);
+                  this.render(["console", "stream"]);
+                }
+              : undefined,
+            onSelectionChanged: () => this.renderSummary(),
+            onSeekVideo: seekVideo,
+          }),
+          this.consoleContainer
+        );
+        break;
 
-    // Network 标签页
-    render(
-      h(NetworkTab, {
-        snapshot: {
-          session: snapshot.session,
-          all: snapshot.networkEntries.all,
-          included: snapshot.networkEntries.included,
-        },
-        editable,
-        onExclude: editable
-          ? async (id: string) => {
-              if (this.adapter.mode !== "editable") return;
-              await this.adapter.excludeDiagnostic("network", id);
-              this.render();
-            }
-          : undefined,
-        onSelectionChanged: () => this.renderSummary(),
-        onSeekVideo: seekVideo,
-        onNotify: (message: string) => this.shell.notify(message),
-      }),
-      this.networkContainer
-    );
+      case "network":
+        render(
+          h(NetworkTab, {
+            snapshot: {
+              session: snapshot.session,
+              all: snapshot.networkEntries.all,
+              included: snapshot.networkEntries.included,
+            },
+            editable,
+            onExclude: editable
+              ? async (id: string) => {
+                  if (this.adapter.mode !== "editable") return;
+                  await this.adapter.excludeDiagnostic("network", id);
+                  this.render(["network", "stream"]);
+                }
+              : undefined,
+            onSelectionChanged: () => this.renderSummary(),
+            onSeekVideo: seekVideo,
+            onNotify: (message: string) => this.shell.notify(message),
+          }),
+          this.networkContainer
+        );
+        break;
 
-    // Interactions 标签页
-    render(
-      h(InteractionsTab, {
-        snapshot: {
-          all: snapshot.interactions.all,
-          included: snapshot.interactions.included,
-          hasMedia: snapshot.hasMedia,
-          startedAtEpochMs: snapshot.session.timeline.startedAtEpochMs,
-        },
-        editable,
-        onExclude: editable
-          ? (id: string) => {
-              if (this.adapter.mode !== "editable") return;
-              void this.adapter
-                .excludeInteraction(id)
-                .then(() => this.render());
-            }
-          : undefined,
-        onOpenImage: (interactionId: string) => {
-          const interactions = snapshot.interactions.included;
-          this.imageViewer.open(interactions, interactionId);
-        },
-        onSeekVideo: seekVideo,
-        onNotify: (message: string) => this.shell.notify(message),
-      }),
-      this.interactionsContainer
-    );
+      case "steps":
+        render(
+          h(InteractionsTab, {
+            snapshot: {
+              all: snapshot.interactions.all,
+              included: snapshot.interactions.included,
+              hasMedia: snapshot.hasMedia,
+              startedAtEpochMs: snapshot.session.timeline.startedAtEpochMs,
+            },
+            editable,
+            onExclude: editable
+              ? (id: string) => {
+                  if (this.adapter.mode !== "editable") return;
+                  void this.adapter
+                    .excludeInteraction(id)
+                    .then(() => this.render(["steps", "stream"]));
+                }
+              : undefined,
+            onOpenImage: (interactionId: string) => {
+              const interactions = snapshot.interactions.included;
+              this.imageViewer.open(interactions, interactionId);
+            },
+            onSeekVideo: seekVideo,
+            onNotify: (message: string) => this.shell.notify(message),
+          }),
+          this.interactionsContainer
+        );
+        break;
 
-    // 问题现场标签页
-    const issueScenes = snapshot.issueScenes ?? { all: [], included: [] };
-    render(
-      h(IssueSceneTab, {
-        collection: issueScenes,
-        startedAtEpochMs: snapshot.session.timeline.startedAtEpochMs,
-        editable,
-        onExclude: editable
-          ? async (id: string) => {
-              if (this.adapter.mode !== "editable") return;
-              await this.adapter.excludeIssueScene?.(id);
-              this.render();
-            }
-          : undefined,
-        onSeekVideo: seekVideo,
-        onOpenImage: (sceneId, mode) => {
-          this.imageViewer.openScenes(issueScenes.included, sceneId, mode);
-        },
-        onNotify: (message: string) => this.shell.notify(message),
-      }),
-      this.issueScenesContainer
-    );
+      case "issues": {
+        const issueScenes = snapshot.issueScenes ?? { all: [], included: [] };
+        render(
+          h(IssueSceneTab, {
+            collection: issueScenes,
+            startedAtEpochMs: snapshot.session.timeline.startedAtEpochMs,
+            editable,
+            onExclude: editable
+              ? async (id: string) => {
+                  if (this.adapter.mode !== "editable") return;
+                  await this.adapter.excludeIssueScene?.(id);
+                  this.render(["issues"]);
+                }
+              : undefined,
+            onSeekVideo: seekVideo,
+            onOpenImage: (sceneId, mode) => {
+              this.imageViewer.openScenes(issueScenes.included, sceneId, mode);
+            },
+            onNotify: (message: string) => this.shell.notify(message),
+          }),
+          this.issueScenesContainer
+        );
+        break;
+      }
 
-    // 框架状态标签页
-    if (this.frameworkStatesContainer) {
-      render(
-        h(FrameworkStateTab, {
-          states: snapshot.frameworkStates ?? [],
-          startedAtEpochMs: snapshot.session.timeline.startedAtEpochMs,
-        }),
-        this.frameworkStatesContainer
-      );
-    }
+      case "framework":
+        if (this.frameworkStatesContainer) {
+          render(
+            h(FrameworkStateTab, {
+              states: snapshot.frameworkStates ?? [],
+              startedAtEpochMs: snapshot.session.timeline.startedAtEpochMs,
+            }),
+            this.frameworkStatesContainer
+          );
+        }
+        break;
 
-    // 时间线流标签页（离线报告中不存在）
-    if (this.streamContainer) {
-      render(
-        h(StreamTab, {
-          snapshot: {
-            session: snapshot.session,
-            interactions: snapshot.interactions.included,
-            consoleEntries: snapshot.consoleEntries.included,
-            networkEntries: snapshot.networkEntries.included,
-          },
-          onSeekVideo: seekVideo,
-          onExportClip: (timestamp: number) => {
-            seekVideo(timestamp);
-            const originEpochMs =
-              snapshot.session.timeline.startedAtEpochMs ??
-              snapshot.session.timeline.createdAtEpochMs;
-            const timeStr =
-              originEpochMs != null
-                ? formatElapsedEpochTime(timestamp, originEpochMs)
-                : "00-00";
+      case "stream":
+        if (this.streamContainer) {
+          render(
+            h(StreamTab, {
+              snapshot: {
+                session: snapshot.session,
+                interactions: snapshot.interactions.included,
+                consoleEntries: snapshot.consoleEntries.included,
+                networkEntries: snapshot.networkEntries.included,
+              },
+              onSeekVideo: seekVideo,
+              onExportClip: (timestamp: number) => {
+                seekVideo(timestamp);
+                const originEpochMs =
+                  snapshot.session.timeline.startedAtEpochMs ??
+                  snapshot.session.timeline.createdAtEpochMs;
+                const timeStr =
+                  originEpochMs != null
+                    ? formatElapsedEpochTime(timestamp, originEpochMs)
+                    : "00-00";
 
-            const video = this.root.querySelector<HTMLVideoElement>("#video");
-            if (!video || video.hidden || !video.src) {
-              this.shell.notify(t("clipExportNoVideo"));
-              return;
-            }
+                const video =
+                  this.root.querySelector<HTMLVideoElement>("#video");
+                if (!video || video.hidden || !video.src) {
+                  this.shell.notify(t("clipExportNoVideo"));
+                  return;
+                }
 
-            const relSec =
-              originEpochMs != null ? (timestamp - originEpochMs) / 1000 : 0;
-            const startSec = Math.max(0, relSec - 2.5);
-            const endSec = Math.min(video.duration || 0, relSec + 2.5);
-            const safeName = `clip-${(timeStr || "00-00").replace(/:/g, "-")}.mp4`;
+                const relSec =
+                  originEpochMs != null
+                    ? (timestamp - originEpochMs) / 1000
+                    : 0;
+                const startSec = Math.max(0, relSec - 2.5);
+                const endSec = Math.min(video.duration || 0, relSec + 2.5);
+                const safeName = `clip-${(timeStr || "00-00").replace(/:/g, "-")}.mp4`;
 
-            void exportVideoClip(video, startSec, endSec, safeName, (msg) =>
-              this.shell.notify(msg)
-            );
-          },
-        }),
-        this.streamContainer
-      );
+                void exportVideoClip(video, startSec, endSec, safeName, (msg) =>
+                  this.shell.notify(msg)
+                );
+              },
+            }),
+            this.streamContainer
+          );
+        }
+        break;
     }
   }
 
@@ -535,6 +617,15 @@ export class EvidenceReportView {
   ): Promise<void> {
     if (this.adapter.mode !== "editable") return;
     await this.adapter.restore(kind);
-    this.render();
+    const affectedTabs: Record<
+      "interaction" | "console" | "network" | "issueScene",
+      PreviewTab[]
+    > = {
+      interaction: ["steps", "stream"],
+      console: ["console", "stream"],
+      network: ["network", "stream"],
+      issueScene: ["issues"],
+    };
+    this.render(affectedTabs[kind]);
   }
 }

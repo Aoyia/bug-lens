@@ -1,0 +1,347 @@
+/* Bug Lens 工单草稿图文预览弹窗 (适配 macOS Zen 主题风格) */
+
+.ticket-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 2050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.38);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: ticket-fade-in 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ticket-modal[hidden] {
+  display: none !important;
+}
+
+@keyframes ticket-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* 弹窗主体：无冗余嵌套、通透克制的窗口外壳 */
+.ticket-modal-content {
+  background: #ffffff;
+  border: 1px solid var(--zen-border, rgba(0, 0, 0, 0.08));
+  border-radius: var(--bl-radius-md, 8px);
+  width: min(90vw, 860px);
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow:
+    0 24px 56px rgba(0, 0, 0, 0.18),
+    0 4px 14px rgba(0, 0, 0, 0.05);
+  animation: ticket-slide-up 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+}
+
+@keyframes ticket-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* 顶部一体化标题栏 */
+.ticket-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--zen-border, rgba(0, 0, 0, 0.06));
+  flex-shrink: 0;
+  background: #ffffff;
+  user-select: none;
+}
+
+.ticket-modal-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.ticket-modal-title-group h2 {
+  margin: 0;
+  font-size: var(--font-base, 13.5px);
+  font-weight: 600;
+  color: var(--zen-text-main, #1d2129);
+  line-height: 1.3;
+  letter-spacing: -0.1px;
+}
+
+.ticket-modal-subtitle {
+  font-size: var(--font-xs, 11px);
+  color: var(--zen-text-muted, #86909c);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 极简内嵌分段控件 (Segmented Control) */
+.ticket-modal-tabs {
+  display: inline-flex;
+  background: rgba(0, 0, 0, 0.04);
+  padding: 2px;
+  border-radius: var(--zen-radius-btn, 4px);
+  gap: 2px;
+}
+
+.ticket-tab-btn {
+  border: none;
+  background: transparent;
+  padding: 3px 10px;
+  font-size: var(--font-xs, 11.5px);
+  font-weight: 500;
+  color: var(--zen-text-sub, #4e5969);
+  border-radius: 3px;
+  cursor: pointer;
+  height: 22px;
+  line-height: 1;
+  transition: all 0.15s ease;
+}
+
+.ticket-tab-btn:hover {
+  color: var(--zen-text-main, #1d2129);
+}
+
+.ticket-tab-btn.active {
+  background: #ffffff;
+  color: var(--zen-primary, #165dff);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.ticket-close-btn {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  margin-left: 4px;
+  font-size: 16px;
+  color: var(--zen-text-muted, #86909c);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  border-radius: var(--zen-radius-btn, 4px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.ticket-close-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--zen-text-main, #1d2129);
+}
+
+/* 内容区域：扁平纯净、消除多层嵌套画板 */
+.ticket-modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px;
+  background: #ffffff;
+  min-height: 300px;
+}
+
+/* 系统级精细滚动条 */
+.ticket-modal-body::-webkit-scrollbar {
+  width: 5px;
+}
+
+.ticket-modal-body::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 3px;
+}
+
+.ticket-modal-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.22);
+}
+
+/* 纯内容流容器，无多余白卡片边框与阴影 */
+.ticket-rich-view {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
+}
+
+.ticket-rich-view h3 {
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: var(--zen-text-main, #1d2129) !important;
+  letter-spacing: -0.1px;
+}
+
+.ticket-rich-view p,
+.ticket-rich-view li {
+  font-size: 12.5px;
+  color: var(--zen-text-main, #1d2129);
+}
+
+.ticket-rich-view strong {
+  color: var(--zen-text-main, #1d2129);
+}
+
+.ticket-rich-view a {
+  color: var(--zen-primary, #165dff);
+  text-decoration: none;
+}
+
+.ticket-rich-view a:hover {
+  text-decoration: underline;
+}
+
+.ticket-rich-view code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11.5px;
+  padding: 1px 4px;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 3px;
+  color: var(--zen-text-sub, #4e5969);
+}
+
+/* 步骤截图微卡片 */
+.ticket-rich-view img {
+  border: 1px solid var(--zen-border, rgba(0, 0, 0, 0.08)) !important;
+  border-radius: var(--zen-radius-btn, 4px) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03) !important;
+  cursor: pointer;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  display: block;
+}
+
+.ticket-rich-view img:hover {
+  transform: translateY(-1px) !important;
+  border-color: var(--zen-primary, #165dff) !important;
+  box-shadow: 0 4px 14px rgba(22, 93, 255, 0.14) !important;
+}
+
+/* Markdown 源码视图 */
+.ticket-plain-view {
+  margin: 0;
+  padding: 14px 16px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--zen-text-sub, #4e5969);
+  background: var(--bl-bg-surface, #f8f9fb);
+  border: 1px solid var(--zen-border, rgba(0, 0, 0, 0.06));
+  border-radius: var(--zen-radius-btn, 4px);
+  white-space: pre-wrap;
+  word-break: break-all;
+  box-shadow: none;
+}
+
+/* 底部一体化操作栏 */
+.ticket-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 20px;
+  border-top: 1px solid var(--zen-border, rgba(0, 0, 0, 0.06));
+  background: #ffffff;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.ticket-modal-summary {
+  font-size: var(--font-xs, 11.5px);
+  color: var(--zen-text-sub, #4e5969);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ticket-modal-summary::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+}
+
+.ticket-modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ticket-modal-actions button {
+  height: var(--btn-height, 28px);
+  padding: var(--btn-padding, 3px 12px);
+  border-radius: var(--zen-radius-btn, 4px);
+  font-size: var(--font-sm, 12px);
+  font-weight: 500;
+  line-height: 1;
+}
+
+.ticket-modal-actions button.secondary {
+  background: var(--zen-primary-light, rgba(22, 93, 255, 0.08));
+  color: var(--zen-primary, #165dff);
+  border: 1px solid var(--zen-border-accent, rgba(22, 93, 255, 0.25));
+}
+
+.ticket-modal-actions button.secondary:hover {
+  background: rgba(22, 93, 255, 0.15);
+  border-color: rgba(22, 93, 255, 0.4);
+  transform: translateY(-1px);
+}
+
+.ticket-modal-actions button.primary {
+  background: linear-gradient(135deg, #165dff 0%, #0e42d2 100%);
+  color: #ffffff;
+  border: none;
+  font-weight: 500;
+  box-shadow: 0 1px 2px rgba(22, 93, 255, 0.2);
+}
+
+.ticket-modal-actions button.primary:hover {
+  background: linear-gradient(135deg, #3676ff 0%, #165dff 100%);
+  box-shadow: 0 2px 6px rgba(22, 93, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.ticket-modal-actions button.ghost {
+  background: rgba(0, 0, 0, 0.03);
+  color: var(--zen-text-sub, #4e5969);
+  border: 1px solid var(--zen-border, rgba(0, 0, 0, 0.06));
+}
+
+.ticket-modal-actions button.ghost:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--zen-text-main, #1d2129);
+}
+
+/* 顶栏预览工单按钮 */
+button.preview-ticket-btn {
+  background: rgba(22, 93, 255, 0.06);
+  color: var(--zen-primary, #165dff);
+  border: 1px solid var(--zen-border-accent, rgba(22, 93, 255, 0.2));
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+button.preview-ticket-btn:hover {
+  background: rgba(22, 93, 255, 0.12);
+  border-color: rgba(22, 93, 255, 0.35);
+  transform: translateY(-1px);
+}

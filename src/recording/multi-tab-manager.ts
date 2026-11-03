@@ -17,6 +17,7 @@ export type MultiTabRepository = {
 
 export class MultiTabManager {
   private readonly targets = new Map<number, TargetTabInfo>();
+  private readonly pendingAddTabs = new Map<number, Promise<TargetTabInfo[]>>();
   private activeSessionId: string | undefined;
   private attached = false;
 
@@ -48,9 +49,10 @@ export class MultiTabManager {
     this.onUpdatedListener = this.handleTabUpdated.bind(this);
   }
 
-  /** 初始化会话纳管的初始标签页 */
+  /** 初始化会话纳管的初始标签页（及已持久化的副标签页列表） */
   initSession(session: RecordingSession): void {
     this.targets.clear();
+    this.pendingAddTabs.clear();
     this.activeSessionId = session.id;
     const initialTarget: TargetTabInfo = {
       tabId: session.target.tabId,
@@ -61,6 +63,16 @@ export class MultiTabManager {
       addedAtEpochMs: Date.now(),
     };
     this.targets.set(session.target.tabId, initialTarget);
+    if (Array.isArray(session.targets)) {
+      for (const target of session.targets) {
+        if (
+          typeof target?.tabId === "number" &&
+          !this.targets.has(target.tabId)
+        ) {
+          this.targets.set(target.tabId, target);
+        }
+      }
+    }
     this.attach();
   }
 
@@ -109,6 +121,7 @@ export class MultiTabManager {
       chrome.tabs.onUpdated.removeListener(this.onUpdatedListener);
     }
     this.targets.clear();
+    this.pendingAddTabs.clear();
     this.activeSessionId = undefined;
   }
 
@@ -124,10 +137,30 @@ export class MultiTabManager {
 
   /** 手动纳管一个新标签页（例如用户在前台点击“+ 纳入录制”） */
   async addTab(tabId: number): Promise<TargetTabInfo[]> {
+    const existingTask = this.pendingAddTabs.get(tabId);
+    if (existingTask) return existingTask;
+    if (this.targets.has(tabId)) return this.getTargets();
+
+    const task = this.performAddTab(tabId);
+    this.pendingAddTabs.set(tabId, task);
+    try {
+      return await task;
+    } finally {
+      if (this.pendingAddTabs.get(tabId) === task) {
+        this.pendingAddTabs.delete(tabId);
+      }
+    }
+  }
+
+  private async performAddTab(tabId: number): Promise<TargetTabInfo[]> {
     const t0 = performance.now();
     const session = await this.repository.getActiveSession();
     if (!session || !["RECORDING", "DEGRADED"].includes(session.status)) {
       throw new Error("当前无有效录制中的会话");
+    }
+
+    if (this.targets.has(tabId)) {
+      return this.getTargets();
     }
 
     let tab: chrome.tabs.Tab | undefined;
@@ -369,13 +402,16 @@ export class MultiTabManager {
     changeInfo: chrome.tabs.OnUpdatedInfo,
     tab: chrome.tabs.Tab
   ): Promise<void> {
-    const session = await this.repository.getActiveSession();
-    if (!session || !["RECORDING", "DEGRADED"].includes(session.status)) return;
-    if (session.options.autoTrackDerivedTabs === false) return;
+    if (this.pendingAddTabs.has(tabId)) return;
+    if (this.targets.has(tabId) && changeInfo.status !== "complete") return;
 
     const targetUrl = (changeInfo.url ?? tab.url ?? "").toLowerCase();
     if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://"))
       return;
+
+    const session = await this.repository.getActiveSession();
+    if (!session || !["RECORDING", "DEGRADED"].includes(session.status)) return;
+    if (session.options.autoTrackDerivedTabs === false) return;
 
     if (!this.targets.has(tabId)) {
       await this.addTab(tabId);

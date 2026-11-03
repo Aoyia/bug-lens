@@ -689,6 +689,104 @@ test("CDP 超时后触发熔断器，后续交互直接降级走备选通道，�
   assert.deepEqual(await capture.drain(), []);
 });
 
+test("CDP 熔断仅作用于超时的标签页，并在冷却期后自动恢复 CDP 通道", async () => {
+  const validBase64 = Buffer.from("FALLBACK_IMG").toString("base64");
+  const cdpCallsByTab = new Map<number, number>();
+  let hangTab7 = true;
+
+  installChromeMock({
+    tabsQuery: async () => [{ id: 7, active: true }],
+    captureVisibleTab: async () => `data:image/jpeg;base64,${validBase64}`,
+    sendMessage: async () => ({
+      ok: true,
+      dataUrl: `data:image/jpeg;base64,${validBase64}`,
+    }),
+  });
+
+  (globalThis as any).chrome.debugger = {
+    sendCommand: async (target: { tabId: number }, method: string) => {
+      if (method !== "Page.captureScreenshot") return {};
+      cdpCallsByTab.set(
+        target.tabId,
+        (cdpCallsByTab.get(target.tabId) ?? 0) + 1
+      );
+      if (target.tabId === 7 && hangTab7) return new Promise(() => {});
+      return { data: validBase64 };
+    },
+  };
+
+  const storedMap = new Map<string, InteractionRecord>();
+  const multiTabSession: RecordingSession = {
+    ...session,
+    targets: [
+      { tabId: 7, url: "", title: "", isPrimary: true, addedAtEpochMs: 0 },
+      { tabId: 8, url: "", title: "", isPrimary: false, addedAtEpochMs: 0 },
+    ],
+    options: { ...session.options, captureScreenshots: true },
+  };
+
+  const capture = new InteractionCapture(
+    {
+      getActiveSession: async () => multiTabSession,
+      getInteraction: async (id) => storedMap.get(id),
+      saveInteractionWithinBudget: async (next) => {
+        storedMap.set(next.id, next);
+        return { stored: true, usedBytes: 1, limitReached: false };
+      },
+      saveEvidenceAssetWithinBudget: async () => ({
+        stored: true,
+        usedBytes: 1,
+        limitReached: false,
+      }),
+      getInteractions: async () => Array.from(storedMap.values()),
+    },
+    async () => multiTabSession,
+    () => false,
+    30
+  );
+  // 跳过前台激活校验，聚焦熔断逻辑
+  (capture as any).assertTargetTabIsActive = async () => undefined;
+
+  const realNow = Date.now;
+  let offsetMs = 0;
+  Date.now = () => realNow() + offsetMs;
+  try {
+    // tab 7 CDP 超时 -> 仅熔断 tab 7
+    await capture.handle({ ...interaction, id: "int-tab7-1" }, {
+      tab: { id: 7 },
+      frameId: 0,
+    } as any);
+    assert.equal(cdpCallsByTab.get(7), 1);
+
+    // tab 8 不受 tab 7 熔断影响，仍走 CDP
+    await capture.handle({ ...interaction, id: "int-tab8-1" }, {
+      tab: { id: 8 },
+      frameId: 0,
+    } as any);
+    assert.equal(cdpCallsByTab.get(8), 1, "副标签页不应被主标签页熔断连带");
+
+    // 冷却期内 tab 7 不再请求 CDP
+    await capture.handle({ ...interaction, id: "int-tab7-2" }, {
+      tab: { id: 7 },
+      frameId: 0,
+    } as any);
+    assert.equal(cdpCallsByTab.get(7), 1, "冷却期内不得重复请求 CDP");
+
+    // 冷却期后 tab 7 自动恢复 CDP
+    hangTab7 = false;
+    offsetMs = 6000;
+    await capture.handle({ ...interaction, id: "int-tab7-3" }, {
+      tab: { id: 7 },
+      frameId: 0,
+    } as any);
+    assert.equal(cdpCallsByTab.get(7), 2, "冷却期结束后应自动恢复 CDP 通道");
+    assert.equal(storedMap.get("int-tab7-3")?.screenshot.status, "captured");
+  } finally {
+    Date.now = realNow;
+  }
+  assert.deepEqual(await capture.drain(), []);
+});
+
 test("资产存储配额耗尽时，截图状态正确收敛为 unavailable，不残留 pending", async () => {
   const validBase64 = Buffer.from("IMAGE").toString("base64");
   installChromeMock({
@@ -1315,4 +1413,62 @@ test("reset() 清空内部 sessionInteractions 追踪集合，避免跨多会话
   // reset() 执行后，整个 sessionInteractions 应干净为空
   capture.reset();
   assert.equal((capture as any).sessionInteractions.size, 0);
+});
+
+test("saveInteractionWithinBudget 存在 200ms 批量合并延迟时，pointerdown 候选交互仍立即抢拍原图，避免被后续 click 弹窗过渡动画污染", async () => {
+  let screenshotCapturedAtMs = 0;
+  const startMs = Date.now();
+  const validBase64 = Buffer.from("PRE_CLICK_CRISP_FRAME").toString("base64");
+
+  installChromeMock({
+    tabsQuery: async () => [{ id: 7, active: true }],
+    captureVisibleTab: async () => {
+      screenshotCapturedAtMs = Date.now() - startMs;
+      return `data:image/jpeg;base64,${validBase64}`;
+    },
+    sendMessage: async () => ({
+      ok: true,
+      dataUrl: `data:image/jpeg;base64,${validBase64}`,
+    }),
+  });
+
+  const storedMap = new Map<string, InteractionRecord>();
+  const screenshotSession: RecordingSession = {
+    ...session,
+    options: { ...session.options, captureScreenshots: true },
+  };
+
+  const capture = new InteractionCapture(
+    {
+      getActiveSession: async () => screenshotSession,
+      getInteraction: async (id) => storedMap.get(id),
+      saveInteractionWithinBudget: async (next) => {
+        // 模拟 storage-budget.ts 的 BATCH_INTERVAL_MS = 200ms 批量落盘延迟
+        await new Promise((r) => setTimeout(r, 200));
+        storedMap.set(next.id, next);
+        return { stored: true, usedBytes: 1, limitReached: false };
+      },
+      saveEvidenceAssetWithinBudget: async () => ({
+        stored: true,
+        usedBytes: 1,
+        limitReached: false,
+      }),
+    },
+    async () => screenshotSession,
+    () => false
+  );
+
+  await capture.handle(
+    { ...interaction, id: "int-pre-capture-timing", status: "candidate" },
+    { tab: { id: 7 }, frameId: 0 } as any
+  );
+
+  assert.ok(
+    screenshotCapturedAtMs < 80,
+    `视口截屏应在 pointerdown 到达后立即执行（<80ms，赶在 ~98ms click 弹窗过渡动画前），实际耗时 ${screenshotCapturedAtMs}ms`
+  );
+  assert.equal(
+    storedMap.get("int-pre-capture-timing")?.screenshot.status,
+    "captured"
+  );
 });

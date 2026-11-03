@@ -51,7 +51,8 @@ export interface SessionLifecycle {
     silentExport?: boolean,
     traceStartMs?: number,
     traceContext?: ExportTraceContext,
-    pausedDurationMs?: number
+    pausedDurationMs?: number,
+    exportMode?: "ai" | "ticket"
   ): Promise<RecordingSession | undefined>;
   continueInterrupted(
     sessionId: string,
@@ -70,7 +71,8 @@ export interface SessionLifecycle {
     silentExport?: boolean,
     traceStartMs?: number,
     traceContext?: ExportTraceContext,
-    pausedDurationMs?: number
+    pausedDurationMs?: number,
+    exportMode?: "ai" | "ticket"
   ): Promise<RecordingSession | undefined>;
   stopImpl(
     commandId?: string,
@@ -79,7 +81,8 @@ export interface SessionLifecycle {
     silentExport?: boolean,
     traceStartMs?: number,
     traceContext?: ExportTraceContext,
-    pausedDurationMs?: number
+    pausedDurationMs?: number,
+    exportMode?: "ai" | "ticket"
   ): Promise<RecordingSession | undefined>;
   pauseMedia(sessionId: string): Promise<void>;
   resumeMedia(sessionId: string): Promise<void>;
@@ -89,6 +92,41 @@ export interface SessionLifecycle {
     pausedDurationMs: number,
     atEpochMs: number
   ): Promise<void>;
+}
+
+export function collectSessionTabIds(
+  session: RecordingSession,
+  ctx: Pick<BackgroundContext, "multiTabManager" | "cdpCollector">
+): number[] {
+  const ids = new Set<number>();
+  if (typeof session.target?.tabId === "number") {
+    ids.add(session.target.tabId);
+  }
+  if (Array.isArray(session.targets)) {
+    for (const target of session.targets) {
+      if (typeof target?.tabId === "number") {
+        ids.add(target.tabId);
+      }
+    }
+  }
+  if (ctx.multiTabManager) {
+    for (const target of ctx.multiTabManager.getTargets()) {
+      if (typeof target?.tabId === "number") {
+        ids.add(target.tabId);
+      }
+    }
+  }
+  const cdpWithTabs = ctx.cdpCollector as {
+    getAttachedTabIds?: () => Iterable<number>;
+  };
+  if (typeof cdpWithTabs?.getAttachedTabIds === "function") {
+    for (const tid of cdpWithTabs.getAttachedTabIds()) {
+      if (typeof tid === "number") {
+        ids.add(tid);
+      }
+    }
+  }
+  return Array.from(ids);
 }
 
 export function createSessionLifecycle(
@@ -410,7 +448,8 @@ export function createSessionLifecycle(
     silentExport = false,
     traceStartMs?: number,
     traceContext?: ExportTraceContext,
-    pausedDurationMs?: number
+    pausedDurationMs?: number,
+    exportMode?: "ai" | "ticket"
   ): Promise<RecordingSession | undefined> {
     const tTraceStart = traceStartMs ?? performance.now();
     let initialT0: number | undefined;
@@ -440,7 +479,8 @@ export function createSessionLifecycle(
           session,
           tTraceStart,
           e2eMetrics,
-          effectiveTraceContext
+          effectiveTraceContext,
+          exportMode
         );
       } finally {
         recordingCoordinator.finishStopping(session.id);
@@ -459,8 +499,11 @@ export function createSessionLifecycle(
     )
       return stopping;
     recordingCoordinator.beginStopping(session.id);
+    const sessionTabIds = collectSessionTabIds(stopping, ctx);
     navigationCapture.detach();
-    streamHealthMonitor.reset(session.target.tabId);
+    for (const tid of sessionTabIds) {
+      streamHealthMonitor.reset(tid);
+    }
     const cleanupErrors: string[] = [];
 
     // 并发预热 Offscreen Document 并预加载静态报告资源模版，消除阶段 3 冷启动等待
@@ -500,7 +543,6 @@ export function createSessionLifecycle(
 
     try {
       ctx.multiTabManager?.detach();
-      await cdpCollector.detach(session.target.tabId);
 
       const tMediaStart = performance.now();
       const mediaResponse = await chrome.runtime
@@ -558,11 +600,34 @@ export function createSessionLifecycle(
       );
       qualityReconcileDurationMs = performance.now() - tQualityStart;
     } finally {
-      await cdpCollector.detach(session.target.tabId);
+      const finalTabIds = Array.from(
+        new Set([...sessionTabIds, ...collectSessionTabIds(stopping, ctx)])
+      );
+      await Promise.all(
+        finalTabIds.map((tid) =>
+          cdpCollector.detach(tid).catch(() => undefined)
+        )
+      );
       if (!silentExport) {
-        await contentScripts.remove(session.target.tabId);
+        await Promise.all(
+          finalTabIds.map((tid) =>
+            contentScripts.remove(tid).catch(() => undefined)
+          )
+        );
+      } else if (typeof chrome !== "undefined" && chrome.tabs?.sendMessage) {
+        // 静默导出期间：先向所有关联标签页广播 content/reset，立即卸载副标签页悬浮挂件；
+        // 当前触发导出的标签页因 isSaving=true 会自动忽略该早期 reset，保持保存态直至导出完成平滑关闭。
+        await Promise.all(
+          finalTabIds.map((tid) =>
+            chrome.tabs
+              .sendMessage(tid, message("content/reset", {}))
+              .catch(() => undefined)
+          )
+        );
       }
-      streamHealthMonitor.reset(session.target.tabId);
+      for (const tid of finalTabIds) {
+        streamHealthMonitor.reset(tid);
+      }
     }
     const stage2DurationMs = performance.now() - tStage2Start;
     const stage2Metrics: Stage2Metrics = {
@@ -621,7 +686,8 @@ export function createSessionLifecycle(
           next,
           tTraceStart,
           e2eMetrics,
-          effectiveTraceContext
+          effectiveTraceContext,
+          exportMode
         );
       }
 
@@ -676,10 +742,16 @@ export function createSessionLifecycle(
       size?: string;
       note?: string;
     }>,
-    traceContext?: ExportTraceContext
+    traceContext?: ExportTraceContext,
+    exportMode: "ai" | "ticket" = "ai"
   ): Promise<RecordingSession> {
     let prompt: string | undefined;
-    let packResult: SilentExportPackResult | undefined;
+    let packResult:
+      | (SilentExportPackResult & {
+          ticketTemplate?: string;
+          ticketHtml?: string;
+        })
+      | undefined;
     let resolvedPath: string | undefined;
     let caughtError: unknown;
     try {
@@ -687,11 +759,14 @@ export function createSessionLifecycle(
       packResult = (await chrome.runtime.sendMessage(
         message(
           "offscreen/export-pack",
-          { sessionId: session.id, traceContext },
+          { sessionId: session.id, traceContext, exportMode },
           undefined,
           "offscreen"
         )
-      )) as SilentExportPackResult;
+      )) as SilentExportPackResult & {
+        ticketTemplate?: string;
+        ticketHtml?: string;
+      };
 
       if (packResult?.stage3Metrics) {
         e2eMetrics.push({
@@ -754,7 +829,10 @@ export function createSessionLifecycle(
           throw downloadErr;
         }
 
-        prompt = packResult.prompt;
+        prompt =
+          exportMode === "ticket"
+            ? packResult.ticketTemplate || packResult.prompt
+            : packResult.prompt;
         let downloadTimingStats: DownloadTimingStats = {
           pollWaitMs: 0,
           pollCount: 0,
@@ -851,7 +929,12 @@ export function createSessionLifecycle(
       }
     } else {
       await db.clearActive(session.id);
-      await contentScripts.remove(session.target.tabId).catch(() => undefined);
+      const exportTabIds = collectSessionTabIds(finalSession, ctx);
+      await Promise.all(
+        exportTabIds.map((tid) =>
+          contentScripts.remove(tid).catch(() => undefined)
+        )
+      );
     }
 
     const sessionDuration =
@@ -937,7 +1020,14 @@ export function createSessionLifecycle(
           },
     }).catch(() => undefined);
 
-    return { ...finalSession, silentPrompt: prompt, silentExportResult };
+    return {
+      ...finalSession,
+      silentPrompt: prompt,
+      silentTicketTemplate: packResult?.ticketTemplate,
+      silentTicketHtml: packResult?.ticketHtml,
+      silentExportMode: exportMode,
+      silentExportResult,
+    };
   }
 
   /** 幂等停止：同 commandId 已入库则直接复用其关联会话，保证一条停止指令只执行一次。 */
@@ -948,7 +1038,8 @@ export function createSessionLifecycle(
     silentExport = false,
     traceStartMs?: number,
     traceContext?: ExportTraceContext,
-    pausedDurationMs?: number
+    pausedDurationMs?: number,
+    exportMode?: "ai" | "ticket"
   ): Promise<RecordingSession | undefined> {
     let session: RecordingSession | undefined;
     if (commandId) {
@@ -987,7 +1078,8 @@ export function createSessionLifecycle(
         silentExport,
         traceStartMs,
         traceContext,
-        pausedDurationMs
+        pausedDurationMs,
+        exportMode
       )
     );
   }
@@ -1000,7 +1092,8 @@ export function createSessionLifecycle(
     silentExport = false,
     traceStartMs?: number,
     traceContext?: ExportTraceContext,
-    pausedDurationMs?: number
+    pausedDurationMs?: number,
+    exportMode?: "ai" | "ticket"
   ): Promise<RecordingSession | undefined> {
     return recordingCoordinator.runLifecycle(() =>
       stopSessionImpl(
@@ -1010,7 +1103,8 @@ export function createSessionLifecycle(
         silentExport,
         traceStartMs,
         traceContext,
-        pausedDurationMs
+        pausedDurationMs,
+        exportMode
       )
     );
   }

@@ -10,6 +10,8 @@ import { PreviewSessionRuntime } from "../../preview/preview-session-runtime";
 import {
   buildEvidencePackage,
   buildAiPrompt,
+  buildTicketTemplate,
+  buildTicketBundle,
 } from "../../preview/evidence-package";
 import { loadStaticReportAssets } from "../../preview/static-report-assets";
 import { buildExportManifest } from "../../export/export-manifest";
@@ -18,6 +20,10 @@ import {
   type ArchiveFile,
 } from "../../export/export-pipeline";
 import { Sha256 } from "../../export/sha256";
+import {
+  annotateClickImage,
+  dataUrlToBlob,
+} from "../../shared/click-annotation";
 import {
   installProcessFlightRecorder,
   recordFlightLog,
@@ -377,75 +383,17 @@ async function annotateImage(
     { type: "offscreen/annotate-image" }
   >["payload"]
 ): Promise<string> {
-  const [metadata = "", encoded = ""] = payload.dataUrl.split(",", 2);
-  const mimeType = metadata.match(/^data:([^;,]+)/)?.[1] || "image/jpeg";
-  const binary = atob(encoded);
-  const bytes = Uint8Array.from(binary, (ch) => ch.charCodeAt(0));
-  const blob = new Blob([bytes], { type: mimeType });
-  const bitmap = await createImageBitmap(blob);
-  try {
-    const rawWidth = bitmap.width;
-    const rawHeight = bitmap.height;
-
-    const maxDimension = 2048;
-    const longestEdge = Math.max(rawWidth, rawHeight);
-    const scale = longestEdge > maxDimension ? maxDimension / longestEdge : 1;
-
-    const targetWidth = Math.max(1, Math.round(rawWidth * scale));
-    const targetHeight = Math.max(1, Math.round(rawHeight * scale));
-
-    const canvas = new OffscreenCanvas(targetWidth, targetHeight);
-    const context = canvas.getContext("2d");
-    if (!context) throw new Error(t("canvasContextUnavailable"));
-
-    // JPEG 格式不支持透明度，预先填充纯白背景
-    context.fillStyle = "#ffffff";
-    context.fillRect(0, 0, targetWidth, targetHeight);
-
-    context.imageSmoothingEnabled = true;
-    context.imageSmoothingQuality = "high";
-    context.drawImage(
-      bitmap,
-      0,
-      0,
-      rawWidth,
-      rawHeight,
-      0,
-      0,
-      targetWidth,
-      targetHeight
-    );
-
-    // 交互点击坐标：按视口尺寸比例换算为图片像素坐标
-    const x =
-      payload.clientX * (targetWidth / Math.max(1, payload.viewportWidth));
-    const y =
-      payload.clientY * (targetHeight / Math.max(1, payload.viewportHeight));
-    const radius = Math.max(12, Math.min(targetWidth, targetHeight) * 0.018);
-    context.beginPath();
-    context.arc(x, y, radius, 0, Math.PI * 2);
-    context.lineWidth = Math.max(7, radius * 0.45);
-    context.strokeStyle = "rgba(255,255,255,.95)";
-    context.stroke();
-    // 外白内红双圈，模拟点击水波纹效果
-    context.beginPath();
-    context.arc(x, y, radius, 0, Math.PI * 2);
-    context.lineWidth = Math.max(3, radius * 0.22);
-    context.strokeStyle = "#ef233c";
-    context.stroke();
-    const blob = await canvas.convertToBlob({
-      type: "image/jpeg",
-      quality: 0.83,
-    });
-    return await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result));
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(blob);
-    });
-  } finally {
-    bitmap.close();
-  }
+  // 绘制逻辑与 Background 本地标注共用 click-annotation，避免两份实现漂移
+  const blob = await annotateClickImage(
+    dataUrlToBlob(payload.dataUrl),
+    payload
+  );
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
 }
 
 async function renderIssueImage(
@@ -622,6 +570,8 @@ async function exportPack(payload: {
   traceContext?: ExportTraceContext;
 }): Promise<{
   prompt: string;
+  ticketTemplate?: string;
+  ticketHtml?: string;
   blobUrl: string;
   filename: string;
   perfReport?: PerfReportData;
@@ -657,9 +607,10 @@ async function exportPack(payload: {
     const packageFiles = buildEvidencePackage(snapshot, reportAssets);
     const assembleDurationMs = performance.now() - tAssembleStart;
 
-    // 4. AI Prompt 提示词渲染耗时与字符规模
+    // 4. AI Prompt 提示词与工单模板渲染耗时与字符规模
     const tPromptStart = performance.now();
     const prompt = buildAiPrompt(snapshot, filename);
+    const ticketBundle = buildTicketBundle(snapshot, filename);
     const promptRenderDurationMs = performance.now() - tPromptStart;
     const promptCharCount = prompt.length;
 
@@ -737,6 +688,8 @@ async function exportPack(payload: {
 
     return {
       prompt,
+      ticketTemplate: ticketBundle.markdown,
+      ticketHtml: ticketBundle.html,
       blobUrl,
       filename,
       perfReport: collectedPerfReport,

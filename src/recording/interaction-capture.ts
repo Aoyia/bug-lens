@@ -14,6 +14,11 @@ import {
 } from "../storage/db.ts";
 import { t } from "../shared/i18n.ts";
 import {
+  annotateClickImage,
+  canAnnotateInCurrentContext,
+  dataUrlToBlob,
+} from "../shared/click-annotation.ts";
+import {
   message,
   RECORDING_STATUSES,
   type CaptureIssue,
@@ -109,7 +114,13 @@ export class InteractionCapture {
   private abortedSessionId?: string;
   private abortController = new AbortController();
   private readonly sessionInteractions = new Map<string, Set<string>>();
-  private cdpBreakerOpen = false;
+  /**
+   * CDP 截图熔断：按 tabId 记录熔断截止时间。
+   * 单次超时只熔断对应标签页并在冷却后自动恢复，避免一次瞬时卡顿把整场录制永久降级到
+   * captureVisibleTab（后者受每秒 2 次配额限制，且 activeTab 授权不覆盖后续纳管的副标签页）。
+   */
+  private readonly cdpBreakerUntil = new Map<number, number>();
+  private static readonly CDP_BREAKER_COOLDOWN_MS = 5000;
 
   constructor(
     repository: InteractionRepository,
@@ -161,7 +172,7 @@ export class InteractionCapture {
     this.abortedSessionId = undefined;
     this.abortController = new AbortController();
     this.captureQueue = Promise.resolve();
-    this.cdpBreakerOpen = false;
+    this.cdpBreakerUntil.clear();
     this.latestTopViewport = undefined;
     this.lastCaptureTime = 0;
     this.lastCapturedFrame = null;
@@ -485,7 +496,16 @@ export class InteractionCapture {
       interactionSet = new Set<string>();
       this.sessionInteractions.set(session.id, interactionSet);
     }
+    const isFirstSeen = !interactionSet.has(incoming.id);
     interactionSet.add(incoming.id);
+
+    // 关键时序保证：pointerdown (candidate) 到达后必须立即启动视口截屏，
+    // 绝不能被下方 persist() 的 IndexedDB 200ms 批量合并窗口阻塞，否则截屏将延后至 click 触发弹窗/过渡动画之后（导致半透明重影模糊）
+    const preCapturedFrame =
+      session.options.captureScreenshots && isFirstSeen && !this.aborted
+        ? this.captureRawFrame(session, sender)
+        : undefined;
+    preCapturedFrame?.catch(() => undefined);
 
     const event: InteractionEvent =
       incoming.status === "confirmed"
@@ -524,7 +544,7 @@ export class InteractionCapture {
       });
     }
     if (session.options.captureScreenshots && !previous && !this.aborted) {
-      await this.captureScreenshot(session, next, sender);
+      await this.captureScreenshot(session, next, sender, preCapturedFrame);
     } else if (
       session.options.captureScreenshots &&
       !previous &&
@@ -572,12 +592,12 @@ export class InteractionCapture {
       // 使用发生交互的真实 Tab ID（副 Tab 操作时指向副 Tab，而非主 Tab）
       const tabId = targetTabId ?? session.target.tabId;
 
-      // 1. 优先尝试 CDP Page.captureScreenshot（若熔断器未开启）
+      // 1. 优先尝试 CDP Page.captureScreenshot（若该 Tab 熔断器未开启或已过冷却期）
       if (
-        !this.cdpBreakerOpen &&
+        tabId &&
+        (this.cdpBreakerUntil.get(tabId) ?? 0) <= Date.now() &&
         typeof chrome !== "undefined" &&
-        chrome.debugger &&
-        tabId
+        chrome.debugger
       ) {
         try {
           const cdpTask = Promise.resolve().then(
@@ -609,7 +629,10 @@ export class InteractionCapture {
             throw err;
           }
           if (err?.message === "CDP_CAPTURE_TIMEOUT") {
-            this.cdpBreakerOpen = true;
+            this.cdpBreakerUntil.set(
+              tabId,
+              Date.now() + InteractionCapture.CDP_BREAKER_COOLDOWN_MS
+            );
           }
           // CDP 未附着、超时或断开时降级走 captureVisibleTab
         }
@@ -728,10 +751,30 @@ export class InteractionCapture {
     return task;
   }
 
+  private async captureRawFrame(
+    session: RecordingSession,
+    sender: chrome.runtime.MessageSender
+  ): Promise<{ rawDataUrl: string; capDuration: number }> {
+    await this.assertTargetTabIsActive(session, sender.tab?.id);
+    const capStartTime = performance.now();
+    const realTabId = sender.tab?.id ?? session.target.tabId;
+    const realWindowId = sender.tab?.windowId ?? session.target.windowId;
+    const rawDataUrl = await this.executeCaptureScreenshot(
+      session,
+      realTabId,
+      realWindowId
+    );
+    return {
+      rawDataUrl,
+      capDuration: performance.now() - capStartTime,
+    };
+  }
+
   private async captureScreenshot(
     session: RecordingSession,
     interaction: InteractionRecord,
-    sender: chrome.runtime.MessageSender
+    sender: chrome.runtime.MessageSender,
+    preCapturedFrame?: Promise<{ rawDataUrl: string; capDuration: number }>
   ): Promise<void> {
     if (this.aborted) {
       await this.persist(session.id, interaction.id, {
@@ -742,25 +785,17 @@ export class InteractionCapture {
     }
     const endStepTimer = DevProfiler.time(`交互截图生成 #${interaction.id}`);
     try {
-      await this.assertTargetTabIsActive(session, sender.tab?.id);
-      const capStartTime = performance.now();
       const realTabId = sender.tab?.id ?? session.target.tabId;
-      const realWindowId = sender.tab?.windowId ?? session.target.windowId;
-      const rawDataUrl = await this.executeCaptureScreenshot(
-        session,
-        realTabId,
-        realWindowId
-      );
+      const { rawDataUrl, capDuration } = await (preCapturedFrame ??
+        this.captureRawFrame(session, sender));
       if (this.aborted) {
         throw new Error("CAPTURE_ABORTED");
       }
-      const capDuration = performance.now() - capStartTime;
       const markStartTime = performance.now();
       if (this.aborted) {
         throw new Error("CAPTURE_ABORTED");
       }
 
-      let finalDataUrl = rawDataUrl;
       let source: "primary" | "fallback" = "primary";
 
       const vp =
@@ -773,33 +808,46 @@ export class InteractionCapture {
               interaction.page.frameId
             );
 
+      let annotatedBytes: ArrayBuffer | undefined;
       try {
-        const annotateTask = Promise.resolve().then(() =>
-          chrome.runtime.sendMessage(
-            message(
-              "offscreen/annotate-image",
-              {
-                dataUrl: rawDataUrl,
-                clientX: interaction.coordinates.clientX,
-                clientY: interaction.coordinates.clientY,
-                viewportWidth: vp.width,
-                viewportHeight: vp.height,
-              },
-              session.id,
-              "offscreen"
-            )
-          )
-        ) as Promise<{ ok?: boolean; dataUrl?: string; error?: string }>;
-        const annotated = await withTimeout(
+        const annotatePayload = {
+          clientX: interaction.coordinates.clientX,
+          clientY: interaction.coordinates.clientY,
+          viewportWidth: vp.width,
+          viewportHeight: vp.height,
+        };
+        // 优先在 Service Worker 内本地标注：免去 Offscreen IPC 往返、两次 base64 编解码，
+        // 以及隐藏文档 convertToBlob 空闲任务调度带来的约 1s 固定延迟；不具备能力时回退 Offscreen
+        const annotateTask: Promise<ArrayBuffer | undefined> =
+          canAnnotateInCurrentContext()
+            ? annotateClickImage(
+                dataUrlToBlob(rawDataUrl),
+                annotatePayload
+              ).then((blob) => blob.arrayBuffer())
+            : (
+                Promise.resolve().then(() =>
+                  chrome.runtime.sendMessage(
+                    message(
+                      "offscreen/annotate-image",
+                      { dataUrl: rawDataUrl, ...annotatePayload },
+                      session.id,
+                      "offscreen"
+                    )
+                  )
+                ) as Promise<{ ok?: boolean; dataUrl?: string; error?: string }>
+              ).then((annotated) =>
+                annotated?.ok && typeof annotated.dataUrl === "string"
+                  ? dataUrlToArrayBuffer(annotated.dataUrl)
+                  : undefined
+              );
+        annotatedBytes = await withTimeout(
           annotateTask,
           1500,
           "ANNOTATION_TIMEOUT",
           this.abortController.signal
         );
 
-        if (annotated?.ok && typeof annotated.dataUrl === "string") {
-          finalDataUrl = annotated.dataUrl;
-        } else {
+        if (!annotatedBytes) {
           source = "fallback";
         }
       } catch (annotateErr: any) {
@@ -814,7 +862,7 @@ export class InteractionCapture {
       }
       const markDuration = performance.now() - markStartTime;
       const assetId = `asset-interaction-${interaction.id}`;
-      const bytes = dataUrlToArrayBuffer(finalDataUrl);
+      const bytes = annotatedBytes ?? dataUrlToArrayBuffer(rawDataUrl);
       endStepTimer({
         视口截屏: `${capDuration.toFixed(1)} ms`,
         Offscreen标注与压缩: `${markDuration.toFixed(1)} ms`,

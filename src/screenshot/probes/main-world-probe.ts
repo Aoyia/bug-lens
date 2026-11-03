@@ -285,6 +285,7 @@ export function runMainWorldFrameworkProbe(
             !Array.isArray(rawProps)
           ) {
             const filtered: Record<string, unknown> = {};
+            let filteredCount = 0;
             for (const k of Object.keys(rawProps)) {
               if (
                 k === "children" ||
@@ -300,6 +301,8 @@ export function runMainWorldFrameworkProbe(
                 continue;
               }
               filtered[k] = rawProps[k];
+              filteredCount += 1;
+              if (filteredCount >= 20) break;
             }
             const sanitized = sanitizeValue(filtered);
             if (sanitized && Object.keys(sanitized).length > 0) {

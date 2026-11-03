@@ -1,7 +1,8 @@
 import { copyTextToClipboard } from "./clipboard.ts";
 import { t } from "../shared/i18n.ts";
 
-export type PreviewTab = "steps" | "console" | "network" | "issues";
+export type PreviewTab =
+  "steps" | "console" | "network" | "issues" | "framework" | "stream";
 
 export class PreviewPageShell {
   private tab: PreviewTab = "issues";

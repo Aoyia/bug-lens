@@ -34,7 +34,9 @@ export type PreviewExportOptions = {
   getMediaChunkCount(): number;
   notify(message: string): void;
   onArtifactChanged(): void;
-  onExportComplete?: () => Promise<boolean>;
+  beforeExport?: () => Promise<unknown>;
+  onExportStart?: (mode: "ai" | "ticket") => Promise<boolean>;
+  onExportComplete?: (mode: "ai" | "ticket") => Promise<boolean>;
   loadAssets?: () => Promise<StaticReportAssets>;
   createArchive?: typeof createTemporaryArchive;
   writeArchive?: typeof writeEvidenceArchive;
@@ -43,45 +45,56 @@ export type PreviewExportOptions = {
 export class PreviewExportController {
   private artifact?: ExportArtifact;
   private readonly button: HTMLButtonElement;
+  private readonly ticketButton: HTMLButtonElement | null;
   private readonly loadAssets: () => Promise<StaticReportAssets>;
   private readonly options: PreviewExportOptions;
 
   constructor(options: PreviewExportOptions) {
     this.options = options;
     this.button = options.root.querySelector<HTMLButtonElement>("#export")!;
+    this.ticketButton =
+      options.root.querySelector<HTMLButtonElement>("#create-ticket-btn");
     this.loadAssets = options.loadAssets ?? loadStaticReportAssets;
-    this.button.addEventListener("click", () => void this.export());
+    this.button?.addEventListener("click", () => void this.export("ai"));
+    this.ticketButton?.addEventListener(
+      "click",
+      () => void this.export("ticket")
+    );
   }
 
   get currentArtifact(): ExportArtifact | undefined {
     return this.artifact;
   }
 
-  private progressBar: HTMLElement | null = null;
-  private progressFill: HTMLElement | null = null;
+  private setProgress(
+    percent: number,
+    done = false,
+    mode: "ai" | "ticket" = "ai"
+  ): void {
+    const barId =
+      mode === "ticket" ? "#ticket-progress-bar" : "#export-progress-bar";
+    const fillId =
+      mode === "ticket" ? "#ticket-progress-fill" : "#export-progress-fill";
+    const bar =
+      this.options.root.querySelector<HTMLElement>(barId) ??
+      this.options.root.querySelector<HTMLElement>("#export-progress-bar");
+    const fill =
+      this.options.root.querySelector<HTMLElement>(fillId) ??
+      this.options.root.querySelector<HTMLElement>("#export-progress-fill");
 
-  private setProgress(percent: number, done = false): void {
-    if (!this.progressBar) {
-      this.progressBar = this.options.root.querySelector<HTMLElement>(
-        "#export-progress-bar"
-      );
-      this.progressFill = this.options.root.querySelector<HTMLElement>(
-        "#export-progress-fill"
-      );
-    }
-    if (!this.progressBar || !this.progressFill) return;
-    this.progressBar.hidden = false;
+    if (!bar || !fill) return;
+    bar.hidden = false;
     if (done) {
-      this.progressFill.style.width = "100%";
-      this.progressFill.classList.add("done");
+      fill.style.width = "100%";
+      fill.classList.add("done");
       setTimeout(() => {
-        if (this.progressBar) this.progressBar.hidden = true;
-        this.progressFill?.classList.remove("done");
-        if (this.progressFill) this.progressFill.style.width = "0%";
+        bar.hidden = true;
+        fill.classList.remove("done");
+        fill.style.width = "0%";
       }, 2000);
     } else {
-      this.progressFill.classList.remove("done");
-      this.progressFill.style.width = `${Math.min(99, Math.max(2, percent))}%`;
+      fill.classList.remove("done");
+      fill.style.width = `${Math.min(99, Math.max(2, percent))}%`;
     }
   }
 
@@ -94,17 +107,32 @@ export class PreviewExportController {
     this.options.onArtifactChanged();
   }
 
-  async export(): Promise<void> {
+  async export(
+    mode: "ai" | "ticket" = "ai",
+    exportOptions?: { skipClipboard?: boolean }
+  ): Promise<void> {
     const { sessionId, storage, getSnapshot } = this.options;
     const createArchive = this.options.createArchive ?? createTemporaryArchive;
     const writeArchive = this.options.writeArchive ?? writeEvidenceArchive;
+    const activeBtn = mode === "ticket" ? this.ticketButton : this.button;
+
+    // 在用户点击手势和 Document 焦点处于最高特权时刻，立即写入工单剪贴板数据
+    let earlyCopied = false;
+    if (mode === "ticket" && !exportOptions?.skipClipboard) {
+      earlyCopied = (await this.options.onExportStart?.("ticket")) ?? false;
+    }
+
     this.button.disabled = true;
-    this.button.textContent = t("exportPreparing");
-    this.setProgress(2);
+    if (this.ticketButton) this.ticketButton.disabled = true;
+    if (activeBtn) activeBtn.textContent = t("exportPreparing");
+    this.setProgress(2, false, mode);
     let temporaryArchive:
       Awaited<ReturnType<typeof createTemporaryArchive>> | undefined;
     let blobUrl: string | undefined;
     try {
+      if (this.options.beforeExport) {
+        await this.options.beforeExport();
+      }
       const snapshot = getSnapshot();
       if (!snapshot || !sessionId) throw new Error(t("loading"));
       const reportAssets = await this.loadAssets();
@@ -129,23 +157,27 @@ export class PreviewExportController {
         onProgress: ({ mediaChunksWritten, bytesWritten }) => {
           if (mediaChunksWritten && totalChunks > 0) {
             const pct = 5 + (mediaChunksWritten / totalChunks) * 90;
-            this.setProgress(pct);
-            this.button.textContent = t("exportWritingVideo", [
-              String(mediaChunksWritten),
-              String(totalChunks),
-            ]);
+            this.setProgress(pct, false, mode);
+            if (activeBtn) {
+              activeBtn.textContent = t("exportWritingVideo", [
+                String(mediaChunksWritten),
+                String(totalChunks),
+              ]);
+            }
           } else {
-            this.setProgress(30);
-            this.button.textContent = t(
-              "exportGenerating",
-              String(Math.max(1, Math.round(bytesWritten / 1024)))
-            );
+            this.setProgress(30, false, mode);
+            if (activeBtn) {
+              activeBtn.textContent = t(
+                "exportGenerating",
+                String(Math.max(1, Math.round(bytesWritten / 1024)))
+              );
+            }
           }
         },
       });
       const archiveFile = await temporaryArchive.getFile();
       blobUrl = URL.createObjectURL(archiveFile);
-      this.setProgress(97);
+      this.setProgress(97, false, mode);
       const downloadId = await chrome.downloads.download({
         url: blobUrl,
         filename,
@@ -163,13 +195,22 @@ export class PreviewExportController {
       await storage.saveExportArtifact(this.artifact);
       this.options.onArtifactChanged();
       if (this.artifact.state === "complete") {
-        this.setProgress(100, true);
-        const autoCopied = await this.options.onExportComplete?.();
-        this.options.notify(
-          autoCopied ? t("exportSuccessCopied") : t("exportSuccessCanCopy")
-        );
+        this.setProgress(100, true, mode);
+        let autoCopied = earlyCopied || Boolean(exportOptions?.skipClipboard);
+        if (!autoCopied) {
+          autoCopied = (await this.options.onExportComplete?.(mode)) ?? false;
+        }
+        const successMsg =
+          mode === "ticket"
+            ? autoCopied
+              ? t("exportSuccessTicketCopied")
+              : t("exportSuccessCanCopy")
+            : autoCopied
+              ? t("exportSuccessCopied")
+              : t("exportSuccessCanCopy");
+        this.options.notify(successMsg);
       } else {
-        this.setProgress(0);
+        this.setProgress(0, false, mode);
         if (isUserCanceled(this.artifact.error)) {
           this.options.notify(t("exportCanceled"));
         } else {
@@ -179,7 +220,7 @@ export class PreviewExportController {
         }
       }
     } catch (error) {
-      this.setProgress(0);
+      this.setProgress(0, false, mode);
       if (isUserCanceled(error)) {
         this.options.notify(t("exportCanceled"));
       } else {
@@ -190,6 +231,10 @@ export class PreviewExportController {
       await temporaryArchive?.cleanup().catch(() => undefined);
       this.button.disabled = false;
       this.button.textContent = t("exportReport");
+      if (this.ticketButton) {
+        this.ticketButton.disabled = false;
+        this.ticketButton.textContent = t("createTicket");
+      }
     }
   }
 

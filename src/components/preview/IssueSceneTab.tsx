@@ -274,6 +274,8 @@ export const IssueSceneTab = memo(function IssueSceneTab({
                     src={image}
                     alt={t("sceneScreenshotAlt")}
                     title={t("clickToZoom")}
+                    loading="lazy"
+                    decoding="async"
                     onClick={() => onOpenImage?.(scene.id, currentMode)}
                   />
                 ) : (

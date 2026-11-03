@@ -3,7 +3,10 @@ import { useState, useCallback } from "preact/hooks";
 import type { ConsoleEntry, RecordingSession } from "../../shared/protocol.ts";
 import { formatElapsedEpochTime } from "../../domain/evidence-clock.ts";
 import { useFilteredList } from "../../hooks/useFilteredList.ts";
-import { filterConsoleEntries } from "../../preview/console-filter.ts";
+import {
+  filterConsoleEntries,
+  matchesConsoleEntry,
+} from "../../preview/console-filter.ts";
 import { handleFilterEscape } from "../../preview/filter-search.ts";
 import { t, getLocale } from "../../shared/i18n.ts";
 import { formatTime } from "../../shared/intl-formatter.ts";
@@ -51,7 +54,7 @@ export const ConsoleTab = memo(function ConsoleTab({
 
   const matchFn = useCallback(
     (entry: ConsoleEntry, query: string) => {
-      return filterConsoleEntries([entry], levelFilter, query).length > 0;
+      return matchesConsoleEntry(entry, levelFilter, query);
     },
     [levelFilter]
   );

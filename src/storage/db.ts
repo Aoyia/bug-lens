@@ -74,8 +74,10 @@ async function put(storeName: StoreName, value: unknown): Promise<void> {
         const tx = database.transaction(storeName, "readwrite");
         tx.objectStore(storeName).put(value);
         tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error ?? new Error(`IndexedDB ${storeName} 写入错误`));
-        tx.onabort = () => reject(tx.error ?? new Error(`IndexedDB ${storeName} 事务中断`));
+        tx.onerror = () =>
+          reject(tx.error ?? new Error(`IndexedDB ${storeName} 写入错误`));
+        tx.onabort = () =>
+          reject(tx.error ?? new Error(`IndexedDB ${storeName} 事务中断`));
       } catch (err) {
         reject(err);
       }
@@ -130,6 +132,23 @@ async function list<T>(
       .index(indexName)
       .getAll(key);
     req.onsuccess = () => resolve((req.result ?? []) as T[]);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function countByIndex(
+  storeName: StoreName,
+  indexName: string,
+  key: IDBValidKey
+): Promise<number> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const req = db
+      .transaction(storeName)
+      .objectStore(storeName)
+      .index(indexName)
+      .count(key);
+    req.onsuccess = () => resolve(req.result ?? 0);
     req.onerror = () => reject(req.error);
   });
 }
@@ -264,7 +283,7 @@ function sumBytesByCursor(
 async function measureSessionBytes(sessionId: string): Promise<number> {
   if (!sessionId || typeof sessionId !== "string") return 0;
   const database = await openDb();
-  // 跨 7 个证据 store 逐个游标累计字节数；仅在没有缓存用量（storage.usedBytes）时兜底调用
+  // 跨 7 个证据 store 并行游标累计字节数；仅在没有缓存用量（storage.usedBytes）时兜底调用
   const storeNames: StoreName[] = [
     "interactions",
     "consoleEntries",
@@ -274,11 +293,12 @@ async function measureSessionBytes(sessionId: string): Promise<number> {
     "evidenceAssets",
     "frameworkStates",
   ];
-  let total = 0;
-  for (const storeName of storeNames) {
-    total += await sumBytesByCursor(database, storeName, sessionId);
-  }
-  return total;
+  const counts = await Promise.all(
+    storeNames.map((storeName) =>
+      sumBytesByCursor(database, storeName, sessionId)
+    )
+  );
+  return counts.reduce((total, bytes) => total + bytes, 0);
 }
 
 async function deleteIssueScene(issueSceneId: string): Promise<void> {
@@ -326,19 +346,19 @@ async function evidenceFor(session: RecordingSession) {
   if (!session?.id || typeof session.id !== "string") {
     return buildEvidenceSummary(session, { count: 0 }, [], [], 0);
   }
-  const [media, networkEntries, issueScenes, frameworkStates] =
+  const [media, networkEntries, issueScenes, frameworkStateCount] =
     await Promise.all([
       getMediaSummary(session.id),
       list<NetworkEntry>("networkEntries", "sessionId", session.id),
       list<IssueScene>("issueScenes", "sessionId", session.id),
-      list<FrameworkStateEvidence>("frameworkStates", "sessionId", session.id),
+      countByIndex("frameworkStates", "sessionId", session.id),
     ]);
   return buildEvidenceSummary(
     session,
     media,
     networkEntries,
     issueScenes,
-    frameworkStates.length
+    frameworkStateCount
   );
 }
 

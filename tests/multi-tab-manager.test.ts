@@ -43,7 +43,9 @@ beforeEach(() => {
   };
 });
 
-function createMockSession(overrides?: Partial<RecordingSession>): RecordingSession {
+function createMockSession(
+  overrides?: Partial<RecordingSession>
+): RecordingSession {
   return {
     id: "test-session-123",
     schemaVersion: 2,
@@ -93,7 +95,10 @@ test("MultiTabManager - 初始化主标签页纳管", () => {
   let session = createMockSession();
   const repo = {
     getActiveSession: async () => session,
-    updateSession: async (_id: string, updater: (s: RecordingSession) => RecordingSession) => {
+    updateSession: async (
+      _id: string,
+      updater: (s: RecordingSession) => RecordingSession
+    ) => {
       session = updater(session);
       return session;
     },
@@ -128,7 +133,10 @@ test("MultiTabManager - 手动添加前台标签页纳管与 CDP/Content 注入"
   let session = createMockSession();
   const repo = {
     getActiveSession: async () => session,
-    updateSession: async (_id: string, updater: (s: RecordingSession) => RecordingSession) => {
+    updateSession: async (
+      _id: string,
+      updater: (s: RecordingSession) => RecordingSession
+    ) => {
       session = updater(session);
       return session;
     },
@@ -170,7 +178,10 @@ test("MultiTabManager - 移出单个副标签页不影响主录制", async () =>
   let session = createMockSession();
   const repo = {
     getActiveSession: async () => session,
-    updateSession: async (_id: string, updater: (s: RecordingSession) => RecordingSession) => {
+    updateSession: async (
+      _id: string,
+      updater: (s: RecordingSession) => RecordingSession
+    ) => {
       session = updater(session);
       return session;
     },
@@ -195,9 +206,14 @@ test("MultiTabManager - 移出单个副标签页不影响主录制", async () =>
   } as any;
 
   let allClosed = false;
-  const manager = new MultiTabManager(repo, contentScripts, cdpCollector, async () => {
-    allClosed = true;
-  });
+  const manager = new MultiTabManager(
+    repo,
+    contentScripts,
+    cdpCollector,
+    async () => {
+      allClosed = true;
+    }
+  );
 
   manager.initSession(session);
   await manager.addTab(202);
@@ -217,7 +233,10 @@ test("MultiTabManager - 主标签页关闭时自动晋升副标签页，全部�
   let session = createMockSession();
   const repo = {
     getActiveSession: async () => session,
-    updateSession: async (_id: string, updater: (s: RecordingSession) => RecordingSession) => {
+    updateSession: async (
+      _id: string,
+      updater: (s: RecordingSession) => RecordingSession
+    ) => {
       session = updater(session);
       return session;
     },
@@ -236,9 +255,14 @@ test("MultiTabManager - 主标签页关闭时自动晋升副标签页，全部�
   } as any;
 
   let allClosedCalled = false;
-  const manager = new MultiTabManager(repo, contentScripts, cdpCollector, async () => {
-    allClosedCalled = true;
-  });
+  const manager = new MultiTabManager(
+    repo,
+    contentScripts,
+    cdpCollector,
+    async () => {
+      allClosedCalled = true;
+    }
+  );
 
   manager.initSession(session);
   await manager.addTab(202);
@@ -260,7 +284,10 @@ test("MultiTabManager - 智能派生标签页自动纳管与导航恢复", async
   let session = createMockSession();
   const repo = {
     getActiveSession: async () => session,
-    updateSession: async (_id: string, updater: (s: RecordingSession) => RecordingSession) => {
+    updateSession: async (
+      _id: string,
+      updater: (s: RecordingSession) => RecordingSession
+    ) => {
       session = updater(session);
       return session;
     },
@@ -311,7 +338,10 @@ test("MultiTabManager - 切换活动标签页时全自动纳管前台普通网�
   let session = createMockSession();
   const repo = {
     getActiveSession: async () => session,
-    updateSession: async (_id: string, updater: (s: RecordingSession) => RecordingSession) => {
+    updateSession: async (
+      _id: string,
+      updater: (s: RecordingSession) => RecordingSession
+    ) => {
       session = updater(session);
       return session;
     },
@@ -353,4 +383,62 @@ test("MultiTabManager - 切换活动标签页时全自动纳管前台普通网�
   assert.equal(syncMsg?.message?.type, "tab/state-sync");
 });
 
+test("MultiTabManager - 并发重复 addTab 自动合并去重，且已纳管标签页非 complete 的 onUpdated 不查询 DB", async () => {
+  let session = createMockSession();
+  let getActiveSessionCalls = 0;
+  const repo = {
+    getActiveSession: async () => {
+      getActiveSessionCalls += 1;
+      await new Promise((r) => setTimeout(r, 10));
+      return session;
+    },
+    updateSession: async (
+      _id: string,
+      updater: (s: RecordingSession) => RecordingSession
+    ) => {
+      session = updater(session);
+      return session;
+    },
+  };
 
+  const activatedTabs: number[] = [];
+  const contentScripts = {
+    activate: async (tabId: number) => {
+      activatedTabs.push(tabId);
+    },
+    restore: async () => {},
+    remove: async () => {},
+  } as any;
+
+  const attachedTabs: number[] = [];
+  const cdpCollector = {
+    attach: async (tabId: number) => {
+      attachedTabs.push(tabId);
+      return undefined;
+    },
+    detach: async () => {},
+    verifyOwnership: async () => true,
+  } as any;
+
+  const manager = new MultiTabManager(repo, contentScripts, cdpCollector);
+  manager.initSession(session);
+
+  // 并发调用 3 次 addTab(505)
+  await Promise.all([
+    manager.addTab(505),
+    manager.addTab(505),
+    manager.addTab(505),
+  ]);
+
+  assert.deepEqual(activatedTabs, [505]);
+  assert.deepEqual(attachedTabs, [505]);
+
+  // 已纳管的标签页触发 loading / title 更新时不应查询 getActiveSession
+  const beforeCalls = getActiveSessionCalls;
+  await (manager as any).handleTabUpdated(
+    505,
+    { status: "loading" },
+    { id: 505, url: "https://example.com/tab-505" }
+  );
+  assert.equal(getActiveSessionCalls, beforeCalls);
+});

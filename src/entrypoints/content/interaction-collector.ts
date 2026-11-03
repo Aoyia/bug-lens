@@ -4,7 +4,10 @@ import {
   onLanguagePreferenceChange,
   t,
 } from "../../shared/i18n";
-import { copyTextToClipboard } from "../../preview/clipboard";
+import {
+  copyTextToClipboard,
+  copyRichTextToClipboard,
+} from "../../preview/clipboard";
 import {
   incrementPromptCopyCount,
   recordTaskProfile,
@@ -155,6 +158,7 @@ if (existingController) {
         monitor?.stop();
         const uiFreezeDurationMs = performance.now() - tFreezeStart;
 
+        const exportMode = clickInfo?.exportMode ?? "ai";
         const traceContext = createExportTraceContext(t0EpochMs);
         const tSendEpochMs = getEpochTimestampMs();
         traceContext.stage1 = {
@@ -171,6 +175,7 @@ if (existingController) {
               commandId: crypto.randomUUID(),
               // 结束即导出：直出证据包下载，不打开预览页（业务契约，勿改）
               silentExport: true,
+              exportMode,
               traceStartMs: t0Perf,
               traceContext,
               pausedDurationMs: monitor?.getPausedDurationMs() ?? 0,
@@ -207,10 +212,18 @@ if (existingController) {
 
           const clipboardStart = performance.now();
           const prompt = res?.session?.silentPrompt;
+          const ticketHtml = res?.session?.silentTicketHtml;
           let copiedPrompt = false;
           if (prompt) {
             try {
-              await copyTextToClipboard(prompt);
+              if (ticketHtml) {
+                await copyRichTextToClipboard({
+                  html: ticketHtml,
+                  text: prompt,
+                });
+              } else {
+                await copyTextToClipboard(prompt);
+              }
               copiedPrompt = true;
             } catch {
               // 忽略
@@ -227,8 +240,13 @@ if (existingController) {
               res?.session?.id ??
               (res?.session as { sessionId?: string })?.sessionId ??
               session?.sessionId;
+            const isTicket =
+              (res?.session?.silentExportMode ?? exportMode) === "ticket";
+            const successMsg = isTicket
+              ? t("exportSuccessTicketCopied")
+              : t("exportSuccessCopied");
             widget.showToast(
-              t("exportSuccessCopied"),
+              successMsg,
               6000,
               "normal",
               targetSessionId
@@ -453,19 +471,26 @@ if (existingController) {
               "offscreen"
             )
           );
-          void chrome.runtime.sendMessage(
-            message(
-              "recording/pause-state",
-              {
-                sessionId: session.sessionId,
-                isPaused: true,
-                pausedDurationMs: monitor?.getPausedDurationMs() ?? 0,
-                atEpochMs: Date.now(),
-              },
-              session.sessionId,
-              "background"
+          void chrome.runtime
+            .sendMessage(
+              message(
+                "recording/pause-state",
+                {
+                  sessionId: session.sessionId,
+                  isPaused: true,
+                  pausedDurationMs: monitor?.getPausedDurationMs() ?? 0,
+                  atEpochMs: Date.now(),
+                },
+                session.sessionId,
+                "background"
+              )
             )
-          );
+            .then((res) => {
+              if (res && (res as { active?: boolean }).active === false) {
+                refreshSession(undefined);
+              }
+            })
+            .catch(() => undefined);
         }
       },
       onResume() {
@@ -479,19 +504,26 @@ if (existingController) {
               "offscreen"
             )
           );
-          void chrome.runtime.sendMessage(
-            message(
-              "recording/pause-state",
-              {
-                sessionId: session.sessionId,
-                isPaused: false,
-                pausedDurationMs: monitor?.getPausedDurationMs() ?? 0,
-                atEpochMs: Date.now(),
-              },
-              session.sessionId,
-              "background"
+          void chrome.runtime
+            .sendMessage(
+              message(
+                "recording/pause-state",
+                {
+                  sessionId: session.sessionId,
+                  isPaused: false,
+                  pausedDurationMs: monitor?.getPausedDurationMs() ?? 0,
+                  atEpochMs: Date.now(),
+                },
+                session.sessionId,
+                "background"
+              )
             )
-          );
+            .then((res) => {
+              if (res && (res as { active?: boolean }).active === false) {
+                refreshSession(undefined);
+              }
+            })
+            .catch(() => undefined);
         }
       },
       isBlocked: (): boolean =>
@@ -595,7 +627,11 @@ if (existingController) {
     // 同步到 window 挂载符号，供调试与重复注入时读取
     window.__WEB_BUG_RECORDER_SESSION__ = next;
     if (next) {
+      observer.attach();
       if (isTopFrame) {
+        if (!hadSession) {
+          mountedWidget?.resetPosition();
+        }
         mountedWidget?.mount();
         if (health && mountedWidget) mountedWidget.updateHealth(health);
         monitor?.start();
@@ -605,7 +641,9 @@ if (existingController) {
         captureFrameworkTick("start");
       }
     } else {
+      observer.detach();
       if (isTopFrame) {
+        mountedWidget?.resetPosition();
         mountedWidget?.unmount();
         monitor?.stop();
       } else {
@@ -616,7 +654,45 @@ if (existingController) {
 
   // ─── Bootstrap ───
 
-  observer.attach();
+  // 标签页切回前台时自愈对账：防止后台冻结/丢包导致已停止会话的悬浮挂件残留在副标签页
+  if (isTopFrame && typeof window !== "undefined") {
+    const reconcileActiveSession = () => {
+      if (!session || mountedWidget?.isSaving || mountedWidget?.isClosing) {
+        return;
+      }
+      if (
+        typeof document !== "undefined" &&
+        document.visibilityState === "hidden"
+      ) {
+        return;
+      }
+      void chrome.runtime
+        .sendMessage(
+          message("content/hello", {
+            url: location.href,
+            title: document.title,
+          })
+        )
+        .then((response) => {
+          if (
+            response &&
+            response.ok &&
+            (!response.active || response.sessionId !== session?.sessionId)
+          ) {
+            if (!mountedWidget?.isSaving && !mountedWidget?.isClosing) {
+              refreshSession(undefined);
+            }
+          }
+        })
+        .catch(() => undefined);
+    };
+    window.addEventListener("focus", reconcileActiveSession, { passive: true });
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", reconcileActiveSession, {
+        passive: true,
+      });
+    }
+  }
 
   window.__WEB_BUG_RECORDER_CONTROLLER__ = { refresh: refreshSession };
   chrome.runtime.onMessage.addListener((raw: unknown) => {

@@ -69,19 +69,33 @@ function createMockDocument() {
   };
 
   const button = createMockElement("export", "button");
+  const ticketButton = createMockElement("create-ticket-btn", "button");
   const progressBar = createMockElement("export-progress-bar", "div");
   const progressFill = createMockElement("export-progress-fill", "div");
+  const ticketProgressBar = createMockElement("ticket-progress-bar", "div");
+  const ticketProgressFill = createMockElement("ticket-progress-fill", "div");
 
   const doc = {
     querySelector(selector: string) {
       if (selector === "#export") return button;
+      if (selector === "#create-ticket-btn") return ticketButton;
       if (selector === "#export-progress-bar") return progressBar;
       if (selector === "#export-progress-fill") return progressFill;
+      if (selector === "#ticket-progress-bar") return ticketProgressBar;
+      if (selector === "#ticket-progress-fill") return ticketProgressFill;
       return null;
     },
   };
 
-  return { doc, button, progressBar, progressFill };
+  return {
+    doc,
+    button,
+    ticketButton,
+    progressBar,
+    progressFill,
+    ticketProgressBar,
+    ticketProgressFill,
+  };
 }
 
 test("PreviewExportController - 导出进度条成功路径与状态验证", async () => {
@@ -448,4 +462,104 @@ test("PreviewExportController - 导出进度条失败路径与异常恢复验证
     assert.equal(notified, "exportCanceled:");
     assert.equal(button.disabled, false);
   }
+});
+
+test("PreviewExportController - 提工单按钮独立导出与复制通知路径", async () => {
+  (globalThis as any).URL = {
+    createObjectURL: () => "blob:mock-archive-url",
+    revokeObjectURL: () => {},
+  };
+
+  (globalThis as any).chrome = {
+    i18n: {
+      getMessage: (key: string, subs?: any) => {
+        const subStr = Array.isArray(subs)
+          ? subs.join(" ")
+          : String(subs || "");
+        return `${key}:${subStr}`;
+      },
+    },
+    downloads: {
+      download: async () => 999,
+      search: (_query: any, callback: Function) => {
+        callback([
+          { id: 999, state: "complete", filename: "ticket-report.zip" },
+        ]);
+      },
+    },
+    runtime: { lastError: null },
+  };
+
+  const { doc, button, ticketButton } = createMockDocument();
+  let completedMode: string | undefined;
+  let notifiedMessage: string | undefined;
+
+  const mockSnapshot = {
+    session: {
+      id: "test-session-ticket",
+      title: "Test Report",
+      quality: { overall: "good", issues: [] },
+      target: { initialTitle: "Test", initialUrl: "http://localhost" },
+      timeline: { startedAtEpochMs: 1000, durationMs: 5000 },
+      options: { privacyMode: "safe" },
+    },
+    issues: [],
+    console: [],
+    network: [],
+    interactions: [],
+    consoleEntries: [],
+    networkEntries: [],
+    excluded: { interaction: 0, console: 0, network: 0, issueScene: 0 },
+    hasMedia: false,
+  };
+
+  const controller = new PreviewExportController({
+    root: doc as any,
+    sessionId: "test-session-ticket",
+    storage: {
+      getExportArtifact: async () => undefined,
+      saveExportArtifact: async () => {},
+    } as any,
+    getSnapshot: () => mockSnapshot,
+    getMediaChunkCount: () => 0,
+    notify: (msg) => {
+      notifiedMessage = msg;
+    },
+    onArtifactChanged: () => {},
+    onExportComplete: async (mode) => {
+      completedMode = mode;
+      return true;
+    },
+    loadAssets: async () => ({
+      html: "<html></html>",
+      script: "",
+      styles: "",
+      icon: new Uint8Array(),
+    }),
+    createArchive: async () => ({
+      sink: {
+        write: async () => {},
+        close: async () => {},
+        abort: async () => {},
+      },
+      getFile: async () => new Blob(),
+      cleanup: async () => {},
+    }),
+    writeArchive: async () => ({
+      entriesWritten: 1,
+      bytesWritten: 100,
+      manifestIntegrity: {},
+    }),
+  });
+
+  // 确保绑定了点击事件监听器
+  assert.equal(ticketButton.listeners["click"]?.length, 1);
+
+  // 执行提工单模式导出
+  await controller.export("ticket");
+
+  assert.equal(completedMode, "ticket");
+  assert.equal(notifiedMessage, "exportSuccessTicketCopied:");
+  assert.equal(button.disabled, false);
+  assert.equal(ticketButton.disabled, false);
 });

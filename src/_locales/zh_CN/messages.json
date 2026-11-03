@@ -696,6 +696,24 @@
   "statusDisabled": {
     "message": "未采集"
   },
+  "evidenceAllCaptured": {
+    "message": "全部证据就绪 ($COUNT$ 项)",
+    "description": "历史记录卡片证据全量就绪提示",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "evidenceRemainingCaptured": {
+    "message": "其余 $COUNT$ 项正常",
+    "description": "历史记录卡片其余证据正常提示",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
   "permissionPageTitle": {
     "message": "Bug Lens - 权限授权中转"
   },
@@ -2384,5 +2402,54 @@
   },
   "autoSaveActive": {
     "message": "实时保存中"
+  },
+  "createTicket": {
+    "message": "提工单"
+  },
+  "widgetToolbarTicketTooltip": {
+    "message": "结束录制并复制工单模板"
+  },
+  "exportSuccessTicketCopied": {
+    "message": "证据包已下载，工单模板已复制"
+  },
+  "copyTicketTemplate": {
+    "message": "复制工单模板"
+  },
+  "ticketTemplateCopied": {
+    "message": "工单模板已复制到剪贴板"
+  },
+  "previewTicket": {
+    "message": "预览工单"
+  },
+  "previewTicketTitle": {
+    "message": "预览工单草稿图文与内容"
+  },
+  "ticketModalTitle": {
+    "message": "工单草稿预览"
+  },
+  "ticketModalSubtitle": {
+    "message": "提工单时将自动复制此内容，支持直接粘贴到 TAPD、飞书、Jira 等工单系统"
+  },
+  "viewRichText": {
+    "message": "富文本预览 (含图)"
+  },
+  "viewMarkdown": {
+    "message": "Markdown 源码"
+  },
+  "ticketStepsSummary": {
+    "message": "共 $COUNT$ 步关键操作 · $IMAGES$ 张标注截图",
+    "placeholders": {
+      "count": { "content": "$1" },
+      "images": { "content": "$2" }
+    }
+  },
+  "copyTicketContent": {
+    "message": "复制工单内容"
+  },
+  "createTicketAndDownload": {
+    "message": "立即提工单并下载"
+  },
+  "stepImageCopied": {
+    "message": "步骤截图已复制，可直接在飞书聊天框按 Cmd+V 粘贴"
   }
 }

@@ -105,7 +105,6 @@ export const OptionsGrid = memo(function OptionsGrid({
   return (
     <div>
       <div className="inline-config">
-        <span className="config-text">{t("defaultSafeCollection")}</span>
         <button
           id="toggle-options"
           className={`toggle-options-btn ${advancedOpen ? "open" : ""}`}

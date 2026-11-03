@@ -139,6 +139,7 @@ export class CdpEvidenceCollector {
     { frameId?: string; origin?: string }
   >();
   private readonly requestSessionMap = new Map<string, string>();
+  private readonly requestTabMap = new Map<string, number>();
 
   private readonly repository: EvidenceRepository;
   private readonly writeSessionEvent: SessionEventWriter;
@@ -155,6 +156,7 @@ export class CdpEvidenceCollector {
   }
 
   private readonly pendingConsoleDeltas = new Map<string, number>();
+  private readonly pendingNetworkDeltas = new Map<string, number>();
   private readonly consoleDeltaTimers = new Map<
     string,
     ReturnType<typeof setTimeout>
@@ -168,16 +170,17 @@ export class CdpEvidenceCollector {
   >();
   private readonly reportedStorageLimits = new Set<string>();
 
-  private recordConsoleQualityDelta(sessionId: string, count = 1): void {
-    const current = (this.pendingConsoleDeltas.get(sessionId) ?? 0) + count;
-    this.pendingConsoleDeltas.set(sessionId, current);
-
+  private scheduleOrFlushQualityDelta(sessionId: string): void {
     // If an active flush loop is already running for this session, it will automatically drain new deltas in its next iteration
     if (this.activeQualityFlush.has(sessionId)) {
       return;
     }
 
-    if (current >= 100) {
+    const totalPending =
+      (this.pendingConsoleDeltas.get(sessionId) ?? 0) +
+      (this.pendingNetworkDeltas.get(sessionId) ?? 0);
+
+    if (totalPending >= 100) {
       void this.flushConsoleQualityDelta(sessionId);
       return;
     }
@@ -187,8 +190,21 @@ export class CdpEvidenceCollector {
         this.consoleDeltaTimers.delete(sessionId);
         void this.flushConsoleQualityDelta(sessionId);
       }, 100);
+      (timer as { unref?: () => void }).unref?.();
       this.consoleDeltaTimers.set(sessionId, timer);
     }
+  }
+
+  private recordConsoleQualityDelta(sessionId: string, count = 1): void {
+    const current = (this.pendingConsoleDeltas.get(sessionId) ?? 0) + count;
+    this.pendingConsoleDeltas.set(sessionId, current);
+    this.scheduleOrFlushQualityDelta(sessionId);
+  }
+
+  private recordNetworkQualityDelta(sessionId: string, count = 1): void {
+    const current = (this.pendingNetworkDeltas.get(sessionId) ?? 0) + count;
+    this.pendingNetworkDeltas.set(sessionId, current);
+    this.scheduleOrFlushQualityDelta(sessionId);
   }
 
   async flushConsoleQualityDelta(sessionId?: string): Promise<void> {
@@ -196,6 +212,7 @@ export class CdpEvidenceCollector {
       const sessionIds = Array.from(
         new Set([
           ...this.pendingConsoleDeltas.keys(),
+          ...this.pendingNetworkDeltas.keys(),
           ...this.activeQualityFlush.keys(),
           ...this.consoleDeltaTimers.keys(),
         ])
@@ -224,19 +241,29 @@ export class CdpEvidenceCollector {
         continue;
       }
 
-      const delta = this.pendingConsoleDeltas.get(sessionId) ?? 0;
-      if (delta <= 0) {
+      const consoleDelta = this.pendingConsoleDeltas.get(sessionId) ?? 0;
+      const networkDelta = this.pendingNetworkDeltas.get(sessionId) ?? 0;
+      if (consoleDelta <= 0 && networkDelta <= 0) {
         this.pendingConsoleDeltas.delete(sessionId);
+        this.pendingNetworkDeltas.delete(sessionId);
         break;
       }
 
       this.pendingConsoleDeltas.delete(sessionId);
+      this.pendingNetworkDeltas.delete(sessionId);
+
+      const deltaPayload: {
+        consoleEntryCount?: number;
+        networkEntryCount?: number;
+      } = {};
+      if (consoleDelta > 0) deltaPayload.consoleEntryCount = consoleDelta;
+      if (networkDelta > 0) deltaPayload.networkEntryCount = networkDelta;
 
       const task = (async () => {
         try {
           await this.writeSessionEvent(sessionId, {
             type: "quality-delta",
-            delta: { consoleEntryCount: delta },
+            delta: deltaPayload,
           });
         } catch {
           // Ignored: session may be stopping or completed
@@ -319,24 +346,31 @@ export class CdpEvidenceCollector {
     }
   }
 
+  getAttachedTabIds(): number[] {
+    return Array.from(this.attachedTabs);
+  }
+
   async detach(tabId: number): Promise<void> {
     this.cancelReattach(tabId);
     this.attachedTabs.delete(tabId);
     await this.flushConsoleQualityDelta();
-    for (const timer of this.consoleDeltaTimers.values()) {
-      clearTimeout(timer);
-    }
-    this.consoleDeltaTimers.clear();
-    await flushStorageBatchQueue();
     for (const [sessionId, tid] of this.childSessionTabIds.entries()) {
       if (tid === tabId) {
         this.childSessionTabIds.delete(sessionId);
         this.childSessions.delete(sessionId);
       }
     }
-    this.executionContexts.clear();
-    this.requestSessionMap.clear();
-    this.reportedStorageLimits.clear();
+    if (this.attachedTabs.size === 0) {
+      for (const timer of this.consoleDeltaTimers.values()) {
+        clearTimeout(timer);
+      }
+      this.consoleDeltaTimers.clear();
+      this.executionContexts.clear();
+      this.requestSessionMap.clear();
+      this.requestTabMap.clear();
+      this.reportedStorageLimits.clear();
+    }
+    await flushStorageBatchQueue();
     await chrome.debugger.detach({ tabId }).catch(() => undefined);
   }
 
@@ -463,6 +497,10 @@ export class CdpEvidenceCollector {
         if (result.status === "rejected")
           errors.push(t("networkWritePending", String(result.reason)));
     }
+    await this.flushConsoleQualityDelta();
+    if (this.pendingQualityFlushes.size) {
+      await Promise.allSettled([...this.pendingQualityFlushes]);
+    }
     return errors;
   }
 
@@ -525,9 +563,11 @@ export class CdpEvidenceCollector {
               : "";
             if (requestId) {
               const childSessionId = this.requestSessionMap.get(entry.id);
+              const requestTabId =
+                this.requestTabMap.get(entry.id) ?? session.target.tabId;
               await this.captureResponseBody(
                 {
-                  tabId: session.target.tabId,
+                  tabId: requestTabId,
                   ...(childSessionId ? { sessionId: childSessionId } : {}),
                 },
                 session,
@@ -1087,11 +1127,10 @@ export class CdpEvidenceCollector {
       const frameId = value.frameId ?? childTarget?.targetId;
       const documentUrl = value.documentURL ?? childTarget?.url;
 
+      const entryId = `${session.id}:${requestId}`;
+      this.requestTabMap.set(entryId, tabId);
       if (childSessionId) {
-        this.requestSessionMap.set(
-          `${session.id}:${requestId}`,
-          childSessionId
-        );
+        this.requestSessionMap.set(entryId, childSessionId);
       }
 
       await this.enqueue(
@@ -1107,7 +1146,7 @@ export class CdpEvidenceCollector {
             session.options.privacyMode
           );
           const stored = await this.repository.saveNetworkWithinBudget({
-            id: `${session.id}:${requestId}`,
+            id: entryId,
             sessionId: session.id,
             createdAt: timing.createdAtEpochMs,
             startedAtMonotonicMs: timing.startedAtMonotonicMs,
@@ -1143,10 +1182,7 @@ export class CdpEvidenceCollector {
               : undefined,
           });
           if (stored.stored) {
-            await this.writeSessionEvent(session.id, {
-              type: "quality-delta",
-              delta: { networkEntryCount: 1 },
-            });
+            this.recordNetworkQualityDelta(session.id, 1);
           } else if (!this.reportedStorageLimits.has(session.id)) {
             this.reportedStorageLimits.add(session.id);
             await this.writeSessionEvent(session.id, {
@@ -1178,6 +1214,7 @@ export class CdpEvidenceCollector {
           fromDiskCache?: boolean;
           fromServiceWorker?: boolean;
           fromPrefetchCache?: boolean;
+          encodedDataLength?: number;
         };
       };
       const servedFromMemory = this.memoryCacheRequests.has(
@@ -1209,12 +1246,19 @@ export class CdpEvidenceCollector {
                 ),
                 bodyStatus: "pending",
                 cache: cacheEvidence,
+                encodedDataLength:
+                  typeof value.response?.encodedDataLength === "number"
+                    ? value.response.encodedDataLength
+                    : undefined,
               },
             }))
             .then(() => undefined)
       );
     } else if (method === "Network.loadingFinished") {
-      const value = params as { timestamp?: number };
+      const value = params as {
+        timestamp?: number;
+        encodedDataLength?: number;
+      };
       this.memoryCacheRequests.delete(
         `${tabId}:${source.sessionId ?? ""}:${requestId}`
       );
@@ -1222,33 +1266,39 @@ export class CdpEvidenceCollector {
         this.enqueue(
           `${tabId}:${source.sessionId ?? ""}:${requestId}`,
           async () => {
-            await this.repository.updateNetworkEntry(id, (current) => ({
-              ...current,
-              durationMs: networkDurationMs(
-                current.startedAtMonotonicMs,
-                value.timestamp
-              ),
-            }));
-            if (session.options.captureNetworkBodies) {
-              const entry = (await this.repository.getNetwork(session.id)).find(
-                (item) => item.id === id
-              );
-              if (
-                entry &&
-                !shouldCaptureResponseBody(entry.response?.mimeType, entry.url)
-              ) {
-                await this.repository.updateNetworkEntry(id, (current) => ({
-                  ...current,
-                  response: { ...current.response, bodyStatus: "not-present" },
-                }));
-              } else {
-                await this.captureResponseBody(source, session, requestId);
-              }
-            } else {
-              await this.repository.updateNetworkEntry(id, (current) => ({
+            let shouldFetchBody = session.options.captureNetworkBodies;
+            await this.repository.updateNetworkEntry(id, (current) => {
+              const skipBody =
+                !session.options.captureNetworkBodies ||
+                !shouldCaptureResponseBody(
+                  current.response?.mimeType,
+                  current.url
+                );
+              shouldFetchBody = !skipBody;
+              return {
                 ...current,
-                response: { ...current.response, bodyStatus: "not-present" },
-              }));
+                durationMs: networkDurationMs(
+                  current.startedAtMonotonicMs,
+                  value.timestamp
+                ),
+                response: current.response
+                  ? {
+                      ...current.response,
+                      encodedDataLength:
+                        typeof value.encodedDataLength === "number"
+                          ? value.encodedDataLength
+                          : current.response.encodedDataLength,
+                      ...(skipBody
+                        ? { bodyStatus: "not-present" as const }
+                        : {}),
+                    }
+                  : skipBody
+                    ? { bodyStatus: "not-present" as const }
+                    : current.response,
+              };
+            });
+            if (shouldFetchBody) {
+              await this.captureResponseBody(source, session, requestId);
             }
           }
         )

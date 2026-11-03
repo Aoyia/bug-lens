@@ -7,7 +7,7 @@ import {
 import { applySessionEvent as reduceSession } from "../../domain/recording-session";
 import { t } from "../../shared/i18n";
 import type { BackgroundContext } from "./context";
-import type { SessionLifecycle } from "./lifecycle";
+import { collectSessionTabIds, type SessionLifecycle } from "./lifecycle";
 
 /** SW 启动/导航恢复服务：浏览器重启中断恢复、活动会话恢复、导航后重连。 */
 export interface BootstrapService {
@@ -56,9 +56,21 @@ export function createBootstrapService(
       previewPending: true,
     }));
     if (!recovered) return;
-    await cdpCollector.detach(session.target.tabId);
-    await contentScripts.remove(session.target.tabId);
-    streamHealthMonitor.reset(session.target.tabId);
+    const sessionTabIds = collectSessionTabIds(recovered, ctx);
+    ctx.multiTabManager?.detach();
+    await Promise.all(
+      sessionTabIds.map((tid) =>
+        cdpCollector.detach(tid).catch(() => undefined)
+      )
+    );
+    await Promise.all(
+      sessionTabIds.map((tid) =>
+        contentScripts.remove(tid).catch(() => undefined)
+      )
+    );
+    for (const tid of sessionTabIds) {
+      streamHealthMonitor.reset(tid);
+    }
     await lifecycle.openPendingPreview(recovered);
   }
 
@@ -116,7 +128,18 @@ export function createBootstrapService(
       return;
     }
 
+    ctx.multiTabManager?.initSession(session);
     await contentScripts.restore(session.target.tabId);
+    if (Array.isArray(session.targets)) {
+      for (const target of session.targets) {
+        if (
+          typeof target?.tabId === "number" &&
+          target.tabId !== session.target.tabId
+        ) {
+          await contentScripts.restore(target.tabId).catch(() => undefined);
+        }
+      }
+    }
 
     streamHealthMonitor.initialize(session.target.tabId, session.id, {
       captureVideo: session.options.captureVideo,

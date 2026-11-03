@@ -8,6 +8,7 @@ import type {
   TargetDomSnapshot,
 } from "../shared/protocol";
 import { normalizeExpected } from "./issue-scene";
+import { utf8ByteLength } from "./storage-policy";
 
 export type PrivacyMode = RecordingOptions["privacyMode"];
 
@@ -98,6 +99,15 @@ export function sanitizeTextWithDetails(
 ): SanitizedTextResult {
   if (mode === "raw") return { text: value, truncated: false };
   let result = String(value ?? "");
+  let preTruncated = false;
+  const safeWindow =
+    maxLength < 1_000_000
+      ? Math.max(maxLength * 4, maxLength + 32_768)
+      : Number.MAX_SAFE_INTEGER;
+  if (result.length > safeWindow && !result.includes("-----BEGIN ")) {
+    result = result.slice(0, safeWindow);
+    preTruncated = true;
+  }
   if (sanitizeUrls) {
     result = result.replace(/https?:\/\/[^\s<>"']+/gi, (url) =>
       sanitizeUrl(url, mode)
@@ -138,7 +148,7 @@ export function sanitizeTextWithDetails(
       "[REDACTED:email]"
     );
   }
-  const truncated = result.length > maxLength;
+  const truncated = preTruncated || result.length > maxLength;
   if (truncated) result = `${result.slice(0, maxLength)}\n[TRUNCATED]`;
   return { text: result, truncated };
 }
@@ -186,7 +196,7 @@ export function sanitizeResponseBody(input: {
         Math.floor((input.body.length * 3) / 4) -
           (input.body.endsWith("==") ? 2 : input.body.endsWith("=") ? 1 : 0)
       )
-    : new TextEncoder().encode(input.body).byteLength;
+    : utf8ByteLength(input.body);
   const isFullCapture = Boolean(input.captureFullResponseBody);
   const resType = (input.resourceType || "").toLowerCase();
   const mime = (input.mimeType || "").toLowerCase();
@@ -212,11 +222,13 @@ export function sanitizeResponseBody(input: {
     Math.min(input.maxBytes ?? Number.MAX_SAFE_INTEGER, defaultCap)
   );
   const truncate = (
-    value: string
+    value: string,
+    knownByteLength?: number
   ): { value: string; truncated: boolean; byteLength: number } => {
+    const actualByteLength = knownByteLength ?? utf8ByteLength(value);
+    if (isFullCapture || actualByteLength <= maxBytes)
+      return { value, truncated: false, byteLength: actualByteLength };
     const bytes = new TextEncoder().encode(value);
-    if (isFullCapture || bytes.byteLength <= maxBytes)
-      return { value, truncated: false, byteLength: bytes.byteLength };
     const marker = "\n[TRUNCATED]";
     return {
       value: `${new TextDecoder().decode(bytes.slice(0, Math.max(0, maxBytes - marker.length)))}${marker}`,
@@ -252,7 +264,7 @@ export function sanitizeResponseBody(input: {
         truncated: body.length < input.body.length,
       };
     }
-    const body = truncate(input.body);
+    const body = truncate(input.body, byteLength);
     return {
       bodyStatus: "captured",
       body: body.value,

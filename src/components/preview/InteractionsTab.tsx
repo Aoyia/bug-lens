@@ -459,6 +459,8 @@ export const InteractionsTab = memo(function InteractionsTab({
                     alt={t("stepScreenshotAlt")}
                     data-img-id={screenshotRecord.id}
                     title={t("clickToZoom")}
+                    loading="lazy"
+                    decoding="async"
                   />
                 </div>
               )}

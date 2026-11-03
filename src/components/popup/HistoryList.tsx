@@ -94,6 +94,27 @@ export const HistoryList = memo(function HistoryList({
     setEditingSessionId(null);
   }, []);
 
+  const [isScrolling, setIsScrolling] = useState<boolean>(false);
+  const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleScroll = useCallback(() => {
+    setIsScrolling(true);
+    if (scrollTimerRef.current) {
+      clearTimeout(scrollTimerRef.current);
+    }
+    scrollTimerRef.current = setTimeout(() => {
+      setIsScrolling(false);
+    }, 800);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (scrollTimerRef.current) {
+        clearTimeout(scrollTimerRef.current);
+      }
+    };
+  }, []);
+
   return (
     <div>
       <div className="search-wrapper" role="search">
@@ -122,7 +143,13 @@ export const HistoryList = memo(function HistoryList({
         />
       </div>
 
-      <div id="sessions" className="sessions" aria-busy={loading}>
+      <div
+        id="sessions"
+        className="sessions"
+        aria-busy={loading}
+        data-scrolling={isScrolling ? "true" : undefined}
+        onScroll={handleScroll}
+      >
         {sessions.length === 0 ? (
           loading ? (
             <div className="loading-state" role="status" aria-live="polite">
@@ -330,15 +357,75 @@ export const HistoryList = memo(function HistoryList({
                   {session.target.initialUrl}
                 </div>
                 <div className="evidence">
-                  {item.evidence.map((ev) => (
-                    <span
-                      key={ev.kind}
-                      className={`chip ${ev.state}`}
-                      title={ev.detail}
-                    >
-                      {evidenceLabel(ev)} · {evidenceStateLabel(ev.state)}
-                    </span>
-                  ))}
+                  {(() => {
+                    const warnings = item.evidence.filter(
+                      (ev) => ev.state === "partial" || ev.state === "failed"
+                    );
+                    const captured = item.evidence.filter(
+                      (ev) => ev.state === "captured"
+                    );
+                    const breakdownTooltip = item.evidence
+                      .map(
+                        (ev) =>
+                          `${evidenceLabel(ev)} · ${evidenceStateLabel(ev.state)}`
+                      )
+                      .join("\n");
+
+                    // 1. 若存在异常维度（partial 或 failed），优先高亮突出异常项，其余健康项折叠紧凑计数
+                    if (warnings.length > 0) {
+                      return (
+                        <>
+                          {warnings.map((ev) => (
+                            <span
+                              key={ev.kind}
+                              className={`chip ${ev.state}`}
+                              title={
+                                ev.detail ||
+                                `${evidenceLabel(ev)} · ${evidenceStateLabel(ev.state)}`
+                              }
+                            >
+                              {evidenceLabel(ev)} ·{" "}
+                              {evidenceStateLabel(ev.state)}
+                            </span>
+                          ))}
+                          {captured.length > 0 && (
+                            <span
+                              className="chip chip-summary"
+                              title={breakdownTooltip}
+                            >
+                              {t("evidenceRemainingCaptured", [
+                                String(captured.length),
+                              ])}
+                            </span>
+                          )}
+                        </>
+                      );
+                    }
+
+                    // 2. 若全量正常且有成功项，单行呈现极简就绪徽标，Tooltip 提供完整明细
+                    if (captured.length > 0) {
+                      return (
+                        <span
+                          className="chip chip-all-captured"
+                          title={breakdownTooltip}
+                        >
+                          ✓{" "}
+                          {t("evidenceAllCaptured", [String(captured.length)])}
+                        </span>
+                      );
+                    }
+
+                    // 3. 兜底回退：若全为 pending/disabled 等特殊状态，保底平铺
+                    return item.evidence.map((ev) => (
+                      <span
+                        key={ev.kind}
+                        className={`chip ${ev.state}`}
+                        title={ev.detail}
+                      >
+                        {evidenceLabel(ev)} · {evidenceStateLabel(ev.state)}
+                      </span>
+                    ));
+                  })()}
                 </div>
               </article>
             );

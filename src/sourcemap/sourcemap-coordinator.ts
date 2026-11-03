@@ -92,10 +92,26 @@ export function isTimeInIntervals(
  * 2. 查询坐标哈希去重（Query Deduplication）+ 结果 1:N 扇出，大幅缩减 IPC 传输与 Worker 查表计算。
  */
 export class SourceMapCoordinator {
+  private static sharedInstance: SourceMapCoordinator | null = null;
   private client: SourceMapWorkerClient;
 
   constructor(client?: SourceMapWorkerClient) {
     this.client = client ?? new SourceMapWorkerClient();
+  }
+
+  public static getShared(): SourceMapCoordinator {
+    if (!SourceMapCoordinator.sharedInstance) {
+      SourceMapCoordinator.sharedInstance = new SourceMapCoordinator();
+    }
+    return SourceMapCoordinator.sharedInstance;
+  }
+
+  public scheduleIdleCleanup(idleMs = 5 * 60_000): void {
+    this.client.scheduleIdleTerminate?.(idleMs);
+  }
+
+  public terminate(): void {
+    this.client.terminate();
   }
 
   /**

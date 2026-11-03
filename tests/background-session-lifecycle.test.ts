@@ -330,3 +330,65 @@ test("reconcileSessionQuality: 重算质量快照写入会话", async () => {
   assert.equal(updated.quality.primaryScreenshotCount, 1);
   assert.equal(updated.quality.consoleEntryCount, 1);
 });
+
+test("stopSession: 多标签页录制停止时，全量清理所有副标签页的 content script、CDP 与健康监测状态", async () => {
+  const { runtime, db, contentScripts, cdpCollector, streamHealthMonitor } =
+    createTestRuntime();
+  const session = makeSession({
+    id: "sess-multi-stop",
+    status: "RECORDING",
+    target: {
+      tabId: 101,
+      windowId: 1,
+      initialUrl: "https://example.com/a",
+      initialTitle: "Tab A",
+    },
+    targets: [
+      {
+        tabId: 101,
+        windowId: 1,
+        url: "https://example.com/a",
+        title: "Tab A",
+        isPrimary: true,
+        addedAtEpochMs: 1000,
+      },
+      {
+        tabId: 202,
+        windowId: 1,
+        url: "https://example.com/b",
+        title: "Tab B",
+        isPrimary: false,
+        addedAtEpochMs: 2000,
+      },
+      {
+        tabId: 303,
+        windowId: 1,
+        url: "https://example.com/c",
+        title: "Tab C",
+        isPrimary: false,
+        addedAtEpochMs: 3000,
+      },
+    ],
+  });
+  db.sessions.set(session.id, session);
+  db.activeSessionId = session.id;
+
+  const result = await runtime.stopSession("cmd-multi-stop");
+  assert.ok(result);
+  assert.equal(result.status, "PREVIEW_READY");
+
+  for (const tid of [101, 202, 303]) {
+    assert.ok(
+      contentScripts.calls.includes(`remove:${tid}`),
+      `Expected contentScripts.remove(${tid}) to be called`
+    );
+    assert.ok(
+      cdpCollector.calls.includes(`detach:${tid}`),
+      `Expected cdpCollector.detach(${tid}) to be called`
+    );
+    assert.ok(
+      streamHealthMonitor.calls.includes(`reset:${tid}`),
+      `Expected streamHealthMonitor.reset(${tid}) to be called`
+    );
+  }
+});

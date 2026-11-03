@@ -52,6 +52,11 @@ export class PreviewSessionRuntime {
   private mediaUrl?: string;
   private mediaChunkCount = 0;
   private mediaMimeType = "video/webm";
+  private interactionObjectUrls: string[] = [];
+  private snapshotVersion = 0;
+  private cachedReportSnapshotVersion = -1;
+  private cachedReportSnapshot?: EvidenceReportSnapshot;
+  private sourceMapPromise?: Promise<boolean>;
   private readonly selection = new PreviewController();
   public lastIdbReadDurationMs = 0;
   public lastSourceMapDurationMs = 0;
@@ -119,6 +124,20 @@ export class PreviewSessionRuntime {
       (a) => a.kind === "interaction-screenshot"
     );
 
+    const assetById = new Map<string, EvidenceAsset>();
+    const assetByInteractionId = new Map<string, EvidenceAsset>();
+    if (!forExport) {
+      for (const asset of this.interactionAssets) {
+        assetById.set(asset.id, asset);
+        if (
+          asset.interactionId &&
+          !assetByInteractionId.has(asset.interactionId)
+        ) {
+          assetByInteractionId.set(asset.interactionId, asset);
+        }
+      }
+    }
+
     this.interactions = rawInteractions
       .filter((item) => item.status !== "cancelled")
       .sort((left, right) => left.createdAt - right.createdAt)
@@ -136,15 +155,15 @@ export class PreviewSessionRuntime {
           : item;
         // 导出场景无需为截图生成用于 UI 渲染的 Blob URL，避免多余内存分配与泄露
         if (!forExport && normalizedItem.screenshot?.status === "captured") {
-          const asset = this.interactionAssets.find(
-            (a) =>
-              a.id === normalizedItem.screenshot?.assetId ||
-              a.interactionId === normalizedItem.id
-          );
+          const asset =
+            (normalizedItem.screenshot.assetId
+              ? assetById.get(normalizedItem.screenshot.assetId)
+              : undefined) ?? assetByInteractionId.get(normalizedItem.id);
           if (asset) {
             const objectUrl = URL.createObjectURL(
               new Blob([asset.bytes], { type: asset.mimeType })
             );
+            this.interactionObjectUrls.push(objectUrl);
             return {
               ...normalizedItem,
               screenshot: { ...normalizedItem.screenshot, dataUrl: objectUrl },
@@ -158,30 +177,8 @@ export class PreviewSessionRuntime {
     const sortedConsole = rawConsole.sort(
       (left, right) => left.createdAt - right.createdAt
     );
-
-    // 🌟 在 Preview 加载数据时，基于异常与时空交互聚焦准入策略（方案一）丰富调用链
-    const tSm0 =
-      typeof performance !== "undefined" ? performance.now() : Date.now();
-    try {
-      const coordinator = new SourceMapCoordinator();
-      const enriched = await coordinator.enrichEntries(
-        sortedConsole,
-        networkEntries,
-        {
-          interactions: this.interactions,
-          issueScenes: rawIssueScenes,
-        }
-      );
-      this.consoleEntries = enriched.consoleEntries;
-      this.networkEntries = enriched.networkEntries;
-    } catch {
-      this.consoleEntries = sortedConsole;
-      this.networkEntries = networkEntries;
-    } finally {
-      this.lastSourceMapDurationMs =
-        (typeof performance !== "undefined" ? performance.now() : Date.now()) -
-        tSm0;
-    }
+    this.consoleEntries = sortedConsole;
+    this.networkEntries = networkEntries;
 
     this.issueScenes = rawIssueScenes.map((scene) =>
       scene.narrative
@@ -238,6 +235,52 @@ export class PreviewSessionRuntime {
 
     this.mediaChunkCount = mediaSummary.count;
     this.mediaMimeType = mediaSummary.mimeType || "video/webm";
+    this.snapshotVersion += 1;
+
+    // 导出场景同步等待 SourceMap 还原以确保离线包与Stage3Metrics完整；UI 预览场景异步执行不阻塞首屏渲染
+    this.sourceMapPromise = this.enrichSourceMaps(rawIssueScenes);
+    if (forExport) {
+      await this.sourceMapPromise;
+    }
+  }
+
+  private async enrichSourceMaps(
+    rawIssueScenes: IssueScene[]
+  ): Promise<boolean> {
+    const tSm0 =
+      typeof performance !== "undefined" ? performance.now() : Date.now();
+    const coordinator = SourceMapCoordinator.getShared();
+    try {
+      const enriched = await coordinator.enrichEntries(
+        this.consoleEntries,
+        this.networkEntries,
+        {
+          interactions: this.interactions,
+          issueScenes: rawIssueScenes,
+        }
+      );
+      const changed =
+        enriched.consoleEntries !== this.consoleEntries ||
+        enriched.networkEntries !== this.networkEntries;
+      this.consoleEntries = enriched.consoleEntries;
+      this.networkEntries = enriched.networkEntries;
+      if (changed) {
+        this.snapshotVersion += 1;
+      }
+      return changed;
+    } catch {
+      return false;
+    } finally {
+      coordinator.scheduleIdleCleanup();
+      this.lastSourceMapDurationMs =
+        (typeof performance !== "undefined" ? performance.now() : Date.now()) -
+        tSm0;
+    }
+  }
+
+  async waitForSourceMaps(): Promise<boolean> {
+    if (!this.sourceMapPromise) return false;
+    return this.sourceMapPromise;
   }
 
   async loadMediaPreview(): Promise<MediaPreviewResult> {
@@ -293,6 +336,7 @@ export class PreviewSessionRuntime {
       }
 
       this.mediaUrl = URL.createObjectURL(finalBlob);
+      this.snapshotVersion += 1;
       return { source: this.mediaUrl };
     } catch (error) {
       return { error: String(error) };
@@ -301,7 +345,13 @@ export class PreviewSessionRuntime {
 
   getReportSnapshot(): EvidenceReportSnapshot | undefined {
     if (!this.session) return undefined;
-    return {
+    if (
+      this.cachedReportSnapshot &&
+      this.cachedReportSnapshotVersion === this.snapshotVersion
+    ) {
+      return this.cachedReportSnapshot;
+    }
+    this.cachedReportSnapshot = {
       session: this.session,
       interactions: {
         all: this.interactions,
@@ -322,28 +372,40 @@ export class PreviewSessionRuntime {
       frameworkStates: this.frameworkStates,
       hasMedia: Boolean(this.mediaUrl),
     };
+    this.cachedReportSnapshotVersion = this.snapshotVersion;
+    return this.cachedReportSnapshot;
   }
 
   getPackageSnapshot(): EvidencePackageSnapshot | undefined {
     if (!this.session) return undefined;
+    const includedInteractions = this.selection.includedInteractions(
+      this.interactions
+    );
+    const includedIssueScenes = this.selection.includedIssueScenes(
+      this.issueScenes
+    );
+    const includedSceneIds = new Set(
+      includedIssueScenes.map((scene) => scene.id)
+    );
+    const includedInteractionIds = new Set(
+      includedInteractions.map((item) => item.id)
+    );
     return {
       session: this.session,
-      interactions: this.selection.includedInteractions(this.interactions),
+      interactions: includedInteractions,
       consoleEntries: this.selection.includedConsoleEntries(
         this.consoleEntries
       ),
       networkEntries: this.selection.includedNetworkEntries(
         this.networkEntries
       ),
-      issueScenes: this.selection.includedIssueScenes(this.issueScenes),
+      issueScenes: includedIssueScenes,
       frameworkStates: this.frameworkStates,
       issueAssets: this.issueAssets
         .filter(
           (asset) =>
-            asset.issueSceneId &&
-            this.selection
-              .includedIssueScenes(this.issueScenes)
-              .some((scene) => scene.id === asset.issueSceneId)
+            Boolean(asset.issueSceneId) &&
+            includedSceneIds.has(asset.issueSceneId!)
         )
         .map((asset) => ({
           sceneId: asset.issueSceneId!,
@@ -354,10 +416,8 @@ export class PreviewSessionRuntime {
       interactionAssets: this.interactionAssets
         .filter(
           (asset) =>
-            asset.interactionId &&
-            this.selection
-              .includedInteractions(this.interactions)
-              .some((item) => item.id === asset.interactionId)
+            Boolean(asset.interactionId) &&
+            includedInteractionIds.has(asset.interactionId!)
         )
         .map((asset) => ({
           interactionId: asset.interactionId!,
@@ -376,6 +436,7 @@ export class PreviewSessionRuntime {
 
   async excludeInteraction(id: string): Promise<void> {
     this.selection.exclude("interaction", id);
+    this.snapshotVersion += 1;
     await this.saveSelection();
   }
 
@@ -384,11 +445,13 @@ export class PreviewSessionRuntime {
     id: string
   ): Promise<void> {
     this.selection.exclude(kind, id);
+    this.snapshotVersion += 1;
     await this.saveSelection();
   }
 
   async excludeIssueScene(id: string): Promise<void> {
     this.selection.exclude("issueScene", id);
+    this.snapshotVersion += 1;
     await this.saveSelection();
   }
 
@@ -399,6 +462,7 @@ export class PreviewSessionRuntime {
       ...this.session,
       customTitle: sanitized || undefined,
     };
+    this.snapshotVersion += 1;
     await this.storage.saveSession(this.session);
   }
 
@@ -406,6 +470,7 @@ export class PreviewSessionRuntime {
     kind: "interaction" | "console" | "network" | "issueScene"
   ): Promise<void> {
     this.selection.restore(kind);
+    this.snapshotVersion += 1;
     await this.saveSelection();
   }
 
@@ -417,6 +482,12 @@ export class PreviewSessionRuntime {
       if (preview.annotatedSource) URL.revokeObjectURL(preview.annotatedSource);
     }
     this.issueScenePreviews = [];
+    for (const url of this.interactionObjectUrls) {
+      URL.revokeObjectURL(url);
+    }
+    this.interactionObjectUrls = [];
+    this.cachedReportSnapshot = undefined;
+    this.snapshotVersion += 1;
   }
 
   private async saveSelection(): Promise<void> {

@@ -259,6 +259,433 @@ ${environmentLine}${sourceMappedErrorsText}
 4. 建议修复代码/排查位置 (Recommended Fix)${customDirectives}`;
 }
 
+function formatIsoDateTime(epochMs: number): string {
+  const d = new Date(epochMs);
+  if (Number.isNaN(d.getTime())) return "Unknown";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  const mm = pad(d.getMonth() + 1);
+  const dd = pad(d.getDate());
+  const hh = pad(d.getHours());
+  const min = pad(d.getMinutes());
+  const ss = pad(d.getSeconds());
+  return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`;
+}
+
+export function uint8ArrayToBase64(bytes: Uint8Array): string {
+  const g = typeof globalThis !== "undefined" ? (globalThis as any) : undefined;
+  if (g?.Buffer) {
+    return g.Buffer.from(
+      bytes.buffer,
+      bytes.byteOffset,
+      bytes.byteLength
+    ).toString("base64");
+  }
+  let binary = "";
+  const len = bytes.byteLength;
+  const chunkSize = 8192;
+  for (let i = 0; i < len; i += chunkSize) {
+    const chunk = bytes.subarray(i, Math.min(i + chunkSize, len));
+    binary += String.fromCharCode(...chunk);
+  }
+  return btoa(binary);
+}
+
+export function buildTicketTemplate(
+  snapshot: EvidencePackageSnapshot,
+  zipPathOrFilename?: string
+): string {
+  const isEnglish = isEn();
+  const session = snapshot.session;
+  const startedAt =
+    session.timeline?.startedAtEpochMs ??
+    session.timeline?.createdAtEpochMs ??
+    Date.now();
+  const durationSec = Math.round((session.timeline?.durationMs ?? 0) / 1000);
+  const envSummary =
+    formatEnvironmentSummary(session.target?.environment) ||
+    (isEnglish ? "Unknown" : "未知");
+  const pageTitle = oneLine(
+    getSessionTitle(session, isEnglish ? "Unknown" : "未知")
+  );
+  const pageUrl =
+    oneLine(session.target?.initialUrl) || (isEnglish ? "Unknown" : "未知");
+
+  let targetZipName = `web-bug-report-${session.id.slice(0, 8)}.zip`;
+  if (zipPathOrFilename) {
+    const raw = zipPathOrFilename.trim().replace(/^["']|["']$/g, "");
+    const parts = raw.split(/[/\\]/);
+    if (parts.length > 0 && parts[parts.length - 1]) {
+      targetZipName = parts[parts.length - 1];
+    }
+  }
+
+  // 1. 问题说明
+  let actualDesc = "";
+  let expectedDesc = "";
+  if (snapshot.issueScenes && snapshot.issueScenes.length > 0) {
+    const scene = snapshot.issueScenes[0];
+    if (scene.narrative?.actual?.trim()) {
+      actualDesc = scene.narrative.actual.trim();
+    }
+    if (
+      scene.narrative?.expected?.text?.trim() &&
+      scene.narrative.expected.confidence === "explicit"
+    ) {
+      expectedDesc = scene.narrative.expected.text.trim();
+    }
+  }
+
+  // 2. 关键操作步骤（全量已生效步骤）
+  const interactions = snapshot.interactions ?? [];
+  const stepLines: string[] = [];
+  if (interactions.length === 0) {
+    stepLines.push(
+      isEnglish ? "- No click interactions recorded" : "- 未记录点击交互"
+    );
+  } else {
+    interactions.forEach((item, index) => {
+      const stepNum = index + 1;
+
+      const elText =
+        item.element?.accessibleName ||
+        item.element?.text ||
+        item.element?.locators?.[0]?.expression ||
+        "";
+      const tag = item.element?.tagName
+        ? item.element.tagName.toLowerCase()
+        : "element";
+      const cleanText = elText ? `"${oneLine(elText).slice(0, 30)}"` : "";
+
+      let actionDesc = "";
+      if (item.kind === "click") {
+        actionDesc = isEnglish
+          ? `Click ${tag} ${cleanText}`.trim()
+          : `点击 ${tag} ${cleanText}`.trim();
+      } else if (item.kind === "input") {
+        actionDesc = isEnglish
+          ? `Input on ${tag} ${cleanText}`.trim()
+          : `输入 ${tag} ${cleanText}`.trim();
+      } else {
+        actionDesc = `${item.kind} ${tag} ${cleanText}`.trim();
+      }
+
+      stepLines.push(`${stepNum}. ${actionDesc}`);
+    });
+  }
+
+  // 3. 自动捕获异常（仅存在异常时输出）
+  const failedRequests = (snapshot.networkEntries ?? []).filter(
+    (e) =>
+      (e.status !== undefined && e.status >= 400 && e.status <= 599) ||
+      Boolean(e.error) ||
+      Boolean(e.corsErrorStatus) ||
+      Boolean(e.blockedReason)
+  );
+  const consoleErrors = (snapshot.consoleEntries ?? []).filter(
+    (e) => e.level === "error"
+  );
+
+  const anomalyLines: string[] = [];
+  if (failedRequests.length > 0) {
+    anomalyLines.push(
+      isEnglish
+        ? `- Failed Requests (${failedRequests.length}):`
+        : `- 失败接口（${failedRequests.length} 个）：`
+    );
+    const maxReqs = 5;
+    failedRequests.slice(0, maxReqs).forEach((req) => {
+      const method = req.method || "GET";
+      const statusStr = req.status ? String(req.status) : "Failed";
+      const statusText = req.statusText ? ` ${req.statusText}` : "";
+      const duration = req.durationMs
+        ? ` (${Math.round(req.durationMs)}ms)`
+        : "";
+      anomalyLines.push(
+        `  - ${method} ${req.url} -> ${statusStr}${statusText}${duration}`
+      );
+    });
+    if (failedRequests.length > maxReqs) {
+      anomalyLines.push(
+        isEnglish
+          ? `  - ... (${failedRequests.length} total failed requests)`
+          : `  - ...（等共 ${failedRequests.length} 个失败接口）`
+      );
+    }
+  }
+
+  if (consoleErrors.length > 0) {
+    anomalyLines.push(
+      isEnglish
+        ? `- Console Errors (${consoleErrors.length}):`
+        : `- 控制台报错（${consoleErrors.length} 条）：`
+    );
+    const maxErrors = 5;
+    consoleErrors.slice(0, maxErrors).forEach((err) => {
+      anomalyLines.push(`  - ${oneLine(err.text).slice(0, 200)}`);
+    });
+    if (consoleErrors.length > maxErrors) {
+      anomalyLines.push(
+        isEnglish
+          ? `  - ... (${consoleErrors.length} total errors)`
+          : `  - ...（等共 ${consoleErrors.length} 条报错）`
+      );
+    }
+  }
+
+  const formattedDateTime = formatIsoDateTime(startedAt);
+
+  if (isEnglish) {
+    const actualLine = `- Actual: ${actualDesc || "[Please specify the reported issue behavior here]"}`;
+    const expectedLine = expectedDesc ? `\n- Expected: ${expectedDesc}` : "";
+    const anomalySection =
+      anomalyLines.length > 0
+        ? `\n\n## [Captured Anomalies]\n${anomalyLines.join("\n")}`
+        : "";
+    return `## [Problem Description]
+${actualLine}${expectedLine}
+
+## [Environment]
+- Page: ${pageTitle} (${pageUrl})
+- Time: ${formattedDateTime} (Duration: ${durationSec}s)
+- Environment: ${envSummary}
+
+## [Key Steps]
+${stepLines.join("\n")}${anomalySection}
+
+## [Evidence Package]
+- Attachment: \`${targetZipName}\` (Includes video recording, network traffic, DOM snapshots, and AI_PROMPT.md)
+- AI Diagnostics: Send to your AI assistant after downloading: \`Please analyze ~/Downloads/${targetZipName} using bug-lens MCP or according to AI_PROMPT.md\``;
+  }
+
+  const actualLine = `- 实际表现：${actualDesc || "[请在此补充客户反馈的问题现象]"}`;
+  const expectedLine = expectedDesc ? `\n- 预期表现：${expectedDesc}` : "";
+  const anomalySection =
+    anomalyLines.length > 0
+      ? `\n\n## 【自动捕获异常】\n${anomalyLines.join("\n")}`
+      : "";
+  return `## 【问题说明】
+${actualLine}${expectedLine}
+
+## 【复现环境】
+- 页面：${pageTitle} (${pageUrl})
+- 时间：${formattedDateTime}（录制时长 ${durationSec}s）
+- 环境：${envSummary}
+
+## 【关键操作步骤】
+${stepLines.join("\n")}${anomalySection}
+
+## 【证据包附件】
+- 附件文件名：\`${targetZipName}\`（含完整录屏、网络报文、DOM 快照与 AI_PROMPT.md）
+- 研发 AI 排障：下载附件后发给 AI 助手：\`请使用 bug-lens MCP 或按包内 AI_PROMPT.md 分析 ~/Downloads/${targetZipName}\``;
+}
+
+export function buildTicketHtml(
+  snapshot: EvidencePackageSnapshot,
+  zipPathOrFilename?: string
+): string {
+  const isEnglish = isEn();
+  const session = snapshot.session;
+  const startedAt =
+    session.timeline?.startedAtEpochMs ??
+    session.timeline?.createdAtEpochMs ??
+    Date.now();
+  const durationSec = Math.round((session.timeline?.durationMs ?? 0) / 1000);
+  const envSummary =
+    formatEnvironmentSummary(session.target?.environment) ||
+    (isEnglish ? "Unknown" : "未知");
+  const pageTitle = oneLine(
+    getSessionTitle(session, isEnglish ? "Unknown" : "未知")
+  );
+  const pageUrl =
+    oneLine(session.target?.initialUrl) || (isEnglish ? "Unknown" : "未知");
+
+  let targetZipName = `web-bug-report-${session.id.slice(0, 8)}.zip`;
+  if (zipPathOrFilename) {
+    const raw = zipPathOrFilename.trim().replace(/^["']|["']$/g, "");
+    const parts = raw.split(/[/\\]/);
+    if (parts.length > 0 && parts[parts.length - 1]) {
+      targetZipName = parts[parts.length - 1];
+    }
+  }
+
+  // 1. 问题说明
+  let actualDesc = "";
+  let expectedDesc = "";
+  if (snapshot.issueScenes && snapshot.issueScenes.length > 0) {
+    const scene = snapshot.issueScenes[0];
+    if (scene.narrative?.actual?.trim()) {
+      actualDesc = scene.narrative.actual.trim();
+    }
+    if (
+      scene.narrative?.expected?.text?.trim() &&
+      scene.narrative.expected.confidence === "explicit"
+    ) {
+      expectedDesc = scene.narrative.expected.text.trim();
+    }
+  }
+
+  // 建立步骤截图查找映射
+  const assetByInteractionId = new Map<
+    string,
+    { bytes: Uint8Array; mimeType: string }
+  >();
+  if (snapshot.interactionAssets) {
+    for (const asset of snapshot.interactionAssets) {
+      if (
+        asset.interactionId &&
+        !assetByInteractionId.has(asset.interactionId)
+      ) {
+        assetByInteractionId.set(asset.interactionId, asset);
+      }
+    }
+  }
+
+  // 2. 关键操作步骤列表与内嵌截图
+  const interactions = snapshot.interactions ?? [];
+  const stepItemsHtml: string[] = [];
+  if (interactions.length === 0) {
+    stepItemsHtml.push(
+      `<li>${isEnglish ? "No click interactions recorded" : "未记录点击交互"}</li>`
+    );
+  } else {
+    interactions.forEach((item, index) => {
+      const stepNum = index + 1;
+
+      const elText =
+        item.element?.accessibleName ||
+        item.element?.text ||
+        item.element?.locators?.[0]?.expression ||
+        "";
+      const tag = item.element?.tagName
+        ? item.element.tagName.toLowerCase()
+        : "element";
+      const cleanText = elText ? `"${oneLine(elText).slice(0, 30)}"` : "";
+
+      let actionDesc = "";
+      if (item.kind === "click") {
+        actionDesc = isEnglish
+          ? `Click ${tag} ${cleanText}`.trim()
+          : `点击 ${tag} ${cleanText}`.trim();
+      } else if (item.kind === "input") {
+        actionDesc = isEnglish
+          ? `Input on ${tag} ${cleanText}`.trim()
+          : `输入 ${tag} ${cleanText}`.trim();
+      } else {
+        actionDesc = `${item.kind} ${tag} ${cleanText}`.trim();
+      }
+
+      const asset = assetByInteractionId.get(item.id);
+      let imgTag = "";
+      if (asset && asset.bytes.byteLength > 0) {
+        const base64 = uint8ArrayToBase64(asset.bytes);
+        imgTag = `<div style="margin: 6px 0 10px 0;"><img src="data:${asset.mimeType};base64,${base64}" style="max-width: 520px; width: 100%; height: auto; border: 1px solid #dcdfe6; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); display: block; cursor: pointer;" alt="Step ${stepNum} screenshot" title="${isEnglish ? "Click to copy image" : "点击复制此图片（可直接粘贴到飞书）"}" /><div style="margin-top: 3px; font-size: 11px; color: #86909c;"><em>[${isEnglish ? `Step ${stepNum} Screenshot` : `步骤 ${stepNum} 截图`}]</em></div></div>`;
+      }
+
+      stepItemsHtml.push(
+        `<p style="margin: 8px 0 3px 0; line-height: 1.5;"><strong>${stepNum}.</strong> ${actionDesc}</p>${imgTag}`
+      );
+    });
+  }
+
+  // 3. 自动捕获异常（仅存在异常时输出）
+  const failedRequests = (snapshot.networkEntries ?? []).filter(
+    (e) =>
+      (e.status !== undefined && e.status >= 400 && e.status <= 599) ||
+      Boolean(e.error) ||
+      Boolean(e.corsErrorStatus) ||
+      Boolean(e.blockedReason)
+  );
+  const consoleErrors = (snapshot.consoleEntries ?? []).filter(
+    (e) => e.level === "error"
+  );
+
+  const anomalyItemsHtml: string[] = [];
+  if (failedRequests.length > 0) {
+    const maxReqs = 5;
+    const reqList = failedRequests
+      .slice(0, maxReqs)
+      .map((req) => {
+        const method = req.method || "GET";
+        const statusStr = req.status ? String(req.status) : "Failed";
+        const statusText = req.statusText ? ` ${req.statusText}` : "";
+        const duration = req.durationMs
+          ? ` (${Math.round(req.durationMs)}ms)`
+          : "";
+        return `<p style="margin: 2px 0 2px 14px; line-height: 1.4;">• <code>${method}</code> ${req.url} -&gt; <span style="color: #cf1322;">${statusStr}${statusText}</span>${duration}</p>`;
+      })
+      .join("");
+    const moreReq =
+      failedRequests.length > maxReqs
+        ? `<p style="margin: 2px 0 2px 14px; font-size: 12px; color: #86909c;"><em>... (${failedRequests.length} total failed requests)</em></p>`
+        : "";
+    anomalyItemsHtml.push(
+      `<p style="margin: 4px 0 2px 0;">• <strong>${isEnglish ? "Failed Requests" : "失败接口"} (${failedRequests.length})：</strong></p>${reqList}${moreReq}`
+    );
+  }
+
+  if (consoleErrors.length > 0) {
+    const maxErrors = 5;
+    const errList = consoleErrors
+      .slice(0, maxErrors)
+      .map(
+        (err) =>
+          `<p style="margin: 2px 0 2px 14px; line-height: 1.4;"><code style="color: #cf1322;">${oneLine(err.text).slice(0, 200)}</code></p>`
+      )
+      .join("");
+    const moreErr =
+      consoleErrors.length > maxErrors
+        ? `<p style="margin: 2px 0 2px 14px; font-size: 12px; color: #86909c;"><em>... (${consoleErrors.length} total errors)</em></p>`
+        : "";
+    anomalyItemsHtml.push(
+      `<p style="margin: 4px 0 2px 0;">• <strong>${isEnglish ? "Console Errors" : "控制台报错"} (${consoleErrors.length})：</strong></p>${errList}${moreErr}`
+    );
+  }
+
+  const formattedDateTime = formatIsoDateTime(startedAt);
+
+  const anomalySectionHtml =
+    anomalyItemsHtml.length > 0
+      ? `<h3 style="margin: 14px 0 6px 0; font-size: 15px; font-weight: 600; color: #cf1322;">${isEnglish ? "【Captured Anomalies】" : "【自动捕获异常】"}</h3>${anomalyItemsHtml.join("")}`
+      : "";
+
+  const actualText =
+    actualDesc ||
+    (isEnglish
+      ? "[Please specify the reported issue behavior here]"
+      : "[请在此补充客户反馈的问题现象]");
+  const expectedHtml = expectedDesc
+    ? `<p style="margin: 4px 0 8px 0;"><strong>${isEnglish ? "Expected:" : "预期表现："}</strong>${expectedDesc}</p>`
+    : "";
+
+  return `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; color: #1f2329; line-height: 1.6;">
+  <h3 style="margin: 10px 0 6px 0; font-size: 15px; font-weight: 600; color: #1f2329;">${isEnglish ? "【Problem Description】" : "【问题说明】"}</h3>
+  <p style="margin: 4px 0 8px 0;"><strong>${isEnglish ? "Actual:" : "实际表现："}</strong>${actualText}</p>${expectedHtml}
+
+  <h3 style="margin: 14px 0 6px 0; font-size: 15px; font-weight: 600; color: #1f2329;">${isEnglish ? "【Environment】" : "【复现环境】"}</h3>
+  <p style="margin: 3px 0; line-height: 1.5;">• <strong>${isEnglish ? "Page:" : "页面："}</strong>${pageTitle} (<a href="${pageUrl}" target="_blank" rel="noopener noreferrer">${pageUrl}</a>)</p>
+  <p style="margin: 3px 0; line-height: 1.5;">• <strong>${isEnglish ? "Time:" : "时间："}</strong>${formattedDateTime} (${isEnglish ? "Duration: " : "录制时长 "}${durationSec}s)</p>
+  <p style="margin: 3px 0; line-height: 1.5;">• <strong>${isEnglish ? "Environment:" : "环境："}</strong>${envSummary}</p>${anomalySectionHtml}
+
+  <h3 style="margin: 14px 0 6px 0; font-size: 15px; font-weight: 600; color: #1f2329;">${isEnglish ? "【Key Steps】" : "【关键操作步骤】"}</h3>
+  ${stepItemsHtml.join("\n  ")}
+
+  <h3 style="margin: 14px 0 6px 0; font-size: 15px; font-weight: 600; color: #1f2329;">${isEnglish ? "【Evidence Package】" : "【证据包附件】"}</h3>
+  <p style="margin: 3px 0; line-height: 1.5;">• <strong>${isEnglish ? "Attachment:" : "附件文件名："}</strong><code>${targetZipName}</code> (${isEnglish ? "Includes recording video, network traffic, DOM snapshots, and AI_PROMPT.md" : "含完整录屏、网络报文、DOM 快照与 AI_PROMPT.md"})</p>
+  <p style="margin: 3px 0; line-height: 1.5;">• <strong>${isEnglish ? "AI Diagnostics:" : "研发 AI 排障："}</strong><code>${isEnglish ? `Please analyze ~/Downloads/${targetZipName} using bug-lens MCP or according to AI_PROMPT.md` : `请使用 bug-lens MCP 或按包内 AI_PROMPT.md 分析 ~/Downloads/${targetZipName}`}</code></p>
+</div>`;
+}
+
+export function buildTicketBundle(
+  snapshot: EvidencePackageSnapshot,
+  zipPathOrFilename?: string
+): { markdown: string; html: string } {
+  return {
+    markdown: buildTicketTemplate(snapshot, zipPathOrFilename),
+    html: buildTicketHtml(snapshot, zipPathOrFilename),
+  };
+}
+
 function buildPackageReadme(snapshot: EvidencePackageSnapshot): string {
   const issueScenes = snapshot.issueScenes ?? [];
   const issues = snapshot.session.quality.issues;
@@ -464,29 +891,40 @@ function buildSessionPayloadWithBodySplitting(
   );
 
   const issueAssets = snapshot.issueAssets ?? [];
-  const originalSceneIds = new Set(
-    issueAssets
-      .filter((asset) => asset.kind === "issue-original")
-      .map((asset) => asset.sceneId)
-  );
-  const annotatedSceneIds = new Set(
-    issueAssets
-      .filter((asset) => asset.kind === "issue-annotated")
-      .map((asset) => asset.sceneId)
-  );
+  const originalAssetBySceneId = new Map<
+    string,
+    (typeof issueAssets)[number]
+  >();
+  const annotatedAssetBySceneId = new Map<
+    string,
+    (typeof issueAssets)[number]
+  >();
+  for (const asset of issueAssets) {
+    if (asset.kind === "issue-original") {
+      if (!originalAssetBySceneId.has(asset.sceneId)) {
+        originalAssetBySceneId.set(asset.sceneId, asset);
+      }
+    } else if (asset.kind === "issue-annotated") {
+      if (!annotatedAssetBySceneId.has(asset.sceneId)) {
+        annotatedAssetBySceneId.set(asset.sceneId, asset);
+      }
+    }
+  }
   const interactionAssets = snapshot.interactionAssets ?? [];
-  const capturedInteractionIds = new Set(
-    interactionAssets.map((asset) => asset.interactionId)
-  );
+  const interactionAssetById = new Map<
+    string,
+    (typeof interactionAssets)[number]
+  >();
+  for (const asset of interactionAssets) {
+    if (!interactionAssetById.has(asset.interactionId)) {
+      interactionAssetById.set(asset.interactionId, asset);
+    }
+  }
 
   const issueScenes = (snapshot.issueScenes ?? []).map((scene) => {
-    const origAsset = issueAssets.find(
-      (asset) => asset.sceneId === scene.id && asset.kind === "issue-original"
-    );
+    const origAsset = originalAssetBySceneId.get(scene.id);
     const origExt = origAsset?.mimeType === "image/jpeg" ? "jpg" : "png";
-    const annoAsset = issueAssets.find(
-      (asset) => asset.sceneId === scene.id && asset.kind === "issue-annotated"
-    );
+    const annoAsset = annotatedAssetBySceneId.get(scene.id);
     const annoExt = annoAsset?.mimeType === "image/jpeg" ? "jpg" : "png";
     return {
       scene,
@@ -499,11 +937,8 @@ function buildSessionPayloadWithBodySplitting(
     };
   });
   const interactions = snapshot.interactions.map((interaction, index) => {
-    const asset = interactionAssets.find(
-      (a) => a.interactionId === interaction.id
-    );
-    const hasBinaryAsset =
-      Boolean(asset) || capturedInteractionIds.has(interaction.id);
+    const asset = interactionAssetById.get(interaction.id);
+    const hasBinaryAsset = Boolean(asset);
     const hasDataUrl = Boolean(interaction.screenshot?.dataUrl);
     const rawDataUrl = interaction.screenshot?.dataUrl;
     const isJpeg = rawDataUrl
@@ -648,7 +1083,6 @@ function splitAiAndReportPayloads(
           fromPrefetchCache: _fp,
           serviceWorkerResponseSource: _sw,
           cacheStorageCacheName: _cn,
-          encodedDataLength: _el,
           base64Encoded: _b64,
           redactionReason: _rr,
           originalByteLength: _ob,
@@ -862,11 +1296,19 @@ export function buildEvidencePackage(
       data: asset.bytes,
     });
   }
+  const interactionAssets = snapshot.interactionAssets ?? [];
+  const interactionAssetById = new Map<
+    string,
+    (typeof interactionAssets)[number]
+  >();
+  for (const asset of interactionAssets) {
+    if (!interactionAssetById.has(asset.interactionId)) {
+      interactionAssetById.set(asset.interactionId, asset);
+    }
+  }
   snapshot.interactions.forEach((interaction, index) => {
     if (interaction.screenshot?.status !== "captured") return;
-    const asset = (snapshot.interactionAssets ?? []).find(
-      (a) => a.interactionId === interaction.id
-    );
+    const asset = interactionAssetById.get(interaction.id);
     const dataUrl = interaction.screenshot?.dataUrl;
     const isJpeg = dataUrl
       ? dataUrl.startsWith("data:image/jpeg")

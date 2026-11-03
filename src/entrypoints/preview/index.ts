@@ -1,12 +1,20 @@
 import { db } from "../../storage/db";
-import { buildAiPrompt } from "../../preview/evidence-package";
+import {
+  buildAiPrompt,
+  buildTicketTemplate,
+  buildTicketBundle,
+} from "../../preview/evidence-package";
 import { EvidenceReportView } from "../../preview/evidence-report-view";
 import { PreviewAiHandoff } from "../../preview/preview-ai-handoff";
 import { PreviewExportController } from "../../preview/preview-export-controller";
 import { PreviewSessionRuntime } from "../../preview/preview-session-runtime";
 import { generatePlaywrightScript } from "../../preview/playwright-generator";
 import { highlightJs } from "../../preview/rendering";
-import { copyTextToClipboard } from "../../preview/clipboard";
+import {
+  copyTextToClipboard,
+  copyRichTextToClipboard,
+  copyDataUrlImageToClipboard,
+} from "../../preview/clipboard";
 import { applyPrivacyBadge } from "../../preview/privacy-badge";
 import { bindPlaywrightModalClose } from "../../preview/playwright-modal";
 import { applyI18n, getLocale, initI18nPreference, t } from "../../shared/i18n";
@@ -63,6 +71,21 @@ const aiHandoff = new PreviewAiHandoff({
       ? buildAiPrompt(snapshot, zipPath)
       : t("waitForEvidenceLoad");
   },
+  getTicketTemplate: (zipPath) => {
+    const snapshot = runtime.getPackageSnapshot();
+    return snapshot
+      ? buildTicketTemplate(snapshot, zipPath)
+      : t("waitForEvidenceLoad");
+  },
+  getTicketBundle: (zipPath) => {
+    const snapshot = runtime.getPackageSnapshot();
+    return snapshot
+      ? buildTicketBundle(snapshot, zipPath)
+      : {
+          markdown: t("waitForEvidenceLoad"),
+          html: `<p>${t("waitForEvidenceLoad")}</p>`,
+        };
+  },
   notify: (message) => reportView.notify(message),
 });
 
@@ -74,8 +97,18 @@ exportController = new PreviewExportController({
   getMediaChunkCount: () => runtime.mediaChunks,
   notify: (message) => reportView.notify(message),
   onArtifactChanged: () => aiHandoff.render(),
-  onExportComplete: async () => {
-    const copied = await aiHandoff.autoCopyPrompt();
+  beforeExport: () => runtime.waitForSourceMaps(),
+  onExportStart: async (mode) => {
+    if (mode === "ticket") {
+      return await aiHandoff.autoCopyTicketTemplate(true);
+    }
+    return false;
+  },
+  onExportComplete: async (mode = "ai") => {
+    const copied =
+      mode === "ticket"
+        ? await aiHandoff.autoCopyTicketTemplate()
+        : await aiHandoff.autoCopyPrompt();
     if (silentMode) {
       setTimeout(() => {
         window.close();
@@ -152,6 +185,145 @@ playwrightCopy.addEventListener("click", async () => {
   }
 });
 
+// 工单草稿图文预览弹窗
+const ticketModal = document.getElementById("ticket-modal") as HTMLElement;
+const previewTicketBtn = document.getElementById(
+  "preview-ticket-btn"
+) as HTMLButtonElement | null;
+const drawerPreviewTicketBtn = document.getElementById(
+  "drawer-preview-ticket"
+) as HTMLButtonElement | null;
+const ticketClose = document.getElementById(
+  "ticket-modal-close"
+) as HTMLButtonElement;
+const ticketCloseBtn = document.getElementById(
+  "ticket-modal-close-btn"
+) as HTMLButtonElement;
+const ticketTabRich = document.getElementById(
+  "ticket-tab-rich"
+) as HTMLButtonElement;
+const ticketTabPlain = document.getElementById(
+  "ticket-tab-plain"
+) as HTMLButtonElement;
+const ticketRichView = document.getElementById(
+  "ticket-rich-view"
+) as HTMLElement;
+const ticketPlainView = document.getElementById(
+  "ticket-plain-view"
+) as HTMLElement;
+const ticketSummary = document.getElementById(
+  "ticket-modal-summary"
+) as HTMLElement;
+const ticketModalCopyBtn = document.getElementById(
+  "ticket-modal-copy-btn"
+) as HTMLButtonElement;
+const ticketModalCreateBtn = document.getElementById(
+  "ticket-modal-create-btn"
+) as HTMLButtonElement;
+
+let currentTicketBundle: { markdown: string; html: string } | undefined;
+
+function openTicketPreview(): void {
+  const snapshot = runtime.getPackageSnapshot();
+  if (!snapshot) {
+    reportView.notify(t("waitForEvidenceLoad"));
+    return;
+  }
+  const filename = exportController?.currentArtifact?.filename;
+  const bundle = buildTicketBundle(snapshot, filename);
+  currentTicketBundle = bundle;
+
+  const stepCount = snapshot.interactions?.length ?? 0;
+  const imageCount = snapshot.interactionAssets?.length ?? 0;
+  if (ticketSummary) {
+    ticketSummary.textContent = t("ticketStepsSummary", [
+      String(stepCount),
+      String(imageCount),
+    ]);
+  }
+
+  if (ticketRichView) {
+    ticketRichView.innerHTML = bundle.html;
+    ticketRichView.querySelectorAll<HTMLImageElement>("img").forEach((img) => {
+      img.addEventListener("click", async () => {
+        try {
+          await copyDataUrlImageToClipboard(img.src);
+          reportView.notify(t("stepImageCopied"));
+        } catch (error) {
+          reportView.notify(t("copyFailed", String(error)));
+        }
+      });
+    });
+  }
+  if (ticketPlainView) ticketPlainView.textContent = bundle.markdown;
+
+  ticketTabRich?.classList.add("active");
+  ticketTabPlain?.classList.remove("active");
+  if (ticketRichView) ticketRichView.hidden = false;
+  if (ticketPlainView) ticketPlainView.hidden = true;
+
+  ticketModal.hidden = false;
+  const aiDrawer = document.getElementById("ai-drawer");
+  if (aiDrawer) aiDrawer.hidden = true;
+}
+
+previewTicketBtn?.addEventListener("click", openTicketPreview);
+drawerPreviewTicketBtn?.addEventListener("click", openTicketPreview);
+
+ticketTabRich?.addEventListener("click", () => {
+  ticketTabRich.classList.add("active");
+  ticketTabPlain.classList.remove("active");
+  ticketRichView.hidden = false;
+  ticketPlainView.hidden = true;
+});
+
+ticketTabPlain?.addEventListener("click", () => {
+  ticketTabPlain.classList.add("active");
+  ticketTabRich.classList.remove("active");
+  ticketPlainView.hidden = false;
+  ticketRichView.hidden = true;
+});
+
+function closeTicketModal(): void {
+  ticketModal.hidden = true;
+}
+
+ticketClose?.addEventListener("click", closeTicketModal);
+ticketCloseBtn?.addEventListener("click", closeTicketModal);
+ticketModal?.addEventListener("click", (e) => {
+  if (e.target === ticketModal) closeTicketModal();
+});
+
+bindPlaywrightModalClose(ticketModal);
+
+ticketModalCopyBtn?.addEventListener("click", async () => {
+  if (!currentTicketBundle) return;
+  try {
+    await copyRichTextToClipboard(
+      { html: currentTicketBundle.html, text: currentTicketBundle.markdown },
+      document
+    );
+    reportView.notify(t("ticketTemplateCopied"));
+  } catch (error) {
+    reportView.notify(t("copyFailed", String(error)));
+  }
+});
+
+ticketModalCreateBtn?.addEventListener("click", async () => {
+  if (currentTicketBundle) {
+    try {
+      await copyRichTextToClipboard(
+        { html: currentTicketBundle.html, text: currentTicketBundle.markdown },
+        document
+      );
+    } catch {
+      // 忽略
+    }
+  }
+  closeTicketModal();
+  void exportController?.export("ticket", { skipClipboard: true });
+});
+
 async function loadMediaPreview(): Promise<void> {
   const result = await runtime.loadMediaPreview();
   const video = $("#video") as HTMLVideoElement;
@@ -185,27 +357,37 @@ async function load(): Promise<void> {
     $("#meta").textContent = t("missingSessionId");
     return;
   }
-  await runtime.load(sessionId);
+  await Promise.all([runtime.load(sessionId), exportController.load()]);
   if (!runtime.currentSession) {
     $("#meta").textContent = t("sessionNotFound");
     return;
   }
   applyPrivacyBadge(document, runtime.currentSession);
-  await exportController.load();
-  if (runtime.mediaChunks) {
-    $("#video-empty").textContent = t(
-      "loadingVideoChunks",
-      String(runtime.mediaChunks)
-    );
-    await loadMediaPreview();
-  } else {
-    await loadMediaPreview();
-  }
   window.addEventListener("beforeunload", () => runtime.dispose(), {
     once: true,
   });
   aiHandoff.render();
   reportView.render();
+
+  if (runtime.mediaChunks) {
+    $("#video-empty").textContent = t(
+      "loadingVideoChunks",
+      String(runtime.mediaChunks)
+    );
+  }
+  void loadMediaPreview().then(() => {
+    if (runtime.getReportSnapshot()?.hasMedia) {
+      reportView.render(["steps"]);
+    }
+  });
+
+  void runtime.waitForSourceMaps().then((changed) => {
+    if (changed) {
+      aiHandoff.render();
+      reportView.render(["console", "network", "stream"]);
+    }
+  });
+
   if (autoExport) {
     if (exportController.currentArtifact?.state !== "complete") {
       void exportController.export();
@@ -285,6 +467,37 @@ function bindSingleSeekbarPlayer(): void {
   });
 
   let segmentsRendered = false;
+  let lastScenesRef: unknown;
+  let cachedSkipIntervals: Array<{ startSec: number; endSec: number }> = [];
+
+  const getSkipIntervals = () => {
+    const snapshot = runtime.getReportSnapshot();
+    if (!snapshot) return [];
+    const scenes = snapshot.issueScenes?.included ?? [];
+    if (scenes === lastScenesRef) {
+      return cachedSkipIntervals;
+    }
+    lastScenesRef = scenes;
+    const startedAt = snapshot.session.timeline.startedAtEpochMs;
+    if (!startedAt) {
+      cachedSkipIntervals = [];
+      return cachedSkipIntervals;
+    }
+    const intervals: Array<{ startSec: number; endSec: number }> = [];
+    for (const item of scenes) {
+      const scene = "scene" in item ? item.scene : item;
+      const startMs =
+        scene.selectionStartedAtEpochMs ?? scene.observedAtEpochMs;
+      const endMs = scene.committedAtEpochMs;
+      if (!startMs || !endMs || endMs <= startMs) continue;
+      intervals.push({
+        startSec: Math.max(0, (startMs - startedAt) / 1000),
+        endSec: (endMs - startedAt) / 1000,
+      });
+    }
+    cachedSkipIntervals = intervals;
+    return cachedSkipIntervals;
+  };
 
   const renderYellowSegments = () => {
     if (
@@ -343,22 +556,9 @@ function bindSingleSeekbarPlayer(): void {
 
   const checkAutoSkip = (currentTime: number) => {
     if (!checkbox || !checkbox.checked || video.paused || video.seeking) return;
-    const snapshot = runtime.getReportSnapshot();
-    if (!snapshot) return;
-    const startedAt = snapshot.session.timeline.startedAtEpochMs;
-    if (!startedAt) return;
-
-    const scenes = snapshot.issueScenes?.included ?? [];
-    for (const item of scenes) {
-      const scene = "scene" in item ? item.scene : item;
-      const startMs =
-        scene.selectionStartedAtEpochMs ?? scene.observedAtEpochMs;
-      const endMs = scene.committedAtEpochMs;
-      if (!startMs || !endMs || endMs <= startMs) continue;
-
-      const startSec = Math.max(0, (startMs - startedAt) / 1000);
-      const endSec = (endMs - startedAt) / 1000;
-
+    const intervals = getSkipIntervals();
+    for (let i = 0; i < intervals.length; i += 1) {
+      const { startSec, endSec } = intervals[i]!;
       if (currentTime >= startSec && currentTime < endSec - 0.1) {
         video.currentTime = endSec;
         syncTimeAnchor();
@@ -372,9 +572,15 @@ function bindSingleSeekbarPlayer(): void {
     lastWallTime = performance.now();
   };
 
+  let lastRenderedTimeText = "";
+
   const applyRenderUI = (time: number, duration: number, percent: number) => {
     if (timeText) {
-      timeText.textContent = `${formatTime(time)} / ${formatTime(duration)}`;
+      const nextTimeText = `${formatTime(time)} / ${formatTime(duration)}`;
+      if (nextTimeText !== lastRenderedTimeText) {
+        lastRenderedTimeText = nextTimeText;
+        timeText.textContent = nextTimeText;
+      }
     }
     if (duration > 0) {
       if (seekbarFill) seekbarFill.style.width = `${percent}%`;

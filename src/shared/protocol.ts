@@ -232,6 +232,9 @@ export type RecordingSession = {
   browserEpoch?: string;
   previewPending?: boolean;
   silentPrompt?: string;
+  silentTicketTemplate?: string;
+  silentTicketHtml?: string;
+  silentExportMode?: "ai" | "ticket";
   silentExportResult?: {
     ok: boolean;
     error?: string;
@@ -844,6 +847,7 @@ export type RuntimeMessage =
         autoExport?: boolean;
         silentExport?: boolean;
         discard?: boolean;
+        exportMode?: "ai" | "ticket";
         traceStartMs?: number;
         traceContext?: ExportTraceContext;
         pausedDurationMs?: number;
@@ -1007,6 +1011,7 @@ export type RuntimeMessage =
       "offscreen/export-pack",
       {
         sessionId: string;
+        exportMode?: "ai" | "ticket";
         traceContext?: ExportTraceContext;
       }
     >;
@@ -1112,6 +1117,8 @@ export type RuntimeMessageResponseMap = {
   "offscreen/export-pack": {
     ok: true;
     prompt?: string;
+    ticketTemplate?: string;
+    ticketHtml?: string;
     blobUrl?: string;
     filename?: string;
     error?: string;

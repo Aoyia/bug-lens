@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { formatBytes } from "../src/domain/byte-format.ts";
+import {
+  formatBytes,
+  formatNetworkEntrySize,
+} from "../src/domain/byte-format.ts";
 
 /**
  * 字节大小格式化契约（二进制单位，B → KiB → MiB → GiB）。
@@ -39,4 +42,123 @@ test("formatBytes 对非法输入防御性回退", () => {
   assert.equal(formatBytes(-1), "0 B");
   assert.equal(formatBytes(NaN), "0 B");
   assert.equal(formatBytes(Infinity), "0 B");
+});
+
+test("formatNetworkEntrySize 解析优先级与语义展示契约", () => {
+  // 1. 无条目或无 response 时返回空字符串
+  assert.equal(formatNetworkEntrySize(undefined), "");
+  assert.equal(formatNetworkEntrySize({ status: 200 }), "");
+
+  // 2. 捕获到响应体 (byteLength) 优先
+  assert.equal(
+    formatNetworkEntrySize({
+      status: 200,
+      response: {
+        byteLength: 129,
+        bodyStatus: "captured",
+        headers: { "content-length": "2048" },
+      },
+    }),
+    "129 B"
+  );
+  assert.equal(
+    formatNetworkEntrySize({
+      status: 200,
+      response: {
+        byteLength: 46182,
+        bodyStatus: "captured",
+      },
+    }),
+    "45.1 KiB"
+  );
+
+  // 3. CDP 传输大小 (encodedDataLength) 次优
+  assert.equal(
+    formatNetworkEntrySize({
+      status: 200,
+      response: {
+        encodedDataLength: 512,
+        bodyStatus: "not-present",
+      },
+    }),
+    "512 B"
+  );
+
+  // 4. Content-Length（不区分大小写，支持 extraResponseHeaders 与 response.headers）
+  assert.equal(
+    formatNetworkEntrySize({
+      status: 200,
+      response: {
+        bodyStatus: "not-present",
+        headers: { "Content-Length": "4428" },
+      },
+    }),
+    "4.3 KiB"
+  );
+  assert.equal(
+    formatNetworkEntrySize(
+      {
+        status: 200,
+        response: {
+          bodyStatus: "not-present",
+        },
+      },
+      { "content-length": "2751" }
+    ),
+    "2.7 KiB"
+  );
+
+  // 5. 缓存命中标识 (304 或 memory/disk cache)
+  assert.equal(
+    formatNetworkEntrySize({
+      status: 304,
+      response: {
+        bodyStatus: "not-present",
+      },
+    }),
+    "(cache)"
+  );
+  assert.equal(
+    formatNetworkEntrySize({
+      status: 200,
+      response: {
+        fromDiskCache: true,
+        bodyStatus: "not-present",
+      },
+    }),
+    "(cache)"
+  );
+  assert.equal(
+    formatNetworkEntrySize({
+      status: 200,
+      response: {
+        cache: { source: "memory" },
+        bodyStatus: "not-present",
+      },
+    }),
+    "(cache)"
+  );
+
+  // 6. 静态资源未捕获且无 Content-Length，展示 —，禁止误显示为 0 B
+  assert.equal(
+    formatNetworkEntrySize({
+      status: 200,
+      response: {
+        bodyStatus: "not-present",
+      },
+    }),
+    "—"
+  );
+
+  // 7. 真实 0 字节 payload（已捕获且正文确实为空）展示 0 B
+  assert.equal(
+    formatNetworkEntrySize({
+      status: 200,
+      response: {
+        byteLength: 0,
+        bodyStatus: "captured",
+      },
+    }),
+    "0 B"
+  );
 });
