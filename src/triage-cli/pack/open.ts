@@ -1,9 +1,11 @@
 import { unzipSync } from "fflate";
 import {
+  existsSync,
   mkdirSync,
   readdirSync,
   readFileSync,
   realpathSync,
+  rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
@@ -28,9 +30,40 @@ const MEDIA_PATH_RE = /(?:^|\/)media\/|\.(?:mp4|webm|mkv|mov)$/i;
 const WINDOWS_RESERVED_CHARS_RE = /[:*?"<>|]/g;
 
 const defaultCache = new PackLruCache(3);
+const CURRENT_PACK_STATE_FILE = join(
+  tmpdir(),
+  "bug-lens-workspace",
+  ".current-pack"
+);
+
+function saveLastPackPathToDisk(packPath: string): void {
+  try {
+    mkdirSync(dirname(CURRENT_PACK_STATE_FILE), { recursive: true });
+    writeFileSync(CURRENT_PACK_STATE_FILE, packPath, "utf8");
+  } catch {
+    // ignore disk state write errors
+  }
+}
+
+function loadLastPackPathFromDisk(): string | undefined {
+  try {
+    if (existsSync(CURRENT_PACK_STATE_FILE)) {
+      const p = readFileSync(CURRENT_PACK_STATE_FILE, "utf8").trim();
+      if (p.length > 0) return p;
+    }
+  } catch {
+    // ignore disk state read errors
+  }
+  return undefined;
+}
 
 export function clearPackCache(): void {
   defaultCache.clear();
+  try {
+    rmSync(CURRENT_PACK_STATE_FILE, { force: true });
+  } catch {
+    // ignore
+  }
 }
 
 function normalizeArchiveEntryPath(rawName: string): string {
@@ -190,7 +223,7 @@ export function openPack(
   const effectivePath =
     packPath && typeof packPath === "string" && packPath.trim().length > 0
       ? packPath.trim()
-      : cache.getLastPath();
+      : (cache.getLastPath() ?? loadLastPackPathFromDisk());
   if (!effectivePath) {
     throw new Error(
       'INVALID_PACK_PATH: pack path is required when no pack has been opened yet. Pass the "pack" argument or call open_pack first.'
@@ -209,7 +242,10 @@ export function openPack(
 
   const fingerprint = `${st.isDirectory() ? "dir" : "file"}:${st.mtimeMs}:${st.size}`;
   const cached = cache.get(realPath, fingerprint);
-  if (cached) return cached;
+  if (cached) {
+    saveLastPackPathToDisk(realPath);
+    return cached;
+  }
 
   const { files, skippedMediaFiles } = st.isDirectory()
     ? loadDirectoryArchive(realPath)
@@ -217,6 +253,7 @@ export function openPack(
 
   const loaded = instantiatePack(realPath, files, skippedMediaFiles);
   cache.set(realPath, fingerprint, loaded);
+  saveLastPackPathToDisk(realPath);
   return loaded;
 }
 

@@ -3664,7 +3664,7 @@
         <a href="#changelog" class="version-pill reveal visible">
           <span class="live-dot"></span>
           <span class="version-pill-text" data-l10n="heroVersionBadge"
-            >v0.7.38 现已上线 · 查看更新日志</span
+            >v0.7.39 现已上线 · 查看更新日志</span
           >
         </a>
         <h1 class="reveal visible" data-l10n="heroTitle">
@@ -4095,7 +4095,7 @@
             持续保持高频迭代，保障在最新前端框架生态与 AI 编程环境下的极佳体验。
           </p>
           <div class="changelog-timeline reveal">
-            <!-- v0.7.38 -->
+            <!-- v0.7.39 -->
             <div class="changelog-item latest">
               <div class="changelog-marker">
                 <span class="changelog-dot"></span>
@@ -4103,7 +4103,7 @@
               <div class="changelog-card">
                 <div class="changelog-header">
                   <div class="changelog-meta">
-                    <span class="changelog-ver">v0.7.38</span>
+                    <span class="changelog-ver">v0.7.39</span>
                     <span class="changelog-tag" data-l10n="tagLatest"
                       >Latest</span
                     >
@@ -4112,12 +4112,48 @@
                 </div>
                 <div class="changelog-content">
                   <div class="changelog-feature">
+                    <strong data-l10n="v39_f1_t"
+                      >零依赖 AI 诊断 Skill 与内置 CLI：</strong
+                    >
+                    <span data-l10n="v39_f1_d"
+                      >收敛 12 项内存直读与级联溯源能力至 bug-lens-triage Skill
+                      内置的零依赖 CLI（scripts/bug-lens-cli.mjs），支持一行 npx
+                      skills add 全局安装，彻底消除独立 MCP 配置门槛。</span
+                    >
+                  </div>
+                  <div class="changelog-feature">
+                    <strong data-l10n="v39_f2_t"
+                      >会话级包路径记忆与截图直出：</strong
+                    >
+                    <span data-l10n="v39_f2_d"
+                      >open_pack
+                      命令一步到位自动导出关键场景截图并建立会话状态缓存，后续下钻命令无需重复传包路径，极大减少终端交互与弹窗打断。</span
+                    >
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- v0.7.38 -->
+            <div class="changelog-item">
+              <div class="changelog-marker">
+                <span class="changelog-dot"></span>
+              </div>
+              <div class="changelog-card">
+                <div class="changelog-header">
+                  <div class="changelog-meta">
+                    <span class="changelog-ver">v0.7.38</span>
+                    <span class="changelog-date">2026-11-03</span>
+                  </div>
+                </div>
+                <div class="changelog-content">
+                  <div class="changelog-feature">
                     <strong data-l10n="v38_f1_t"
-                      >原生 MCP 服务与专属诊断 Skill：</strong
+                      >内存直读与专属诊断 Skill：</strong
                     >
                     <span data-l10n="v38_f1_d"
-                      >发布 bug-lens-mcp 服务与 bug-lens-triage Agent 技能，支持
-                      AI 免解压直读 ZIP
+                      >发布免解压直读架构与 bug-lens-triage Agent 技能，支持 AI
+                      免解压直读 ZIP
                       证据包，自动分流视觉级联溯源（cascade.json）与运行时序下钻，实现从证据到源码修复的标准化闭环。</span
                     >
                   </div>
@@ -4511,15 +4547,21 @@
             footerSource: "开源仓库",
             footerIssues: "反馈问题",
             navChangelog: "更新日志",
-            heroVersionBadge: "v0.7.38 现已上线 · 查看更新日志",
+            heroVersionBadge: "v0.7.39 现已上线 · 查看更新日志",
             changelogEyebrow: "Releases & Activity",
             changelogTitle: "版本演进与动态",
             changelogDesc:
               "持续保持高频迭代，保障在最新前端框架生态与 AI 编程环境下的极佳体验。",
             tagLatest: "最新",
-            v38_f1_t: "原生 MCP 服务与专属诊断 Skill：",
+            v39_f1_t: "零依赖 AI 诊断 Skill 与内置 CLI：",
+            v39_f1_d:
+              "收敛 12 项内存直读与级联溯源能力至 bug-lens-triage Skill 内置的零依赖 CLI（scripts/bug-lens-cli.mjs），支持一行 npx skills add 全局安装，彻底消除独立 MCP 配置门槛。",
+            v39_f2_t: "会话级包路径记忆与截图直出：",
+            v39_f2_d:
+              "open_pack 命令一步到位自动导出关键场景截图并建立会话状态缓存，后续下钻命令无需重复传包路径，极大减少终端交互与弹窗打断。",
+            v38_f1_t: "内存直读与专属诊断 Skill：",
             v38_f1_d:
-              "发布 bug-lens-mcp 服务与 bug-lens-triage Agent 技能，支持 AI 免解压直读 ZIP 证据包，自动分流视觉级联溯源（cascade.json）与运行时序下钻，实现从证据到源码修复的标准化闭环。",
+              "发布免解压直读架构与 bug-lens-triage Agent 技能，支持 AI 免解压直读 ZIP 证据包，自动分流视觉级联溯源（cascade.json）与运行时序下钻，实现从证据到源码修复的标准化闭环。",
             v38_f2_t: "跨标签页无缝录制与并行解析：",
             v38_f2_d:
               "支持衍生标签页自动追踪与分布式录制挂件状态同步，升级 Worker 并行 SourceMap 解析、全量黑匣子性能遥测与结构化缺陷工单导出。",
@@ -4555,15 +4597,21 @@
             navChangelog: "Changelog",
             navFaq: "FAQ",
             heroBadge: "CHROME EXTENSION · AI CODING",
-            heroVersionBadge: "v0.7.38 is Live · See What's New",
+            heroVersionBadge: "v0.7.39 is Live · See What's New",
             changelogEyebrow: "Releases & Activity",
             changelogTitle: "Changelog & Activity",
             changelogDesc:
               "Iterating relentlessly to deliver the fastest, cleanest diagnostic experience for modern web and AI agents.",
             tagLatest: "Latest",
-            v38_f1_t: "Native MCP Server & Triage Skill: ",
+            v39_f1_t: "Zero-Dependency Triage Skill & Bundled CLI: ",
+            v39_f1_d:
+              "Consolidates all 12 in-memory inspection and CSS cascade tracing capabilities into the bug-lens-triage Agent Skill with a bundled zero-dependency CLI (scripts/bug-lens-cli.mjs), installable via a single npx skills add command.",
+            v39_f2_t: "Active Pack Cache & Instant Screenshot Export: ",
+            v39_f2_d:
+              "open_pack automatically extracts key scene screenshots and caches active pack state across invocations, eliminating repetitive --pack flags and terminal interruption prompts.",
+            v38_f1_t: "In-Memory Inspection & Triage Skill: ",
             v38_f1_d:
-              "Introduces bug-lens-mcp and the bug-lens-triage Agent Skill, enabling zero-extraction in-memory ZIP inspection, automated CSS cascade pinpointing, and causal timeline drill-down for end-to-end bug fixing.",
+              "Enables zero-extraction in-memory ZIP inspection and the bug-lens-triage Agent Skill, automating CSS cascade pinpointing (cascade.json) and chronological timeline drill-down for defect triage.",
             v38_f2_t: "Seamless Multi-Tab Recording & Parallel SourceMap: ",
             v38_f2_d:
               "Supports derived tab auto-tracking and distributed widget state sync, powered by parallel Worker SourceMap resolution, blackbox telemetry archives, and structured bug ticket export.",

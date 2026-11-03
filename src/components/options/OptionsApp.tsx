@@ -384,8 +384,8 @@ export function OptionsApp() {
   const [loaded, setLoaded] = useState(false);
   const [saveStatus, setSaveStatus] = useState<string>("");
   const [showPromptPreview, setShowPromptPreview] = useState(false);
-  const [showMcpConfig, setShowMcpConfig] = useState(false);
-  const [mcpCopied, setMcpCopied] = useState(false);
+  const [showSkillConfig, setShowSkillConfig] = useState(false);
+  const [skillCopied, setSkillCopied] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [clearStatus, setClearStatus] = useState<string>("");
 
@@ -794,7 +794,7 @@ export function OptionsApp() {
               {typeof chrome !== "undefined" &&
               chrome.runtime?.getManifest?.()?.version
                 ? chrome.runtime.getManifest().version
-                : "0.7.38"}
+                : "0.7.39"}
             </div>
           </aside>
 
@@ -1088,12 +1088,12 @@ export function OptionsApp() {
                     )}
                   </div>
 
-                  {/* 内联折叠查看 MCP Server 配置说明 */}
+                  {/* 内联折叠查看 AI 排障 Skill 安装说明 */}
                   <div className="inline-prompt-preview-wrap">
                     <button
                       type="button"
                       className="btn-inline-toggle"
-                      onClick={() => setShowMcpConfig(!showMcpConfig)}
+                      onClick={() => setShowSkillConfig(!showSkillConfig)}
                     >
                       <svg
                         width="12"
@@ -1103,7 +1103,7 @@ export function OptionsApp() {
                         stroke="currentColor"
                         strokeWidth="2.5"
                         style={{
-                          transform: showMcpConfig ? "rotate(90deg)" : "none",
+                          transform: showSkillConfig ? "rotate(90deg)" : "none",
                           transition: "transform 0.15s ease",
                         }}
                       >
@@ -1111,17 +1111,19 @@ export function OptionsApp() {
                       </svg>
                       <span>
                         {isEn()
-                          ? showMcpConfig
-                            ? "Hide MCP Server & Skill Configuration"
-                            : "View MCP Server & Skill Setup (Optional)"
-                          : showMcpConfig
-                            ? "收起 MCP Server 与 Skill 配置说明"
-                            : "查看 MCP Server 与 Skill 配置说明 (可选)"}
+                          ? showSkillConfig
+                            ? "Hide AI Triage Skill Setup"
+                            : "View AI Triage Skill Setup (Optional)"
+                          : showSkillConfig
+                            ? "收起 AI 排障 Skill 安装说明"
+                            : "查看 AI 排障 Skill 安装说明 (可选)"}
                       </span>
-                      <span className="inline-preview-badge">bug-lens-mcp</span>
+                      <span className="inline-preview-badge">
+                        bug-lens-triage
+                      </span>
                     </button>
 
-                    {showMcpConfig && (
+                    {showSkillConfig && (
                       <div className="inline-prompt-preview-box">
                         <div
                           style={{
@@ -1139,33 +1141,20 @@ export function OptionsApp() {
                         >
                           <span>
                             {isEn()
-                              ? "Copy and send to your AI assistant to auto-install the MCP server and bug-lens-triage skill, or run manually."
-                              : "可直接复制发给 AI 助手让其自动完成 MCP 与 bug-lens-triage 技能安装，或手动执行。"}
+                              ? "Run in terminal (or send to your AI assistant) to install the bug-lens-triage skill with bundled in-memory ZIP inspection CLI."
+                              : "在终端执行（或复制发给 AI 助手）即可一键安装自带内存 ZIP 直读脚本的 bug-lens-triage 技能。"}
                           </span>
                           <button
                             type="button"
                             onClick={() => {
                               const snippet =
-                                settings.ai.targetAssistant === "claude-code"
-                                  ? "npx -y bug-lens-mcp@latest install-skill && claude mcp add bug-lens-evidence -- npx -y bug-lens-mcp@latest"
-                                  : `# 1. Install bug-lens-triage Skill\nnpx -y bug-lens-mcp@latest install-skill\n\n# 2. MCP Server Config\n${JSON.stringify(
-                                      {
-                                        mcpServers: {
-                                          "bug-lens-evidence": {
-                                            command: "npx",
-                                            args: ["-y", "bug-lens-mcp@latest"],
-                                          },
-                                        },
-                                      },
-                                      null,
-                                      2
-                                    )}`;
+                                "npx skills add Aoyia/bug-lens --skill bug-lens-triage -g -y";
                               void navigator.clipboard
                                 .writeText(snippet)
                                 .then(() => {
-                                  setMcpCopied(true);
+                                  setSkillCopied(true);
                                   window.setTimeout(
-                                    () => setMcpCopied(false),
+                                    () => setSkillCopied(false),
                                     1800
                                   );
                                 });
@@ -1181,30 +1170,17 @@ export function OptionsApp() {
                               cursor: "pointer",
                             }}
                           >
-                            {mcpCopied
+                            {skillCopied
                               ? isEn()
                                 ? "Copied"
                                 : "已复制"
                               : isEn()
                                 ? "Copy"
-                                : "复制配置"}
+                                : "复制命令"}
                           </button>
                         </div>
                         <pre className="inline-code-content">
-                          {settings.ai.targetAssistant === "claude-code"
-                            ? "npx -y bug-lens-mcp@latest install-skill && claude mcp add bug-lens-evidence -- npx -y bug-lens-mcp@latest"
-                            : `# 1. Install bug-lens-triage Skill\nnpx -y bug-lens-mcp@latest install-skill\n\n# 2. MCP Server Config\n${JSON.stringify(
-                                {
-                                  mcpServers: {
-                                    "bug-lens-evidence": {
-                                      command: "npx",
-                                      args: ["-y", "bug-lens-mcp@latest"],
-                                    },
-                                  },
-                                },
-                                null,
-                                2
-                              )}`}
+                          {`# Global install (Antigravity / Claude Code / Cursor)\nnpx skills add Aoyia/bug-lens --skill bug-lens-triage -g -y\n\n# Or project-scoped install\nnpx skills add Aoyia/bug-lens --skill bug-lens-triage -y`}
                         </pre>
                       </div>
                     )}

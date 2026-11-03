@@ -55,7 +55,6 @@ node scripts/release-bump.mjs <version>
 ```bash
 pnpm typecheck
 pnpm test
-pnpm mcp:test
 pnpm package
 ```
 

@@ -1,6 +1,14 @@
 import { build, context, transform } from "esbuild";
-import { cp, mkdir, rm, readFile, writeFile, readdir } from "node:fs/promises";
-import { resolve } from "node:path";
+import {
+  chmod,
+  cp,
+  mkdir,
+  rm,
+  readFile,
+  writeFile,
+  readdir,
+} from "node:fs/promises";
+import { dirname, resolve } from "node:path";
 import { watch as watchFS } from "node:fs";
 import { WebSocketServer } from "ws";
 
@@ -189,6 +197,28 @@ async function copyStaticAssets() {
   await buildMergedPreviewCss();
 }
 
+async function buildTriageSkillCli() {
+  const skillCliOut = resolve(
+    root,
+    ".agents/skills/bug-lens-triage/scripts/bug-lens-cli.mjs"
+  );
+  await mkdir(dirname(skillCliOut), { recursive: true });
+  await build({
+    entryPoints: [resolve(root, "src/triage-cli/cli.ts")],
+    outfile: skillCliOut,
+    bundle: true,
+    platform: "node",
+    target: "node20",
+    format: "esm",
+    sourcemap: false,
+    minify: true,
+    banner: {
+      js: "#!/usr/bin/env node\nimport { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);",
+    },
+  });
+  await chmod(skillCliOut, 0o755);
+}
+
 if (isWatch) {
   console.log("Starting esbuild watch mode...");
   await copyStaticAssets();
@@ -274,7 +304,8 @@ if (isWatch) {
     });
   }
   await copyStaticAssets();
+  await buildTriageSkillCli();
   console.log(
-    `Built extension to ${outdir}${isE2e ? " (with E2E pre-granted host permissions)" : ""}`
+    `Built extension to ${outdir}${isE2e ? " (with E2E pre-granted host permissions)" : ""} and triage CLI to .agents/skills/bug-lens-triage/scripts/bug-lens-cli.mjs`
   );
 }

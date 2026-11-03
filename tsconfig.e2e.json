@@ -3,5 +3,9 @@
   "compilerOptions": {
     "types": ["node", "chrome"]
   },
-  "include": ["e2e/**/*.ts"]
+  "include": [
+    "e2e/**/*.ts",
+    "src/triage-cli/**/*.ts",
+    "tests/triage-cli-*.test.ts"
+  ]
 }

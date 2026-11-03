@@ -13,5 +13,6 @@
     "jsx": "react-jsx",
     "jsxImportSource": "preact"
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.json"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.json"],
+  "exclude": ["src/triage-cli"]
 }

@@ -494,7 +494,7 @@ test("buildAiPrompt generates singleton workspace extraction commands for POSIX 
   assert.match(macPrompt, /【工作区准备（严禁解压在当前代码工程目录内/);
   assert.match(
     macPrompt,
-    /首选方式（已配置 `bug-lens` MCP 工具时）：直接将上方 ZIP 路径作为 `pack` 参数调用 `open_pack`/
+    /首选方式（已安装 `bug-lens-triage` Skill 时）：直接使用该技能内置的 `node "<skillDir>\/scripts\/bug-lens-cli\.mjs" open_pack/
   );
   assert.match(
     macPrompt,

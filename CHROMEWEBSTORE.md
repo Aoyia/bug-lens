@@ -1,6 +1,6 @@
 # Chrome Web Store Listing & Submission Guide — Bug Lens
 
-> **Version Alignment**: Manifest `v0.7.38`  
+> **Version Alignment**: Manifest `v0.7.39`  
 > **Target Store**: [Chrome Developer Dashboard](https://chrome.google.com/webstore/devconsole)
 
 ---
@@ -166,7 +166,7 @@ pnpm run typecheck
 pnpm run package
 ```
 
-产物位置：根目录下生成 `dist-zip/bug-lens-v0.7.38.zip`
+产物位置：根目录下生成 `dist-zip/bug-lens-v0.7.39.zip`
 
 ### 步骤 2: 提交至 Chrome Developer Dashboard
 
@@ -182,16 +182,17 @@ pnpm run package
 
 ## 6. 版本变更记录 (Version History)
 
-| Version   | Date       | Changes Summary                                                                                                                                                                                             | Store Status         |
-| :-------- | :--------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------- |
-| `v0.7.38` | 2026-11-03 | Native bug-lens-mcp server & bug-lens-triage Agent Skill for in-memory ZIP inspection and CSS cascade queries; seamless multi-tab recording with distributed widget sync and parallel SourceMap resolution. | Ready for Submission |
-| `v0.7.37` | 2026-10-23 | Adaptive O(1) singleton workspace prompts with Windows PowerShell & POSIX unzipping; safe auto-injected absolute paths; zero workspace pollution.                                                           | Submitted            |
-| `v0.7.36` | 2026-10-22 | iOS 26 liquid glass segmented control in settings; redesigned flow layout text annotations with halo stroke and vibrant red `#FA5352`; website changelog timeline.                                          | Submitted            |
-| `v0.7.35` | 2026-09-28 | Standalone Chrome-style settings dashboard, zero-shift controls, enhanced multi-tab session perception, and synchronized recording status.                                                                  | Submitted            |
-| `v0.7.34` | 2026-09-05 | High-precision source path & line number extraction for Vue 2, Vue 3 & React, Hooks reactive state unpacking, sensitive sanitization, offline fixture app E2E matrix.                                       | Ready for Submission |
-| `v0.7.33` | 2026-09-04 | Silent export responsiveness optimization, IndexedDB write batching & transaction lock mitigation, full 21 E2E stress suite hardening.                                                                      | Ready for Submission |
-| `v0.7.32` | 2026-08-21 | Widget position persistence across sessions, recording lock states, export toast card UI optimizations, and database loading performance optimizations.                                                     | Ready for Submission |
-| `v0.7.3`  | 2026-08-21 | Store listing and notification text refinement with Codex & AI assistant representations.                                                                                                                   | Submitted            |
-| `v0.7.2`  | 2026-08-19 | Fix silent export package missing offline HTML report template & assets.                                                                                                                                    | Submitted            |
-| `v0.7.1`  | 2026-08-19 | Store listing optimization for AI coding assistant workflows (Cursor, Claude Code, Antigravity).                                                                                                            | Submitted            |
-| `v0.6.0`  | 2026-08-12 | Alignment with CDP log capture, clipboard AI prompt copy, pnpm tooling.                                                                                                                                     | Submitted            |
+| Version   | Date       | Changes Summary                                                                                                                                                                              | Store Status         |
+| :-------- | :--------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------- |
+| `v0.7.39` | 2026-11-03 | Zero-dependency bug-lens-triage Skill with bundled in-memory CLI; single-step open_pack with auto image extraction and cross-command active pack cache; streamlined single skill entrypoint. | Ready for Submission |
+| `v0.7.38` | 2026-11-03 | In-memory ZIP inspection and CSS cascade queries; seamless multi-tab recording with distributed widget sync and parallel SourceMap resolution.                                               | Submitted            |
+| `v0.7.37` | 2026-10-23 | Adaptive O(1) singleton workspace prompts with Windows PowerShell & POSIX unzipping; safe auto-injected absolute paths; zero workspace pollution.                                            | Submitted            |
+| `v0.7.36` | 2026-10-22 | iOS 26 liquid glass segmented control in settings; redesigned flow layout text annotations with halo stroke and vibrant red `#FA5352`; website changelog timeline.                           | Submitted            |
+| `v0.7.35` | 2026-09-28 | Standalone Chrome-style settings dashboard, zero-shift controls, enhanced multi-tab session perception, and synchronized recording status.                                                   | Submitted            |
+| `v0.7.34` | 2026-09-05 | High-precision source path & line number extraction for Vue 2, Vue 3 & React, Hooks reactive state unpacking, sensitive sanitization, offline fixture app E2E matrix.                        | Ready for Submission |
+| `v0.7.33` | 2026-09-04 | Silent export responsiveness optimization, IndexedDB write batching & transaction lock mitigation, full 21 E2E stress suite hardening.                                                       | Ready for Submission |
+| `v0.7.32` | 2026-08-21 | Widget position persistence across sessions, recording lock states, export toast card UI optimizations, and database loading performance optimizations.                                      | Ready for Submission |
+| `v0.7.3`  | 2026-08-21 | Store listing and notification text refinement with Codex & AI assistant representations.                                                                                                    | Submitted            |
+| `v0.7.2`  | 2026-08-19 | Fix silent export package missing offline HTML report template & assets.                                                                                                                     | Submitted            |
+| `v0.7.1`  | 2026-08-19 | Store listing optimization for AI coding assistant workflows (Cursor, Claude Code, Antigravity).                                                                                             | Submitted            |
+| `v0.6.0`  | 2026-08-12 | Alignment with CDP log capture, clipboard AI prompt copy, pnpm tooling.                                                                                                                      | Submitted            |

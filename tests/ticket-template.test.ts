@@ -90,7 +90,9 @@ test("buildTicketTemplate: 中文默认模板与占位符生成（无异常时�
   assert.ok(!result.includes("未捕获接口失败或控制台报错"));
   assert.ok(result.includes("## 【证据包附件】"));
   assert.ok(result.includes("- 附件文件名：`web-bug-report-session-.zip`"));
-  assert.ok(result.includes("请使用 bug-lens MCP 或按包内 AI_PROMPT.md 分析"));
+  assert.ok(
+    result.includes("请使用 bug-lens-triage 技能或按包内 AI_PROMPT.md 分析")
+  );
 });
 
 test("buildTicketTemplate: 包含标记问题、操作步骤、失败接口与报错", async () => {

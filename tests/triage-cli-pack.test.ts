@@ -4,18 +4,18 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { parseWindowAssignmentJson } from "../src/pack/js-json.ts";
+import { parseWindowAssignmentJson } from "../src/triage-cli/pack/js-json.ts";
 import {
   clearPackCache,
   extractPackToDisk,
   openPack,
   openPackFromBytes,
   sanitizeRelativePathForDisk,
-} from "../src/pack/open.ts";
+} from "../src/triage-cli/pack/open.ts";
 import {
   buildRealScreenshotZipBytes,
   buildRealSessionZipBytes,
-} from "./fixtures/build-fixture.ts";
+} from "./helpers/triage-cli-fixture.ts";
 
 test("parseWindowAssignmentJson safely parses valid wrapper and rejects untrusted code", () => {
   const parsed = parseWindowAssignmentJson<{ ok: boolean }>(
@@ -44,13 +44,11 @@ test("openPackFromBytes handles session pack, missing network-details.js, unknow
   assert.equal(normalPack.integrity.valid, true);
   assert.equal(normalPack.integrity.schemaWarning, undefined);
 
-  // Missing network-details.js falls back gracefully
   const noDetailsBytes = buildRealSessionZipBytes({ omitNetworkDetails: true });
   const noDetailsPack = openPackFromBytes(noDetailsBytes);
   assert.equal(noDetailsPack.kind, "session");
   assert.deepEqual(noDetailsPack.getNetworkDetails(), {});
 
-  // Newer schemaVersion produces schemaWarning without failing
   const futureSchemaBytes = buildRealSessionZipBytes({ schemaVersion: 99 });
   const futurePack = openPackFromBytes(futureSchemaBytes);
   assert.match(
@@ -58,7 +56,6 @@ test("openPackFromBytes handles session pack, missing network-details.js, unknow
     /newer than max supported version/
   );
 
-  // Tampered file triggers integrity mismatch report without throwing
   const tamperedBytes = buildRealSessionZipBytes({ tamperSessionData: true });
   const tamperedPack = openPackFromBytes(tamperedBytes);
   assert.equal(tamperedPack.integrity.valid, false);
@@ -95,9 +92,8 @@ test("openPackFromBytes skips media/* files without loading them into memory", (
 });
 
 test("extractPackToDisk exports new packs cleanly and sanitizes Windows-invalid ':' in legacy network body filenames", () => {
-  const tempRoot = mkdtempSync(join(tmpdir(), "bug-lens-mcp-test-"));
+  const tempRoot = mkdtempSync(join(tmpdir(), "bug-lens-cli-test-"));
   try {
-    // 1. New pack produced by buildEvidencePackage has no ':' in filenames
     const newZipBytes = buildRealSessionZipBytes();
     const newPack = openPackFromBytes(newZipBytes);
     const extractedNew = extractPackToDisk(newPack, join(tempRoot, "out-new"));
@@ -108,7 +104,6 @@ test("extractPackToDisk exports new packs cleanly and sanitizes Windows-invalid 
       )
     );
 
-    // 2. Legacy pack with ':' in network body filename is sanitized on extract
     const legacyZipBytes = buildRealSessionZipBytes({
       legacyColonBodyFilename: true,
     });
@@ -137,7 +132,7 @@ test("extractPackToDisk exports new packs cleanly and sanitizes Windows-invalid 
 });
 
 test("openPack supports file path with spaces/parentheses (Windows download style) and invalidates cache on overwrite", async () => {
-  const tempRoot = mkdtempSync(join(tmpdir(), "bug-lens-mcp-cache-"));
+  const tempRoot = mkdtempSync(join(tmpdir(), "bug-lens-cli-cache-"));
   try {
     clearPackCache();
     const weirdFilePath = join(tempRoot, "web-bug-report-ee2f924f (1).zip");
@@ -146,7 +141,6 @@ test("openPack supports file path with spaces/parentheses (Windows download styl
     const first = openPack(weirdFilePath);
     assert.equal(first.kind, "session");
 
-    // Overwrite same path with screenshot pack — cache must invalidate automatically
     const screenshotBytes = await buildRealScreenshotZipBytes();
     writeFileSync(weirdFilePath, screenshotBytes);
 

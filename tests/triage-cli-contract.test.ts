@@ -3,20 +3,19 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { runGetFrameworkStateTool } from "../src/tools/get-framework-state.ts";
-import { runGetRequestTool } from "../src/tools/get-request.ts";
-import { runGetSceneTool } from "../src/tools/get-scene.ts";
-import { runOpenPackTool } from "../src/tools/open-pack.ts";
-import { runReadPackFileTool } from "../src/tools/read-pack-file.ts";
+import { runGetFrameworkStateTool } from "../src/triage-cli/tools/get-framework-state.ts";
+import { runGetRequestTool } from "../src/triage-cli/tools/get-request.ts";
+import { runGetSceneTool } from "../src/triage-cli/tools/get-scene.ts";
+import { runOpenPackTool } from "../src/triage-cli/tools/open-pack.ts";
+import { runReadPackFileTool } from "../src/triage-cli/tools/read-pack-file.ts";
 import {
   buildRealScreenshotZipBytes,
   buildRealSessionZipBytes,
-} from "./fixtures/build-fixture.ts";
+} from "./helpers/triage-cli-fixture.ts";
 
-test("Contract: buildEvidencePackage export schema matches bug-lens-mcp reader expectations", () => {
+test("Contract: buildEvidencePackage export schema matches triage-cli reader expectations", () => {
   const tempRoot = mkdtempSync(join(tmpdir(), "bug-lens-contract-"));
   try {
-    // 1. Explicit expectation pack
     const explicitPath = join(tempRoot, "explicit.zip");
     writeFileSync(
       explicitPath,
@@ -68,7 +67,6 @@ test("Contract: buildEvidencePackage export schema matches bug-lens-mcp reader e
       "BpmProcessForm",
     ]);
 
-    // 2. Missing expectation pack must flag UNCAPTURED_EXPECTATION
     const missingPath = join(tempRoot, "missing-exp.zip");
     writeFileSync(
       missingPath,
@@ -92,7 +90,7 @@ test("Contract: buildEvidencePackage export schema matches bug-lens-mcp reader e
   }
 });
 
-test("Contract: buildScreenshotZipPackage export schema matches bug-lens-mcp screenshot reader expectations", async () => {
+test("Contract: buildScreenshotZipPackage export schema matches triage-cli screenshot reader expectations", async () => {
   const tempRoot = mkdtempSync(join(tmpdir(), "bug-lens-ss-contract-"));
   try {
     const ssPath = join(tempRoot, "screenshot.zip");

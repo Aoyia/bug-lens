@@ -631,7 +631,7 @@ ${fileListEn}
     const title = payload.environment.title || "Unknown Page";
     const url = payload.environment.url || "Unknown URL";
     const cascadeHint = hasCascade
-      ? `\n- Cascade Index: Style adjustment mode active. Package includes \`cascade.json\` (schema: \`sheets\` / \`rules\` / \`elements[matchedRuleIds, inheritedRules]\` / \`perProperty[prop][]{value, sourceRuleId}\`). Query matched CSS rules and stylesheet URLs directly in memory via MCP tools \`open_pack\`, \`get_scene(selector="...", cssProperty="...")\`, or \`search_pack\`.`
+      ? `\n- Cascade Index: Style adjustment mode active. Package includes \`cascade.json\` (schema: \`sheets\` / \`rules\` / \`elements[matchedRuleIds, inheritedRules]\` / \`perProperty[prop][]{value, sourceRuleId}\`). Query matched CSS rules and stylesheet URLs directly in memory via \`bug-lens-triage\` CLI (\`open_pack\`, \`get_scene --selector "..." --cssProperty "..."\`, or \`search_pack\`).`
       : "";
 
     let squeezeWarning = "";
@@ -695,8 +695,8 @@ Metadata Summary:
 - Anomalies: ${errCount} console error(s) | ${reqCount} failed network request(s)${sourceLocationSectionEn}${cascadeHint}${squeezeWarning}
 
 [Workspace Setup (Do NOT extract into active project directory; overwrite singleton directory for O(1) storage)]
-- Preferred (when \`bug-lens\` MCP tools are available): Pass the ZIP path above as the \`pack\` argument to \`open_pack\`, \`get_scene(selector="...")\` (or \`get_screenshot(kind="screenshot")\`), \`search_pack\`, and \`get_framework_state\` directly in memory (keep default \`format="text"\`; if the image is offloaded to \`file:///...jpg\`, call \`read_file\` on that path to view it visually; do NOT call \`read_pack_file\` on \`ai-prompt.md\` as full instructions are already here). Skip shell extraction below and NEVER run \`unzip\` or ad-hoc \`node -e\` / \`python\` scripts.
-- Fallback Extraction Command (only when MCP tools are unavailable):
+- Preferred (when \`bug-lens-triage\` Skill is installed): Run the bundled \`node "<skillDir>/scripts/bug-lens-cli.mjs" open_pack ${targetZipPathEn}\`, \`get_scene --selector "..."\`, \`search_pack\`, and \`get_framework_state\` directly in memory (\`open_pack\` auto-exports \`screenshot.jpg\` to a temp file path — call \`read_file\` on that path to view it visually; do NOT call \`read_pack_file\` on \`ai-prompt.md\` as full instructions are already here). Skip shell extraction below and NEVER run \`unzip\` or ad-hoc \`node -e\` / \`python\` scripts.
+- Fallback Extraction Command (only when \`bug-lens-triage\` Skill is unavailable):
   ${unzipCmdEn}
 - Workspace Path: \`${workspacePath}\` (Evidence files screenshot.jpg and JSON context reside here)
 
@@ -735,7 +735,7 @@ Please follow the Dual-Track Intent Analysis Framework:
   const title = payload.environment.title || "未知页面";
   const url = payload.environment.url || "未知 URL";
   const cascadeHint = hasCascade
-    ? `\n- 级联快照 (Cascade Index)：已开启样式微调模式，包内包含 \`cascade.json\`（结构：\`sheets\` / \`rules\` / \`elements[matchedRuleIds, inheritedRules]\` / \`perProperty[prop][]{value, sourceRuleId}\`）。优先通过 MCP 工具 \`open_pack\`、\`get_scene(selector="...", cssProperty="...")\` 或 \`search_pack\` 在内存中直接关联查询 CSS 规则覆盖关系与样式表 URL。`
+    ? `\n- 级联快照 (Cascade Index)：已开启样式微调模式，包内包含 \`cascade.json\`（结构：\`sheets\` / \`rules\` / \`elements[matchedRuleIds, inheritedRules]\` / \`perProperty[prop][]{value, sourceRuleId}\`）。优先通过 \`bug-lens-triage\` 技能内置脚本 \`open_pack\`、\`get_scene --selector "..." --cssProperty "..."\` 或 \`search_pack\` 在内存中直接关联查询 CSS 规则覆盖关系与样式表 URL。`
     : "";
 
   let squeezeWarning = "";
@@ -799,8 +799,8 @@ ${pathLine}
 - 异常日志：${errCount} 条 Console 报错 | ${reqCount} 个失败网络请求${sourceLocationSectionZh}${cascadeHint}${squeezeWarning}
 
 【工作区准备（严禁解压在当前代码工程目录内，使用固定单例目录覆盖以实现 O(1) 存储占用）】
-- 首选方式（已配置 \`bug-lens\` MCP 工具时）：直接将上方 ZIP 路径作为 \`pack\` 参数调用 \`open_pack\`、\`get_scene(selector="...")\`（或 \`get_screenshot(kind="screenshot")\`）、\`search_pack\` 与 \`get_framework_state\` 内存直读分析（所有工具默认 \`format="text"\` 即可；若图片被客户端落盘为 \`file:///...jpg\`，直接对其调用 \`read_file\` 查看视觉画面；本提示词已包含完整排查指引，无需再调用 \`read_pack_file\` 读取 \`ai-prompt.md\`），跳过下方命令行解压，严禁执行 \`unzip\` 或手写 \`node -e\` / \`python\` 脚本解析 JSON。
-- 降级解压命令（仅当未配置 MCP 工具时执行）：
+- 首选方式（已安装 \`bug-lens-triage\` Skill 时）：直接使用该技能内置的 \`node "<skillDir>/scripts/bug-lens-cli.mjs" open_pack ${targetZipPathZh}\`、\`get_scene --selector "..."\`、\`search_pack\` 与 \`get_framework_state\` 内存直读分析（\`open_pack\` 会自动将 \`screenshot.jpg\` 导出至临时目录并打印路径，直接对其调用 \`read_file\` 查看视觉画面；本提示词已包含完整排查指引，无需再调用 \`read_pack_file\` 读取 \`ai-prompt.md\`），跳过下方命令行解压，严禁执行 \`unzip\` 或手写 \`node -e\` / \`python\` 脚本解析 JSON。
+- 降级解压命令（仅当未安装 \`bug-lens-triage\` Skill 时执行）：
   ${unzipCmdZh}
 - 工作区路径：\`${workspacePath}\`（解压与后续排查均以此目录为准）
 

@@ -70,8 +70,8 @@ jobs:
           path: dist-zip/
           retention-days: 14
 
-  evidence-mcp:
-    name: Evidence MCP (${{ matrix.os }})
+  triage-cli:
+    name: Triage Skill CLI (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -95,5 +95,5 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Typecheck, Build & Test Evidence MCP
-        run: pnpm run mcp:build && pnpm run mcp:test
+      - name: Test Triage Skill CLI
+        run: npx tsx --test tests/triage-cli-*.test.ts

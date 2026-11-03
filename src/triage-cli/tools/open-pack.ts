@@ -9,6 +9,7 @@ import {
 } from "../query/cascade.ts";
 import { formatConsoleItem, queryConsole } from "../query/console.ts";
 import { formatNetworkRow, queryNetwork } from "../query/network.ts";
+import { exportPackImageToTemp } from "./image-helper.ts";
 
 function formatSessionPackOverview(
   pack: LoadedSessionPack,
@@ -118,6 +119,15 @@ function formatSessionPackOverview(
       lines.push(
         `  - **screenshots**: annotated=\`${s.annotatedSource ?? "none"}\`, original=\`${s.originalSource ?? "none"}\``
       );
+      const primaryImg = s.annotatedSource ?? s.originalSource;
+      if (primaryImg) {
+        const savedImg = exportPackImageToTemp(pack, primaryImg);
+        if (savedImg) {
+          lines.push(
+            `  - **savedImagePath**: \`${savedImg}\` (call \`read_file\` on this path to view the scene screenshot)`
+          );
+        }
+      }
     }
   }
 
@@ -167,7 +177,7 @@ function formatSessionPackOverview(
   }
 
   lines.push(
-    `\n**Next steps**: Call \`get_scene\` to inspect DOM targets & annotated screenshot, \`timeline\` for chronological events around the issue, \`query_network\` / \`get_request\` for API bodies, or \`get_framework_state\` for Vue/React state.`
+    `\n**Next steps** (active pack is cached; omit \`--pack\` in subsequent commands): Run \`get_scene\` to inspect DOM targets & annotated screenshot, \`timeline --windowMs 15000\` for chronological events around the issue, \`query_network --status failed\` / \`get_request <id> --jsonPath "..."\` for API bodies, or \`get_framework_state\` for Vue/React state.`
   );
 
   return applyCharBudget(lines.join("\n"), maxChars);
@@ -218,8 +228,12 @@ function formatScreenshotPackOverview(
   const fwStates =
     env?.frameworkComponentStates ?? env?.vueComponentStates ?? [];
 
+  const imgRel = pack.getScreenshotImagePath();
+  const savedMainImg = imgRel ? exportPackImageToTemp(pack, imgRel) : undefined;
   lines.push(`# Bug Lens Screenshot Pack (kind: screenshot)`);
-  lines.push(`- **Image**: \`${pack.getScreenshotImagePath() ?? "none"}\``);
+  lines.push(
+    `- **Image**: \`${imgRel ?? "none"}\`${savedMainImg ? ` -> Saved to \`${savedMainImg}\` (call \`read_file\` on this path to inspect visually)` : ""}`
+  );
   if (env) {
     lines.push(`- **Page**: ${env.title ?? "—"} (${env.url ?? "—"})`);
     lines.push(
@@ -331,7 +345,7 @@ function formatScreenshotPackOverview(
     lines.push(`- \`${f.path}\` (${f.byteLength} B)`);
   }
   lines.push(
-    `\n**Next steps**: Call \`get_scene(pack="${pack.packPath}", selector="...")\` or \`get_screenshot(pack="${pack.packPath}", kind="screenshot")\` to inspect \`screenshot.jpg\`, anchor \`computedStyles\`/\`layoutContext\`, and matched CSS cascade rules; call \`search_pack(pack="${pack.packPath}", query="...")\` to search across \`cascade.json\` & \`dom-context.json\`; or call \`get_framework_state(pack="${pack.packPath}")\` for component props/data.`
+    `\n**Next steps** (active pack is cached; omit \`--pack\` in subsequent commands): Call \`read_file\` on the saved image path above to inspect \`screenshot.jpg\`; run \`get_scene --selector "..." --cssProperty "..."\` to inspect anchor \`computedStyles\`/\`layoutContext\` and matched CSS cascade rules; run \`search_pack "<keyword>"\` to search across \`cascade.json\` & \`dom-context.json\`; or run \`get_framework_state\` for component props/data.`
   );
   return applyCharBudget(lines.join("\n"), maxChars);
 }

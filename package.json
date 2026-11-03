@@ -1,6 +1,6 @@
 {
   "name": "bug-lens",
-  "version": "0.7.38",
+  "version": "0.7.39",
   "license": "AGPL-3.0-only",
   "private": true,
   "type": "module",
@@ -23,8 +23,6 @@
     "verify:fixture-apps": "node scripts/verify-fixture-apps.mjs",
     "typecheck": "tsc --noEmit && tsc --project tsconfig.e2e.json",
     "typecheck:e2e": "tsc --project tsconfig.e2e.json",
-    "mcp:build": "pnpm --filter bug-lens-mcp run build",
-    "mcp:test": "pnpm --filter bug-lens-mcp run typecheck && pnpm --filter bug-lens-mcp run test",
     "prepare": "husky",
     "format": "prettier --write ."
   },

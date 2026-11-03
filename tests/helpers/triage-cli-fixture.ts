@@ -1,14 +1,14 @@
 import { zipSync } from "fflate";
 import { createHash } from "node:crypto";
-import type { AIScreenshotPayload } from "../../../../src/domain/screenshot-payload.ts";
-import { buildExportManifest } from "../../../../src/export/export-manifest.ts";
+import type { AIScreenshotPayload } from "../../src/domain/screenshot-payload.ts";
+import { buildExportManifest } from "../../src/export/export-manifest.ts";
 import {
   buildEvidencePackage,
   type EvidencePackageSnapshot,
   type StaticReportAssets,
-} from "../../../../src/preview/evidence-package.ts";
-import { buildScreenshotZipPackage } from "../../../../src/screenshot/pipeline/screenshot-zip-builder.ts";
-import type { RecordingSession } from "../../../../src/shared/protocol.ts";
+} from "../../src/preview/evidence-package.ts";
+import { buildScreenshotZipPackage } from "../../src/screenshot/pipeline/screenshot-zip-builder.ts";
+import type { RecordingSession } from "../../src/shared/protocol.ts";
 
 // 1x1 最小有效 JPEG base64
 const TINY_JPEG_BASE64 =
