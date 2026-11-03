@@ -96,4 +96,5 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Test Triage Skill CLI
-        run: npx tsx --test tests/triage-cli-*.test.ts
+        shell: bash
+        run: npx tsx --test tests/triage-cli-contract.test.ts tests/triage-cli-pack.test.ts tests/triage-cli-query.test.ts tests/triage-cli-tools.test.ts
