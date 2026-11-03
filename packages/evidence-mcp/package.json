@@ -35,7 +35,7 @@
   "scripts": {
     "build": "node build.mjs",
     "typecheck": "tsc --noEmit && tsc --project tsconfig.test.json --noEmit",
-    "test": "tsx --test test/*.test.ts",
+    "test": "tsx --test test/contract.test.ts test/pack.test.ts test/query.test.ts test/tools.test.ts",
     "prepack": "pnpm run build"
   },
   "devDependencies": {
