@@ -7,7 +7,7 @@ import {
 } from "../../shared/protocol";
 import { sanitizeText } from "../../domain/privacy-policy";
 import { isTrackedTab } from "../../domain/session-admission";
-import { t } from "../../shared/i18n";
+import { loadLocaleDict, t } from "../../shared/i18n";
 import { validateStorageHealthUpdate } from "../../storage/storage-health-coordinator";
 import { runMainWorldFrameworkProbe } from "../../screenshot/probes/main-world-probe";
 import { getEpochTimestampMs } from "../../export/export-trace";
@@ -315,6 +315,10 @@ export function createMessageRouter(
         case "content/screenshot-overlay-state": {
           ctx.isScreenshotOverlayOpen.set(Boolean(incoming.payload.open));
           return { ok: true };
+        }
+        case "i18n/get-dict": {
+          const dict = await loadLocaleDict(incoming.payload.locale);
+          return { ok: true, dict };
         }
         // content script 子 iframe 活跃心跳：转发给顶层主帧（frameId: 0）刷新闲置监测倒计时
         case "content/activity-ping": {

@@ -42,12 +42,26 @@ export function createScreenshotService(
       console.warn(`[Bug Lens] 动态注入 Content Script 失败: ${String(err)}`);
     });
 
-    // 2. 截取视口图像
+    // 2. 动态注入截图标注脚本（仅顶层窗口）
+    if (typeof chrome !== "undefined" && chrome.scripting?.executeScript) {
+      await chrome.scripting
+        .executeScript({
+          target: { tabId },
+          files: ["screenshot-overlay.js"],
+        })
+        .catch((err) => {
+          console.warn(
+            `[Bug Lens] 动态注入 Screenshot Overlay 失败: ${String(err)}`
+          );
+        });
+    }
+
+    // 3. 截取视口图像
     const dataUrl = await chrome.tabs.captureVisibleTab(windowId, {
       format: "png",
     });
 
-    // 3. 唤起页面的 Screenshot Overlay
+    // 4. 唤起页面的 Screenshot Overlay
     await chrome.tabs.sendMessage(tabId, {
       type: "TRIGGER_SCREENSHOT_OVERLAY",
       viewportDataUrl: dataUrl,

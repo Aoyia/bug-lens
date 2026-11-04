@@ -1,10 +1,19 @@
-import {
-  type ResolveBatchRequest,
-  type ResolveBatchResponse,
-  type BatchItem,
-  processBatchResolution,
+import type {
+  ResolveBatchRequest,
+  ResolveBatchResponse,
+  BatchItem,
 } from "./sourcemap.worker.js";
 import type { SourceMappedLocation } from "../../shared/protocol.js";
+
+export type InProcessResolver = (
+  request: ResolveBatchRequest
+) => Promise<ResolveBatchResponse>;
+
+let registeredInProcessResolver: InProcessResolver | null = null;
+
+export function registerInProcessResolver(resolver: InProcessResolver): void {
+  registeredInProcessResolver = resolver;
+}
 
 export class SourceMapWorkerClient {
   private worker: Worker | null = null;
@@ -65,9 +74,20 @@ export class SourceMapWorkerClient {
     this.pendingRequests.clear();
     for (const [, pending] of entries) {
       clearTimeout(pending.timer);
-      void processBatchResolution(pending.request)
-        .then((res) => pending.resolve(res.results))
-        .catch((err) => pending.reject(err));
+      if (registeredInProcessResolver) {
+        void registeredInProcessResolver(pending.request)
+          .then((res) => pending.resolve(res.results))
+          .catch((err) => pending.reject(err));
+      } else {
+        const fallbackResults: Record<string, SourceMappedLocation> = {};
+        for (const item of pending.request.items) {
+          fallbackResults[item.id] = {
+            resolved: false,
+            failureReason: "FETCH_FAILED",
+          };
+        }
+        pending.resolve(fallbackResults);
+      }
     }
   }
 
@@ -94,10 +114,20 @@ export class SourceMapWorkerClient {
       timeoutMs: options.timeoutMs ?? 5000,
     };
 
-    // If Worker is not available (e.g. Node.js test environment or MV3 restricted context), run in-process directly
+    // If Worker is not available (e.g. Node.js test environment or MV3 restricted context), run in-process directly if registered
     if (!worker) {
-      const response = await processBatchResolution(request);
-      return response.results;
+      if (registeredInProcessResolver) {
+        const response = await registeredInProcessResolver(request);
+        return response.results;
+      }
+      const fallbackResults: Record<string, SourceMappedLocation> = {};
+      for (const item of items) {
+        fallbackResults[item.id] = {
+          resolved: false,
+          failureReason: "FETCH_FAILED",
+        };
+      }
+      return fallbackResults;
     }
 
     return new Promise((resolve, reject) => {

@@ -80,19 +80,5 @@
   ],
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'none'"
-  },
-  "web_accessible_resources": [
-    {
-      "resources": [
-        "popup.html",
-        "options.html",
-        "preview.html",
-        "offscreen.html",
-        "permission.html",
-        "_locales/*",
-        "_locales/*/*"
-      ],
-      "matches": ["<all_urls>"]
-    }
-  ]
+  }
 }

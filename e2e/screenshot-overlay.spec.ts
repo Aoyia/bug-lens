@@ -30,7 +30,7 @@ async function triggerScreenshotOverlay(
     async ({ tabId, viewportDataUrl }) => {
       await chrome.scripting.executeScript({
         target: { tabId },
-        files: ["content.js"],
+        files: ["content.js", "screenshot-overlay.js"],
       });
       await chrome.tabs.sendMessage(tabId, {
         type: "TRIGGER_SCREENSHOT_OVERLAY",

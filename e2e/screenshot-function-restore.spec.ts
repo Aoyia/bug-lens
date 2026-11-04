@@ -25,7 +25,7 @@ async function triggerScreenshotOverlay(
     async ({ tabId, viewportDataUrl }) => {
       await chrome.scripting.executeScript({
         target: { tabId },
-        files: ["content.js"],
+        files: ["content.js", "screenshot-overlay.js"],
       });
       await chrome.tabs.sendMessage(tabId, {
         type: "TRIGGER_SCREENSHOT_OVERLAY",
@@ -98,9 +98,7 @@ const refreshShortcut = process.platform === "darwin" ? "Meta+r" : "Control+r";
  * 若放行则事件到达页面、且 defaultPrevented === false。
  * 返回探针快照读取函数。
  */
-async function installKeyProbe(
-  page: import("@playwright/test").Page
-): Promise<
+async function installKeyProbe(page: import("@playwright/test").Page): Promise<
   () => Promise<{
     total: number;
     refreshSeen: number;

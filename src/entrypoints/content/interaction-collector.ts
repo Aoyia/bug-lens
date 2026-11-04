@@ -28,8 +28,7 @@ import { IssueEditor } from "./collector/issue-editor";
 import { ExpectedCaptureCard } from "./collector/expected-capture-card";
 import { DomObserver } from "./collector/dom-observer";
 import { InactivityMonitor } from "./collector/inactivity-monitor";
-import { ScreenshotOverlay } from "../../screenshot";
-import { recentErrorsTracker } from "../../screenshot";
+import { recentErrorsTracker } from "../../screenshot/probes/recent-errors-tracker";
 import { DevProfiler } from "../../shared/dev-profiler";
 import {
   buildExportPipelineDashboard,
@@ -37,10 +36,7 @@ import {
   getEpochTimestampMs,
   type Stage6Metrics,
 } from "../../export/export-trace";
-import {
-  ensureErrorsTrackerStarted,
-  ensureScreenshotOverlayBridge,
-} from "./content-bridge";
+import { ensureErrorsTrackerStarted } from "./content-bridge";
 import { IframeActivityReporter } from "./collector/iframe-activity-reporter";
 import { initFrameGeometryBridge } from "./collector/frame-geometry";
 
@@ -82,21 +78,6 @@ ensureErrorsTrackerStarted(() => recentErrorsTracker.startListening());
 
 // 初始化宿主网页控制台与扩展 DevProfiler 的通信桥梁
 DevProfiler.initPageBridge();
-
-if (isTopFrame) {
-  // 截图 overlay 初始为关闭：仅在顶层窗口报告与挂载
-  void chrome.runtime
-    .sendMessage(message("content/screenshot-overlay-state", { open: false }))
-    .catch(() => undefined);
-
-  // 截图 overlay 消息桥（幂等注册）：重复注入只注册一次监听器，
-  // overlay 实例由 content-bridge 在 window 上共享持有。
-  ensureScreenshotOverlayBridge({
-    createOverlay: () => new ScreenshotOverlay(),
-    onMessage: (fn) => chrome.runtime.onMessage.addListener(fn),
-    sendMessage: (msg) => chrome.runtime.sendMessage(msg),
-  });
-}
 
 // 幂等重入：页面已存在本脚本安装的控制器（重复注入/多帧）时复用旧实例，
 // 仅重新握手同步会话，避免重复挂载 UI 与监听器

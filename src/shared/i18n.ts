@@ -109,8 +109,34 @@ export async function loadLocaleDict(
       }
     }
   } catch {
-    // 无法获取文件时静默处理
+    // 无法直接通过 fetch 读取（例如在 Content Script 中无 web_accessible_resources 访问权限），尝试走 Background 消息代理
   }
+
+  if (
+    typeof chrome !== "undefined" &&
+    chrome.runtime &&
+    typeof chrome.runtime.sendMessage === "function"
+  ) {
+    try {
+      const resp = (await chrome.runtime.sendMessage({
+        protocolVersion: 3,
+        messageId:
+          typeof crypto !== "undefined" && crypto.randomUUID
+            ? crypto.randomUUID()
+            : String(Date.now()),
+        type: "i18n/get-dict",
+        sentAt: Date.now(),
+        payload: { locale },
+      })) as { ok?: boolean; dict?: I18nDict } | undefined;
+      if (resp?.ok && resp.dict) {
+        loadedDicts[locale] = resp.dict;
+        return resp.dict;
+      }
+    } catch {
+      // 无法通过消息通信获取时静默处理
+    }
+  }
+
   return undefined;
 }
 

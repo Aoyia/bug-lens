@@ -39,7 +39,10 @@ if (existsSync(outputPath)) {
 }
 
 try {
-  execSync(`zip -r "${outputPath}" .`, { cwd: distDir, stdio: "inherit" });
+  execSync(`zip -r "${outputPath}" . -x "*.DS_Store" "*__MACOSX*" "*.git*"`, {
+    cwd: distDir,
+    stdio: "inherit",
+  });
   console.log(`\nSuccessfully created release package: ${zipFilename}`);
 } catch (err) {
   console.error("Failed to package extension:", err);

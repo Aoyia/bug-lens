@@ -1014,7 +1014,8 @@ export type RuntimeMessage =
         exportMode?: "ai" | "ticket";
         traceContext?: ExportTraceContext;
       }
-    >;
+    >
+  | Envelope<"i18n/get-dict", { locale: "zh-CN" | "en-US" }>;
 
 export function message<T extends RuntimeMessage["type"], P>(
   type: T,
@@ -1113,6 +1114,10 @@ export type RuntimeMessageResponseMap = {
   };
   "offscreen/preload-export": {
     ok: true;
+  };
+  "i18n/get-dict": {
+    ok: true;
+    dict?: Record<string, { message: string }>;
   };
   "offscreen/export-pack": {
     ok: true;

@@ -60,6 +60,18 @@ async function copyCssAsset(src, dest) {
   await writeFile(dest, result.code);
 }
 
+async function buildMergedCss(srcPaths, dest) {
+  const cssChunks = await Promise.all(
+    srcPaths.map((p) => readFile(p, "utf-8"))
+  );
+  const merged = cssChunks.join("\n");
+  const result = await transform(merged, {
+    loader: "css",
+    minify: !isWatch,
+  });
+  await writeFile(dest, result.code);
+}
+
 async function buildMergedPreviewCss() {
   const previewStyleNames = [
     "tokens",
@@ -133,6 +145,7 @@ const entries = {
   permission: "src/entrypoints/permission/index.ts",
   offscreen: "src/entrypoints/offscreen/index.ts",
   content: "src/entrypoints/content/interaction-collector.ts",
+  "screenshot-overlay": "src/entrypoints/screenshot/index.ts",
   "vue-devtools-hook-inject":
     "src/entrypoints/content/vue-devtools-hook-inject.ts",
   preview: "src/entrypoints/preview/index.ts",
@@ -177,21 +190,22 @@ async function copyStaticAssets() {
     resolve(outdir, "report-template.html")
   );
 
-  await copyCssAsset(
-    resolve(root, "src/shared/styles/tokens.css"),
-    resolve(outdir, "tokens.css")
+  const tokensCssPath = resolve(root, "src/shared/styles/tokens.css");
+
+  await buildMergedCss(
+    [tokensCssPath, resolve(root, "src/entrypoints/popup/styles/popup.css")],
+    resolve(outdir, "popup.css")
+  );
+  await buildMergedCss(
+    [
+      tokensCssPath,
+      resolve(root, "src/entrypoints/options/styles/options.css"),
+    ],
+    resolve(outdir, "options.css")
   );
   await copyCssAsset(
     resolve(root, "src/entrypoints/report/static.css"),
     resolve(outdir, "report-static.css")
-  );
-  await copyCssAsset(
-    resolve(root, "src/entrypoints/popup/styles/popup.css"),
-    resolve(outdir, "popup.css")
-  );
-  await copyCssAsset(
-    resolve(root, "src/entrypoints/options/styles/options.css"),
-    resolve(outdir, "options.css")
   );
 
   await buildMergedPreviewCss();

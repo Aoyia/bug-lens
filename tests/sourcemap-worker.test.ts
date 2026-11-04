@@ -4,8 +4,13 @@ import {
   clearSourceMapWorkerCache,
   processBatchResolution,
 } from "../src/sourcemap/internal/sourcemap.worker.js";
-import { SourceMapWorkerClient } from "../src/sourcemap/internal/sourcemap-worker-client.js";
+import {
+  SourceMapWorkerClient,
+  registerInProcessResolver,
+} from "../src/sourcemap/internal/sourcemap-worker-client.js";
 import { SourceMapFetcher } from "../src/sourcemap/internal/sourcemap-fetcher.js";
+
+registerInProcessResolver(processBatchResolution);
 
 describe("SourceMapWorker & Client", () => {
   test("processes batch resolution with in-memory direct fallback", async () => {
