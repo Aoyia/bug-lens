@@ -18,9 +18,9 @@ import {
   canAnnotateInCurrentContext,
   dataUrlToBlob,
 } from "../shared/click-annotation.ts";
+import { getAdmissionRejection } from "../domain/session-admission.ts";
 import {
   message,
-  RECORDING_STATUSES,
   type CaptureIssue,
   type InteractionRecord,
   type RecordingSession,
@@ -371,16 +371,13 @@ export class InteractionCapture {
     sender: chrome.runtime.MessageSender,
     nonce: string | undefined
   ): session is RecordingSession {
-    const isTargetTab =
-      session &&
-      (session.target.tabId === sender.tab?.id ||
-        Boolean(session.targets?.some((t) => t.tabId === sender.tab?.id)));
-    return Boolean(
-      session &&
-      !this.isStopping(session.id) &&
-      RECORDING_STATUSES.includes(session.status) &&
-      isTargetTab &&
-      session.nonce === nonce
+    return (
+      getAdmissionRejection({
+        session,
+        tabId: sender.tab?.id,
+        nonce,
+        isStopping: this.isStopping,
+      }) === undefined
     );
   }
 

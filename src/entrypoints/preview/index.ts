@@ -257,10 +257,17 @@ function openTicketPreview(): void {
   }
   if (ticketPlainView) ticketPlainView.textContent = bundle.markdown;
 
+  clearTicketHeightTransition();
   ticketTabRich?.classList.add("active");
   ticketTabPlain?.classList.remove("active");
-  if (ticketRichView) ticketRichView.hidden = false;
-  if (ticketPlainView) ticketPlainView.hidden = true;
+  if (ticketRichView) {
+    ticketRichView.hidden = false;
+    ticketRichView.classList.remove("ticket-view-fade-in");
+  }
+  if (ticketPlainView) {
+    ticketPlainView.hidden = true;
+    ticketPlainView.classList.remove("ticket-view-fade-in");
+  }
 
   ticketModal.hidden = false;
   const aiDrawer = document.getElementById("ai-drawer");
@@ -270,21 +277,109 @@ function openTicketPreview(): void {
 previewTicketBtn?.addEventListener("click", openTicketPreview);
 drawerPreviewTicketBtn?.addEventListener("click", openTicketPreview);
 
-ticketTabRich?.addEventListener("click", () => {
-  ticketTabRich.classList.add("active");
-  ticketTabPlain.classList.remove("active");
-  ticketRichView.hidden = false;
-  ticketPlainView.hidden = true;
-});
+let activeHeightTransitionTimeout: number | undefined;
 
-ticketTabPlain?.addEventListener("click", () => {
-  ticketTabPlain.classList.add("active");
-  ticketTabRich.classList.remove("active");
-  ticketPlainView.hidden = false;
-  ticketRichView.hidden = true;
-});
+function clearTicketHeightTransition(): void {
+  if (activeHeightTransitionTimeout !== undefined) {
+    window.clearTimeout(activeHeightTransitionTimeout);
+    activeHeightTransitionTimeout = undefined;
+  }
+  const contentEl = ticketModal.querySelector<HTMLElement>(
+    ".ticket-modal-content"
+  );
+  const bodyEl = ticketModal.querySelector<HTMLElement>(".ticket-modal-body");
+  if (contentEl) {
+    contentEl.style.height = "";
+    contentEl.style.transition = "";
+  }
+  if (bodyEl) {
+    bodyEl.style.overflowY = "";
+  }
+}
+
+function switchTicketTab(mode: "rich" | "plain"): void {
+  const isRich = mode === "rich";
+  const currentIsRich = ticketTabRich.classList.contains("active");
+  if (isRich === currentIsRich) return;
+
+  const contentEl = ticketModal.querySelector<HTMLElement>(
+    ".ticket-modal-content"
+  );
+  const bodyEl = ticketModal.querySelector<HTMLElement>(".ticket-modal-body");
+
+  const prefersReducedMotion =
+    typeof window !== "undefined" &&
+    window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+
+  if (!contentEl || !bodyEl || prefersReducedMotion) {
+    ticketTabRich.classList.toggle("active", isRich);
+    ticketTabPlain.classList.toggle("active", !isRich);
+    ticketRichView.hidden = !isRich;
+    ticketPlainView.hidden = isRich;
+    return;
+  }
+
+  if (activeHeightTransitionTimeout !== undefined) {
+    window.clearTimeout(activeHeightTransitionTimeout);
+    activeHeightTransitionTimeout = undefined;
+  }
+
+  const startHeight = contentEl.getBoundingClientRect().height;
+  contentEl.style.transition = "";
+  contentEl.style.height = "";
+
+  ticketTabRich.classList.toggle("active", isRich);
+  ticketTabPlain.classList.toggle("active", !isRich);
+  ticketRichView.hidden = !isRich;
+  ticketPlainView.hidden = isRich;
+
+  const activeView = isRich ? ticketRichView : ticketPlainView;
+  activeView.classList.remove("ticket-view-fade-in");
+  void activeView.offsetWidth;
+  activeView.classList.add("ticket-view-fade-in");
+
+  const naturalHeight = contentEl.getBoundingClientRect().height;
+  const maxHeight = window.innerHeight * 0.85;
+  const targetHeight = Math.min(naturalHeight, maxHeight);
+
+  if (Math.abs(startHeight - targetHeight) < 2) {
+    contentEl.style.height = "";
+    return;
+  }
+
+  contentEl.style.height = `${startHeight}px`;
+  bodyEl.style.overflowY = "hidden";
+  void contentEl.offsetHeight;
+
+  contentEl.style.transition = "height 260ms cubic-bezier(0.16, 1, 0.3, 1)";
+  contentEl.style.height = `${targetHeight}px`;
+
+  const onTransitionEnd = () => {
+    if (activeHeightTransitionTimeout !== undefined) {
+      window.clearTimeout(activeHeightTransitionTimeout);
+      activeHeightTransitionTimeout = undefined;
+    }
+    contentEl.style.height = "";
+    contentEl.style.transition = "";
+    bodyEl.style.overflowY = "";
+    contentEl.removeEventListener("transitionend", handleTransitionEnd);
+  };
+
+  const handleTransitionEnd = (e: TransitionEvent) => {
+    if (e.target === contentEl && e.propertyName === "height") {
+      onTransitionEnd();
+    }
+  };
+
+  contentEl.addEventListener("transitionend", handleTransitionEnd);
+  activeHeightTransitionTimeout = window.setTimeout(onTransitionEnd, 280);
+}
+
+ticketTabRich?.addEventListener("click", () => switchTicketTab("rich"));
+ticketTabPlain?.addEventListener("click", () => switchTicketTab("plain"));
 
 function closeTicketModal(): void {
+  clearTicketHeightTransition();
   ticketModal.hidden = true;
 }
 

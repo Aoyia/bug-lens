@@ -52,9 +52,11 @@ test.describe("Options Page 端到端自动化测试覆盖体系", () => {
 
     await page.waitForSelector(".inline-prompt-preview-wrap");
 
-    // 点击展开 Prompt 预览
-    await page.click(".btn-inline-toggle");
-    await page.waitForSelector(".inline-prompt-preview-box");
+    // 点击展开 Prompt 预览（第一个内联折叠按钮）
+    await page.locator(".btn-inline-toggle").nth(0).click();
+    await expect(
+      page.locator(".inline-prompt-preview-box").nth(0)
+    ).toBeVisible();
 
     // 3. 测试 1920x1080 视口
     await page.setViewportSize({ width: 1920, height: 1080 });
@@ -64,7 +66,7 @@ test.describe("Options Page 端到端自动化测试覆盖体系", () => {
     await expect(page.locator(".topbar-search-input")).toHaveValue("Prompt");
   });
 
-  test("OPTIONS-002: 覆盖全部 6 个导航 Tab 完整切换与渲染无白屏", async ({
+  test("OPTIONS-002: 覆盖全部 7 个导航 Tab 完整切换与渲染无白屏", async ({
     context,
     extensionId,
   }) => {
@@ -76,7 +78,7 @@ test.describe("Options Page 端到端自动化测试覆盖体系", () => {
     await page.waitForSelector(".options-main-container");
 
     const navItems = page.locator(".sidebar-nav .nav-item");
-    await expect(navItems).toHaveCount(6);
+    await expect(navItems).toHaveCount(7);
 
     // Tab 1: 常规工作流 (Workflow)
     await navItems.nth(0).click();
@@ -102,10 +104,25 @@ test.describe("Options Page 端到端自动化测试覆盖体系", () => {
     await expect(page.locator(".custom-select-option")).toHaveCount(4);
     await page.click('.custom-select-option:has-text("Cursor")');
     await expect(page.locator(".textarea-input")).toBeVisible();
-    // 展开 AI Prompt 模板预览
-    await page.click(".btn-inline-toggle");
-    await expect(page.locator(".inline-prompt-preview-box")).toBeVisible();
-    await expect(page.locator(".inline-code-content")).toContainText("Cursor");
+    // 展开 AI Prompt 模板预览与 AI 排障 Skill 安装说明两个内联折叠框
+    const inlineToggles = page.locator(".btn-inline-toggle");
+    await expect(inlineToggles).toHaveCount(2);
+
+    await inlineToggles.nth(0).click();
+    await expect(
+      page.locator(".inline-prompt-preview-box").nth(0)
+    ).toBeVisible();
+    await expect(page.locator(".inline-code-content").nth(0)).toContainText(
+      "Cursor"
+    );
+
+    await inlineToggles.nth(1).click();
+    await expect(
+      page.locator(".inline-prompt-preview-box").nth(1)
+    ).toBeVisible();
+    await expect(page.locator(".inline-code-content").nth(1)).toContainText(
+      "npx skills add Aoyia/bug-lens --skill bug-lens-triage"
+    );
 
     // Tab 3: 录制默认项 (Recording)
     await navItems.nth(2).click();
@@ -145,6 +162,14 @@ test.describe("Options Page 端到端自动化测试覆盖体系", () => {
     );
     await expect(page.locator(".shortcut-badge")).toHaveCount(3);
     await expect(page.locator("button.btn-default")).toBeVisible();
+
+    // Tab 7: 性能与诊断 (Diagnostics)
+    await navItems.nth(6).click();
+    await expect(navItems.nth(6)).toHaveClass(/active/);
+    await expect(page.locator(".section-title")).toContainText(
+      /(性能与诊断|Performance & Diagnostics)/
+    );
+    await expect(page.locator(".diagnostics-panel")).toBeVisible();
   });
 
   test("OPTIONS-003: 配置修改触发自动保存、页面刷新 (reload) 持久化回显与闭环断言", async ({

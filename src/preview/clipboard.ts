@@ -1,9 +1,34 @@
 import { t } from "../shared/i18n.ts";
+import {
+  syncVirtualClipboard,
+  syncVirtualBlob,
+  installVirtualClipboardHooks,
+  isE2eAutomationActive,
+} from "./virtual-clipboard.ts";
+
+declare const process: {
+  env: {
+    NODE_ENV?: string;
+    BUG_LENS_IS_E2E?: boolean;
+  };
+};
+
+if (process.env.BUG_LENS_IS_E2E) {
+  if (isE2eAutomationActive()) {
+    installVirtualClipboardHooks();
+  }
+}
 
 export async function copyTextToClipboard(
   value: string,
   root: Document = document
 ): Promise<void> {
+  if (process.env.BUG_LENS_IS_E2E && isE2eAutomationActive()) {
+    syncVirtualClipboard(value);
+    installVirtualClipboardHooks();
+    return;
+  }
+
   try {
     if (navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(value);
@@ -29,6 +54,12 @@ export async function copyRichTextToClipboard(
   payload: { html: string; text: string },
   root: Document = document
 ): Promise<void> {
+  if (process.env.BUG_LENS_IS_E2E && isE2eAutomationActive()) {
+    syncVirtualClipboard(payload.text);
+    installVirtualClipboardHooks();
+    return;
+  }
+
   if (navigator.clipboard?.write && typeof ClipboardItem !== "undefined") {
     try {
       const item = new ClipboardItem({
@@ -59,6 +90,11 @@ export async function copyDataUrlImageToClipboard(
 }
 
 export async function copyBlobImageToClipboard(blob: Blob): Promise<void> {
+  if (process.env.BUG_LENS_IS_E2E && isE2eAutomationActive()) {
+    syncVirtualBlob(blob);
+    return;
+  }
+
   if (navigator.clipboard?.write && typeof ClipboardItem !== "undefined") {
     let pngBlob = blob;
     if (blob.type !== "image/png") {

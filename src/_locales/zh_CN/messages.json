@@ -348,7 +348,7 @@
     "message": "安全模式（脱敏）"
   },
   "rawMode": {
-    "message": "原始模式（不脱敏）"
+    "message": "原始模式（明文）"
   },
   "startRecording": {
     "message": "开始录制"

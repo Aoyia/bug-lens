@@ -16,9 +16,7 @@ import {
   applyI18n,
   getLocale,
   initI18nPreference,
-  setUserLanguagePreference,
   t,
-  type LanguagePreference,
 } from "../../shared/i18n.ts";
 import {
   DEFAULT_RECORDING_OPTIONS,
@@ -83,8 +81,6 @@ export function PopupApp() {
   const [captureFrameworkState, setCaptureFrameworkState] =
     useState<boolean>(true);
   const [privacyMode, setPrivacyMode] = useState<"safe" | "raw">("safe");
-  const [languagePreference, setLanguagePreference] =
-    useState<LanguagePreference>("auto");
   const [i18nVersion, setI18nVersion] = useState<number>(0);
 
   // 历史记录状态
@@ -104,8 +100,7 @@ export function PopupApp() {
 
   useEffect(() => {
     void (async () => {
-      const pref = await initI18nPreference();
-      setLanguagePreference(pref);
+      await initI18nPreference();
       applyI18n();
       document.documentElement.lang = getLocale();
     })();
@@ -201,17 +196,6 @@ export function PopupApp() {
     captureFrameworkState,
     privacyMode,
   ]);
-
-  const handleSetLanguagePreference = useCallback(
-    async (pref: LanguagePreference) => {
-      setLanguagePreference(pref);
-      await setUserLanguagePreference(pref);
-      applyI18n();
-      document.documentElement.lang = getLocale();
-      setI18nVersion((v) => v + 1);
-    },
-    []
-  );
 
   const responseBodyPolicy: "disabled" | "standard" | "full" = useMemo(() => {
     if (!captureNetworkBodies) return "disabled";
@@ -819,7 +803,6 @@ export function PopupApp() {
           responseBodyPolicy={responseBodyPolicy}
           captureFrameworkState={captureFrameworkState}
           privacyMode={privacyMode}
-          languagePreference={languagePreference}
           onToggleAdvanced={() => setAdvancedOpen(!advancedOpen)}
           onSetCaptureVideo={setCaptureVideo}
           onSetCaptureAudio={setCaptureAudio}
@@ -831,7 +814,6 @@ export function PopupApp() {
           onSetResponseBodyPolicy={handleSetResponseBodyPolicy}
           onSetCaptureFrameworkState={setCaptureFrameworkState}
           onSetPrivacyMode={setPrivacyMode}
-          onSetLanguagePreference={handleSetLanguagePreference}
         />
       </section>
 

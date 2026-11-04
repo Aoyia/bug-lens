@@ -1,8 +1,10 @@
 import { mkdirSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import type { LoadedPack } from "../pack/cache.ts";
-import { sanitizeRelativePathForDisk } from "../pack/open.ts";
+import {
+  getTriageWorkspaceDir,
+  sanitizeRelativePathForDisk,
+} from "../pack/open.ts";
 
 export const MAX_INLINE_IMAGE_BYTES = Math.floor(1.5 * 1024 * 1024); // 1.5 MB
 
@@ -30,7 +32,7 @@ export function exportPackImageToTemp(
       ? pack.sessionId.slice(0, 8) || "session"
       : "screenshot";
   const destPath = resolve(
-    join(tmpdir(), "bug-lens-workspace", "images", packPrefix, sanitized)
+    join(getTriageWorkspaceDir(), "images", packPrefix, sanitized)
   );
   try {
     mkdirSync(dirname(destPath), { recursive: true });

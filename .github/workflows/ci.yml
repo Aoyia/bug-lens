@@ -97,4 +97,4 @@ jobs:
 
       - name: Test Triage Skill CLI
         shell: bash
-        run: npx tsx --test tests/triage-cli-contract.test.ts tests/triage-cli-pack.test.ts tests/triage-cli-query.test.ts tests/triage-cli-tools.test.ts
+        run: npx tsx --test tests/triage-cli-contract.test.ts tests/triage-cli-pack.test.ts tests/triage-cli-query.test.ts tests/triage-cli-tools.test.ts tests/triage-cli-bundle.test.ts tests/triage-cli-skill-contract.test.ts

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "preact/hooks";
+import type { ComponentChildren } from "preact";
 
 export interface SelectOption<T extends string = string> {
   value: T;
@@ -15,6 +16,7 @@ export interface SelectProps<T extends string = string> {
   placeholder?: string;
   className?: string;
   title?: string;
+  suffix?: ComponentChildren;
 }
 
 export function Select<T extends string = string>({
@@ -26,6 +28,7 @@ export function Select<T extends string = string>({
   placeholder,
   className = "",
   title,
+  suffix,
 }: SelectProps<T>) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -130,6 +133,7 @@ export function Select<T extends string = string>({
         aria-disabled={disabled}
       >
         <span className="popup-select-value">{displayLabel}</span>
+        {suffix && <span className="popup-select-suffix">{suffix}</span>}
         <svg
           className="popup-select-arrow"
           viewBox="0 0 12 12"

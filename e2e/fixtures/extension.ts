@@ -369,6 +369,49 @@ export const test = base.extend<ExtensionFixtures>({
       }
     }
 
+    await context.addInitScript(() => {
+      let memoryClipboard = "";
+      if (typeof navigator !== "undefined" && navigator.clipboard) {
+        try {
+          const cb = navigator.clipboard as any;
+          if (!cb.__bugLensPlaywrightHookInstalled) {
+            const origRead = cb.readText?.bind(cb);
+            cb.readText = async () => {
+              if (
+                typeof window !== "undefined" &&
+                (window as any).__BUG_LENS_VIRTUAL_CLIPBOARD__ !== undefined
+              ) {
+                return (window as any).__BUG_LENS_VIRTUAL_CLIPBOARD__;
+              }
+              if (memoryClipboard) return memoryClipboard;
+              return origRead ? await origRead() : "";
+            };
+            cb.writeText = async (text: string) => {
+              memoryClipboard = String(text);
+              if (typeof window !== "undefined") {
+                (window as any).__BUG_LENS_VIRTUAL_CLIPBOARD__ =
+                  memoryClipboard;
+              }
+            };
+            cb.write = async (items: ClipboardItem[]) => {
+              for (const item of items) {
+                if (item.types?.includes("text/plain")) {
+                  const blob = await item.getType("text/plain");
+                  memoryClipboard = await blob.text();
+                  if (typeof window !== "undefined") {
+                    (window as any).__BUG_LENS_VIRTUAL_CLIPBOARD__ =
+                      memoryClipboard;
+                  }
+                  break;
+                }
+              }
+            };
+            cb.__bugLensPlaywrightHookInstalled = true;
+          }
+        } catch {}
+      }
+    });
+
     await use(context);
     logE2e("Closing Chrome test context");
     await context.close();

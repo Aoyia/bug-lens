@@ -1,4 +1,6 @@
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { SearchScope } from "./query/search.ts";
 import type { TimelineEventKind } from "./query/timeline.ts";
 import { runExtractPackTool } from "./tools/extract-pack.ts";
@@ -186,7 +188,13 @@ Commands:
 
 export function runTriageCli(argv: string[]): string {
   const rawCmd = argv[0]?.trim();
-  if (!rawCmd || rawCmd === "-h" || rawCmd === "--help" || rawCmd === "help") {
+  if (
+    !rawCmd ||
+    rawCmd === "-h" ||
+    rawCmd === "--help" ||
+    rawCmd === "help" ||
+    argv.slice(1).some((arg) => arg === "-h" || arg === "--help")
+  ) {
     return formatHelp();
   }
 
@@ -420,12 +428,34 @@ export function runTriageCli(argv: string[]): string {
   }
 }
 
-const isMainModule =
-  typeof process !== "undefined" &&
-  Array.isArray(process.argv) &&
-  process.argv[1] &&
-  (process.argv[1].endsWith("bug-lens-cli.mjs") ||
-    process.argv[1].endsWith("cli.ts"));
+function checkIsMainModule(): boolean {
+  if (
+    typeof process === "undefined" ||
+    !Array.isArray(process.argv) ||
+    !process.argv[1]
+  ) {
+    return false;
+  }
+  const scriptArg = process.argv[1];
+  if (scriptArg.endsWith("bug-lens-cli.mjs") || scriptArg.endsWith("cli.ts")) {
+    return true;
+  }
+  try {
+    const currentFilePath = fileURLToPath(import.meta.url);
+    const scriptPath = resolve(scriptArg);
+    const resolvedScript = existsSync(scriptPath)
+      ? realpathSync(scriptPath)
+      : scriptPath;
+    const resolvedCurrent = existsSync(currentFilePath)
+      ? realpathSync(currentFilePath)
+      : currentFilePath;
+    return resolvedScript === resolvedCurrent;
+  } catch {
+    return false;
+  }
+}
+
+const isMainModule = checkIsMainModule();
 
 if (isMainModule) {
   try {

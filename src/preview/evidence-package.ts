@@ -182,14 +182,14 @@ Metadata Summary:
 ${environmentLine}${sourceMappedErrorsText}
 
 [Workspace Setup (Do NOT extract into active project directory; overwrite singleton directory for O(1) storage)]
-- Preferred (when \`bug-lens-triage\` Skill is installed): Run the bundled \`node "<skillDir>/scripts/bug-lens-cli.mjs" open_pack ${targetZipPathEn}\`, \`get_scene\`, \`timeline\`, \`query_network\`, \`get_request\`, and \`get_framework_state\` directly in memory (subsequent commands reuse the cached pack path and auto-export screenshots to temp workspace; do NOT redundantly call \`read_pack_file\` on \`AI_PROMPT.md\` or \`data/session-data.js\`). Skip shell extraction below and NEVER write \`node -e\` / \`vm\` scripts to parse \`session-data.js\` (only run \`extract_pack\` if you need to run \`reproduce.spec.ts\`).
+- Preferred (when \`bug-lens-triage\` Skill is installed): Run the bundled \`node "<skillDir>/scripts/bug-lens-cli.mjs" open_pack ${targetZipPathEn}\`, \`get_scene\`, \`timeline\`, \`query_network\`, \`get_request\`, \`get_framework_state\`, and \`get_screenshot\` directly in memory (subsequent commands reuse the cached pack path and auto-export screenshots to temp workspace; inspect interaction step screenshots via \`get_screenshot --step N\`; do NOT redundantly call \`read_pack_file\` on \`AI_PROMPT.md\` or \`data/session-data.js\`). Skip shell extraction below and NEVER manually run \`unzip\` or write \`node -e\` / \`vm\` scripts to parse \`session-data.js\` (only run \`extract_pack\` if you need to run \`reproduce.spec.ts\`).
 - Fallback Extraction Command (only when \`bug-lens-triage\` Skill is unavailable):
   ${unzipCmdEn}
 - Workspace Path: \`${workspacePath}\` (Evidence files, session data, and Playwright scripts reside here)
 
 Please follow this first-principles chain of diagnosis:
 1. Scene Alignment: Prioritize reading \`data/session-data.js\` in \`${workspacePath}\` for \`issueScenes[].scene.narrative.actual\` (to capture the user's explicit problem description), combined with \`issues/\` screenshots and selected DOM element styles. Note that \`data/session-data.js\` sets \`window.__BUG_LENS_DATA__ = {...}\` — start with the \`summary\` field and \`screenshotSummaries\`. Full request headers and initiator/call stack details are stored in \`data/network-details.js\`. Each scene also carries \`issueScenes[].scene.sequenceContext\` — the interactions and console errors in the seconds before the mark moment, frozen at capture time. Treat it as raw same-time context, never as a causal assertion.
-2. Expected Anchor: Read \`issueScenes[].scene.narrative.expected\`. If \`confidence: "explicit"\`, treat the user's stated expectation as the diagnostic anchor — the bug is the deviation between \`actual\` and that expectation. If \`confidence: "missing"\` (or the field is absent), the expectation was NOT captured: you MUST explicitly state "expectation not captured; the following is an inferred assumption" and label any inferred expectation as a hypothesis, never as fact.
+2. Expected Anchor: Read \`issueScenes[].scene.narrative.expected\`. If \`confidence: "explicit"\`, treat the user's stated expectation as the diagnostic anchor — the bug is the deviation between \`actual\` and that expectation. If \`confidence: "missing"\` (or the field is absent), the expectation was NOT captured: you MUST explicitly state "expectation not captured; the following is an inferred assumption" and label any inferred expectation as a hypothesis, never as fact. If the user provided additional explicit requirements or instructions in the prompt, treat them as the primary intent and label them as "user-provided requirement (not captured in evidence pack)".
 3. Anomaly Convergence: Align timeline to find correlated Console errors and failed Network requests (e.g. 4xx/5xx/CORS/Timeout) around issue timestamps.
 4. Root Cause & Remediation: Pinpoint the failing code block/API, distinguishing UI rendering bugs, state management flaws, style/structural defects, or backend API contract failures. Use \`frameworkStates[]\` in \`data/session-data.js\` to inspect React/Vue component props/state before and at the failing interaction, and \`reproduce.spec.ts\` to run a Playwright reproduction (fix-then-replay loop).
 
@@ -235,14 +235,14 @@ ${path}
 ${environmentLine}${sourceMappedErrorsText}
 
 【工作区准备（严禁解压在当前代码工程目录内，使用固定单例目录覆盖以实现 O(1) 存储占用）】
-- 首选方式（已安装 \`bug-lens-triage\` Skill 时）：直接使用该技能内置的 \`node "<skillDir>/scripts/bug-lens-cli.mjs" open_pack ${targetZipPathZh}\`、\`get_scene\`、\`timeline\`、\`query_network\`、\`get_request\`、\`get_framework_state\` 内存直读分析（自动缓存当前包路径并将关键截图导出至临时目录，无需再用 \`read_pack_file\` 重复读取 \`AI_PROMPT.md\` 或 \`data/session-data.js\`），跳过下方命令行解压，严禁手写 \`node -e\` / \`vm\` 脚本解析 \`session-data.js\`（仅在需运行 \`reproduce.spec.ts\` 时执行 \`extract_pack\`）。
+- 首选方式（已安装 \`bug-lens-triage\` Skill 时）：直接使用该技能内置的 \`node "<skillDir>/scripts/bug-lens-cli.mjs" open_pack ${targetZipPathZh}\`、\`get_scene\`、\`timeline\`、\`query_network\`、\`get_request\`、\`get_framework_state\`、\`get_screenshot\` 内存直读分析（自动缓存当前包路径并将关键截图导出至临时目录，步骤截图使用 \`get_screenshot --step N\` 导出，无需再用 \`read_pack_file\` 重复读取 \`AI_PROMPT.md\` 或 \`data/session-data.js\`），跳过下方命令行解压，严禁手写 \`node -e\` / \`vm\` 脚本解析 \`session-data.js\`（仅在需运行 \`reproduce.spec.ts\` 时执行 \`extract_pack\`）。
 - 降级解压命令（仅当未安装 \`bug-lens-triage\` Skill 时执行）：
   ${unzipCmdZh}
 - 工作区路径：\`${workspacePath}\`（解压与后续排查均以此目录为准）
 
 请按以下第一性链式逻辑展开排查：
 1. 现场定位：优先读取 \`data/session-data.js\` 中的 \`issueScenes[].scene.narrative.actual\`（获取用户填写的真实主观问题描述），并结合 \`issues/\` 截图与选中的 DOM 元素样式分析现场。注意：该文件设置 \`window.__BUG_LENS_DATA__ = {...}\`，请先读取 \`summary\` 字段和 \`screenshotSummaries\`。完整请求头、响应头和调用栈详情已独立保存至 \`data/network-details.js\`。每个现场还携带 \`issueScenes[].scene.sequenceContext\`——标记当下前数秒内的交互与 Console 报错，在捕获时刻冻结。请仅将其视为"同时刻原始上下文"，禁止当作已证实的因果链。
-2. 期望锚点：读取 \`issueScenes[].scene.narrative.expected\`。若 \`confidence: "explicit"\`，以用户明示的期望作为诊断锚点——缺陷即 \`actual\` 与该期望之间的偏差。若 \`confidence: "missing"\` 或字段缺失，说明期望未被捕获：你必须显式声明“未捕获期望，以下为推断假设”，并将任何推断出的期望标注为假设，禁止当作用户已知事实。
+2. 期望锚点：读取 \`issueScenes[].scene.narrative.expected\`。若 \`confidence: "explicit"\`，以用户明示的期望作为诊断锚点——缺陷即 \`actual\` 与该期望之间的偏差。若 \`confidence: "missing"\` 或字段缺失，说明期望未被捕获：你必须显式声明“未捕获期望，以下为推断假设”，并将任何推断出的期望标注为假设，禁止当作用户已知事实；若用户在提示词中另行给出了明确诉求（如测试反馈、需求描述），以该诉求为准，并标注为“用户补充，非证据包捕获”。
 3. 异常收敛：对齐时间轴，检索交叉点附近的 Console 报错与 Network 失败请求（如 4xx/5xx/CORS/Timeout）。
 4. 根因推导与修复：定位缺陷发生的代码块/接口，区分是前端渲染异常、状态管理漏洞、样式/结构缺陷还是后端 API 契约失效。可用 \`data/session-data.js\` 中的 \`frameworkStates[]\` 检查失败交互前后的 React/Vue 组件 props/state，并用 \`reproduce.spec.ts\` 运行 Playwright 复现（修复-回放闭环验证）。
 

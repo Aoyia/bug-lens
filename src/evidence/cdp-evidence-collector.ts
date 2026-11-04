@@ -14,6 +14,7 @@ import {
   sanitizeText,
   sanitizeUrl,
 } from "../domain/privacy-policy.ts";
+import { isTrackedTab } from "../domain/session-admission.ts";
 import type { RecordingSessionEvent } from "../domain/recording-session.ts";
 import type { EvidenceRepository } from "../storage/db.ts";
 import { flushStorageBatchQueue } from "../storage/storage-budget.ts";
@@ -768,10 +769,7 @@ export class CdpEvidenceCollector {
     params?: object
   ): Promise<void> {
     const session = await this.repository.getActiveSession();
-    const isTargetTab =
-      session?.target.tabId === tabId ||
-      session?.targets?.some((t) => t.tabId === tabId) ||
-      this.attachedTabs.has(tabId);
+    const isTargetTab = isTrackedTab(session, tabId, this.attachedTabs);
     if (
       !session ||
       !RECORDING_STATUSES.includes(session.status) ||

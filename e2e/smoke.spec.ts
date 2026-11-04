@@ -150,6 +150,23 @@ test.describe("Bug Lens 核心功能极速冒烟测试 (Smoke Suite)", () => {
     const pendingBadges = previewPage.locator(".badge:has-text('pending')");
     expect(await pendingBadges.count()).toBe(0);
 
+    // 7. 验证 Popup 历史会话列表渲染紧凑汇总徽标 (.chip-summary / .chip-all-captured)
+    const popupPage = await context.newPage();
+    await popupPage.goto(`chrome-extension://${extensionId}/popup.html`);
+    await popupPage
+      .locator(".header-actions .icon-action-btn.tab")
+      .first()
+      .click();
+    await popupPage.waitForSelector("#sessions article.session", {
+      timeout: 5000,
+    });
+    const summaryChip = popupPage
+      .locator("#sessions .chip-summary, #sessions .chip-all-captured")
+      .first();
+    await expect(summaryChip).toBeVisible();
+    await expect(summaryChip).toHaveAttribute("title", /.+/);
+    await popupPage.close();
+
     const totalElapsedMs = Date.now() - startTime;
     logSmoke(
       `SMOKE-001 冒烟测试全链路通过，总耗时: ${(totalElapsedMs / 1000).toFixed(1)}s`

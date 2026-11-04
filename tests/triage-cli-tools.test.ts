@@ -135,6 +135,59 @@ test("triage-cli executes all 12 commands, exports screenshots on open_pack, and
     ]);
     assert.match(extText, /reproduce\.spec\.ts/);
   } finally {
+    clearPackCache();
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("triage-cli handles edge cases: missing scene, out-of-range framework state, budget truncation, and format=json", () => {
+  const tempRoot = mkdtempSync(join(tmpdir(), "bug-lens-cli-edge-"));
+  try {
+    clearPackCache();
+    const sessionZipPath = join(tempRoot, "session.zip");
+    writeFileSync(sessionZipPath, buildRealSessionZipBytes());
+
+    runTriageCli(["open_pack", sessionZipPath]);
+
+    // 1. SCENE_NOT_FOUND
+    assert.throws(
+      () => runTriageCli(["get_scene", "--sceneIndex", "999"]),
+      /SCENE_NOT_FOUND: Scene "999" not found/
+    );
+
+    // 2. FRAMEWORK_STATE_NOT_FOUND
+    assert.throws(
+      () => runTriageCli(["get_framework_state", "--index", "999"]),
+      /FRAMEWORK_STATE_NOT_FOUND: Index 999 out of range/
+    );
+
+    // 3. maxChars truncation
+    const truncatedText = runTriageCli(["query_console", "--maxChars", "250"]);
+    assert.match(truncatedText, /\[Truncated to 250 chars/);
+
+    // 4. format=json
+    const jsonOut = JSON.parse(
+      runTriageCli(["open_pack", sessionZipPath, "--format", "json"])
+    );
+    assert.equal(jsonOut.kind, "session");
+    assert.equal(jsonOut.filesCount, 14);
+    assert.ok(jsonOut.issueScenes.length >= 1);
+
+    const sceneJson = JSON.parse(
+      runTriageCli(["get_scene", "--format", "json", "--includeImage", "false"])
+    );
+    assert.equal(
+      sceneJson.narrative.actual,
+      "勾选 Form A 的 standby 后取消勾选，3 个选择窗口全部消失"
+    );
+
+    const netJson = JSON.parse(
+      runTriageCli(["query_network", "--status", "failed", "--format", "json"])
+    );
+    assert.equal(netJson.matchedCount, 1);
+    assert.equal(netJson.items[0].status, 500);
+  } finally {
+    clearPackCache();
     rmSync(tempRoot, { recursive: true, force: true });
   }
 });

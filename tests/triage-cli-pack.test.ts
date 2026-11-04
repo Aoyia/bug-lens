@@ -147,8 +147,78 @@ test("openPack supports file path with spaces/parentheses (Windows download styl
     const second = openPack(weirdFilePath);
     assert.equal(second.kind, "screenshot");
   } finally {
+    clearPackCache();
     rmSync(tempRoot, { recursive: true, force: true });
   }
+});
+
+test("openPackFromBytes rejects unrecognized archives and corrupted JSON files", () => {
+  const emptyZip = zipSync({
+    "random.txt": new TextEncoder().encode("hello world"),
+  });
+  assert.throws(
+    () => openPackFromBytes(emptyZip),
+    /UNRECOGNIZED_BUG_LENS_PACK/
+  );
+
+  const corruptedJsonZip = zipSync({
+    "dom-context.json": new TextEncoder().encode("{ corrupt json"),
+  });
+  assert.throws(
+    () => openPackFromBytes(corruptedJsonZip),
+    /INVALID_JSON_FILE: Failed to parse dom-context\.json/
+  );
+});
+
+test("openPack loads extracted directory archives directly from disk", () => {
+  const tempRoot = mkdtempSync(join(tmpdir(), "bug-lens-cli-dir-"));
+  try {
+    clearPackCache();
+    const sessionZipBytes = buildRealSessionZipBytes();
+    const memPack = openPackFromBytes(sessionZipBytes);
+    const extracted = extractPackToDisk(
+      memPack,
+      join(tempRoot, "extracted-session")
+    );
+
+    const dirPack = openPack(extracted.destDir);
+    assert.equal(dirPack.kind, "session");
+    if (dirPack.kind === "session" && memPack.kind === "session") {
+      assert.equal(dirPack.sessionId, memPack.sessionId);
+    }
+    assert.ok(dirPack.getInteractions().length >= 1);
+  } finally {
+    clearPackCache();
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("openPackFromBytes detects declared zip bomb single file size limits", () => {
+  const zipBytes = zipSync({
+    "data/huge.txt": new Uint8Array(10),
+  });
+  // 修改 Central Directory Header (0x50, 0x4b, 0x01, 0x02) 中的 uncompressed size (offset +24)
+  for (let i = 0; i < zipBytes.length - 4; i++) {
+    if (
+      zipBytes[i] === 0x50 &&
+      zipBytes[i + 1] === 0x4b &&
+      zipBytes[i + 2] === 0x01 &&
+      zipBytes[i + 3] === 0x02
+    ) {
+      const view = new DataView(
+        zipBytes.buffer,
+        zipBytes.byteOffset,
+        zipBytes.byteLength
+      );
+      view.setUint32(i + 24, 70 * 1024 * 1024, true); // 70MB (超过 64MB 限制)
+      break;
+    }
+  }
+
+  assert.throws(
+    () => openPackFromBytes(zipBytes),
+    /ZIP_BOMB_SINGLE_FILE_EXCEEDED/
+  );
 });
 
 test("sanitizeRelativePathForDisk replaces Windows reserved characters", () => {

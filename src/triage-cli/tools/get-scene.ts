@@ -113,7 +113,7 @@ export function runGetSceneTool(args: {
   if (!target) {
     const available = scenes.map((s) => `${s.index}:${s.id}`).join(", ");
     throw new Error(
-      `SCENE_NOT_FOUND: Scene "${args.sceneId}" not found. Available scenes: [${available}]`
+      `SCENE_NOT_FOUND: Scene "${effectiveSceneId ?? args.sceneId}" not found. Available scenes: [${available}]`
     );
   }
 

@@ -82,9 +82,6 @@ test.describe("跨标签页/跨网页联动录制端到端测试 (Multi-Tab Cros
     // 6. 验证导出下载产物完整性
     const exportedDownload = await mediaProbe.waitForExportDownload(20_000);
     expect(exportedDownload.state).toBe("complete");
-    if (exportedDownload.filename && fs.existsSync(exportedDownload.filename)) {
-      fs.copyFileSync(exportedDownload.filename, "/tmp/test-report.zip");
-    }
     expect(exportedDownload.totalBytes ?? 0).toBeGreaterThan(0);
 
     // 7. 深入验证证据包：既包含后台操作，也包含前台操作！

@@ -348,7 +348,7 @@
     "message": "Safe Mode (Sanitized)"
   },
   "rawMode": {
-    "message": "Raw Mode (Unsanitized)"
+    "message": "Raw Mode (Plaintext)"
   },
   "startRecording": {
     "message": "Start Recording"

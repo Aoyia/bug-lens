@@ -30,6 +30,7 @@ import {
   recordTaskProfile,
   incrementPromptCopyCount,
 } from "../../diagnostics/diagnostics-store";
+import { copyTextToClipboard } from "../../preview/clipboard";
 
 export interface ProcessScreenshotOptions {
   viewportDataUrl: string;
@@ -265,39 +266,13 @@ function blobToDataUrl(blob: Blob): Promise<string> {
 
 /** 将文本写入系统剪切板（navigator.clipboard 优先，execCommand 兜底） */
 async function writeTextToClipboard(text: string): Promise<boolean> {
-  let writeSuccess = false;
-  if (typeof navigator !== "undefined" && navigator.clipboard) {
-    if (navigator.clipboard.writeText) {
-      try {
-        await navigator.clipboard.writeText(text);
-        writeSuccess = true;
-      } catch (err) {
-        console.warn(
-          "Bug Lens: clipboard.writeText 写入失败，准备 Fallback",
-          err
-        );
-      }
-    }
+  try {
+    await copyTextToClipboard(text);
+    return true;
+  } catch (err) {
+    console.warn("Bug Lens: 写入剪贴板失败", err);
+    return false;
   }
-  // 如果 API 被阻断，通过 execCommand("copy") 兜底写入纯文本 Prompt
-  if (!writeSuccess && typeof document !== "undefined") {
-    try {
-      const textarea = document.createElement("textarea");
-      textarea.value = text;
-      textarea.style.position = "fixed";
-      textarea.style.left = "-9999px";
-      textarea.style.top = "-9999px";
-      document.body.appendChild(textarea);
-      textarea.focus();
-      textarea.select();
-      const success = document.execCommand("copy");
-      document.body.removeChild(textarea);
-      if (success) writeSuccess = true;
-    } catch (err3) {
-      console.warn("Bug Lens: execCommand 复制降级失败", err3);
-    }
-  }
-  return writeSuccess;
 }
 
 /** 核心处理器：物理裁剪图片、提取 DOM 上下文、写入多 MIME 剪切板 */

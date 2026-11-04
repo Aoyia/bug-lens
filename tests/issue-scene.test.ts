@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import "fake-indexeddb/auto";
+import { db } from "../src/storage/db.ts";
 import {
   buildIssueSequenceContext,
   defaultAnnotation,
@@ -12,6 +14,7 @@ import type {
   ConsoleEntry,
   InteractionRecord,
   IssueScene,
+  RecordingSession,
 } from "../src/shared/protocol.ts";
 
 test("domain/issue-scene functions create and normalize scene properties", () => {
@@ -288,5 +291,130 @@ test("domain/issue-scene buildIssueSequenceContext filters console levels and re
   assert.deepEqual(
     slice.consoleEntries.map((item) => item.text),
     ["E1", "W1"]
+  );
+});
+
+test("IssueSceneCapture respects session-admission: permits derived tab and rejects untracked tabs with reason code", async () => {
+  const session: RecordingSession = {
+    id: "sess-admission-1",
+    status: "RECORDING",
+    target: {
+      tabId: 50,
+      windowId: 1,
+      initialUrl: "https://example.com",
+      initialTitle: "Example",
+    },
+    targets: [
+      {
+        tabId: 50,
+        windowId: 1,
+        url: "https://example.com",
+        title: "Example",
+        isPrimary: true,
+      },
+      {
+        tabId: 51,
+        windowId: 1,
+        url: "https://example.com/derived",
+        title: "Derived",
+        isPrimary: false,
+      },
+    ],
+    options: {
+      privacyMode: "safe",
+      captureConsole: true,
+      captureNetwork: true,
+      captureFrameworkState: false,
+      autoTrackDerivedTabs: true,
+    },
+    timeline: {
+      createdAtEpochMs: 1000,
+      startedAtEpochMs: 1000,
+    },
+    quality: {
+      interactionCount: 0,
+      confirmedInteractionCount: 0,
+      primaryScreenshotCount: 0,
+      fallbackScreenshotCount: 0,
+      unavailableScreenshotCount: 0,
+      consoleEntryCount: 0,
+      networkEntryCount: 0,
+    },
+    nonce: "valid-nonce-abc",
+  };
+
+  await db.claimSession(session);
+
+  let isStoppingSession = false;
+  const captureService = new IssueSceneCapture(() => isStoppingSession);
+
+  // 1. 派生 tab 准入通过（不会抛 ISSUE_SESSION_REJECTED）
+  await assert.doesNotReject(async () => {
+    await captureService.cancel("non-existent-scene", "valid-nonce-abc", {
+      tab: { id: 51 } as chrome.tabs.Tab,
+      frameId: 0,
+    });
+  });
+
+  // 2. 主 tab 准入通过
+  await assert.doesNotReject(async () => {
+    await captureService.cancel("non-existent-scene", "valid-nonce-abc", {
+      tab: { id: 50 } as chrome.tabs.Tab,
+      frameId: 0,
+    });
+  });
+
+  // 3. 陌生 tab 被拒，错误信息包含 TAB_NOT_TRACKED
+  await assert.rejects(
+    async () => {
+      await captureService.cancel("non-existent-scene", "valid-nonce-abc", {
+        tab: { id: 999 } as chrome.tabs.Tab,
+        frameId: 0,
+      });
+    },
+    (err: Error) => {
+      assert.ok(err.message.includes("ISSUE_SESSION_REJECTED"));
+      assert.ok(err.message.includes("TAB_NOT_TRACKED"));
+      return true;
+    }
+  );
+
+  // 4. nonce 错误被拒，包含 NONCE_MISMATCH
+  await assert.rejects(
+    async () => {
+      await captureService.cancel("non-existent-scene", "wrong-nonce", {
+        tab: { id: 51 } as chrome.tabs.Tab,
+        frameId: 0,
+      });
+    },
+    (err: Error) => {
+      assert.ok(err.message.includes("ISSUE_SESSION_REJECTED"));
+      assert.ok(err.message.includes("NONCE_MISMATCH"));
+      return true;
+    }
+  );
+
+  // 5. 子 frame 抛出 FRAME_GEOMETRY_UNAVAILABLE
+  await assert.rejects(async () => {
+    await captureService.cancel("non-existent-scene", "valid-nonce-abc", {
+      tab: { id: 51 } as chrome.tabs.Tab,
+      frameId: 1,
+    });
+  }, /FRAME_GEOMETRY_UNAVAILABLE/);
+
+  // 6. 处于停止中时被拒，包含 STOPPING
+  isStoppingSession = true;
+  await assert.rejects(
+    async () => {
+      await captureService.cancel("non-existent-scene", "valid-nonce-abc", {
+        tab: { id: 51 } as chrome.tabs.Tab,
+        frameId: 0,
+      });
+    },
+    (err: Error) => {
+      assert.ok(err.message.includes("ISSUE_SESSION_REJECTED"));
+      assert.ok(err.message.includes("STOPPING"));
+      return true;
+    }
   );
 });

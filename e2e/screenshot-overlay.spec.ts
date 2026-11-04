@@ -1,3 +1,7 @@
+import fs from "node:fs";
+import path from "node:path";
+import { execFileSync } from "node:child_process";
+import { unzipSync } from "fflate";
 import { test, expect, safeUrlForLog } from "./fixtures/extension.ts";
 
 function logE2e(message: string, details?: unknown): void {
@@ -882,6 +886,7 @@ test.describe("Bug Lens Chrome Extension E2E SCREENSHOT-005: 截图确认导出�
     await page.mouse.up();
 
     // 3) 点击 confirm 确认导出按钮
+    const downloadPromise = page.waitForEvent("download");
     await probe.click('button[data-action="confirm"]');
     logE2e("Confirm button clicked");
 
@@ -894,7 +899,70 @@ test.describe("Bug Lens Chrome Extension E2E SCREENSHOT-005: 截图确认导出�
     await expect(toast).toBeAttached({ timeout: 5_000 });
     logE2e("Toast visible on page");
 
-    // 6) 全流程无事件泄漏
+    // 5) 截图 ZIP 下载与文件内容完整性校验
+    const download = await downloadPromise;
+    const downloadPath = await download.path();
+    expect(downloadPath).toBeTruthy();
+    expect(download.suggestedFilename()).toMatch(
+      /^bug-lens-screenshot-.*\.zip$/
+    );
+
+    const zipStats = fs.statSync(downloadPath!);
+    expect(zipStats.size).toBeGreaterThan(0);
+
+    const zipBuffer = fs.readFileSync(downloadPath!);
+    const unzipped = unzipSync(new Uint8Array(zipBuffer));
+    expect(unzipped["screenshot.jpg"]).toBeDefined();
+    expect(unzipped["ai-prompt.md"]).toBeDefined();
+    expect(unzipped["dom-context.json"]).toBeDefined();
+    expect(unzipped["environment.json"]).toBeDefined();
+
+    // 6) 验证 Triage CLI 对独立截图包的消费契约
+    const skillCliPath = path.resolve(
+      process.cwd(),
+      ".agents/skills/bug-lens-triage/scripts/bug-lens-cli.mjs"
+    );
+    if (fs.existsSync(skillCliPath)) {
+      const openOutput = execFileSync(
+        process.execPath,
+        [skillCliPath, "open_pack", downloadPath!],
+        { encoding: "utf8" }
+      );
+      expect(openOutput).toContain(
+        "# Bug Lens Screenshot Pack (kind: screenshot)"
+      );
+
+      const sceneOutput = execFileSync(
+        process.execPath,
+        [skillCliPath, "get_scene", "--pack", downloadPath!],
+        { encoding: "utf8" }
+      );
+      expect(sceneOutput).toBeTruthy();
+
+      const searchOutput = execFileSync(
+        process.execPath,
+        [skillCliPath, "search_pack", "http", "--pack", downloadPath!],
+        { encoding: "utf8" }
+      );
+      expect(searchOutput).toContain(
+        '# Search Results in Screenshot Pack for "http"'
+      );
+
+      const readPromptOutput = execFileSync(
+        process.execPath,
+        [
+          skillCliPath,
+          "read_pack_file",
+          "ai-prompt.md",
+          "--pack",
+          downloadPath!,
+        ],
+        { encoding: "utf8" }
+      );
+      expect(readPromptOutput).toContain("Bug Lens");
+    }
+
+    // 7) 全流程无事件泄漏
     expect(await leakCount()).toBe(0);
   });
 

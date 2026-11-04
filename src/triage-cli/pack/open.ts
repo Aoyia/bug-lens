@@ -30,16 +30,22 @@ const MEDIA_PATH_RE = /(?:^|\/)media\/|\.(?:mp4|webm|mkv|mov)$/i;
 const WINDOWS_RESERVED_CHARS_RE = /[:*?"<>|]/g;
 
 const defaultCache = new PackLruCache(3);
-const CURRENT_PACK_STATE_FILE = join(
-  tmpdir(),
-  "bug-lens-workspace",
-  ".current-pack"
-);
+
+export function getTriageWorkspaceDir(): string {
+  const custom =
+    process.env.BUG_LENS_WORKSPACE_DIR || process.env.BUG_LENS_CLI_WORKSPACE;
+  return custom ? resolve(custom) : join(tmpdir(), "bug-lens-workspace");
+}
+
+function getCurrentPackStateFile(): string {
+  return join(getTriageWorkspaceDir(), ".current-pack");
+}
 
 function saveLastPackPathToDisk(packPath: string): void {
   try {
-    mkdirSync(dirname(CURRENT_PACK_STATE_FILE), { recursive: true });
-    writeFileSync(CURRENT_PACK_STATE_FILE, packPath, "utf8");
+    const stateFile = getCurrentPackStateFile();
+    mkdirSync(dirname(stateFile), { recursive: true });
+    writeFileSync(stateFile, packPath, "utf8");
   } catch {
     // ignore disk state write errors
   }
@@ -47,8 +53,9 @@ function saveLastPackPathToDisk(packPath: string): void {
 
 function loadLastPackPathFromDisk(): string | undefined {
   try {
-    if (existsSync(CURRENT_PACK_STATE_FILE)) {
-      const p = readFileSync(CURRENT_PACK_STATE_FILE, "utf8").trim();
+    const stateFile = getCurrentPackStateFile();
+    if (existsSync(stateFile)) {
+      const p = readFileSync(stateFile, "utf8").trim();
       if (p.length > 0) return p;
     }
   } catch {
@@ -60,7 +67,7 @@ function loadLastPackPathFromDisk(): string | undefined {
 export function clearPackCache(): void {
   defaultCache.clear();
   try {
-    rmSync(CURRENT_PACK_STATE_FILE, { force: true });
+    rmSync(getCurrentPackStateFile(), { force: true });
   } catch {
     // ignore
   }
@@ -362,7 +369,7 @@ export function extractPackToDisk(
       ? pack.sessionId.slice(0, 8) || "session"
       : "screenshot";
   const destRoot = resolve(
-    customDestDir ?? join(tmpdir(), "bug-lens-workspace", defaultSubdir)
+    customDestDir ?? join(getTriageWorkspaceDir(), defaultSubdir)
   );
   mkdirSync(destRoot, { recursive: true });
 

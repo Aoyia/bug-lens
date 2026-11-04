@@ -8,12 +8,12 @@ import {
   withIssueNarrative,
 } from "../domain/issue-scene.ts";
 import { sanitizeIssueScene, sanitizeText } from "../domain/privacy-policy.ts";
+import { getAdmissionRejection } from "../domain/session-admission.ts";
 import { db } from "../storage/db.ts";
 import { ensureOffscreenDocument } from "../shared/offscreen.ts";
 import { t } from "../shared/i18n.ts";
 import {
   message,
-  RECORDING_STATUSES,
   type CaptureIssue,
   type ConsoleEntry,
   type IssueScene,
@@ -140,14 +140,18 @@ export class IssueSceneCapture {
    */
   private async getAcceptedSession(nonce: string, sender: Sender) {
     const session = await db.getActiveSession();
-    if (
-      !session ||
-      this.isStopping(session.id) ||
-      !RECORDING_STATUSES.includes(session.status) ||
-      session.target.tabId !== sender.tab?.id ||
-      session.nonce !== nonce
-    ) {
-      throw new Error(`ISSUE_SESSION_REJECTED: ${t("issueSessionRejected")}`);
+    const rejection = getAdmissionRejection({
+      session,
+      tabId: sender.tab?.id,
+      nonce,
+      isStopping: this.isStopping,
+    });
+    if (rejection || !session) {
+      throw new Error(
+        `ISSUE_SESSION_REJECTED: ${t("issueSessionRejected")}${
+          rejection ? ` (${rejection})` : ""
+        }`
+      );
     }
     if ((sender.frameId ?? 0) !== 0)
       throw new Error(
@@ -156,16 +160,25 @@ export class IssueSceneCapture {
     return session;
   }
 
-  private async assertTargetTabIsActive(session: {
-    target: { tabId: number; windowId?: number };
-    targets?: Array<{ tabId: number }>;
-  }): Promise<void> {
+  private async assertTargetTabIsActive(
+    session: {
+      target: { tabId: number; windowId?: number };
+      targets?: Array<{ tabId: number }>;
+    },
+    targetTabId?: number,
+    windowId?: number
+  ): Promise<void> {
     const query: chrome.tabs.QueryInfo = { active: true };
-    if (typeof session.target.windowId === "number")
+    if (typeof windowId === "number") {
+      query.windowId = windowId;
+    } else if (typeof session.target.windowId === "number") {
       query.windowId = session.target.windowId;
+    }
     const tabs = await chrome.tabs.query(query);
+    const expectedTabId = targetTabId ?? session.target.tabId;
     const isTargetActive = tabs.some(
       (tab) =>
+        tab.id === expectedTabId ||
         tab.id === session.target.tabId ||
         Boolean(session.targets?.some((t) => t.tabId === tab.id))
     );
@@ -236,17 +249,20 @@ export class IssueSceneCapture {
         `SESSION_STORAGE_LIMIT_REACHED: ${t("issueMetadataNotSaved")}`
       );
 
+    const realWindowId = sender.tab?.windowId ?? session.target.windowId;
+    const realTabId = sender.tab?.id ?? session.target.tabId;
+
     try {
-      await this.assertTargetTabIsActive(session);
+      await this.assertTargetTabIsActive(session, realTabId, realWindowId);
       const capture = chrome.tabs.captureVisibleTab as unknown as (
         windowId: number,
         options: { format: "jpeg"; quality: number }
       ) => Promise<string>;
       const dataUrl = await capture(
-        session.target.windowId ?? chrome.windows.WINDOW_ID_CURRENT,
+        realWindowId ?? chrome.windows.WINDOW_ID_CURRENT,
         { format: "jpeg", quality: 92 }
       );
-      await this.assertTargetTabIsActive(session);
+      await this.assertTargetTabIsActive(session, realTabId, realWindowId);
       const { bytes } = dataUrlBytes(dataUrl);
       const assetId = crypto.randomUUID();
       const assetWrite = await db.saveEvidenceAssetWithinBudget({

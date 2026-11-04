@@ -197,11 +197,10 @@ async function copyStaticAssets() {
   await buildMergedPreviewCss();
 }
 
-async function buildTriageSkillCli() {
-  const skillCliOut = resolve(
-    root,
-    ".agents/skills/bug-lens-triage/scripts/bug-lens-cli.mjs"
-  );
+export async function buildTriageSkillCli(customOutfile) {
+  const skillCliOut =
+    customOutfile ??
+    resolve(root, ".agents/skills/bug-lens-triage/scripts/bug-lens-cli.mjs");
   await mkdir(dirname(skillCliOut), { recursive: true });
   await build({
     entryPoints: [resolve(root, "src/triage-cli/cli.ts")],
@@ -216,6 +215,14 @@ async function buildTriageSkillCli() {
       js: "#!/usr/bin/env node\nimport { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);",
     },
   });
+  try {
+    const code = await readFile(skillCliOut, "utf-8");
+    const prettier = await import("prettier");
+    const formatted = await prettier.format(code, { filepath: skillCliOut });
+    await writeFile(skillCliOut, formatted, "utf-8");
+  } catch {
+    // fallback if prettier is not available
+  }
   await chmod(skillCliOut, 0o755);
 }
 

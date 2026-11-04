@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import { createRequire as __createRequire } from "node:module";
 const require = __createRequire(import.meta.url);
-import { existsSync as Nt } from "node:fs";
+import { existsSync as ye, realpathSync as Pt } from "node:fs";
+import { resolve as Tn } from "node:path";
+import { fileURLToPath as Rn } from "node:url";
 function $(e, t = 24e3, r) {
   let n = typeof t == "number" && t > 200 ? Math.floor(t) : 24e3;
   if (e.length <= n) return e;
@@ -18,59 +20,59 @@ function $(e, t = 24e3, r) {
     u = o > i * 0.75 ? o : i;
   return l.slice(0, u).trimEnd() + a;
 }
-import { createRequire as Ot } from "module";
-var Ft = Ot("/"),
-  K,
-  Lt,
-  jt;
+import { createRequire as Ft } from "module";
+var Lt = Ft("/"),
+  Z,
+  jt,
+  _t;
 try {
-  ((K = Ft("worker_threads")),
-    (Lt = K.Worker),
-    (jt = K.isMarkedAsUntransferable));
+  ((Z = Lt("worker_threads")),
+    (jt = Z.Worker),
+    (_t = Z.isMarkedAsUntransferable));
 } catch {}
-var A = Uint8Array,
-  G = Uint16Array,
-  _t = Int32Array,
-  He = new A([
+var T = Uint8Array,
+  K = Uint16Array,
+  Dt = Int32Array,
+  We = new T([
     0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5,
     5, 5, 5, 0, 0, 0, 0,
   ]),
-  We = new A([
+  Ge = new T([
     0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10,
     11, 11, 12, 12, 13, 13, 0, 0,
   ]),
-  Dt = new A([
+  zt = new T([
     16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15,
   ]),
-  Ge = function (e, t) {
-    for (var r = new G(31), n = 0; n < 31; ++n) r[n] = t += 1 << e[n - 1];
-    for (var s = new _t(r[30]), n = 1; n < 30; ++n)
+  Ke = function (e, t) {
+    for (var r = new K(31), n = 0; n < 31; ++n) r[n] = t += 1 << e[n - 1];
+    for (var s = new Dt(r[30]), n = 1; n < 30; ++n)
       for (var a = r[n]; a < r[n + 1]; ++a) s[a] = ((a - r[n]) << 5) | n;
     return { b: r, r: s };
   },
-  K = Ge(He, 2),
-  Ke = K.b,
-  zt = K.r;
-((Ke[28] = 258), (zt[258] = 28));
-var Ze = Ge(We, 0),
-  qt = Ze.b,
-  _n = Ze.r,
-  $e = new G(32768);
+  Z = Ke(We, 2),
+  Ze = Z.b,
+  qt = Z.r;
+((Ze[28] = 258), (qt[258] = 28));
+var Ve = Ke(Ge, 0),
+  Ut = Ve.b,
+  Un = Ve.r,
+  Ce = new K(32768);
 for (k = 0; k < 32768; ++k)
   ((D = ((k & 43690) >> 1) | ((k & 21845) << 1)),
     (D = ((D & 52428) >> 2) | ((D & 13107) << 2)),
     (D = ((D & 61680) >> 4) | ((D & 3855) << 4)),
-    ($e[k] = (((D & 65280) >> 8) | ((D & 255) << 8)) >> 1));
+    (Ce[k] = (((D & 65280) >> 8) | ((D & 255) << 8)) >> 1));
 var D,
   k,
   Y = function (e, t, r) {
-    for (var n = e.length, s = 0, a = new G(t); s < n; ++s)
+    for (var n = e.length, s = 0, a = new K(t); s < n; ++s)
       e[s] && ++a[e[s] - 1];
-    var i = new G(t);
+    var i = new K(t);
     for (s = 1; s < t; ++s) i[s] = (i[s - 1] + a[s - 1]) << 1;
     var l;
     if (r) {
-      l = new G(1 << t);
+      l = new K(1 << t);
       var o = 15 - t;
       for (s = 0; s < n; ++s)
         if (e[s])
@@ -82,13 +84,13 @@ var D,
             f <= h;
             ++f
           )
-            l[$e[f] >> o] = u;
+            l[Ce[f] >> o] = u;
     } else
-      for (l = new G(n), s = 0; s < n; ++s)
-        e[s] && (l[s] = $e[i[e[s] - 1]++] >> (15 - e[s]));
+      for (l = new K(n), s = 0; s < n; ++s)
+        e[s] && (l[s] = Ce[i[e[s] - 1]++] >> (15 - e[s]));
     return l;
   },
-  ee = new A(288);
+  ee = new T(288);
 for (k = 0; k < 144; ++k) ee[k] = 8;
 var k;
 for (k = 144; k < 256; ++k) ee[k] = 9;
@@ -97,12 +99,12 @@ for (k = 256; k < 280; ++k) ee[k] = 7;
 var k;
 for (k = 280; k < 288; ++k) ee[k] = 8;
 var k,
-  Ve = new A(32);
-for (k = 0; k < 32; ++k) Ve[k] = 5;
+  Xe = new T(32);
+for (k = 0; k < 32; ++k) Xe[k] = 5;
 var k;
-var Ut = Y(ee, 9, 1);
-var Bt = Y(Ve, 5, 1),
-  xe = function (e) {
+var Bt = Y(ee, 9, 1);
+var Jt = Y(Xe, 5, 1),
+  Se = function (e) {
     for (var t = e[0], r = 1; r < e.length; ++r) e[r] > t && (t = e[r]);
     return t;
   },
@@ -110,21 +112,21 @@ var Bt = Y(Ve, 5, 1),
     var n = (t / 8) | 0;
     return ((e[n] | (e[n + 1] << 8)) >> (t & 7)) & r;
   },
-  we = function (e, t) {
+  $e = function (e, t) {
     var r = (t / 8) | 0;
     return (e[r] | (e[r + 1] << 8) | (e[r + 2] << 16)) >> (t & 7);
   },
-  Jt = function (e) {
+  Ht = function (e) {
     return ((e + 7) / 8) | 0;
   },
-  Ce = function (e, t, r) {
+  Me = function (e, t, r) {
     return (
       (t == null || t < 0) && (t = 0),
       (r == null || r > e.length) && (r = e.length),
-      new A(e.subarray(t, r))
+      new T(e.subarray(t, r))
     );
   };
-var Ht = [
+var Wt = [
     "unexpected EOF",
     "invalid block type",
     "invalid length/literal",
@@ -140,29 +142,29 @@ var Ht = [
     "stream finishing",
     "invalid zip data",
   ],
-  T = function (e, t, r) {
-    var n = new Error(t || Ht[e]);
+  A = function (e, t, r) {
+    var n = new Error(t || Wt[e]);
     if (
       ((n.code = e),
-      Error.captureStackTrace && Error.captureStackTrace(n, T),
+      Error.captureStackTrace && Error.captureStackTrace(n, A),
       !r)
     )
       throw n;
     return n;
   },
-  Wt = function (e, t, r, n) {
+  Gt = function (e, t, r, n) {
     var s = e.length,
       a = n ? n.length : 0;
-    if (!s || (t.f && !t.l)) return r || new A(0);
+    if (!s || (t.f && !t.l)) return r || new T(0);
     var i = !r,
       l = i || t.i != 2,
       o = t.i;
-    i && (r = new A(s * 3));
-    var u = function (Ue) {
-        var Be = r.length;
-        if (Ue > Be) {
-          var Je = new A(Math.max(Be * 2, Ue));
-          (Je.set(r), (r = Je));
+    i && (r = new T(s * 3));
+    var u = function (Be) {
+        var Je = r.length;
+        if (Be > Je) {
+          var He = new T(Math.max(Je * 2, Be));
+          (He.set(r), (r = He));
         }
       },
       c = t.f || 0,
@@ -178,47 +180,47 @@ var Ht = [
         c = j(e, f, 1);
         var v = j(e, f + 1, 3);
         if (((f += 3), v))
-          if (v == 1) ((m = Ut), (d = Bt), (p = 9), (g = 5));
+          if (v == 1) ((m = Bt), (d = Jt), (p = 9), (g = 5));
           else if (v == 2) {
             var b = j(e, f, 31) + 257,
-              P = j(e, f + 10, 15) + 4,
-              I = b + j(e, f + 5, 31) + 1;
+              I = j(e, f + 10, 15) + 4,
+              P = b + j(e, f + 5, 31) + 1;
             f += 14;
-            for (var L = new A(I), J = new A(19), R = 0; R < P; ++R)
-              J[Dt[R]] = j(e, f + R * 3, 7);
-            f += P * 3;
+            for (var L = new T(P), H = new T(19), R = 0; R < I; ++R)
+              H[zt[R]] = j(e, f + R * 3, 7);
+            f += I * 3;
             for (
-              var Le = xe(J), It = (1 << Le) - 1, Pt = Y(J, Le, 1), R = 0;
-              R < I;
+              var je = Se(H), It = (1 << je) - 1, At = Y(H, je, 1), R = 0;
+              R < P;
             ) {
-              var je = Pt[j(e, f, It)];
-              f += je & 15;
-              var x = je >> 4;
+              var _e = At[j(e, f, It)];
+              f += _e & 15;
+              var x = _e >> 4;
               if (x < 16) L[R++] = x;
               else {
-                var H = 0,
+                var W = 0,
                   se = 0;
                 for (
                   x == 16
-                    ? ((se = 3 + j(e, f, 3)), (f += 2), (H = L[R - 1]))
+                    ? ((se = 3 + j(e, f, 3)), (f += 2), (W = L[R - 1]))
                     : x == 17
                       ? ((se = 3 + j(e, f, 7)), (f += 3))
                       : x == 18 && ((se = 11 + j(e, f, 127)), (f += 7));
                   se--;
                 )
-                  L[R++] = H;
+                  L[R++] = W;
               }
             }
-            var _e = L.subarray(0, b),
+            var De = L.subarray(0, b),
               q = L.subarray(b);
-            ((p = xe(_e)), (g = xe(q)), (m = Y(_e, p, 1)), (d = Y(q, g, 1)));
-          } else T(1);
+            ((p = Se(De)), (g = Se(q)), (m = Y(De, p, 1)), (d = Y(q, g, 1)));
+          } else A(1);
         else {
-          var x = Jt(f) + 4,
+          var x = Ht(f) + 4,
             w = e[x - 4] | (e[x - 3] << 8),
             S = x + w;
           if (S > s) {
-            o && T(0);
+            o && A(0);
             break;
           }
           (l && u(h + w),
@@ -229,82 +231,82 @@ var Ht = [
           continue;
         }
         if (f > y) {
-          o && T(0);
+          o && A(0);
           break;
         }
       }
       l && u(h + 131072);
-      for (var Tt = (1 << p) - 1, At = (1 << g) - 1, ge = f; ; ge = f) {
-        var H = m[we(e, f) & Tt],
-          W = H >> 4;
-        if (((f += H & 15), f > y)) {
-          o && T(0);
+      for (var Tt = (1 << p) - 1, Rt = (1 << g) - 1, ve = f; ; ve = f) {
+        var W = m[$e(e, f) & Tt],
+          G = W >> 4;
+        if (((f += W & 15), f > y)) {
+          o && A(0);
           break;
         }
-        if ((H || T(2), W < 256)) r[h++] = W;
-        else if (W == 256) {
-          ((ge = f), (m = null));
+        if ((W || A(2), G < 256)) r[h++] = G;
+        else if (G == 256) {
+          ((ve = f), (m = null));
           break;
         } else {
-          var De = W - 254;
-          if (W > 264) {
-            var R = W - 257,
-              Q = He[R];
-            ((De = j(e, f, (1 << Q) - 1) + Ke[R]), (f += Q));
+          var ze = G - 254;
+          if (G > 264) {
+            var R = G - 257,
+              Q = We[R];
+            ((ze = j(e, f, (1 << Q) - 1) + Ze[R]), (f += Q));
           }
-          var ye = d[we(e, f) & At],
-            ve = ye >> 4;
-          (ye || T(3), (f += ye & 15));
-          var q = qt[ve];
-          if (ve > 3) {
-            var Q = We[ve];
-            ((q += we(e, f) & ((1 << Q) - 1)), (f += Q));
+          var xe = d[$e(e, f) & Rt],
+            we = xe >> 4;
+          (xe || A(3), (f += xe & 15));
+          var q = Ut[we];
+          if (we > 3) {
+            var Q = Ge[we];
+            ((q += $e(e, f) & ((1 << Q) - 1)), (f += Q));
           }
           if (f > y) {
-            o && T(0);
+            o && A(0);
             break;
           }
           l && u(h + 131072);
-          var ze = h + De;
+          var qe = h + ze;
           if (h < q) {
-            var qe = a - q,
-              Rt = Math.min(q, ze);
-            for (qe + h < 0 && T(3); h < Rt; ++h) r[h] = n[qe + h];
+            var Ue = a - q,
+              Ot = Math.min(q, qe);
+            for (Ue + h < 0 && A(3); h < Ot; ++h) r[h] = n[Ue + h];
           }
-          for (; h < ze; ++h) r[h] = r[h - q];
+          for (; h < qe; ++h) r[h] = r[h - q];
         }
       }
       ((t.l = m),
-        (t.p = ge),
+        (t.p = ve),
         (t.b = h),
         (t.f = c),
         m && ((c = 1), (t.m = p), (t.d = d), (t.n = g)));
     } while (!c);
-    return h != r.length && i ? Ce(r, 0, h) : r.subarray(0, h);
+    return h != r.length && i ? Me(r, 0, h) : r.subarray(0, h);
   };
-var Gt = new A(0);
+var Kt = new T(0);
 var _ = function (e, t) {
     return e[t] | (e[t + 1] << 8);
   },
   O = function (e, t) {
     return (e[t] | (e[t + 1] << 8) | (e[t + 2] << 16) | (e[t + 3] << 24)) >>> 0;
   },
-  Se = function (e, t) {
+  ke = function (e, t) {
     return O(e, t) + O(e, t + 4) * 4294967296;
   };
-function Kt(e, t) {
-  return Wt(e, { i: 2 }, t && t.out, t && t.dictionary);
+function Zt(e, t) {
+  return Gt(e, { i: 2 }, t && t.out, t && t.dictionary);
 }
-var ke = typeof TextDecoder < "u" && new TextDecoder(),
-  Zt = 0;
+var be = typeof TextDecoder < "u" && new TextDecoder(),
+  Vt = 0;
 try {
-  (ke.decode(Gt, { stream: !0 }), (Zt = 1));
+  (be.decode(Kt, { stream: !0 }), (Vt = 1));
 } catch {}
-var Vt = function (e) {
+var Xt = function (e) {
   for (var t = "", r = 0; ;) {
     var n = e[r++],
       s = (n > 127) + (n > 223) + (n > 239);
-    if (r + s > e.length) return { s: t, r: Ce(e, r - 1) };
+    if (r + s > e.length) return { s: t, r: Me(e, r - 1) };
     s
       ? s == 3
         ? ((n =
@@ -322,34 +324,34 @@ var Vt = function (e) {
       : (t += String.fromCharCode(n));
   }
 };
-function Xt(e, t) {
+function Qt(e, t) {
   if (t) {
     for (var r = "", n = 0; n < e.length; n += 16384)
       r += String.fromCharCode.apply(null, e.subarray(n, n + 16384));
     return r;
   } else {
-    if (ke) return ke.decode(e);
-    var s = Vt(e),
+    if (be) return be.decode(e);
+    var s = Xt(e),
       a = s.s,
       r = s.r;
-    return (r.length && T(8), a);
+    return (r.length && A(8), a);
   }
 }
-var Qt = function (e, t) {
+var Yt = function (e, t) {
     return t + 30 + _(e, t + 26) + _(e, t + 28);
   },
-  Yt = function (e, t, r) {
+  en = function (e, t, r) {
     var n = _(e, t + 28),
       s = _(e, t + 30),
-      a = Xt(e.subarray(t + 46, t + 46 + n), !(_(e, t + 8) & 2048)),
+      a = Qt(e.subarray(t + 46, t + 46 + n), !(_(e, t + 8) & 2048)),
       i = t + 46 + n,
-      l = en(e, i, s, r, O(e, t + 20), O(e, t + 24), O(e, t + 42)),
+      l = tn(e, i, s, r, O(e, t + 20), O(e, t + 24), O(e, t + 42)),
       o = l[0],
       u = l[1],
       c = l[2];
     return [_(e, t + 10), o, u, a, i + s + _(e, t + 32), c];
   },
-  en = function (e, t, r, n, s, a, i) {
+  tn = function (e, t, r, n, s, a, i) {
     var l = s == 4294967295,
       o = a == 4294967295,
       u = i == 4294967295,
@@ -359,18 +361,18 @@ var Qt = function (e, t) {
       for (; t + 4 < c; t += 4 + _(e, t + 2))
         if (_(e, t) == 1)
           return [
-            l ? Se(e, t + 4 + 8 * o) : s,
-            o ? Se(e, t + 4) : a,
-            u ? Se(e, t + 4 + 8 * (o + l)) : i,
+            l ? ke(e, t + 4 + 8 * o) : s,
+            o ? ke(e, t + 4) : a,
+            u ? ke(e, t + 4 + 8 * (o + l)) : i,
             1,
           ];
-      n < 2 && T(13);
+      n < 2 && A(13);
     }
     return [s, a, i, 0];
   };
-function Xe(e, t) {
+function Qe(e, t) {
   for (var r = {}, n = e.length - 22; O(e, n) != 101010256; --n)
-    (!n || e.length - n > 65558) && T(13);
+    (!n || e.length - n > 65558) && A(13);
   var s = _(e, n + 8);
   if (!s) return {};
   var a = O(e, n + 16),
@@ -380,41 +382,41 @@ function Xe(e, t) {
     ((i = O(e, l) == 101075792), i && ((s = O(e, l + 32)), (a = O(e, l + 48))));
   }
   for (var o = t && t.filter, u = 0; u < s; ++u) {
-    var c = Yt(e, a, i),
+    var c = en(e, a, i),
       f = c[0],
       h = c[1],
       m = c[2],
       d = c[3],
       p = c[4],
       g = c[5],
-      y = Qt(e, g);
+      y = Yt(e, g);
     ((a = p),
       (!o || o({ name: d, size: h, originalSize: m, compression: f })) &&
         (f
           ? f == 8
-            ? (r[d] = Kt(e.subarray(y, y + h), { out: new A(m) }))
-            : T(14, "unknown compression type " + f)
-          : (r[d] = Ce(e, y, y + h))));
+            ? (r[d] = Zt(e.subarray(y, y + h), { out: new T(m) }))
+            : A(14, "unknown compression type " + f)
+          : (r[d] = Me(e, y, y + h))));
   }
   return r;
 }
 import {
-  existsSync as rn,
-  mkdirSync as be,
-  readdirSync as sn,
-  readFileSync as Ee,
-  realpathSync as on,
-  rmSync as Zn,
-  statSync as st,
-  writeFileSync as ot,
+  existsSync as sn,
+  mkdirSync as Ee,
+  readdirSync as on,
+  readFileSync as Pe,
+  realpathSync as an,
+  rmSync as Yn,
+  statSync as ot,
+  writeFileSync as it,
 } from "node:fs";
-import { tmpdir as it } from "node:os";
+import { tmpdir as cn } from "node:os";
 import {
   dirname as at,
-  join as Ne,
-  posix as an,
-  resolve as V,
-  sep as nt,
+  join as ce,
+  posix as ln,
+  resolve as B,
+  sep as rt,
 } from "node:path";
 var oe = class {
   maxEntries;
@@ -449,9 +451,9 @@ var oe = class {
     this.map.clear();
   }
 };
-var tn = /^\s*(?:window|globalThis)\.__BUG_LENS_[A-Z0-9_]+__\s*=\s*/;
-function Z(e, t = "js-data") {
-  let r = tn.exec(e);
+var nn = /^\s*(?:window|globalThis)\.__BUG_LENS_[A-Z0-9_]+__\s*=\s*/;
+function V(e, t = "js-data") {
+  let r = nn.exec(e);
   if (!r)
     throw new Error(
       `INVALID_JS_JSON_WRAPPER: ${t} does not start with expected window.__BUG_LENS_*__ assignment`
@@ -467,10 +469,10 @@ function Z(e, t = "js-data") {
     );
   }
 }
-import { createHash as nn } from "node:crypto";
-var Qe = [1, 2, 3, 4],
-  Ye = 4;
-function et(e) {
+import { createHash as rn } from "node:crypto";
+var Ye = [1, 2, 3, 4],
+  et = 4;
+function tt(e) {
   if (e)
     try {
       let t = new TextDecoder().decode(e);
@@ -479,7 +481,7 @@ function et(e) {
       return;
     }
 }
-function tt(e, t, r) {
+function nt(e, t, r) {
   if (!e)
     return {
       hasManifest: !1,
@@ -491,10 +493,10 @@ function tt(e, t, r) {
   let n = e.schemaVersion,
     s;
   typeof n == "number" &&
-    !Qe.includes(n) &&
-    (n > Ye
-      ? (s = `Package schemaVersion (${n}) is newer than max supported version (${Ye}). Reading in best-effort mode; please upgrade bug-lens-mcp if fields are missing.`)
-      : (s = `Package schemaVersion (${n}) is not in standard supported list (${Qe.join(", ")}). Reading in best-effort mode.`));
+    !Ye.includes(n) &&
+    (n > et
+      ? (s = `Package schemaVersion (${n}) is newer than max supported version (${et}). Reading in best-effort mode; please upgrade bug-lens-mcp if fields are missing.`)
+      : (s = `Package schemaVersion (${n}) is not in standard supported list (${Ye.join(", ")}). Reading in best-effort mode.`));
   let a = e.files ?? {},
     i = 0,
     l = 0,
@@ -520,7 +522,7 @@ function tt(e, t, r) {
     }
     typeof c.sha256 == "string" &&
       c.sha256.length > 0 &&
-      nn("sha256").update(f).digest("hex").toLowerCase() !==
+      rn("sha256").update(f).digest("hex").toLowerCase() !==
         c.sha256.toLowerCase() &&
       o.push(`${u}: sha256 mismatch`);
   }
@@ -666,7 +668,7 @@ var ae = class {
     if (!t) return ((this.networkDetailsCache = {}), this.networkDetailsCache);
     try {
       let r = this.textDecoder.decode(t);
-      this.networkDetailsCache = Z(r, "data/network-details.js");
+      this.networkDetailsCache = V(r, "data/network-details.js");
     } catch {
       this.networkDetailsCache = {};
     }
@@ -706,25 +708,34 @@ var ae = class {
 var te = 64 * 1024 * 1024,
   ne = 512 * 1024 * 1024,
   ct = /(?:^|\/)media\/|\.(?:mp4|webm|mkv|mov)$/i,
-  cn = /[:*?"<>|]/g,
-  ln = new oe(3),
-  ce = Ne(it(), "bug-lens-workspace", ".current-pack");
-function rt(e) {
+  un = /[:*?"<>|]/g,
+  fn = new oe(3);
+function le() {
+  let e =
+    process.env.BUG_LENS_WORKSPACE_DIR || process.env.BUG_LENS_CLI_WORKSPACE;
+  return e ? B(e) : ce(cn(), "bug-lens-workspace");
+}
+function lt() {
+  return ce(le(), ".current-pack");
+}
+function st(e) {
   try {
-    (be(at(ce), { recursive: !0 }), ot(ce, e, "utf8"));
+    let t = lt();
+    (Ee(at(t), { recursive: !0 }), it(t, e, "utf8"));
   } catch {}
 }
-function un() {
+function hn() {
   try {
-    if (rn(ce)) {
-      let e = Ee(ce, "utf8").trim();
-      if (e.length > 0) return e;
+    let e = lt();
+    if (sn(e)) {
+      let t = Pe(e, "utf8").trim();
+      if (t.length > 0) return t;
     }
   } catch {}
 }
-function Me(e) {
+function Ne(e) {
   let t = e.replace(/\\/g, "/").replace(/^\.?\//, ""),
-    r = an.normalize(t);
+    r = ln.normalize(t);
   if (
     r.startsWith("/") ||
     r === ".." ||
@@ -737,14 +748,14 @@ function Me(e) {
     );
   return r;
 }
-function fn(e) {
+function dn(e) {
   let t = new Map(),
     r = 0,
     n;
   try {
-    n = Xe(e, {
+    n = Qe(e, {
       filter(i) {
-        let l = Me(i.name);
+        let l = Ne(i.name);
         if (l.endsWith("/")) return !1;
         let o = i.originalSize ?? 0,
           u = i.size ?? 0;
@@ -774,7 +785,7 @@ function fn(e) {
   let s = new Map(),
     a = 0;
   for (let [i, l] of Object.entries(n)) {
-    let o = Me(i);
+    let o = Ne(i);
     if (!o.endsWith("/")) {
       if (l.byteLength > te)
         throw new Error(
@@ -789,17 +800,17 @@ function fn(e) {
   }
   return { files: s, skippedMediaFiles: t };
 }
-function hn(e) {
+function pn(e) {
   let t = new Map(),
     r = new Map(),
     n = 0;
   function s(a, i) {
-    for (let l of sn(a, { withFileTypes: !0 })) {
+    for (let l of on(a, { withFileTypes: !0 })) {
       let o = i ? `${i}/${l.name}` : l.name,
-        u = Ne(a, l.name);
+        u = ce(a, l.name);
       if (l.isDirectory()) s(u, o);
       else if (l.isFile()) {
-        let c = st(u);
+        let c = ot(u);
         if (ct.test(o)) {
           r.set(o, { originalSize: c.size, compressedSize: c.size });
           continue;
@@ -812,48 +823,48 @@ function hn(e) {
           throw new Error(
             `ZIP_BOMB_TOTAL_SIZE_EXCEEDED: Total size (${n} bytes) exceeds limit`
           );
-        t.set(o, new Uint8Array(Ee(u)));
+        t.set(o, new Uint8Array(Pe(u)));
       }
     }
   }
   return (s(e, ""), { files: t, skippedMediaFiles: r });
 }
-function M(e, t = ln) {
+function M(e, t = fn) {
   let r =
     e && typeof e == "string" && e.trim().length > 0
       ? e.trim()
-      : (t.getLastPath() ?? un());
+      : (t.getLastPath() ?? hn());
   if (!r)
     throw new Error(
       'INVALID_PACK_PATH: pack path is required when no pack has been opened yet. Pass the "pack" argument or call open_pack first.'
     );
-  let n = V(r),
+  let n = B(r),
     s,
     a;
   try {
-    ((s = on(n)), (a = st(s)));
+    ((s = an(n)), (a = ot(s)));
   } catch (f) {
     let h = f instanceof Error ? f.message : String(f);
     throw new Error(`PACK_NOT_FOUND: Cannot access "${r}": ${h}`);
   }
   let i = `${a.isDirectory() ? "dir" : "file"}:${a.mtimeMs}:${a.size}`,
     l = t.get(s, i);
-  if (l) return (rt(s), l);
+  if (l) return (st(s), l);
   let { files: o, skippedMediaFiles: u } = a.isDirectory()
-      ? hn(s)
-      : fn(new Uint8Array(Ee(s))),
-    c = dn(s, o, u);
-  return (t.set(s, i, c), rt(s), c);
+      ? pn(s)
+      : dn(new Uint8Array(Pe(s))),
+    c = mn(s, o, u);
+  return (t.set(s, i, c), st(s), c);
 }
-function dn(e, t, r) {
+function mn(e, t, r) {
   let n = new TextDecoder(),
-    s = et(t.get("manifest.json")),
+    s = tt(t.get("manifest.json")),
     a = new Set(r.keys()),
-    i = tt(s, t, a),
+    i = nt(s, t, a),
     l = t.get("data/session-data.js");
   if (l) {
     let c = n.decode(l),
-      f = Z(c, "data/session-data.js");
+      f = V(c, "data/session-data.js");
     return new ae({
       packPath: e,
       manifest: s,
@@ -902,20 +913,20 @@ function dn(e, t, r) {
   );
 }
 function Ie(e) {
-  let t = Me(e),
+  let t = Ne(e),
     n = t
       .split("/")
-      .map((s) => s.replace(cn, "_").replace(/[. ]+$/, "_"))
+      .map((s) => s.replace(un, "_").replace(/[. ]+$/, "_"))
       .join("/");
   return { sanitized: n, renamed: n !== t };
 }
-function lt(e, t) {
+function ut(e, t) {
   let r =
       e.kind === "session"
         ? e.sessionId.slice(0, 8) || "session"
         : "screenshot",
-    n = V(t ?? Ne(it(), "bug-lens-workspace", r));
-  be(n, { recursive: !0 });
+    n = B(t ?? ce(le(), r));
+  Ee(n, { recursive: !0 });
   let s = [],
     a = new Map();
   for (let m of e.files.keys()) {
@@ -927,25 +938,25 @@ function lt(e, t) {
     o = new TextEncoder();
   for (let [m, d] of e.files.entries()) {
     let p = a.get(m) ?? m,
-      g = V(n, ...p.split("/")),
-      y = n.endsWith(nt) ? n : n + nt;
+      g = B(n, ...p.split("/")),
+      y = n.endsWith(rt) ? n : n + rt;
     if (g !== n && !g.startsWith(y))
       throw new Error(
         `UNSAFE_ZIP_ENTRY_PATH: Target path escapes destination root: ${m}`
       );
-    be(at(g), { recursive: !0 });
+    Ee(at(g), { recursive: !0 });
     let v = d;
     if (m === "data/session-data.js" && a.size > 0) {
       let x = l.decode(d);
       for (let [w, S] of a.entries()) x = x.split(w).join(S);
       v = o.encode(x);
     }
-    (ot(g, v), i.push(p));
+    (it(g, v), i.push(p));
   }
-  let u = e.files.has("reproduce.spec.ts") ? V(n, "reproduce.spec.ts") : void 0,
-    c = e.files.has("report.html") ? V(n, "report.html") : void 0,
+  let u = e.files.has("reproduce.spec.ts") ? B(n, "reproduce.spec.ts") : void 0,
+    c = e.files.has("report.html") ? B(n, "report.html") : void 0,
     f = e.kind === "screenshot" ? e.getScreenshotImagePath() : void 0,
-    h = f ? V(n, f) : void 0;
+    h = f ? B(n, f) : void 0;
   return {
     destDir: n,
     writtenFiles: i.sort(),
@@ -955,9 +966,9 @@ function lt(e, t) {
     screenshotPath: h,
   };
 }
-function ut(e) {
+function ft(e) {
   let t = M(e.pack),
-    r = lt(t, e.dest);
+    r = ut(t, e.dest);
   if (e.format === "json") return $(JSON.stringify(r, null, 2));
   let n = [];
   return (
@@ -994,7 +1005,7 @@ function U(e) {
       ? `${Math.round(e)}ms`
       : `${(e / 1e3).toFixed(2)}s`;
 }
-function pn(e) {
+function gn(e) {
   let t = e.trim().replace(/^\$\.?/, "");
   if (!t) return [];
   let r = [],
@@ -1024,8 +1035,8 @@ function pn(e) {
     }
   return r;
 }
-function B(e, t) {
-  let r = pn(t);
+function J(e, t) {
+  let r = gn(t);
   if (r.length === 0) return e;
   let n = [e],
     s = !1;
@@ -1060,7 +1071,7 @@ function B(e, t) {
   }
   return s ? n : n.length === 1 ? n[0] : n;
 }
-function Pe(e) {
+function Ae(e) {
   let t = [];
   return (
     e.snapshot?.targetComponent && t.push(e.snapshot.targetComponent),
@@ -1070,7 +1081,7 @@ function Pe(e) {
     t
   );
 }
-function ft(e) {
+function ht(e) {
   let t = M(e.pack);
   if (t.kind === "screenshot") {
     let c =
@@ -1081,7 +1092,7 @@ function ft(e) {
       h = f
         ? c.filter((d) => (d.componentName ?? "").toLowerCase().includes(f))
         : c;
-    if (e.path) return $(JSON.stringify(B(h, e.path), null, 2), e.maxChars);
+    if (e.path) return $(JSON.stringify(J(h, e.path), null, 2), e.maxChars);
     if (e.format === "json")
       return $(
         JSON.stringify({ totalComponents: c.length, components: h }, null, 2),
@@ -1126,7 +1137,7 @@ function ft(e) {
       `FRAMEWORK_STATE_NOT_FOUND: Index ${s} out of range (0..${r.length - 1})`
     );
   if (e.path) {
-    let c = B(a, e.path);
+    let c = J(a, e.path);
     return $(
       JSON.stringify(
         {
@@ -1151,7 +1162,7 @@ function ft(e) {
             index: f,
             relativeMs: t.toRelativeMs(c.capturedAtEpochMs),
             trigger: c.trigger,
-            components: Pe(c)
+            components: Ae(c)
               .map((h) => h.componentName)
               .filter(Boolean),
             localStorageKeys: Object.keys(c.webStorage?.localStorage ?? {}),
@@ -1171,7 +1182,7 @@ function ft(e) {
 ## Snapshot Index Overview`),
     r.forEach((c, f) => {
       let h = t.toRelativeMs(c.capturedAtEpochMs),
-        m = Pe(c)
+        m = Ae(c)
           .map((y) => y.componentName)
           .filter(Boolean),
         d = Object.keys(c.webStorage?.localStorage ?? {}),
@@ -1184,7 +1195,7 @@ function ft(e) {
   let o = t.toRelativeMs(a.capturedAtEpochMs);
   l.push(`
 ## Selected Snapshot [${s}] (at ${C(o)}, trigger=\`${a.trigger ?? "?"}\`)`);
-  let u = Pe(a).filter((c) =>
+  let u = Ae(a).filter((c) =>
     i ? (c.componentName ?? "").toLowerCase().includes(i) : !0
   );
   if (u.length > 0) {
@@ -1237,7 +1248,7 @@ function Te(e, t = 40) {
   let r = e.replace(/\s+/g, " ").trim();
   return r.length <= t ? r : `${r.slice(0, t)}\u2026`;
 }
-function mn(e) {
+function yn(e) {
   if (!e) return "";
   if ("targetComponent" in e || "rootComponent" in e) {
     let r = e,
@@ -1247,7 +1258,7 @@ function mn(e) {
   let t = e;
   return t.componentName ? ` [${t.componentName}]` : "";
 }
-function Ae(e, t = 40) {
+function Re(e, t = 40) {
   if (!e) return "<unknown>";
   let r = (e.tagName || "element").toLowerCase(),
     n = e.id ? `#${e.id}` : "",
@@ -1257,14 +1268,14 @@ function Ae(e, t = 40) {
     a = s.length > 0 ? `.${s.join(".")}` : "",
     i = Te(e.text ?? e.accessibleName, t),
     l = i ? ` "${i}"` : "",
-    o = mn(e.framework);
+    o = yn(e.framework);
   return `<${r}${n}${a}${l}>${o}`;
 }
 function X(e, t, r) {
   let n = e.element ?? e.target,
     s = C(r ?? e.elapsedMs),
     a = e.kind ?? "event",
-    i = Ae(n),
+    i = Re(n),
     l = e.input?.data ?? e.input?.value ?? n?.value ?? n?.attributes?.value,
     o =
       e.input?.key ??
@@ -1281,11 +1292,10 @@ function X(e, t, r) {
   let f = c.length > 0 ? ` ${c.join(" ")}` : "";
   return `[${t}] ${s} [${a}] ${i}${f}`;
 }
-import { mkdirSync as gn, writeFileSync as yn } from "node:fs";
-import { tmpdir as vn } from "node:os";
-import { dirname as xn, join as wn, resolve as Sn } from "node:path";
-var $n = Math.floor(1.5 * 1024 * 1024);
-function kn(e) {
+import { mkdirSync as vn, writeFileSync as xn } from "node:fs";
+import { dirname as wn, join as Sn, resolve as $n } from "node:path";
+var kn = Math.floor(1.5 * 1024 * 1024);
+function Cn(e) {
   let t = e.toLowerCase();
   return t.endsWith(".png")
     ? "image/png"
@@ -1295,7 +1305,7 @@ function kn(e) {
         ? "image/gif"
         : "image/jpeg";
 }
-function le(e, t) {
+function ue(e, t) {
   let r = e.getBinaryFile(t);
   if (!r) return;
   let { sanitized: n } = Ie(t),
@@ -1303,9 +1313,9 @@ function le(e, t) {
       e.kind === "session"
         ? e.sessionId.slice(0, 8) || "session"
         : "screenshot",
-    a = Sn(wn(vn(), "bug-lens-workspace", "images", s, n));
+    a = $n(Sn(le(), "images", s, n));
   try {
-    return (gn(xn(a), { recursive: !0 }), yn(a, r), a);
+    return (vn(wn(a), { recursive: !0 }), xn(a, r), a);
   } catch {
     return;
   }
@@ -1313,10 +1323,10 @@ function le(e, t) {
 function z(e, t, r) {
   let n = e.getBinaryFile(t);
   if (!n) return [{ type: "text", text: `[Image not found in pack: ${t}]` }];
-  let s = kn(t),
+  let s = Cn(t),
     a = (n.byteLength / 1024).toFixed(1),
-    i = le(e, t);
-  if (n.byteLength > $n)
+    i = ue(e, t);
+  if (n.byteLength > kn)
     return [
       {
         type: "text",
@@ -1338,7 +1348,7 @@ function z(e, t, r) {
     o
   );
 }
-function ht(e) {
+function dt(e) {
   let t = M(e.pack);
   if (t.kind !== "session")
     throw new Error(
@@ -1408,7 +1418,7 @@ function ht(e) {
     }
   return o;
 }
-function Cn(e, t) {
+function bn(e, t) {
   if (!t || t === "all") return !0;
   let r = e.status ?? 0,
     n = r === 0 || r >= 400 || !!e.errorText;
@@ -1426,7 +1436,7 @@ function Cn(e, t) {
               ? t.includes(r)
               : !0;
 }
-function ue(e, t = {}) {
+function fe(e, t = {}) {
   let r = e.getNetworkEntries(),
     n = t.urlContains?.toLowerCase(),
     s = t.method?.toUpperCase(),
@@ -1434,7 +1444,7 @@ function ue(e, t = {}) {
     i = [];
   for (let u of r) {
     if (
-      !Cn(u, t.status) ||
+      !bn(u, t.status) ||
       (n && !u.url.toLowerCase().includes(n)) ||
       (s && (u.method ?? "GET").toUpperCase() !== s) ||
       (a && (u.type ?? "").toLowerCase() !== a)
@@ -1479,7 +1489,7 @@ function ue(e, t = {}) {
     items: i.slice(l, l + o),
   };
 }
-function fe(e) {
+function he(e) {
   let t = C(e.relativeMs),
     r = U(e.durationMs),
     n = e.isFailure ? "!" : "",
@@ -1488,7 +1498,7 @@ function fe(e) {
       : `[${e.bodyStatus ?? "no-body"}]`;
   return `${e.id} | ${t} | ${e.method} ${n}${e.status} (${r}) | ${e.type ?? "?"} | ${s} | ${e.url}`;
 }
-function dt(e, t, r = {}) {
+function pt(e, t, r = {}) {
   let n = e.getNetworkEntries(),
     s =
       n.find((f) => f.id === t) ??
@@ -1513,7 +1523,7 @@ function dt(e, t, r = {}) {
       if (r.jsonPath)
         try {
           let h = JSON.parse(f);
-          u = B(h, r.jsonPath);
+          u = J(h, r.jsonPath);
         } catch (h) {
           let m = h instanceof Error ? h.message : String(h);
           throw new Error(
@@ -1534,13 +1544,13 @@ function dt(e, t, r = {}) {
     bodyTruncated: c,
   };
 }
-function pt(e) {
+function mt(e) {
   let t = M(e.pack);
   if (t.kind !== "session")
     throw new Error(
       `UNSUPPORTED_PACK_KIND: get_request requires a session evidence pack, but "${e.pack}" is a screenshot pack.`
     );
-  let r = dt(t, e.id, {
+  let r = pt(t, e.id, {
     include: e.include,
     jsonPath: e.jsonPath,
     bodyMaxChars: e.bodyMaxChars,
@@ -1611,16 +1621,16 @@ function pt(e) {
     )
   );
 }
-var Re =
+var Oe =
   /^(?:word-break|overflow-wrap|word-wrap|white-space|white-space-collapse|text-wrap|text-wrap-mode|text-overflow|overflow|overflow-x|overflow-y|display|width|max-width|min-width|height|max-height|min-height|flex|flex-grow|flex-shrink|flex-basis|flex-wrap|flex-direction|-webkit-line-clamp|line-clamp|position|z-index)$/i;
-function he(e) {
+function de(e) {
   if (!e) return [];
   let t = new Map(),
     r = (a) => {
       if (!a) return;
       let i = {};
       for (let [l, o] of Object.entries(a))
-        Re.test(l) &&
+        Oe.test(l) &&
           o !== void 0 &&
           o !== "" &&
           o !== "normal" &&
@@ -1652,13 +1662,13 @@ function he(e) {
           w = d.clientDimension ?? {},
           S = d.overflowDelta ?? {},
           b = String(d.truncationType ?? "truncated"),
-          P = `text_overflow|${l}|${b}|${w.width ?? 0}x${w.height ?? 0}`,
-          I = t.get(P);
-        I
+          I = `text_overflow|${l}|${b}|${w.width ?? 0}x${w.height ?? 0}`,
+          P = t.get(I);
+        P
           ? i !== void 0 &&
-            !I.anchorIndices.includes(i) &&
-            I.anchorIndices.push(i)
-          : t.set(P, {
+            !P.anchorIndices.includes(i) &&
+            P.anchorIndices.push(i)
+          : t.set(I, {
               kind: "text_overflow",
               selector: l,
               selectorPath: o,
@@ -1717,7 +1727,7 @@ function he(e) {
   };
   return (e.tree && s(e.tree), Array.from(t.values()));
 }
-function bn(e, t) {
+function Mn(e, t) {
   let r = t.get(e);
   if (!r) return e;
   if (r.href)
@@ -1732,11 +1742,11 @@ function bn(e, t) {
     }
   return `${e}:inline`;
 }
-function Mn(e) {
+function En(e) {
   let t = [];
   if (e.styleProps && Object.keys(e.styleProps).length > 0)
     for (let [r, n] of Object.entries(e.styleProps))
-      Re.test(r) && t.push(`${r}: ${n}`);
+      Oe.test(r) && t.push(`${r}: ${n}`);
   else if (e.cssText) {
     let r = e.cssText.match(/\{([\s\S]*)\}/),
       n = r ? r[1] : e.cssText;
@@ -1746,13 +1756,13 @@ function Mn(e) {
       let i = a.indexOf(":");
       if (i > 0) {
         let l = a.slice(0, i).trim();
-        Re.test(l) && t.push(a);
+        Oe.test(l) && t.push(a);
       }
     }
   }
   return t;
 }
-function mt(e) {
+function gt(e) {
   if (!e) return [];
   let t = e.sheets ?? [],
     r = e.rules ?? [],
@@ -1796,18 +1806,18 @@ function mt(e) {
       for (let x of p) {
         let w = a.get(x);
         if (!w) continue;
-        let S = Mn(w);
+        let S = En(w);
         if (S.length === 0) continue;
         let b = `${w.selectorText}||${S.join(";")}`,
-          P = bn(w.sheetId, s),
-          I = v.get(b);
-        I
-          ? (I.ruleIds.push(x), I.sheetRefs.add(P))
+          I = Mn(w.sheetId, s),
+          P = v.get(b);
+        P
+          ? (P.ruleIds.push(x), P.sheetRefs.add(I))
           : v.set(b, {
               rule: w,
               decls: S,
               ruleIds: [x],
-              sheetRefs: new Set([P]),
+              sheetRefs: new Set([I]),
             });
       }
       i.push(
@@ -1831,7 +1841,7 @@ function mt(e) {
   }
   return i;
 }
-function gt(e, t, r) {
+function yt(e, t, r) {
   let n = [],
     s = r.selector?.trim().toLowerCase(),
     a = r.cssProperty?.trim().toLowerCase(),
@@ -1924,14 +1934,14 @@ function gt(e, t, r) {
         if (!S || (i && !i.test(S.cssText) && !i.test(S.selectorText)))
           continue;
         let b = `${S.selectorText}||${S.cssText}`,
-          P = d.get(S.sheetId),
-          I = P?.href
-            ? `${S.sheetId} (${P.href})`
-            : `${S.sheetId} (inline <${P?.ownerNodeTag ?? "style"}>)`,
+          I = d.get(S.sheetId),
+          P = I?.href
+            ? `${S.sheetId} (${I.href})`
+            : `${S.sheetId} (inline <${I?.ownerNodeTag ?? "style"}>)`,
           L = x.get(b);
         L
-          ? (L.ruleIds.push(w), L.sheetHrefs.add(I))
-          : x.set(b, { rule: S, ruleIds: [w], sheetHrefs: new Set([I]) });
+          ? (L.ruleIds.push(w), L.sheetHrefs.add(P))
+          : x.set(b, { rule: S, ruleIds: [w], sheetHrefs: new Set([P]) });
       }
       if (x.size === 0) n.push("  - (no matched rules for filter)");
       else
@@ -1947,22 +1957,22 @@ function gt(e, t, r) {
           let S = JSON.stringify(w.inheritedProps ?? {});
           if (i && !i.test(S) && !i.test(w.ancestorSelector)) continue;
           let b = p.get(w.ruleId),
-            I = (b ? d.get(b.sheetId) : void 0)?.href ?? b?.sheetId ?? "?";
+            P = (b ? d.get(b.sheetId) : void 0)?.href ?? b?.sheetId ?? "?";
           n.push(
-            `  - *[inherited from \`<${w.ancestorTagName}> ${w.ancestorSelector}\` via ${w.ruleId} @ ${I}]*: ${S}`
+            `  - *[inherited from \`<${w.ancestorTagName}> ${w.ancestorSelector}\` via ${w.ruleId} @ ${P}]*: ${S}`
           );
         }
     }
   }
   return n;
 }
-function yt(e) {
+function vt(e) {
   let t = M(e.pack),
     r = e.sceneId ?? (e.sceneIndex !== void 0 ? String(e.sceneIndex) : void 0);
   if (t.kind === "screenshot") {
     let d = t.domContext?.anchors ?? [],
       p = d.map((S) => S.intentFlags?.textComment).filter(Boolean),
-      g = he(t.domContext),
+      g = de(t.domContext),
       y = e.selector ?? r,
       x = [
         {
@@ -2007,7 +2017,7 @@ function yt(e) {
                         ]
                       : []),
                     "",
-                    ...gt(t.domContext, t.cascade, {
+                    ...yt(t.domContext, t.cascade, {
                       selector: y,
                       cssProperty: e.cssProperty,
                     }),
@@ -2037,7 +2047,7 @@ function yt(e) {
   if (!s) {
     let d = n.map((p) => `${p.index}:${p.id}`).join(", ");
     throw new Error(
-      `SCENE_NOT_FOUND: Scene "${e.sceneId}" not found. Available scenes: [${d}]`
+      `SCENE_NOT_FOUND: Scene "${r ?? e.sceneId}" not found. Available scenes: [${d}]`
     );
   }
   let { scene: a } = s,
@@ -2102,16 +2112,16 @@ function yt(e) {
       d.push(`
 ## 2. Selected DOM Targets (${u.length})`));
     for (let [y, v] of u.entries()) {
-      let x = Ae(v.element, 80),
+      let x = Re(v.element, 80),
         w = (v.ancestors ?? [])
           .slice(0, 6)
           .map((S) => {
             let b = S.id ? `#${S.id}` : "",
-              P =
+              I =
                 S.classNames && S.classNames.length > 0
                   ? `.${S.classNames.slice(0, 2).join(".")}`
                   : "";
-            return `${S.tagName ?? "div"}${b}${P}`;
+            return `${S.tagName ?? "div"}${b}${I}`;
           })
           .join(" <- ");
       (d.push(`- **Target #${y}**: ${x}`),
@@ -2163,7 +2173,7 @@ function yt(e) {
     m = s.annotatedSource ?? s.originalSource;
   return (h && m && f.push(...z(t, m, `Scene [${s.index}] screenshot`)), f);
 }
-function vt(e) {
+function xt(e) {
   let t = M(e.pack);
   if (t.kind === "screenshot") {
     let i = t.getScreenshotImagePath();
@@ -2214,7 +2224,7 @@ function vt(e) {
     );
   return z(t, a, `Scene [${s.index}] (${s.id}) ${r}`);
 }
-function En(e, t) {
+function Nn(e, t) {
   return typeof e == "string" && e.trim()
     ? e
     : Array.isArray(e) && e.length > 0
@@ -2230,7 +2240,7 @@ function En(e, t) {
 `)
       : t;
 }
-function de(e, t = {}) {
+function pe(e, t = {}) {
   let r = e.getConsoleEntries(),
     n =
       t.levels && t.levels.length > 0
@@ -2257,7 +2267,7 @@ function de(e, t = {}) {
       return;
     let m = u.text ?? "",
       d = u.url ?? u.source ?? "",
-      p = En(u.stackTrace, u.stack),
+      p = Nn(u.stackTrace, u.stack),
       g = `${m}
 ${d}
 ${p ?? ""}`;
@@ -2292,7 +2302,7 @@ ${p ?? ""}`;
     items: i.slice(l, l + o),
   };
 }
-function pe(e) {
+function me(e) {
   let t = C(e.relativeMs),
     r = e.sourceMapped
       ? ` (${e.location ?? "?"} -> ${e.sourceMapped})`
@@ -2314,11 +2324,11 @@ ${s}`;
   }
   return n;
 }
-function Nn(e, t, r) {
+function Pn(e, t, r) {
   let n = e.data.summary,
     s = e.getIssueScenes(),
-    a = de(e, { levels: ["error"], limit: 5 }),
-    i = ue(e, { status: "failed", limit: 5 }),
+    a = pe(e, { levels: ["error"], limit: 5 }),
+    i = fe(e, { status: "failed", limit: 5 }),
     l = e.listFiles();
   if (t === "json") {
     let h = {
@@ -2411,7 +2421,7 @@ function Nn(e, t, r) {
         ));
       let y = h.annotatedSource ?? h.originalSource;
       if (y) {
-        let v = le(e, y);
+        let v = ue(e, y);
         v &&
           o.push(
             `  - **savedImagePath**: \`${v}\` (call \`read_file\` on this path to view the scene screenshot)`
@@ -2424,14 +2434,14 @@ function Nn(e, t, r) {
     a.items.length === 0)
   )
     o.push("(No console errors recorded)");
-  else for (let h of a.items) o.push(`- ${pe(h)}`);
+  else for (let h of a.items) o.push(`- ${me(h)}`);
   if (
     (o.push(`
 ## Top Failed Network Requests (${i.matchedCount} total)`),
     i.items.length === 0)
   )
     o.push("(No failed network requests recorded)");
-  else for (let h of i.items) o.push(`- ${fe(h)}`);
+  else for (let h of i.items) o.push(`- ${he(h)}`);
   o.push(`
 ## Package Files (${l.length})`);
   let u = l.filter(
@@ -2495,7 +2505,7 @@ function In(e, t, r) {
     u = l?.recentFailedRequests ?? [],
     c = l?.frameworkComponentStates ?? l?.vueComponentStates ?? [],
     f = e.getScreenshotImagePath(),
-    h = f ? le(e, f) : void 0;
+    h = f ? ue(e, f) : void 0;
   if (
     (i.push("# Bug Lens Screenshot Pack (kind: screenshot)"),
     i.push(
@@ -2514,7 +2524,7 @@ function In(e, t, r) {
     i.push(
       `- **DOM Context**: SCA=\`${n.smallestCommonAncestorSelector ?? "?"}\` | anchors=${n.meta?.anchorCount ?? s.length}, leaves=${n.meta?.leafCount ?? n.leaves?.length ?? 0}, ancestors=${n.meta?.ancestorCount ?? n.ancestors?.length ?? 0}`
     );
-    let m = he(n);
+    let m = de(n);
     if (m.length > 0) {
       i.push(`
 ## Layout & Overflow Diagnostics (${m.length} distinct issue group(s))`);
@@ -2553,20 +2563,20 @@ function In(e, t, r) {
         y.intentFlags?.textComment &&
           S.push(`comment="${y.intentFlags.textComment}"`));
       let b = S.length > 0 ? ` [${S.join(",")}]` : "",
-        P = y.componentName
+        I = y.componentName
           ? ` [${y.componentName}${y.componentFile ? ` @ ${y.componentFile}${y.componentLine ? `:${y.componentLine}` : ""}` : ""}]`
           : "",
-        I = y.selectorPath ?? y.selector ?? "?",
-        L = I.length > 75 ? `\u2026${I.slice(-72)}` : I,
-        J = (y.innerText ?? "").replace(/\s+/g, " ").trim().slice(0, 50);
-      i.push(`- [${g}] \`${L}\`${P}${b}${w}${J ? ` text="${J}"` : ""}`);
+        P = y.selectorPath ?? y.selector ?? "?",
+        L = P.length > 75 ? `\u2026${P.slice(-72)}` : P,
+        H = (y.innerText ?? "").replace(/\s+/g, " ").trim().slice(0, 50);
+      i.push(`- [${g}] \`${L}\`${I}${b}${w}${H ? ` text="${H}"` : ""}`);
     }
     p.length > 15 &&
       i.push(
         `- ... +${p.length - 15} more unique anchors (use \`get_scene(selector="...")\` to filter)`
       );
   }
-  if ((e.cascade && i.push(...mt(e.cascade)), o.length > 0)) {
+  if ((e.cascade && i.push(...gt(e.cascade)), o.length > 0)) {
     i.push(`
 ## Recent Console Errors (${o.length})`);
     for (let [m, d] of o.slice(0, 5).entries())
@@ -2592,12 +2602,12 @@ function In(e, t, r) {
     )
   );
 }
-function xt(e) {
+function wt(e) {
   let t = M(e.pack),
     r = e.format ?? "text";
-  return t.kind === "session" ? Nn(t, r, e.maxChars) : In(t, r, e.maxChars);
+  return t.kind === "session" ? Pn(t, r, e.maxChars) : In(t, r, e.maxChars);
 }
-function wt(e) {
+function St(e) {
   let t = M(e.pack);
   if (t.kind === "screenshot") {
     let a = t.environment?.recentConsoleErrors ?? [],
@@ -2641,7 +2651,7 @@ ${c.stack ?? ""}`;
       e.maxChars
     );
   }
-  let r = de(t, {
+  let r = pe(t, {
     levels: e.levels,
     search: e.search,
     regex: e.regex,
@@ -2659,7 +2669,7 @@ ${c.stack ?? ""}`;
     r.items.length === 0)
   )
     n.push("(No console entries matched the given filters)");
-  else for (let a of r.items) n.push(pe(a));
+  else for (let a of r.items) n.push(me(a));
   let s = r.matchedCount - (r.offset + r.items.length);
   return (
     s > 0 &&
@@ -2672,7 +2682,7 @@ ${c.stack ?? ""}`;
     )
   );
 }
-function St(e) {
+function $t(e) {
   let t = M(e.pack);
   if (t.kind === "screenshot") {
     let a = t.environment?.recentFailedRequests ?? [],
@@ -2707,7 +2717,7 @@ function St(e) {
       e.maxChars
     );
   }
-  let r = ue(t, {
+  let r = fe(t, {
     status: e.status,
     urlContains: e.urlContains,
     method: e.method,
@@ -2724,7 +2734,7 @@ function St(e) {
     r.items.length === 0)
   )
     n.push("(No network requests matched the given filters)");
-  else for (let a of r.items) n.push(`- ${fe(a)}`);
+  else for (let a of r.items) n.push(`- ${he(a)}`);
   let s = r.matchedCount - (r.offset + r.items.length);
   return (
     s > 0 &&
@@ -2737,7 +2747,7 @@ function St(e) {
     )
   );
 }
-function kt(e) {
+function Ct(e) {
   let t = M(e.pack),
     r = e.path.replace(/^\.?\//, ""),
     n = t.getTextFile(r);
@@ -2753,7 +2763,7 @@ function kt(e) {
   }
   if (e.jsonPath) {
     let o;
-    if (r.endsWith(".js")) o = Z(n, r);
+    if (r.endsWith(".js")) o = V(n, r);
     else
       try {
         o = JSON.parse(n);
@@ -2763,7 +2773,7 @@ function kt(e) {
           `INVALID_JSON_FILE: Cannot apply jsonPath "${e.jsonPath}" to "${r}": ${f}`
         );
       }
-    let u = B(o, e.jsonPath);
+    let u = J(o, e.jsonPath);
     return $(JSON.stringify(u, null, 2), e.maxChars ?? 24e3);
   }
   let s = Math.max(0, e.offset ?? 0),
@@ -2778,7 +2788,7 @@ function kt(e) {
       : void 0
   );
 }
-function Oe(e, t, r = 180, n = 3) {
+function Fe(e, t, r = 180, n = 3) {
   let s = t.includes("svg")
       ? e
       : e.replace(/<svg\b[^>]*>[\s\S]*?<\/svg>/gi, "<svg/>"),
@@ -2809,7 +2819,7 @@ function Oe(e, t, r = 180, n = 3) {
         return c + s.slice(o, u).replace(/\s+/g, " ").trim() + f;
       });
 }
-function Ct(e, t) {
+function bt(e, t) {
   let r = t.query.trim();
   if (!r) return { query: r, totalHits: 0, hits: [] };
   let n = r.toLowerCase(),
@@ -2833,7 +2843,7 @@ function Ct(e, t) {
         let c = `${o.text ?? ""} ${o.url ?? ""} ${o.stackTrace ?? o.stack ?? ""}`;
         if (c.toLowerCase().includes(n)) {
           let f = e.toRelativeMs(o.createdAt),
-            [h] = Oe(c, n, i, 1);
+            [h] = Fe(c, n, i, 1);
           l.push({
             scope: "console",
             ref: `console#${u}`,
@@ -2860,7 +2870,7 @@ function Ct(e, t) {
       let u = e.getNetworkBody(o);
       if (u && u.toLowerCase().includes(n)) {
         let c = e.toRelativeMs(o.createdAt),
-          f = Oe(u, n, i, 3);
+          f = Fe(u, n, i, 3);
         for (let h of f)
           l.push({
             scope: "network-body",
@@ -2888,7 +2898,7 @@ function Ct(e, t) {
         let c = JSON.stringify(o);
         if (c.toLowerCase().includes(n)) {
           let f = e.toRelativeMs(o.capturedAtEpochMs),
-            h = Oe(c, n, i, 2);
+            h = Fe(c, n, i, 2);
           for (let m of h)
             l.push({
               scope: "framework",
@@ -2901,7 +2911,7 @@ function Ct(e, t) {
     { query: r, totalHits: l.length, hits: l.slice(0, a) }
   );
 }
-function Pn(e, t, r = 30, n = 180) {
+function An(e, t, r = 30, n = 180) {
   let s = t.trim().toLowerCase();
   if (!s) return { totalHits: 0, hits: [] };
   let a = [];
@@ -3045,11 +3055,11 @@ function Pn(e, t, r = 30, n = 180) {
   }
   return { totalHits: a.length, hits: a.slice(0, r) };
 }
-function bt(e) {
+function Mt(e) {
   let t = M(e.pack),
     r = Math.min(2e3, Math.max(40, e.contextChars ?? 180));
   if (t.kind === "screenshot") {
-    let a = Pn(t, e.query, e.limit ?? 30, r);
+    let a = An(t, e.query, e.limit ?? 30, r);
     if (e.format === "json")
       return $(
         JSON.stringify(
@@ -3075,7 +3085,7 @@ function bt(e) {
       e.maxChars
     );
   }
-  let n = Ct(t, {
+  let n = bt(t, {
     query: e.query,
     scopes: e.scopes,
     limit: e.limit,
@@ -3099,7 +3109,7 @@ function bt(e) {
     e.maxChars
   );
 }
-function Mt(e, t = {}) {
+function Et(e, t = {}) {
   let r = new Set(
       t.kinds && t.kinds.length > 0
         ? t.kinds
@@ -3220,13 +3230,13 @@ function Mt(e, t = {}) {
     events: l.slice(0, o),
   };
 }
-function Et(e) {
+function Nt(e) {
   let t = M(e.pack);
   if (t.kind !== "session")
     throw new Error(
       `UNSUPPORTED_PACK_KIND: timeline requires a session evidence pack, but "${e.pack}" is a screenshot pack.`
     );
-  let r = Mt(t, {
+  let r = Et(t, {
     aroundSceneId: e.aroundSceneId,
     fromMs: e.fromMs,
     toMs: e.toMs,
@@ -3257,7 +3267,7 @@ function Et(e) {
     )
   );
 }
-function Tn(e) {
+function On(e) {
   let t = {},
     r = [];
   for (let s = 0; s < e.length; s++) {
@@ -3280,7 +3290,7 @@ function Tn(e) {
       continue;
     }
     let i = /^([a-zA-Z][a-zA-Z0-9_]*)=(.+)$/.exec(a);
-    if (i && !Nt(a)) {
+    if (i && !ye(a)) {
       t[i[1]] = i[2];
       continue;
     }
@@ -3316,7 +3326,7 @@ function N(e, ...t) {
   let n = Number(r);
   return Number.isFinite(n) ? n : void 0;
 }
-function me(e, ...t) {
+function ge(e, ...t) {
   for (let r of t) {
     let n = e[r];
     if (typeof n == "boolean") return n;
@@ -3336,23 +3346,23 @@ function re(e, ...t) {
     .filter(Boolean);
   return n.length > 0 ? n : void 0;
 }
-function An(e) {
-  return e ? (/\.zip$/i.test(e) ? !0 : Nt(e)) : !1;
+function Fn(e) {
+  return e ? (/\.zip$/i.test(e) ? !0 : ye(e)) : !1;
 }
 function F(e, t, r = !1) {
   let n = E(e, "pack", "p");
   return n
     ? { pack: n, rest: t }
-    : t.length > 0 && (r || An(t[0]))
+    : t.length > 0 && (r || Fn(t[0]))
       ? { pack: t[0], rest: t.slice(1) }
       : { pack: void 0, rest: t };
 }
-function Fe(e) {
+function Le(e) {
   return e.filter((t) => t.type === "text").map((t) => t.text).join(`
 
 `);
 }
-function Rn() {
+function Ln() {
   return `Bug Lens Evidence Triage CLI
 Usage: node bug-lens-cli.mjs <command> [options]
 
@@ -3370,11 +3380,18 @@ Commands:
   read_pack_file <path> [--jsonPath EXPR]     Read raw JSON/JS/text file inside the pack without extraction
   extract_pack [--dest DIR]                   Safely extract pack to disk to run Playwright reproduce.spec.ts`;
 }
-function On(e) {
+function jn(e) {
   let t = e[0]?.trim();
-  if (!t || t === "-h" || t === "--help" || t === "help") return Rn();
+  if (
+    !t ||
+    t === "-h" ||
+    t === "--help" ||
+    t === "help" ||
+    e.slice(1).some((l) => l === "-h" || l === "--help")
+  )
+    return Ln();
   let r = t.replace(/-/g, "_").toLowerCase(),
-    { flags: n, positionals: s } = Tn(e.slice(1)),
+    { flags: n, positionals: s } = On(e.slice(1)),
     a = E(n, "format") === "json" ? "json" : "text",
     i = N(n, "maxChars", "max_chars");
   switch (r) {
@@ -3384,7 +3401,7 @@ function On(e) {
         throw new Error(
           "Usage: bug-lens-cli.mjs open_pack <zipPath> [--format text|json]"
         );
-      return xt({ pack: l, format: a, maxChars: i });
+      return wt({ pack: l, format: a, maxChars: i });
     }
     case "get_scene": {
       let { pack: l, rest: o } = F(n, s),
@@ -3392,14 +3409,14 @@ function On(e) {
         c = E(n, "sceneId", "scene_id"),
         f = E(n, "selector", "s") ?? o[0],
         h = E(n, "cssProperty", "css_property", "prop"),
-        m = me(
+        m = ge(
           n,
           "includeImage",
           "include_image",
           "includeScreenshot",
           "include_screenshot"
         ),
-        d = yt({
+        d = vt({
           pack: l,
           sceneId:
             c ?? (u === void 0 && o[0] && /^\d+$/.test(o[0]) ? o[0] : void 0),
@@ -3410,15 +3427,15 @@ function On(e) {
           format: a,
           maxChars: i,
         });
-      return Fe(d);
+      return Le(d);
     }
     case "get_screenshot": {
       let { pack: l, rest: o } = F(n, s),
         u = E(n, "kind") ?? o[0],
         c = N(n, "step"),
         f = E(n, "sceneId", "scene_id"),
-        h = vt({ pack: l, kind: u, step: c, sceneId: f });
-      return Fe(h);
+        h = xt({ pack: l, kind: u, step: c, sceneId: f });
+      return Le(h);
     }
     case "timeline": {
       let { pack: l, rest: o } = F(n, s),
@@ -3426,15 +3443,15 @@ function On(e) {
         c = u?.startsWith("scene:")
           ? String(Math.max(0, Number(u.slice(6)) - 1))
           : u;
-      return Et({
+      return Nt({
         pack: l,
         aroundSceneId: c,
         fromMs: N(n, "fromMs", "from_ms"),
         toMs: N(n, "toMs", "to_ms"),
         windowMs: N(n, "windowMs", "window_ms"),
         kinds: re(n, "kinds", "kind"),
-        includeAllConsole: me(n, "includeAllConsole", "include_all_console"),
-        includeAllNetwork: me(n, "includeAllNetwork", "include_all_network"),
+        includeAllConsole: ge(n, "includeAllConsole", "include_all_console"),
+        includeAllNetwork: ge(n, "includeAllNetwork", "include_all_network"),
         limit: N(n, "limit"),
         format: a,
         maxChars: i,
@@ -3442,7 +3459,7 @@ function On(e) {
     }
     case "query_console": {
       let { pack: l, rest: o } = F(n, s);
-      return wt({
+      return St({
         pack: l,
         levels: re(n, "levels", "level"),
         search: E(n, "search", "query", "q") ?? o[0],
@@ -3459,7 +3476,7 @@ function On(e) {
       let { pack: l, rest: o } = F(n, s),
         u = E(n, "status"),
         c = u && /^\d+(,\d+)*$/.test(u) ? u.split(",").map(Number) : u;
-      return St({
+      return $t({
         pack: l,
         status: c,
         urlContains: E(n, "urlContains", "url_contains", "url") ?? o[0],
@@ -3478,7 +3495,7 @@ function On(e) {
         throw new Error(
           "Usage: bug-lens-cli.mjs get_request <id> [--jsonPath EXPR]"
         );
-      return pt({
+      return mt({
         pack: l,
         id: u,
         include: re(n, "include"),
@@ -3490,20 +3507,20 @@ function On(e) {
     }
     case "get_interactions": {
       let { pack: l } = F(n, s),
-        o = ht({
+        o = dt({
           pack: l,
           fromIndex: N(n, "fromIndex", "from_index"),
           limit: N(n, "limit"),
           kinds: re(n, "kinds", "kind"),
-          includeScreenshot: me(n, "includeScreenshot", "include_screenshot"),
+          includeScreenshot: ge(n, "includeScreenshot", "include_screenshot"),
           format: a,
           maxChars: i,
         });
-      return Fe(o);
+      return Le(o);
     }
     case "get_framework_state": {
       let { pack: l, rest: o } = F(n, s);
-      return ft({
+      return ht({
         pack: l,
         index: N(n, "index"),
         nearMs: N(n, "nearMs", "near_ms"),
@@ -3517,7 +3534,7 @@ function On(e) {
       let { pack: l, rest: o } = F(n, s),
         u = E(n, "query", "q") ?? o[0];
       if (!u) throw new Error("Usage: bug-lens-cli.mjs search_pack <query>");
-      return bt({
+      return Mt({
         pack: l,
         query: u,
         scopes: re(n, "scopes", "scope"),
@@ -3534,7 +3551,7 @@ function On(e) {
         throw new Error(
           "Usage: bug-lens-cli.mjs read_pack_file <path> [--jsonPath EXPR]"
         );
-      return kt({
+      return Ct({
         pack: l,
         path: u,
         jsonPath: E(n, "jsonPath", "json_path") ?? o[1],
@@ -3544,7 +3561,7 @@ function On(e) {
     }
     case "extract_pack": {
       let { pack: l, rest: o } = F(n, s);
-      return ut({ pack: l, dest: E(n, "dest", "d") ?? o[0], format: a });
+      return ft({ pack: l, dest: E(n, "dest", "d") ?? o[0], format: a });
     }
     default:
       throw new Error(
@@ -3552,15 +3569,25 @@ function On(e) {
       );
   }
 }
-var Fn =
-  typeof process < "u" &&
-  Array.isArray(process.argv) &&
-  process.argv[1] &&
-  (process.argv[1].endsWith("bug-lens-cli.mjs") ||
-    process.argv[1].endsWith("cli.ts"));
-if (Fn)
+function _n() {
+  if (typeof process > "u" || !Array.isArray(process.argv) || !process.argv[1])
+    return !1;
+  let e = process.argv[1];
+  if (e.endsWith("bug-lens-cli.mjs") || e.endsWith("cli.ts")) return !0;
   try {
-    let e = On(process.argv.slice(2));
+    let t = Rn(import.meta.url),
+      r = Tn(e),
+      n = ye(r) ? Pt(r) : r,
+      s = ye(t) ? Pt(t) : t;
+    return n === s;
+  } catch {
+    return !1;
+  }
+}
+var Dn = _n();
+if (Dn)
+  try {
+    let e = jn(process.argv.slice(2));
     process.stdout.write(
       e +
         `
@@ -3572,4 +3599,4 @@ if (Fn)
 `),
       process.exit(1));
   }
-export { On as runTriageCli };
+export { jn as runTriageCli };

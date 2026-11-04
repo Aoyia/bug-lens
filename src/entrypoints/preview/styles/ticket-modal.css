@@ -180,6 +180,22 @@
   box-shadow: none;
 }
 
+/* 视图模式切换平滑淡入动效 (模拟 macOS 面板切换质感) */
+.ticket-view-fade-in {
+  animation: ticket-view-enter 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes ticket-view-enter {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .ticket-rich-view h3 {
   font-size: 13px !important;
   font-weight: 600 !important;

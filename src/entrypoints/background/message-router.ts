@@ -6,6 +6,7 @@ import {
   type RuntimeMessage,
 } from "../../shared/protocol";
 import { sanitizeText } from "../../domain/privacy-policy";
+import { isTrackedTab } from "../../domain/session-admission";
 import { t } from "../../shared/i18n";
 import { validateStorageHealthUpdate } from "../../storage/storage-health-coordinator";
 import { runMainWorldFrameworkProbe } from "../../screenshot/probes/main-world-probe";
@@ -251,10 +252,9 @@ export function createMessageRouter(
         // content script 握手：校验归属后下发会话上下文（nonce/隐私模式/健康度），并回填环境信息
         case "content/hello": {
           const session = await db.getActiveSession();
-          let isSenderTab =
-            session?.target.tabId === sender.tab?.id ||
-            (typeof sender.tab?.id === "number" &&
-              Boolean(ctx.multiTabManager?.hasTab(sender.tab.id)));
+          let isSenderTab = isTrackedTab(session, sender.tab?.id, (id) =>
+            Boolean(ctx.multiTabManager?.hasTab(id))
+          );
 
           // 若当前有活动录制会话且启用了自动纳管，来自普通网页的握手自动纳入纳管
           if (
@@ -363,9 +363,7 @@ export function createMessageRouter(
         case "framework/state": {
           const state = incoming.payload.state;
           const session = await db.getActiveSession();
-          const isTargetTab =
-            session?.target.tabId === sender.tab?.id ||
-            Boolean(session?.targets?.some((t) => t.tabId === sender.tab?.id));
+          const isTargetTab = isTrackedTab(session, sender.tab?.id);
           const valid =
             session &&
             state.sessionId === session.id &&

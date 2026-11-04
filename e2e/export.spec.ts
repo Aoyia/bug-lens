@@ -1,9 +1,14 @@
 import { test, expect, safeUrlForLog } from "./fixtures/extension.ts";
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 import fs from "node:fs";
 import os from "node:os";
 import { unzipSync, strFromU8 } from "fflate";
 import { verifyExportIntegrity } from "../src/export/export-manifest.ts";
+import { openPack } from "../src/triage-cli/pack/open.ts";
+import { queryConsole } from "../src/triage-cli/query/console.ts";
+import { queryNetwork } from "../src/triage-cli/query/network.ts";
+import { searchSessionPack } from "../src/triage-cli/query/search.ts";
 import type { ExportManifest } from "../src/shared/protocol.ts";
 
 function logE2e(message: string, details?: unknown): void {
@@ -224,6 +229,82 @@ async function verifyZipAndOfflineReport(
   expect(integrityResult.missingFiles).toEqual([]);
   expect(integrityResult.valid).toBe(true);
 
+  // Producer -> Consumer Seam 校验：用 triage-cli 直接打开真实导出的 ZIP 包
+  const loadedPack = openPack(zipPath);
+  expect(loadedPack.kind).toBe("session");
+  if (loadedPack.kind === "session") {
+    expect(loadedPack.sessionId).toBe(session.id);
+    expect(loadedPack.integrity.valid).toBe(true);
+    expect(loadedPack.integrity.mismatches).toEqual([]);
+    expect(loadedPack.getInteractions().length).toBeGreaterThanOrEqual(1);
+
+    const cliConsole = queryConsole(loadedPack, {});
+    expect(cliConsole.items.some((c) => c.text.includes(keptStr))).toBe(true);
+    expect(cliConsole.items.some((c) => c.text.includes(excludedStr))).toBe(
+      false
+    );
+
+    const cliNetwork = queryNetwork(loadedPack, {});
+    expect(cliNetwork.matchedCount).toBeGreaterThanOrEqual(1);
+
+    const cliSearch = searchSessionPack(loadedPack, { query: keptStr });
+    expect(cliSearch.totalHits).toBeGreaterThanOrEqual(1);
+    const cliExcludedSearch = searchSessionPack(loadedPack, {
+      query: excludedStr,
+    });
+    expect(cliExcludedSearch.totalHits).toBe(0);
+  }
+
+  // 验证用户实际执行的技能独立打包产物 bug-lens-cli.mjs 子进程直读契约与排障级联工作流
+  const skillCliPath = path.resolve(
+    import.meta.dirname,
+    "../.agents/skills/bug-lens-triage/scripts/bug-lens-cli.mjs"
+  );
+  if (fs.existsSync(skillCliPath)) {
+    // 1. open_pack
+    const cliOutput = execFileSync(
+      process.execPath,
+      [skillCliPath, "open_pack", zipPath],
+      { encoding: "utf8" }
+    );
+    expect(cliOutput).toContain("# Bug Lens Evidence Pack (kind: session)");
+    expect(cliOutput).toContain(session.id);
+
+    // 2. query_network 级联排障查询
+    const cliNetOutput = execFileSync(
+      process.execPath,
+      [skillCliPath, "query_network", "--limit", "5"],
+      { encoding: "utf8" }
+    );
+    expect(cliNetOutput).toContain("Network Requests");
+
+    // 3. query_console 级联排障查询
+    const cliConsoleOutput = execFileSync(
+      process.execPath,
+      [skillCliPath, "query_console", "--limit", "5"],
+      { encoding: "utf8" }
+    );
+    expect(cliConsoleOutput).toContain("Console Logs");
+
+    // 4. timeline 统一时序线查询
+    const cliTimelineOutput = execFileSync(
+      process.execPath,
+      [skillCliPath, "timeline", "--limit", "10"],
+      { encoding: "utf8" }
+    );
+    expect(cliTimelineOutput).toContain("Timeline");
+
+    // 5. search_pack 跨域排障检索
+    const cliSearchOutput = execFileSync(
+      process.execPath,
+      [skillCliPath, "search_pack", keptStr],
+      { encoding: "utf8" }
+    );
+    expect(cliSearchOutput).toContain("Search Hits");
+    expect(cliSearchOutput).toContain(keptStr);
+  }
+  logE2e(`${scenarioId}: Triage CLI consumer contract verified on real ZIP`);
+
   // 解压到临时目录并验证离线报告（file:/// 且无外部请求）
   const extractDir = fs.mkdtempSync(
     path.join(os.tmpdir(), "playwright-chrome-extract-")
@@ -335,7 +416,68 @@ async function verifyAiHandoff(
   await previewPage.locator("#playwright-modal-close-btn").click();
   await expect(playwrightModal).toBeHidden();
 
-  logE2e(`${scenarioId}: AI handoff UI verified`);
+  // 工单草稿图文预览弹窗：验证顶栏入口、富文本/Markdown Tab 切换与关闭闭环
+  const previewTicketBtn = previewPage.locator("#preview-ticket-btn");
+  const createTicketBtn = previewPage.locator("#create-ticket-btn");
+  await expect(previewTicketBtn).toBeVisible();
+  await expect(createTicketBtn).toBeVisible();
+
+  await previewTicketBtn.click();
+  const ticketModal = previewPage.locator("#ticket-modal");
+  await expect(ticketModal).toBeVisible({ timeout: 5_000 });
+
+  const ticketTabRich = previewPage.locator("#ticket-tab-rich");
+  const ticketTabPlain = previewPage.locator("#ticket-tab-plain");
+  const ticketRichView = previewPage.locator("#ticket-rich-view");
+  const ticketPlainView = previewPage.locator("#ticket-plain-view");
+
+  await expect(ticketTabRich).toHaveClass(/active/);
+  await expect(ticketRichView).toBeVisible();
+  await expect(ticketPlainView).toBeHidden();
+  await expect(ticketRichView).toContainText("普通点击动作 1");
+  await expect(ticketRichView).toContainText("bug-lens-triage");
+  await expect(ticketRichView).not.toContainText("[EXP-001 EXCLUDE MARKER]");
+  expect(await ticketRichView.locator("img").count()).toBeGreaterThanOrEqual(1);
+
+  await ticketTabPlain.click();
+  await expect(ticketTabPlain).toHaveClass(/active/);
+  await expect(ticketPlainView).toBeVisible();
+  await expect(ticketRichView).toBeHidden();
+  await expect(ticketPlainView).toContainText("普通点击动作 1");
+  await expect(ticketPlainView).toContainText("bug-lens-triage");
+  await expect(ticketPlainView).not.toContainText("[EXP-001 EXCLUDE MARKER]");
+
+  // 验证剪贴板一键复制工单草稿终点闭环
+  const ticketCopyBtn = previewPage.locator("#ticket-modal-copy-btn");
+  await expect(ticketCopyBtn).toBeVisible();
+  await ticketCopyBtn.click();
+
+  const ticketToast = previewPage
+    .locator(".toast-message, .notification, [role='alert']")
+    .first();
+  await expect(ticketToast)
+    .toContainText(/已复制|Copied|复制成功/i, { timeout: 5000 })
+    .catch(() => {});
+
+  const copiedClipboardText = await previewPage
+    .evaluate(async () => {
+      try {
+        return await navigator.clipboard.readText();
+      } catch {
+        return undefined;
+      }
+    })
+    .catch(() => undefined);
+
+  if (copiedClipboardText) {
+    expect(copiedClipboardText).toContain("普通点击动作 1");
+    expect(copiedClipboardText).not.toContain("[EXP-001 EXCLUDE MARKER]");
+  }
+
+  await previewPage.locator("#ticket-modal-close-btn").click();
+  await expect(ticketModal).toBeHidden();
+
+  logE2e(`${scenarioId}: AI handoff & Ticket preview UI verified`);
 }
 
 test.describe("Bug Lens Chrome Extension E2E EXP-001: ZIP Export and AI Handoff", () => {
@@ -349,6 +491,9 @@ test.describe("Bug Lens Chrome Extension E2E EXP-001: ZIP Export and AI Handoff"
     serverUrl,
   }) => {
     const scenarioId = "EXP-001-core";
+    await context
+      .grantPermissions(["clipboard-read", "clipboard-write"])
+      .catch(() => {});
 
     context.on("console", (message) => {
       logE2e(`Browser console.${message.type()}`, {

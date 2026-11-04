@@ -1,11 +1,13 @@
 import { test, expect } from "./fixtures/extension.ts";
+import fs from "node:fs";
+import { unzipSync, strFromU8 } from "fflate";
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-test.describe("Bug Lens DevProfiler 性能监控输出验证", () => {
-  test("PERF-001: 开启 BUG_LENS_DEBUG_PERF 后，录制交互与导出流程在控制台输出性能度量日志", async ({
+test.describe("Bug Lens DevProfiler 与黑匣子性能遥测验证", () => {
+  test("PERF-001: 开启 BUG_LENS_DEBUG_PERF 后，录制交互与导出流程输出性能日志并持久化至 DiagnosticsTab 黑匣子归档", async ({
     context,
     extensionId,
     openActionPopup,
@@ -112,6 +114,65 @@ test.describe("Bug Lens DevProfiler 性能监控输出验证", () => {
     );
 
     expect(hasPerfLogs).toBe(true);
+
+    // 8. 验证 Options 页面 DiagnosticsTab 黑匣子遥测闭环：任务流水呈现、展开详情、导出诊断 ZIP 与清空
+    const optionsPage = await context.newPage();
+    await optionsPage.goto(`chrome-extension://${extensionId}/options.html`);
+    await optionsPage.waitForSelector(".options-topbar");
+
+    const navItems = optionsPage.locator(".sidebar-nav .nav-item");
+    await navItems.nth(6).click();
+    const diagPanel = optionsPage.locator(".diagnostics-panel");
+    await expect(diagPanel).toBeVisible();
+
+    // 验证已收录至少 1 条录制任务黑匣子 Profile，且状态为 SUCCESS
+    await expect(diagPanel).toContainText(/SUCCESS/);
+    await expect(diagPanel).toContainText(/(视频录制|Recording)/);
+
+    // 点击展开任务 Profile 明细，验证阶段耗时细分可见
+    await diagPanel.locator("text=SUCCESS").first().click();
+    await expect(diagPanel).toContainText(/录制时长:/);
+
+    // 点击「导出全量诊断包 (.zip) 并复制 AI 指令」，校验生成的诊断 ZIP 结构完整性
+    const exportDiagBtn = diagPanel.locator(
+      'button:has-text("导出全量诊断包"), button:has-text("Export Diagnostics ZIP")'
+    );
+    const diagDownloadPromise = optionsPage.waitForEvent("download", {
+      timeout: 10_000,
+    });
+    await exportDiagBtn.click();
+    await expect(diagPanel).toContainText(
+      /(已下载全量诊断包|Downloaded bug-lens-diagnostics)/,
+      { timeout: 10_000 }
+    );
+
+    const diagDownload = await diagDownloadPromise;
+    const diagZipPath = await diagDownload.path();
+    expect(diagZipPath).toBeTruthy();
+    expect(fs.existsSync(diagZipPath!)).toBe(true);
+
+    const diagZipped = unzipSync(new Uint8Array(fs.readFileSync(diagZipPath!)));
+    expect(diagZipped["SUMMARY.md"]).toBeDefined();
+    expect(diagZipped["metrics/macro-summary.json"]).toBeDefined();
+    expect(diagZipped["profiles/recent-index.json"]).toBeDefined();
+    expect(diagZipped["logs/internal-flight-recorder.json"]).toBeDefined();
+
+    const recentIndex = JSON.parse(
+      strFromU8(diagZipped["profiles/recent-index.json"]!)
+    ) as Array<{ id: string; status: string; taskType: string }>;
+    expect(recentIndex.length).toBeGreaterThanOrEqual(1);
+    expect(recentIndex.some((p) => p.id === session.id)).toBe(true);
+
+    // 验证清空诊断数据闭环
+    optionsPage.once("dialog", (dialog) => void dialog.accept());
+    await diagPanel
+      .locator('button:has-text("清空记录"), button:has-text("Clear Records")')
+      .click();
+    await expect(diagPanel).toContainText(
+      /(暂无性能数据|No profiling data yet)/,
+      { timeout: 5_000 }
+    );
+    await optionsPage.close();
   });
 
   test("PERF-002: 不打开 Preview 页面，直接通过悬浮条点击「结束并导出」输出静默导出性能日志", async ({

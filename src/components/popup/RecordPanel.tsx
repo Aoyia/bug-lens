@@ -207,7 +207,7 @@ export const RecordPanel = memo(function RecordPanel({
 
       <div
         className="actions"
-        style={{ marginTop: "10px", display: "flex", gap: "8px" }}
+        style={{ marginTop: "14px", display: "flex", gap: "8px" }}
       >
         {!active && !ready && (
           <>
@@ -272,6 +272,11 @@ export const RecordPanel = memo(function RecordPanel({
               <span>
                 {capturing ? t("screenshotCapturing") : t("takeScreenshot")}
               </span>
+              {!capturing && (
+                <kbd className="secondary-kbd" aria-hidden="true">
+                  {screenshotShortcutBadge}
+                </kbd>
+              )}
             </button>
           </>
         )}

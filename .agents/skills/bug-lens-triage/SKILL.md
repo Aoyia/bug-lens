@@ -18,6 +18,8 @@ description: >-
 1. **Zero-Extraction CLI Inspection**：直接对原始 `.zip` 路径执行 `<CLI> open_pack "<zipPath>"`；忽略粘贴提示词中的 `mkdir -p /tmp/bug-lens-workspace && unzip` 降级解压指令，严禁手写 `node -e` / `vm` / `python` 临时脚本解析 `session-data.js`。
 2. **Session Pack Cache**：首次执行 `<CLI> open_pack "<zipPath>"` 后，当前包路径会自动缓存在会话状态中；后续同包命令（`get_scene`、`timeline`、`query_console`、`query_network`、`get_request`、`get_framework_state`、`search_pack`、`read_pack_file`）均无需重复传 `--pack`。
 3. **Auto-Exported Screenshot Viewing**：`open_pack` 与 `get_scene` 会自动将关键截图导出至系统临时目录并在输出中打印 `Saved to ...` 路径，直接对该图片路径调用 `read_file` 查看视觉画面与红框批注。
+4. **Step Screenshot via CLI**：需要查看交互步骤截图（`screenshots/step-N.*`）时，执行 `<CLI> get_screenshot --step N` 导出并对打印的路径调用 `read_file`；严禁为此手动 `unzip` 到 `/tmp/bug-lens-workspace` 根目录（会与其他证据包的残留文件混杂）。确需落盘（运行 `reproduce.spec.ts`）时只用 `<CLI> extract_pack`，它会按 sessionId 前 8 位写入独立子目录。
+5. **Command Discovery**：不确定命令或参数时执行 `<CLI> --help`（现已支持在任意子命令后追加 `--help`）。
 
 ---
 
@@ -85,8 +87,8 @@ node "<skillDir>/scripts/bug-lens-cli.mjs" open_pack "<绝对路径.zip>"
    ```bash
    node "<skillDir>/scripts/bug-lens-cli.mjs" get_scene --includeImage false
    ```
-   - 以 `narrative.actual` 作为用户确认的真实故障现象；
-   - 若 `narrative.expected` 标注为 `confidence: missing`，必须显式声明期望未捕获，仅将其视为待验证假设。
+   - 以现场记录中的真实表现（文本输出中的 `- **actual**:` 或 JSON 输出中的 `narrative.actual`）作为用户确认的真实故障现象；
+   - 若期望标注为未捕获（文本输出中的 `- **expected** [confidence=missing]` 或 JSON 中的 `confidence: "missing"`），必须显式声明期望未捕获，仅将其视为待验证假设；若用户在提示词中另行给出了明确诉求（如测试反馈、需求描述），以该诉求为准，并标注为“用户补充，非证据包捕获”，与证据包事实分开陈述。
 
 **Completion Criterion**：已明确故障现场的真实表现（`actual`）、选中 DOM 结构及 `sequenceContext` 上下文。
 
