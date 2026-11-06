@@ -319,7 +319,7 @@ var Xt = function (e) {
         : s & 1
           ? (t += String.fromCharCode(((n & 31) << 6) | (e[r++] & 63)))
           : (t += String.fromCharCode(
-              ((n & 15) << 12) | ((e[r++] & 63) << 6) | (e[r++] & 63)
+              ((n & 15) << 12) | ((e[r++] & 63) << 6) | (e[r++] & 63),
             ))
       : (t += String.fromCharCode(n));
   }
@@ -456,7 +456,7 @@ function V(e, t = "js-data") {
   let r = nn.exec(e);
   if (!r)
     throw new Error(
-      `INVALID_JS_JSON_WRAPPER: ${t} does not start with expected window.__BUG_LENS_*__ assignment`
+      `INVALID_JS_JSON_WRAPPER: ${t} does not start with expected window.__BUG_LENS_*__ assignment`,
     );
   let n = e.slice(r[0].length).trim();
   n.endsWith(";") && (n = n.slice(0, -1).trimEnd());
@@ -465,7 +465,7 @@ function V(e, t = "js-data") {
   } catch (s) {
     let a = s instanceof Error ? s.message : String(s);
     throw new Error(
-      `INVALID_JS_JSON_PAYLOAD: Failed to parse JSON in ${t}: ${a}`
+      `INVALID_JS_JSON_PAYLOAD: Failed to parse JSON in ${t}: ${a}`,
     );
   }
 }
@@ -516,7 +516,7 @@ function nt(e, t, r) {
       typeof c.byteLength == "number" && f.byteLength !== c.byteLength)
     ) {
       o.push(
-        `${u}: byteLength mismatch (expected ${c.byteLength}, got ${f.byteLength})`
+        `${u}: byteLength mismatch (expected ${c.byteLength}, got ${f.byteLength})`,
       );
       continue;
     }
@@ -744,7 +744,7 @@ function Ne(e) {
     /^[a-zA-Z]:/.test(r)
   )
     throw new Error(
-      `UNSAFE_ZIP_ENTRY_PATH: Refusing archive entry with traversal or absolute path: ${e}`
+      `UNSAFE_ZIP_ENTRY_PATH: Refusing archive entry with traversal or absolute path: ${e}`,
     );
   return r;
 }
@@ -763,11 +763,11 @@ function dn(e) {
           return (t.set(l, { originalSize: o, compressedSize: u }), !1);
         if (o > te)
           throw new Error(
-            `ZIP_BOMB_SINGLE_FILE_EXCEEDED: Entry "${l}" uncompressed size (${o} bytes) exceeds limit (${te} bytes)`
+            `ZIP_BOMB_SINGLE_FILE_EXCEEDED: Entry "${l}" uncompressed size (${o} bytes) exceeds limit (${te} bytes)`,
           );
         if (((r += o), r > ne))
           throw new Error(
-            `ZIP_BOMB_TOTAL_SIZE_EXCEEDED: Total uncompressed size (${r} bytes) exceeds limit (${ne} bytes)`
+            `ZIP_BOMB_TOTAL_SIZE_EXCEEDED: Total uncompressed size (${r} bytes) exceeds limit (${ne} bytes)`,
           );
         return !0;
       },
@@ -789,11 +789,11 @@ function dn(e) {
     if (!o.endsWith("/")) {
       if (l.byteLength > te)
         throw new Error(
-          `ZIP_BOMB_SINGLE_FILE_EXCEEDED: Decompressed "${o}" (${l.byteLength} bytes) exceeds limit (${te} bytes)`
+          `ZIP_BOMB_SINGLE_FILE_EXCEEDED: Decompressed "${o}" (${l.byteLength} bytes) exceeds limit (${te} bytes)`,
         );
       if (((a += l.byteLength), a > ne))
         throw new Error(
-          `ZIP_BOMB_TOTAL_SIZE_EXCEEDED: Total decompressed size (${a} bytes) exceeds limit (${ne} bytes)`
+          `ZIP_BOMB_TOTAL_SIZE_EXCEEDED: Total decompressed size (${a} bytes) exceeds limit (${ne} bytes)`,
         );
       s.set(o, l);
     }
@@ -817,11 +817,11 @@ function pn(e) {
         }
         if (c.size > te)
           throw new Error(
-            `ZIP_BOMB_SINGLE_FILE_EXCEEDED: File "${o}" (${c.size} bytes) exceeds limit`
+            `ZIP_BOMB_SINGLE_FILE_EXCEEDED: File "${o}" (${c.size} bytes) exceeds limit`,
           );
         if (((n += c.size), n > ne))
           throw new Error(
-            `ZIP_BOMB_TOTAL_SIZE_EXCEEDED: Total size (${n} bytes) exceeds limit`
+            `ZIP_BOMB_TOTAL_SIZE_EXCEEDED: Total size (${n} bytes) exceeds limit`,
           );
         t.set(o, new Uint8Array(Pe(u)));
       }
@@ -836,7 +836,7 @@ function M(e, t = fn) {
       : (t.getLastPath() ?? hn());
   if (!r)
     throw new Error(
-      'INVALID_PACK_PATH: pack path is required when no pack has been opened yet. Pass the "pack" argument or call open_pack first.'
+      'INVALID_PACK_PATH: pack path is required when no pack has been opened yet. Pass the "pack" argument or call open_pack first.',
     );
   let n = B(r),
     s,
@@ -909,7 +909,7 @@ function mn(e, t, r) {
   }
   let u = Array.from(t.keys()).slice(0, 10).join(", ");
   throw new Error(
-    `UNRECOGNIZED_BUG_LENS_PACK: Archive does not contain "data/session-data.js" or "dom-context.json". Found files: [${u}]`
+    `UNRECOGNIZED_BUG_LENS_PACK: Archive does not contain "data/session-data.js" or "dom-context.json". Found files: [${u}]`,
   );
 }
 function Ie(e) {
@@ -942,7 +942,7 @@ function ut(e, t) {
       y = n.endsWith(rt) ? n : n + rt;
     if (g !== n && !g.startsWith(y))
       throw new Error(
-        `UNSAFE_ZIP_ENTRY_PATH: Target path escapes destination root: ${m}`
+        `UNSAFE_ZIP_ENTRY_PATH: Target path escapes destination root: ${m}`,
       );
     Ee(at(g), { recursive: !0 });
     let v = d;
@@ -977,12 +977,12 @@ function ft(e) {
     n.push(`- **Written Files**: ${r.writtenFiles.length}`),
     r.renamedPaths.length > 0 &&
       n.push(
-        `- **Sanitized Filenames (Windows-safe)**: ${r.renamedPaths.length} file(s) had reserved characters (\`:\` etc.) replaced with \`_\` and references updated in \`data/session-data.js\`.`
+        `- **Sanitized Filenames (Windows-safe)**: ${r.renamedPaths.length} file(s) had reserved characters (\`:\` etc.) replaced with \`_\` and references updated in \`data/session-data.js\`.`,
       ),
     r.reproduceSpecPath &&
       (n.push(`- **Playwright Reproduction Spec**: \`${r.reproduceSpecPath}\``),
       n.push(
-        `  - Run command: \`npx playwright test --headed "${r.reproduceSpecPath}"\``
+        `  - Run command: \`npx playwright test --headed "${r.reproduceSpecPath}"\``,
       )),
     r.reportHtmlPath &&
       n.push(`- **Interactive HTML Report**: \`${r.reportHtmlPath}\``),
@@ -1021,7 +1021,7 @@ function gn(e) {
       else {
         let i =
           /^(?:\?\(\s*)?(?:@\.)?([a-zA-Z0-9_$-]+)\s*={1,3}\s*(.+?)(?:\s*\))?$/.exec(
-            a
+            a,
           );
         if (i) {
           let l = i[1].trim(),
@@ -1096,7 +1096,7 @@ function ht(e) {
     if (e.format === "json")
       return $(
         JSON.stringify({ totalComponents: c.length, components: h }, null, 2),
-        e.maxChars
+        e.maxChars,
       );
     if (h.length === 0)
       return "No framework component states recorded in this screenshot pack.";
@@ -1104,16 +1104,16 @@ function ht(e) {
       `# Screenshot Pack Component States (${h.length} of ${c.length})`,
       ...h.map(
         (
-          d
+          d,
         ) => `- **${d.componentName ?? "Anonymous"}** (${d.framework ?? "vue/react"})${d.componentFile ? ` @ ${d.componentFile}:${d.componentLine ?? ""}` : ""}
   - props: ${JSON.stringify(d.props ?? {})}
-  - data: ${JSON.stringify(d.data ?? d.state ?? {})}`
+  - data: ${JSON.stringify(d.data ?? d.state ?? {})}`,
       ),
     ];
     return $(
       m.join(`
 `),
-      e.maxChars
+      e.maxChars,
     );
   }
   let r = t.getFrameworkStates();
@@ -1134,7 +1134,7 @@ function ht(e) {
     a = r[s];
   if (!a)
     throw new Error(
-      `FRAMEWORK_STATE_NOT_FOUND: Index ${s} out of range (0..${r.length - 1})`
+      `FRAMEWORK_STATE_NOT_FOUND: Index ${s} out of range (0..${r.length - 1})`,
     );
   if (e.path) {
     let c = J(a, e.path);
@@ -1147,9 +1147,9 @@ function ht(e) {
           value: c,
         },
         null,
-        2
+        2,
       ),
-      e.maxChars
+      e.maxChars,
     );
   }
   let i = e.component?.toLowerCase();
@@ -1172,9 +1172,9 @@ function ht(e) {
           selectedState: a,
         },
         null,
-        2
+        2,
       ),
-      e.maxChars
+      e.maxChars,
     );
   let l = [];
   (l.push(`# Framework States (${r.length} snapshots in pack)`),
@@ -1189,21 +1189,21 @@ function ht(e) {
         p = Object.keys(c.webStorage?.sessionStorage ?? {}),
         g = f === s ? " <-- [SELECTED]" : "";
       l.push(
-        `- **[${f}]** ${C(h)} trigger=\`${c.trigger ?? "?"}\` | components=[${m.slice(0, 5).join(", ") || "none"}] | localStorageKeys=${d.length} | sessionStorageKeys=${p.length}${g}`
+        `- **[${f}]** ${C(h)} trigger=\`${c.trigger ?? "?"}\` | components=[${m.slice(0, 5).join(", ") || "none"}] | localStorageKeys=${d.length} | sessionStorageKeys=${p.length}${g}`,
       );
     }));
   let o = t.toRelativeMs(a.capturedAtEpochMs);
   l.push(`
 ## Selected Snapshot [${s}] (at ${C(o)}, trigger=\`${a.trigger ?? "?"}\`)`);
   let u = Ae(a).filter((c) =>
-    i ? (c.componentName ?? "").toLowerCase().includes(i) : !0
+    i ? (c.componentName ?? "").toLowerCase().includes(i) : !0,
   );
   if (u.length > 0) {
     l.push(`
 ### Component Tree / Chain (${u.length})`);
     for (let c of u) {
       (l.push(
-        `- **${c.componentName ?? "Anonymous"}** (${c.framework ?? "framework"} v${c.version ?? "?"})`
+        `- **${c.componentName ?? "Anonymous"}** (${c.framework ?? "framework"} v${c.version ?? "?"})`,
       ),
         c.props &&
           Object.keys(c.props).length > 0 &&
@@ -1240,7 +1240,7 @@ function ht(e) {
   return $(
     l.join(`
 `),
-    e.maxChars
+    e.maxChars,
   );
 }
 function Te(e, t = 40) {
@@ -1352,7 +1352,7 @@ function dt(e) {
   let t = M(e.pack);
   if (t.kind !== "session")
     throw new Error(
-      `UNSUPPORTED_PACK_KIND: get_interactions requires a session evidence pack, but "${e.pack}" is a screenshot pack.`
+      `UNSUPPORTED_PACK_KIND: get_interactions requires a session evidence pack, but "${e.pack}" is a screenshot pack.`,
     );
   let r = t.getInteractions(),
     n =
@@ -1370,7 +1370,7 @@ function dt(e) {
           !(
             (e.fromIndex !== void 0 && u < e.fromIndex) ||
             (n && !n.has((c.kind ?? "").toLowerCase()))
-          )
+          ),
       ),
     a = Math.max(1, e.limit ?? 60),
     i = s.slice(0, a),
@@ -1380,15 +1380,15 @@ function dt(e) {
       JSON.stringify(
         { totalInteractions: r.length, matchedCount: s.length, items: i },
         null,
-        2
+        2,
       ),
-      e.maxChars
+      e.maxChars,
     );
   else {
     let u = [];
     if (
       (u.push(
-        `# Recorded Interactions (showing ${i.length} of ${s.length} matched, total=${r.length})`
+        `# Recorded Interactions (showing ${i.length} of ${s.length} matched, total=${r.length})`,
       ),
       i.length === 0)
     )
@@ -1404,7 +1404,7 @@ function dt(e) {
     l = $(
       u.join(`
 `),
-      e.maxChars
+      e.maxChars,
     );
   }
   let o = [{ type: "text", text: l }];
@@ -1477,7 +1477,7 @@ function fe(e, t = {}) {
         ? u.isFailure
           ? -1
           : 1
-        : (u.relativeMs ?? 0) - (c.relativeMs ?? 0)
+        : (u.relativeMs ?? 0) - (c.relativeMs ?? 0),
     );
   let l = Math.max(0, t.offset ?? 0),
     o = Math.max(1, t.limit ?? 50);
@@ -1505,12 +1505,12 @@ function pt(e, t, r = {}) {
       n.find((f) => f.id.endsWith(t) || f.url.includes(t));
   if (!s)
     throw new Error(
-      `REQUEST_NOT_FOUND: No network entry found matching "${t}". Call query_network first to list available entry IDs.`
+      `REQUEST_NOT_FOUND: No network entry found matching "${t}". Call query_network first to list available entry IDs.`,
     );
   let a = new Set(
       r.include && r.include.length > 0
         ? r.include
-        : ["summary", "headers", "initiator", "body"]
+        : ["summary", "headers", "initiator", "body"],
     ),
     i = e.getNetworkDetails(),
     l = a.has("headers") || a.has("initiator") ? i[s.id] : void 0,
@@ -1527,7 +1527,7 @@ function pt(e, t, r = {}) {
         } catch (h) {
           let m = h instanceof Error ? h.message : String(h);
           throw new Error(
-            `INVALID_RESPONSE_JSON: Cannot evaluate jsonPath "${r.jsonPath}" because response body is not valid JSON (${m})`
+            `INVALID_RESPONSE_JSON: Cannot evaluate jsonPath "${r.jsonPath}" because response body is not valid JSON (${m})`,
           );
         }
       else {
@@ -1548,7 +1548,7 @@ function mt(e) {
   let t = M(e.pack);
   if (t.kind !== "session")
     throw new Error(
-      `UNSUPPORTED_PACK_KIND: get_request requires a session evidence pack, but "${e.pack}" is a screenshot pack.`
+      `UNSUPPORTED_PACK_KIND: get_request requires a session evidence pack, but "${e.pack}" is a screenshot pack.`,
     );
   let r = pt(t, e.id, {
     include: e.include,
@@ -1560,7 +1560,7 @@ function mt(e) {
     a = new Set(
       e.include && e.include.length > 0
         ? e.include
-        : ["summary", "headers", "initiator", "body"]
+        : ["summary", "headers", "initiator", "body"],
     ),
     i = [];
   if (
@@ -1568,10 +1568,10 @@ function mt(e) {
       (i.push(`# Request \`${n.id}\` (${n.method ?? "GET"} ${n.status ?? 0})`),
       i.push(`- **URL**: ${n.url}`),
       i.push(
-        `- **Time**: ${C(r.relativeMs)} | Duration: ${U(n.durationMs)} | Type: ${n.type ?? "\u2014"}`
+        `- **Time**: ${C(r.relativeMs)} | Duration: ${U(n.durationMs)} | Type: ${n.type ?? "\u2014"}`,
       ),
       i.push(
-        `- **Response Info**: mimeType=${n.response?.mimeType ?? "\u2014"}, bodyStatus=${n.response?.bodyStatus ?? "\u2014"}, byteLength=${n.response?.byteLength ?? "\u2014"}, bodyPath=${n.response?.bodyPath ?? "inline/none"}`
+        `- **Response Info**: mimeType=${n.response?.mimeType ?? "\u2014"}, bodyStatus=${n.response?.bodyStatus ?? "\u2014"}, byteLength=${n.response?.byteLength ?? "\u2014"}, bodyPath=${n.response?.bodyPath ?? "inline/none"}`,
       ),
       n.errorText && i.push(`- **Error**: ${n.errorText}`)),
     a.has("headers"))
@@ -1617,7 +1617,7 @@ function mt(e) {
     $(
       i.join(`
 `),
-      e.maxChars
+      e.maxChars,
     )
   );
 }
@@ -1821,7 +1821,7 @@ function gt(e) {
             });
       }
       i.push(
-        `- **[${h}] \`${m.id}\`${y} \`<${m.tagName}>\` \`${m.selector}\`** (${p.length} matched rules)`
+        `- **[${h}] \`${m.id}\`${y} \`<${m.tagName}>\` \`${m.selector}\`** (${p.length} matched rules)`,
       );
       for (let x of v.values()) {
         let w =
@@ -1830,13 +1830,13 @@ function gt(e) {
               : x.ruleIds[0],
           S = Array.from(x.sheetRefs).slice(0, 2).join(", ");
         i.push(
-          `  - [${w} @ ${S}] \`${x.rule.selectorText}\` -> \`${x.decls.join("; ")}\``
+          `  - [${w} @ ${S}] \`${x.rule.selectorText}\` -> \`${x.decls.join("; ")}\``,
         );
       }
     }
     f.length > 12 &&
       i.push(
-        `- ... +${f.length - 12} more elements (call \`get_scene(selector="...")\` or \`search_pack\` to inspect)`
+        `- ... +${f.length - 12} more elements (call \`get_scene(selector="...")\` or \`search_pack\` to inspect)`,
       );
   }
   return i;
@@ -1881,14 +1881,14 @@ function yt(e, t, r) {
         : "";
     if (
       (n.push(
-        `- **[${f}] \`${h.selectorPath ?? h.selector ?? "?"}\`**${g}${p}`
+        `- **[${f}] \`${h.selectorPath ?? h.selector ?? "?"}\`**${g}${p}`,
       ),
       h.intentFlags &&
         Object.keys(h.intentFlags).length > 0 &&
         n.push(`  - flags: ${JSON.stringify(h.intentFlags)}`),
       h.innerText &&
         n.push(
-          `  - text: "${h.innerText.replace(/\s+/g, " ").trim().slice(0, 140)}"`
+          `  - text: "${h.innerText.replace(/\s+/g, " ").trim().slice(0, 140)}"`,
         ),
       h.relativeRect && n.push(`  - rect: ${JSON.stringify(h.relativeRect)}`),
       h.boxModel && n.push(`  - boxModel: ${JSON.stringify(h.boxModel)}`),
@@ -1897,8 +1897,8 @@ function yt(e, t, r) {
       let y = i
         ? Object.fromEntries(
             Object.entries(h.computedStyles).filter(
-              ([v, x]) => i.test(v) || i.test(x)
-            )
+              ([v, x]) => i.test(v) || i.test(x),
+            ),
           )
         : h.computedStyles;
       n.push(`  - computedStyles: ${JSON.stringify(y)}`);
@@ -1949,7 +1949,7 @@ function yt(e, t, r) {
           let S = w.ruleIds.join(", "),
             b = Array.from(w.sheetHrefs).join(" | ");
           n.push(
-            `  - **[${S}]** [sheet: ${b}] \`${w.rule.selectorText}\` -> \`${w.rule.cssText}\``
+            `  - **[${S}]** [sheet: ${b}] \`${w.rule.selectorText}\` -> \`${w.rule.cssText}\``,
           );
         }
       if (v.inheritedRules && v.inheritedRules.length > 0)
@@ -1959,7 +1959,7 @@ function yt(e, t, r) {
           let b = p.get(w.ruleId),
             P = (b ? d.get(b.sheetId) : void 0)?.href ?? b?.sheetId ?? "?";
           n.push(
-            `  - *[inherited from \`<${w.ancestorTagName}> ${w.ancestorSelector}\` via ${w.ruleId} @ ${P}]*: ${S}`
+            `  - *[inherited from \`<${w.ancestorTagName}> ${w.ancestorSelector}\` via ${w.ruleId} @ ${P}]*: ${S}`,
           );
         }
     }
@@ -1991,15 +1991,15 @@ function vt(e) {
                         ? d.filter((S, b) =>
                             `${b} ${S.selector ?? ""} ${S.selectorPath ?? ""} ${S.componentName ?? ""} ${S.innerText ?? ""}`
                               .toLowerCase()
-                              .includes(y.toLowerCase())
+                              .includes(y.toLowerCase()),
                           )
                         : d,
                       screenshotPath: t.getScreenshotImagePath(),
                     },
                     null,
-                    2
+                    2,
                   ),
-                  e.maxChars
+                  e.maxChars,
                 )
               : $(
                   [
@@ -2012,7 +2012,7 @@ function vt(e) {
 ## Auto-Detected Layout/Overflow Deviations (${g.length})`,
                           ...g.map(
                             (S) =>
-                              `- \u26A0\uFE0F **[${S.kind}] \`${S.selectorPath ?? S.selector}\`** (anchors: [${S.anchorIndices.slice(0, 6).join(",")}]) \u2014 ${S.summary}${S.keyStyles ? ` | styles=${JSON.stringify(S.keyStyles)}` : ""}`
+                              `- \u26A0\uFE0F **[${S.kind}] \`${S.selectorPath ?? S.selector}\`** (anchors: [${S.anchorIndices.slice(0, 6).join(",")}]) \u2014 ${S.summary}${S.keyStyles ? ` | styles=${JSON.stringify(S.keyStyles)}` : ""}`,
                           ),
                         ]
                       : []),
@@ -2023,7 +2023,7 @@ function vt(e) {
                     }),
                   ].join(`
 `),
-                  e.maxChars
+                  e.maxChars,
                 ),
         },
       ],
@@ -2047,7 +2047,7 @@ function vt(e) {
   if (!s) {
     let d = n.map((p) => `${p.index}:${p.id}`).join(", ");
     throw new Error(
-      `SCENE_NOT_FOUND: Scene "${r ?? e.sceneId}" not found. Available scenes: [${d}]`
+      `SCENE_NOT_FOUND: Scene "${r ?? e.sceneId}" not found. Available scenes: [${d}]`,
     );
   }
   let { scene: a } = s,
@@ -2073,7 +2073,7 @@ function vt(e) {
           id: s.id,
           index: s.index,
           relativeMs: t.toRelativeMs(
-            a.selectionStartedAtEpochMs ?? a.observedAtEpochMs
+            a.selectionStartedAtEpochMs ?? a.observedAtEpochMs,
           ),
           narrative: {
             actual: a.narrative?.actual ?? null,
@@ -2093,9 +2093,9 @@ function vt(e) {
           annotatedSource: s.annotatedSource,
         },
         null,
-        2
+        2,
       ),
-      e.maxChars
+      e.maxChars,
     );
   else {
     let d = [],
@@ -2107,7 +2107,7 @@ function vt(e) {
       d.push(`- **expected** [confidence: \`${o}\`]: ${l || "(missing)"}`),
       (o === "missing" || !l) &&
         d.push(
-          "  > \u26A0\uFE0F **UNCAPTURED EXPECTATION**: You MUST explicitly state that the expected behavior was not captured and mark any inferred expectation as a hypothesis."
+          "  > \u26A0\uFE0F **UNCAPTURED EXPECTATION**: You MUST explicitly state that the expected behavior was not captured and mark any inferred expectation as a hypothesis.",
         ),
       d.push(`
 ## 2. Selected DOM Targets (${u.length})`));
@@ -2147,25 +2147,25 @@ function vt(e) {
         v = g.consoleErrors ?? [],
         x = g.networkFailures ?? [];
       d.push(
-        `Window: ${g.windowMs ?? 6e4}ms before anchor | ${y.length} interactions, ${v.length} console errors, ${x.length} network failures`
+        `Window: ${g.windowMs ?? 6e4}ms before anchor | ${y.length} interactions, ${v.length} console errors, ${x.length} network failures`,
       );
       for (let w of y.slice(-15))
         d.push(
-          `  - [${w.offsetMs ?? 0}ms] [${w.kind}] <${w.tagName ?? "?"}> text="${w.text ?? ""}" ${w.value !== void 0 ? `val="${w.value}"` : ""}`
+          `  - [${w.offsetMs ?? 0}ms] [${w.kind}] <${w.tagName ?? "?"}> text="${w.text ?? ""}" ${w.value !== void 0 ? `val="${w.value}"` : ""}`,
         );
       for (let w of v)
         d.push(
-          `  - [${w.offsetMs ?? 0}ms] [CONSOLE ${w.level ?? "ERROR"}] ${w.text ?? ""}`
+          `  - [${w.offsetMs ?? 0}ms] [CONSOLE ${w.level ?? "ERROR"}] ${w.text ?? ""}`,
         );
       for (let w of x)
         d.push(
-          `  - [${w.offsetMs ?? 0}ms] [NET ${w.method ?? "GET"} ${w.status ?? "ERR"}] ${w.url ?? ""}`
+          `  - [${w.offsetMs ?? 0}ms] [NET ${w.method ?? "GET"} ${w.status ?? "ERR"}] ${w.url ?? ""}`,
         );
     }
     c = $(
       d.join(`
 `),
-      e.maxChars
+      e.maxChars,
     );
   }
   let f = [{ type: "text", text: c }],
@@ -2179,7 +2179,7 @@ function xt(e) {
     let i = t.getScreenshotImagePath();
     if (!i)
       throw new Error(
-        `SCREENSHOT_NOT_FOUND: No screenshot image found in screenshot pack "${e.pack}".`
+        `SCREENSHOT_NOT_FOUND: No screenshot image found in screenshot pack "${e.pack}".`,
       );
     return z(t, i, "Screenshot pack image");
   }
@@ -2201,13 +2201,13 @@ function xt(e) {
       .slice(0, 15)
       .join(", ");
     throw new Error(
-      `STEP_SCREENSHOT_NOT_FOUND: Screenshot for step ${i} not found. Available sample: [${l}]`
+      `STEP_SCREENSHOT_NOT_FOUND: Screenshot for step ${i} not found. Available sample: [${l}]`,
     );
   }
   let n = t.getIssueScenes();
   if (n.length === 0)
     throw new Error(
-      'SCENE_SCREENSHOT_NOT_FOUND: Pack has no issueScenes. Use kind="step" with step=1..N to inspect interaction screenshots.'
+      'SCENE_SCREENSHOT_NOT_FOUND: Pack has no issueScenes. Use kind="step" with step=1..N to inspect interaction screenshots.',
     );
   let s = e.sceneId
     ? n.find((i) => i.id === e.sceneId || String(i.index) === e.sceneId)
@@ -2220,7 +2220,7 @@ function xt(e) {
       : (s.annotatedSource ?? s.originalSource);
   if (!a)
     throw new Error(
-      `SCENE_IMAGE_MISSING: Scene "${s.id}" does not have a ${r} image file.`
+      `SCENE_IMAGE_MISSING: Scene "${s.id}" does not have a ${r} image file.`,
     );
   return z(t, a, `Scene [${s.index}] (${s.id}) ${r}`);
 }
@@ -2250,7 +2250,7 @@ function pe(e, t = {}) {
               return c === "warn" || c === "warning"
                 ? ["warn", "warning"]
                 : [c];
-            })
+            }),
           )
         : void 0,
     s = t.search?.toLowerCase(),
@@ -2314,7 +2314,7 @@ function me(e) {
     let s = e.stack
       .split(
         `
-`
+`,
       )
       .slice(0, 5)
       .map((a) => `    ${a.trim()}`).join(`
@@ -2374,24 +2374,24 @@ function Pn(e, t, r) {
     o.push("# Bug Lens Evidence Pack (kind: session)"),
     o.push(`- **Session ID**: \`${e.sessionId}\``),
     o.push(
-      `- **Schema**: v${e.integrity.schemaVersion ?? e.data.session?.schemaVersion ?? "?"} (integrity: ${e.integrity.valid ? "OK" : "MISMATCH"}, checked ${e.integrity.checkedCount} files)`
+      `- **Schema**: v${e.integrity.schemaVersion ?? e.data.session?.schemaVersion ?? "?"} (integrity: ${e.integrity.valid ? "OK" : "MISMATCH"}, checked ${e.integrity.checkedCount} files)`,
     ),
     o.push(
-      `- **Page**: ${n?.title ?? e.data.session?.target?.initialTitle ?? "\u2014"} (${n?.url ?? e.data.session?.target?.initialUrl ?? "\u2014"})`
+      `- **Page**: ${n?.title ?? e.data.session?.target?.initialTitle ?? "\u2014"} (${n?.url ?? e.data.session?.target?.initialUrl ?? "\u2014"})`,
     ),
     o.push(
-      `- **Duration**: ${U(n?.durationMs ?? e.data.session?.timeline?.durationMs)} | Quality: ${n?.quality ?? "\u2014"} | Privacy: ${n?.privacyMode ?? "\u2014"}`
+      `- **Duration**: ${U(n?.durationMs ?? e.data.session?.timeline?.durationMs)} | Quality: ${n?.quality ?? "\u2014"} | Privacy: ${n?.privacyMode ?? "\u2014"}`,
     ),
     n?.environment)
   ) {
     let h = n.environment;
     o.push(
-      `- **Environment**: ${h.os ?? "?"} \xB7 ${h.browser ?? "?"} \xB7 ${h.language ?? "?"} \xB7 screen ${h.screen ?? "?"} \xB7 viewport ${h.viewport ?? "?"}`
+      `- **Environment**: ${h.os ?? "?"} \xB7 ${h.browser ?? "?"} \xB7 ${h.language ?? "?"} \xB7 screen ${h.screen ?? "?"} \xB7 viewport ${h.viewport ?? "?"}`,
     );
   }
   if (
     (o.push(
-      `- **Counts**: ${e.getInteractions().length} interactions | ${e.getConsoleEntries().length} console entries (${a.matchedCount} errors) | ${e.getNetworkEntries().length} network requests (${i.matchedCount} failed) | ${s.length} issue scenes | ${e.getFrameworkStates().length} framework snapshots`
+      `- **Counts**: ${e.getInteractions().length} interactions | ${e.getConsoleEntries().length} console entries (${a.matchedCount} errors) | ${e.getNetworkEntries().length} network requests (${i.matchedCount} failed) | ${s.length} issue scenes | ${e.getFrameworkStates().length} framework snapshots`,
     ),
     o.push(`
 ## Issue Scenes (${s.length})`),
@@ -2401,7 +2401,7 @@ function Pn(e, t, r) {
   else
     for (let h of s) {
       let m = e.toRelativeMs(
-          h.scene.selectionStartedAtEpochMs ?? h.scene.observedAtEpochMs
+          h.scene.selectionStartedAtEpochMs ?? h.scene.observedAtEpochMs,
         ),
         d = h.scene.narrative?.expected,
         p = typeof d == "string" ? d : d?.text,
@@ -2414,17 +2414,17 @@ function Pn(e, t, r) {
       (o.push(`- **Scene [${h.index}] \`${h.id}\`** (at ${C(m)}):`),
         o.push(`  - **actual**: ${h.scene.narrative?.actual || "(empty)"}`),
         o.push(
-          `  - **expected** [confidence=${g}]: ${p || "(not captured \u2014 treat any expectation as inferred hypothesis)"}`
+          `  - **expected** [confidence=${g}]: ${p || "(not captured \u2014 treat any expectation as inferred hypothesis)"}`,
         ),
         o.push(
-          `  - **screenshots**: annotated=\`${h.annotatedSource ?? "none"}\`, original=\`${h.originalSource ?? "none"}\``
+          `  - **screenshots**: annotated=\`${h.annotatedSource ?? "none"}\`, original=\`${h.originalSource ?? "none"}\``,
         ));
       let y = h.annotatedSource ?? h.originalSource;
       if (y) {
         let v = ue(e, y);
         v &&
           o.push(
-            `  - **savedImagePath**: \`${v}\` (call \`read_file\` on this path to view the scene screenshot)`
+            `  - **savedImagePath**: \`${v}\` (call \`read_file\` on this path to view the scene screenshot)`,
           );
       }
     }
@@ -2447,24 +2447,24 @@ function Pn(e, t, r) {
   let u = l.filter(
       (h) =>
         !h.path.startsWith("screenshots/") &&
-        !h.path.startsWith("network/body-")
+        !h.path.startsWith("network/body-"),
     ),
     c = l.filter((h) => h.path.startsWith("network/body-")).length,
     f = l.filter((h) => h.path.startsWith("screenshots/")).length;
   for (let h of u)
     o.push(
-      `- \`${h.path}\` (${h.byteLength} B${h.skippedMedia ? ", skipped in-memory load" : ""})`
+      `- \`${h.path}\` (${h.byteLength} B${h.skippedMedia ? ", skipped in-memory load" : ""})`,
     );
   return (
     c > 0 && o.push(`- \`network/body-*.txt\` (${c} split body files)`),
     f > 0 && o.push(`- \`screenshots/step-*.*\` (${f} step screenshots)`),
     o.push(
-      '\n**Next steps** (active pack is cached; omit `--pack` in subsequent commands): Run `get_scene` to inspect DOM targets & annotated screenshot, `timeline --windowMs 15000` for chronological events around the issue, `query_network --status failed` / `get_request <id> --jsonPath "..."` for API bodies, or `get_framework_state` for Vue/React state.'
+      '\n**Next steps** (active pack is cached; omit `--pack` in subsequent commands): Run `get_scene` to inspect DOM targets & annotated screenshot, `timeline --windowMs 15000` for chronological events around the issue, `query_network --status failed` / `get_request <id> --jsonPath "..."` for API bodies, or `get_framework_state` for Vue/React state.',
     ),
     $(
       o.join(`
 `),
-      r
+      r,
     )
   );
 }
@@ -2495,9 +2495,9 @@ function In(e, t, r) {
           files: a,
         },
         null,
-        2
+        2,
       ),
-      r
+      r,
     );
   let i = [],
     l = e.environment,
@@ -2509,20 +2509,20 @@ function In(e, t, r) {
   if (
     (i.push("# Bug Lens Screenshot Pack (kind: screenshot)"),
     i.push(
-      `- **Image**: \`${f ?? "none"}\`${h ? ` -> Saved to \`${h}\` (call \`read_file\` on this path to inspect visually)` : ""}`
+      `- **Image**: \`${f ?? "none"}\`${h ? ` -> Saved to \`${h}\` (call \`read_file\` on this path to inspect visually)` : ""}`,
     ),
     l &&
       (i.push(`- **Page**: ${l.title ?? "\u2014"} (${l.url ?? "\u2014"})`),
       i.push(
-        `- **Viewport**: ${l.viewport?.width ?? "?"}x${l.viewport?.height ?? "?"} (${l.mediaBreakpoint ?? "?"}) | UA: ${l.userAgent ?? "\u2014"}`
+        `- **Viewport**: ${l.viewport?.width ?? "?"}x${l.viewport?.height ?? "?"} (${l.mediaBreakpoint ?? "?"}) | UA: ${l.userAgent ?? "\u2014"}`,
       ),
       i.push(
-        `- **Anomalies & State**: ${o.length} recent console error(s) | ${u.length} failed request(s) | ${c.length} component state snapshot(s)`
+        `- **Anomalies & State**: ${o.length} recent console error(s) | ${u.length} failed request(s) | ${c.length} component state snapshot(s)`,
       )),
     n)
   ) {
     i.push(
-      `- **DOM Context**: SCA=\`${n.smallestCommonAncestorSelector ?? "?"}\` | anchors=${n.meta?.anchorCount ?? s.length}, leaves=${n.meta?.leafCount ?? n.leaves?.length ?? 0}, ancestors=${n.meta?.ancestorCount ?? n.ancestors?.length ?? 0}`
+      `- **DOM Context**: SCA=\`${n.smallestCommonAncestorSelector ?? "?"}\` | anchors=${n.meta?.anchorCount ?? s.length}, leaves=${n.meta?.leafCount ?? n.leaves?.length ?? 0}, ancestors=${n.meta?.ancestorCount ?? n.ancestors?.length ?? 0}`,
     );
     let m = de(n);
     if (m.length > 0) {
@@ -2535,7 +2535,7 @@ function In(e, t, r) {
               : "",
           v = g.component ? ` [${g.component}]` : "";
         (i.push(
-          `- \u26A0\uFE0F **[${g.kind}] \`${g.selectorPath ?? g.selector}\`**${v}${y}: ${g.summary}`
+          `- \u26A0\uFE0F **[${g.kind}] \`${g.selectorPath ?? g.selector}\`**${v}${y}: ${g.summary}`,
         ),
           g.sampleText && i.push(`  - sampleText: "${g.sampleText}"`),
           g.keyStyles &&
@@ -2573,7 +2573,7 @@ function In(e, t, r) {
     }
     p.length > 15 &&
       i.push(
-        `- ... +${p.length - 15} more unique anchors (use \`get_scene(selector="...")\` to filter)`
+        `- ... +${p.length - 15} more unique anchors (use \`get_scene(selector="...")\` to filter)`,
       );
   }
   if ((e.cascade && i.push(...gt(e.cascade)), o.length > 0)) {
@@ -2593,12 +2593,12 @@ function In(e, t, r) {
   for (let m of a) i.push(`- \`${m.path}\` (${m.byteLength} B)`);
   return (
     i.push(
-      '\n**Next steps** (active pack is cached; omit `--pack` in subsequent commands): Call `read_file` on the saved image path above to inspect `screenshot.jpg`; run `get_scene --selector "..." --cssProperty "..."` to inspect anchor `computedStyles`/`layoutContext` and matched CSS cascade rules; run `search_pack "<keyword>"` to search across `cascade.json` & `dom-context.json`; or run `get_framework_state` for component props/data.'
+      '\n**Next steps** (active pack is cached; omit `--pack` in subsequent commands): Call `read_file` on the saved image path above to inspect `screenshot.jpg`; run `get_scene --selector "..." --cssProperty "..."` to inspect anchor `computedStyles`/`layoutContext` and matched CSS cascade rules; run `search_pack "<keyword>"` to search across `cascade.json` & `dom-context.json`; or run `get_framework_state` for component props/data.',
     ),
     $(
       i.join(`
 `),
-      r
+      r,
     )
   );
 }
@@ -2623,9 +2623,9 @@ ${c.stack ?? ""}`;
         JSON.stringify(
           { totalEntries: a.length, matchedCount: o.length, items: o },
           null,
-          2
+          2,
         ),
-        e.maxChars
+        e.maxChars,
       );
     let u = [
       `# Screenshot Pack Console Errors (${o.length} of ${a.length})`,
@@ -2637,18 +2637,18 @@ ${c.stack ?? ""}`;
     ${c.stack
       .split(
         `
-`
+`,
       )
       .slice(0, 4).join(`
     `)}`
               : ""
-          }`
+          }`,
       ),
     ];
     return $(
       u.join(`
 `),
-      e.maxChars
+      e.maxChars,
     );
   }
   let r = pe(t, {
@@ -2664,7 +2664,7 @@ ${c.stack ?? ""}`;
   let n = [];
   if (
     (n.push(
-      `# Console Logs (matched ${r.matchedCount} of ${r.totalEntries} total, showing offset=${r.offset}..${r.offset + r.items.length})`
+      `# Console Logs (matched ${r.matchedCount} of ${r.totalEntries} total, showing offset=${r.offset}..${r.offset + r.items.length})`,
     ),
     r.items.length === 0)
   )
@@ -2678,7 +2678,7 @@ ${c.stack ?? ""}`;
     $(
       n.join(`
 `),
-      e.maxChars
+      e.maxChars,
     )
   );
 }
@@ -2693,28 +2693,28 @@ function $t(e) {
           !(
             (i && !(c.url ?? "").toLowerCase().includes(i)) ||
             (l && (c.method ?? "GET").toUpperCase() !== l)
-          )
+          ),
       );
     if (e.format === "json")
       return $(
         JSON.stringify(
           { totalEntries: a.length, matchedCount: o.length, items: o },
           null,
-          2
+          2,
         ),
-        e.maxChars
+        e.maxChars,
       );
     let u = [
       `# Screenshot Pack Failed Network Requests (${o.length} of ${a.length})`,
       ...o.map(
         (c, f) =>
-          `- [#${f}] ${c.method ?? "GET"} !${c.status ?? 0} ${c.statusText ?? ""} | ${c.url ?? ""}`
+          `- [#${f}] ${c.method ?? "GET"} !${c.status ?? 0} ${c.statusText ?? ""} | ${c.url ?? ""}`,
       ),
     ];
     return $(
       u.join(`
 `),
-      e.maxChars
+      e.maxChars,
     );
   }
   let r = fe(t, {
@@ -2729,7 +2729,7 @@ function $t(e) {
   let n = [];
   if (
     (n.push(
-      `# Network Requests (matched ${r.matchedCount} of ${r.totalEntries} total, showing offset=${r.offset}..${r.offset + r.items.length})`
+      `# Network Requests (matched ${r.matchedCount} of ${r.totalEntries} total, showing offset=${r.offset}..${r.offset + r.items.length})`,
     ),
     r.items.length === 0)
   )
@@ -2743,7 +2743,7 @@ function $t(e) {
     $(
       n.join(`
 `),
-      e.maxChars
+      e.maxChars,
     )
   );
 }
@@ -2758,7 +2758,7 @@ function Ct(e) {
       .slice(0, 30)
       .join(", ");
     throw new Error(
-      `FILE_NOT_FOUND_IN_PACK: "${r}" does not exist in pack. Available files sample: [${o}]`
+      `FILE_NOT_FOUND_IN_PACK: "${r}" does not exist in pack. Available files sample: [${o}]`,
     );
   }
   if (e.jsonPath) {
@@ -2770,7 +2770,7 @@ function Ct(e) {
       } catch (c) {
         let f = c instanceof Error ? c.message : String(c);
         throw new Error(
-          `INVALID_JSON_FILE: Cannot apply jsonPath "${e.jsonPath}" to "${r}": ${f}`
+          `INVALID_JSON_FILE: Cannot apply jsonPath "${e.jsonPath}" to "${r}": ${f}`,
         );
       }
     let u = J(o, e.jsonPath);
@@ -2785,7 +2785,7 @@ function Ct(e) {
     a,
     n.length > l
       ? `Use offset=${l} to read the next chunk (total ${n.length} chars).`
-      : void 0
+      : void 0,
   );
 }
 function Fe(e, t, r = 180, n = 3) {
@@ -2832,7 +2832,7 @@ function bt(e, t) {
             "network-body",
             "interactions",
             "framework",
-          ]
+          ],
     ),
     a = Math.max(1, t.limit ?? 30),
     i = Math.min(2e3, Math.max(40, t.contextChars ?? 180)),
@@ -3065,9 +3065,9 @@ function Mt(e) {
         JSON.stringify(
           { query: e.query, totalHits: a.totalHits, hits: a.hits },
           null,
-          2
+          2,
         ),
-        e.maxChars
+        e.maxChars,
       );
     let i = [
       `# Search Results in Screenshot Pack for "${e.query}" (showing ${a.hits.length} of ${a.totalHits} total hits)`,
@@ -3076,13 +3076,13 @@ function Mt(e) {
             "(No matches found in dom-context.json, cascade.json, or environment.json)",
           ]
         : a.hits.map(
-            (l) => `- **[${l.category}]** \`${l.ref}\` \u2014 ${l.detail}`
+            (l) => `- **[${l.category}]** \`${l.ref}\` \u2014 ${l.detail}`,
           )),
     ];
     return $(
       i.join(`
 `),
-      e.maxChars
+      e.maxChars,
     );
   }
   let n = bt(t, {
@@ -3095,7 +3095,7 @@ function Mt(e) {
   let s = [];
   if (
     (s.push(
-      `# Search Hits for "${n.query}" (showing ${n.hits.length} of ${n.totalHits} total hits)`
+      `# Search Hits for "${n.query}" (showing ${n.hits.length} of ${n.totalHits} total hits)`,
     ),
     n.hits.length === 0)
   )
@@ -3106,14 +3106,14 @@ function Mt(e) {
   return $(
     s.join(`
 `),
-    e.maxChars
+    e.maxChars,
   );
 }
 function Et(e, t = {}) {
   let r = new Set(
       t.kinds && t.kinds.length > 0
         ? t.kinds
-        : ["interaction", "console", "network", "scene"]
+        : ["interaction", "console", "network", "scene"],
     ),
     n = t.fromMs,
     s = t.toMs,
@@ -3126,7 +3126,7 @@ function Et(e, t = {}) {
       c = t.aroundSceneId
         ? (u.find(
             (f) =>
-              f.id === t.aroundSceneId || String(f.index) === t.aroundSceneId
+              f.id === t.aroundSceneId || String(f.index) === t.aroundSceneId,
           ) ?? u[0])
         : u[0];
     if (c) {
@@ -3220,7 +3220,7 @@ function Et(e, t = {}) {
           !(
             (n !== void 0 && u.relativeMs < n) ||
             (s !== void 0 && u.relativeMs > s)
-          )
+          ),
       )
       .sort((u, c) => u.relativeMs - c.relativeMs),
     o = t.limit ?? 80;
@@ -3234,7 +3234,7 @@ function Nt(e) {
   let t = M(e.pack);
   if (t.kind !== "session")
     throw new Error(
-      `UNSUPPORTED_PACK_KIND: timeline requires a session evidence pack, but "${e.pack}" is a screenshot pack.`
+      `UNSUPPORTED_PACK_KIND: timeline requires a session evidence pack, but "${e.pack}" is a screenshot pack.`,
     );
   let r = Et(t, {
     aroundSceneId: e.aroundSceneId,
@@ -3250,7 +3250,7 @@ function Nt(e) {
   let n = [];
   if (
     (n.push(
-      `# Unified Timeline (${r.windowDescription}) \u2014 showing ${r.events.length} of ${r.totalMatched} events`
+      `# Unified Timeline (${r.windowDescription}) \u2014 showing ${r.events.length} of ${r.totalMatched} events`,
     ),
     r.events.length === 0)
   )
@@ -3263,7 +3263,7 @@ function Nt(e) {
     $(
       n.join(`
 `),
-      e.maxChars
+      e.maxChars,
     )
   );
 }
@@ -3399,7 +3399,7 @@ function jn(e) {
       let { pack: l } = F(n, s, !0);
       if (!l)
         throw new Error(
-          "Usage: bug-lens-cli.mjs open_pack <zipPath> [--format text|json]"
+          "Usage: bug-lens-cli.mjs open_pack <zipPath> [--format text|json]",
         );
       return wt({ pack: l, format: a, maxChars: i });
     }
@@ -3414,7 +3414,7 @@ function jn(e) {
           "includeImage",
           "include_image",
           "includeScreenshot",
-          "include_screenshot"
+          "include_screenshot",
         ),
         d = vt({
           pack: l,
@@ -3493,7 +3493,7 @@ function jn(e) {
         u = E(n, "id", "requestId", "request_id") ?? o[0];
       if (!u)
         throw new Error(
-          "Usage: bug-lens-cli.mjs get_request <id> [--jsonPath EXPR]"
+          "Usage: bug-lens-cli.mjs get_request <id> [--jsonPath EXPR]",
         );
       return mt({
         pack: l,
@@ -3549,7 +3549,7 @@ function jn(e) {
         u = E(n, "path", "file") ?? o[0];
       if (!u)
         throw new Error(
-          "Usage: bug-lens-cli.mjs read_pack_file <path> [--jsonPath EXPR]"
+          "Usage: bug-lens-cli.mjs read_pack_file <path> [--jsonPath EXPR]",
         );
       return Ct({
         pack: l,
@@ -3565,7 +3565,7 @@ function jn(e) {
     }
     default:
       throw new Error(
-        `UNKNOWN_COMMAND: Unknown command "${t}". Run with --help to see available commands.`
+        `UNKNOWN_COMMAND: Unknown command "${t}". Run with --help to see available commands.`,
       );
   }
 }
@@ -3591,7 +3591,7 @@ if (Dn)
     process.stdout.write(
       e +
         `
-`
+`,
     );
   } catch (e) {
     let t = e instanceof Error ? e.message : String(e);
