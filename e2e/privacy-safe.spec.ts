@@ -132,6 +132,8 @@ test.describe("Bug Lens Chrome Extension E2E PRIV-001: Safe Mode Sensitive Data 
     expect(targetTabId).toBeTruthy();
 
     await popup.click("#toggle-options");
+    await popup.waitForSelector(".advanced-panel-wrapper.open");
+    await new Promise((resolve) => setTimeout(resolve, 300));
     await popup.waitForSelector("#privacy");
     const privacyModeVal = await popup.evaluate<string>(
       "document.querySelector('#privacy')?.value || ''"

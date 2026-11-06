@@ -41,6 +41,8 @@ export class ExpectedCaptureCard {
   private countdownInterval: number | undefined;
   private countdownElement: HTMLDivElement | undefined;
   private keydownListener: ((e: KeyboardEvent) => void) | undefined;
+  private focusCaptureListener: ((e: FocusEvent) => void) | undefined;
+  private focusinCaptureListener: ((e: FocusEvent) => void) | undefined;
   private submitted = false;
 
   constructor(private readonly deps: ExpectedCaptureCardDeps) {}
@@ -133,8 +135,13 @@ export class ExpectedCaptureCard {
       background: "#f7f8fa",
       color: "#1d2129",
       outline: "none",
+      pointerEvents: "auto",
+      userSelect: "text",
+      cursor: "text",
+      caretColor: "#165dff",
     });
-    input.addEventListener("input", () => {
+    input.addEventListener("input", (e) => {
+      e.stopPropagation?.();
       // 用户手动编辑后，清除 chips 选中态（文本以输入框为准）
       if (this.selectedChips.size > 0) {
         this.selectedChips.clear();
@@ -143,7 +150,23 @@ export class ExpectedCaptureCard {
       // 输入即视为活跃操作，重新武装超时，避免组织语言时卡片静默收起
       this.resetAutoSkipTimer();
     });
-    input.addEventListener("focus", () => this.resetAutoSkipTimer());
+    input.addEventListener("focus", (e) => {
+      this.resetAutoSkipTimer();
+      e.stopPropagation?.();
+    });
+    input.addEventListener("pointerdown", (e) => e.stopPropagation?.());
+    input.addEventListener("mousedown", (e) => {
+      e.stopPropagation?.();
+      input.focus();
+    });
+    input.addEventListener("click", (e) => e.stopPropagation?.());
+    input.addEventListener("keydown", (e) => e.stopPropagation?.());
+    input.addEventListener("keyup", (e) => e.stopPropagation?.());
+    input.addEventListener("keypress", (e) => e.stopPropagation?.());
+    input.addEventListener("beforeinput", (e) => e.stopPropagation?.());
+    input.addEventListener("compositionstart", (e) => e.stopPropagation?.());
+    input.addEventListener("compositionupdate", (e) => e.stopPropagation?.());
+    input.addEventListener("compositionend", (e) => e.stopPropagation?.());
 
     const actionsRow = document.createElement("div");
     Object.assign(actionsRow.style, {
@@ -168,7 +191,7 @@ export class ExpectedCaptureCard {
       cursor: "pointer",
     });
     skipBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
+      e.stopPropagation?.();
       this.skip();
     });
 
@@ -188,12 +211,47 @@ export class ExpectedCaptureCard {
       cursor: "pointer",
     });
     confirmBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
+      e.stopPropagation?.();
       this.submit();
     });
 
     actionsRow.append(skipBtn, confirmBtn);
     root.append(title, countdown, chipsRow, input, actionsRow);
+
+    // 卡片整体事件屏障与焦点防劫持
+    root.addEventListener("pointerdown", (e) => e.stopPropagation?.());
+    root.addEventListener("mousedown", (e) => e.stopPropagation?.());
+    root.addEventListener("mouseup", (e) => e.stopPropagation?.());
+    root.addEventListener("click", (e) => e.stopPropagation?.());
+    root.addEventListener("focusin", (e) => e.stopPropagation?.());
+    root.addEventListener("focusout", (e) => e.stopPropagation?.());
+
+    const handleWindowFocusCapture = (e: FocusEvent) => {
+      const target = e.target as Node | null;
+      if (target && (root.contains?.(target) ?? false)) {
+        e.stopImmediatePropagation?.();
+        return;
+      }
+      const isExternalElement =
+        typeof HTMLElement !== "undefined"
+          ? target instanceof HTMLElement
+          : Boolean(target && (target as any).tagName);
+      if (
+        this.isOpen &&
+        isExternalElement &&
+        target !== document.body &&
+        target !== document.documentElement
+      ) {
+        e.stopImmediatePropagation?.();
+        e.preventDefault?.();
+        input.focus();
+      }
+    };
+    this.focusCaptureListener = handleWindowFocusCapture;
+    this.focusinCaptureListener = handleWindowFocusCapture;
+    window.addEventListener("focus", this.focusCaptureListener, true);
+    window.addEventListener("focusin", this.focusinCaptureListener, true);
+
     document.documentElement.appendChild(root);
     this.cardElement = root;
     this.inputElement = input;
@@ -225,6 +283,14 @@ export class ExpectedCaptureCard {
     if (this.keydownListener) {
       window.removeEventListener("keydown", this.keydownListener, true);
       this.keydownListener = undefined;
+    }
+    if (this.focusCaptureListener) {
+      window.removeEventListener("focus", this.focusCaptureListener, true);
+      this.focusCaptureListener = undefined;
+    }
+    if (this.focusinCaptureListener) {
+      window.removeEventListener("focusin", this.focusinCaptureListener, true);
+      this.focusinCaptureListener = undefined;
     }
     this.cardElement?.remove();
     this.cardElement = undefined;

@@ -13,6 +13,7 @@ import {
   sanitizeResponseBody,
   sanitizeText,
   sanitizeUrl,
+  type PrivacyMode,
 } from "../domain/privacy-policy.ts";
 import { isTrackedTab } from "../domain/session-admission.ts";
 import type { RecordingSessionEvent } from "../domain/recording-session.ts";
@@ -102,7 +103,7 @@ export function getNetworkEnableParams(options?: RecordingOptions): {
   };
 }
 
-function sanitizeRequestBody(postData: string, mode: "safe" | "raw"): string {
+function sanitizeRequestBody(postData: string, mode: PrivacyMode): string {
   if (mode === "raw") return postData;
   if (/^[\s]*[\[{]/.test(postData)) {
     const sanitized = sanitizeResponseBody({

@@ -71,7 +71,6 @@ test.describe("Bug Lens Chrome Extension E2E ISSUE-001: Issue Scene Recording Jo
     // 问题现场文案（速记卡与编辑器共用）
     const actualText = "点击提交后页面没有任何响应";
     const expectedText = "页面应显示提交成功提示";
-    const noteText = "ISSUE-001 自动化问题现场";
 
     // ==========================================
     // 四、进入问题选择模式
@@ -196,10 +195,11 @@ test.describe("Bug Lens Chrome Extension E2E ISSUE-001: Issue Scene Recording Jo
     await targetPage.mouse.move(endX, endY, { steps: 5 });
     await targetPage.mouse.up();
 
-    // 4. 填写文案（期望输入框已由速记卡回填，此处确认最终值）
+    // 4. 填写文案（速记卡填写的期望已展示为胶囊 Pill）
+    await expect(
+      issueEditor.locator("[data-issue-expected-pill]")
+    ).toContainText(expectedText);
     await issueEditor.locator("[data-issue-actual]").fill(actualText);
-    await issueEditor.locator("[data-issue-expected]").fill(expectedText);
-    await issueEditor.locator("[data-issue-note]").fill(noteText);
 
     // 5. 点击"保存并继续"
     const saveBtn = issueEditor.locator("[data-issue-save]");
@@ -288,7 +288,7 @@ test.describe("Bug Lens Chrome Extension E2E ISSUE-001: Issue Scene Recording Jo
       text: expectedText,
       confidence: "explicit",
     });
-    expect(recordedScene.narrative?.note).toBe(noteText);
+    expect(recordedScene.narrative?.note).toBeUndefined();
 
     expect(recordedScene.annotation?.userAnnotations?.length).toBe(1);
     const rectAnno = recordedScene.annotation?.userAnnotations?.[0];
@@ -429,7 +429,6 @@ test.describe("Bug Lens Chrome Extension E2E ISSUE-001: Issue Scene Recording Jo
     expect(cardText).toContain("完成");
     expect(cardText).toContain(actualText);
     expect(cardText).toContain(expectedText);
-    expect(cardText).toContain(noteText);
     expect(cardText).toContain("issue-target");
 
     const cardImage = issueCards.first().locator("img[data-issue-image]");

@@ -81,6 +81,15 @@ export function isEnterCommitKey(e: {
   return true;
 }
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 /**
  * 问题现场编辑器。
  * 这是一个覆盖全屏的 UI 组件，允许用户在截图上进行圈选、添加批注、
@@ -89,6 +98,8 @@ export function isEnterCommitKey(e: {
 export class IssueEditor {
   private editorElement: HTMLDivElement | undefined;
   private keydownListener: ((e: KeyboardEvent) => void) | undefined;
+  private focusCaptureListener: ((e: FocusEvent) => void) | undefined;
+  private focusinCaptureListener: ((e: FocusEvent) => void) | undefined;
 
   constructor(private readonly deps: IssueEditorDeps) {}
 
@@ -103,6 +114,14 @@ export class IssueEditor {
     if (this.keydownListener) {
       window.removeEventListener("keydown", this.keydownListener, true);
       this.keydownListener = undefined;
+    }
+    if (this.focusCaptureListener) {
+      window.removeEventListener("focus", this.focusCaptureListener, true);
+      this.focusCaptureListener = undefined;
+    }
+    if (this.focusinCaptureListener) {
+      window.removeEventListener("focusin", this.focusinCaptureListener, true);
+      this.focusinCaptureListener = undefined;
     }
     this.editorElement?.remove();
     this.editorElement = undefined;
@@ -119,6 +138,8 @@ export class IssueEditor {
     const session = this.deps.getSession();
     if (!session) return;
     const shortcutKeyText = this.deps.isMac ? "Option+S" : "Alt+S";
+    const backfillExpected = scene.narrative?.expected?.text?.trim();
+    let currentExpected = scene.narrative?.expected;
 
     const root = document.createElement("div");
     root.id = "__wbr_issue_editor__";
@@ -151,6 +172,22 @@ export class IssueEditor {
         color: #1d2129 !important;
         border-radius: 2px !important;
         transition: all 0.15s ease !important;
+        pointer-events: auto !important;
+        user-select: text !important;
+        -webkit-user-select: text !important;
+        cursor: text !important;
+        caret-color: #165dff !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+        box-sizing: border-box !important;
+      }
+      #__wbr_issue_editor__ [data-issue-control-card] {
+        pointer-events: auto !important;
+        user-select: auto !important;
+        -webkit-user-select: auto !important;
+      }
+      #__wbr_issue_editor__ [data-issue-expected-remove]:hover {
+        opacity: 1 !important;
       }
       #__wbr_issue_editor__ textarea::placeholder,
       #__wbr_issue_editor__ input::placeholder {
@@ -212,22 +249,22 @@ export class IssueEditor {
         <svg data-issue-svg viewBox="0 0 1000 1000" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;touch-action:none"></svg>
       </div>
     </div>
-    <div data-issue-control-card style="position:fixed;z-index:30;width:min(calc(100vw - 32px),640px);background:rgba(255,255,255,0.96);backdrop-filter:blur(20px);border:1px solid #e5e6eb;border-radius:2px;box-shadow:0 8px 30px rgba(0,0,0,0.18);padding:10px 12px;display:flex;flex-direction:column;gap:8px;transition:top 0.15s ease-out, left 0.15s ease-out">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <input data-issue-actual placeholder="${t("issueActualPlaceholder")}" style="width:100%;box-sizing:border-box;height:34px;padding:0 10px;font-size:12px;font-family:inherit;outline:none;border-radius:2px">
-        <input data-issue-expected placeholder="${t("issueExpectedPlaceholder")}" style="width:100%;box-sizing:border-box;height:34px;padding:0 10px;font-size:12px;font-family:inherit;outline:none;border-radius:2px">
-      </div>
-      <label style="display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:500;color:#5f6b7c">
-        ${t("issueNoteLabel")}
-        <textarea data-issue-note rows="2" placeholder="${t("issueNotePlaceholder")}" style="width:100%;box-sizing:border-box;padding:6px 8px;font-size:12px;font-family:inherit;resize:none;outline:none;border-radius:2px"></textarea>
-      </label>
+    <div data-issue-control-card style="position:fixed;z-index:30;width:min(calc(100vw - 32px),680px);background:rgba(255,255,255,0.96);backdrop-filter:blur(20px);border:1px solid #e5e6eb;border-radius:4px;box-shadow:0 8px 30px rgba(0,0,0,0.18);padding:8px 12px;display:flex;flex-direction:column;gap:6px;transition:top 0.15s ease-out, left 0.15s ease-out">
+      ${
+        backfillExpected
+          ? `<div data-issue-expected-pill style="display:inline-flex;align-items:center;gap:6px;background:#e8f3ff;color:#165dff;border:1px solid #bedaff;border-radius:12px;padding:2px 8px 2px 10px;font-size:11px;font-weight:500;width:fit-content;max-width:100%;box-sizing:border-box">
+        <span data-issue-expected-text style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t("issueExpectedPillPrefix")}${escapeHtml(backfillExpected)}</span>
+        <button data-issue-expected-remove type="button" style="background:none;border:none;color:#165dff;cursor:pointer;padding:0 2px;font-size:13px;line-height:1;display:flex;align-items:center;opacity:0.75" title="${t("issueRemoveExpected")}">✕</button>
+      </div>`
+          : ""
+      }
       <div style="display:flex;align-items:center;gap:8px">
         <div data-issue-drag-handle style="display:flex;align-items:center;justify-content:center;cursor:grab;padding:0 2px;color:#8c97a8;user-select:none;touch-action:none" title="${t("issueDragHandleTitle")}">
           <svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor"><circle cx="3" cy="3" r="1.5"/><circle cx="7" cy="3" r="1.5"/><circle cx="3" cy="8" r="1.5"/><circle cx="7" cy="8" r="1.5"/><circle cx="3" cy="13" r="1.5"/><circle cx="7" cy="13" r="1.5"/></svg>
         </div>
-        <div style="flex:1"></div>
-        <button data-issue-save class="__wbr_issue_action" style="display:inline-flex;align-items:center;gap:4px;background:#165dff;color:#ffffff;border:1px solid #165dff;border-radius:2px;height:32px;padding:0 14px;font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap">${t("issueSaveContinue")}</button>
-        <button data-issue-save-stop class="__wbr_issue_action" style="display:inline-flex;align-items:center;gap:4px;background:#f2f3f5;color:#4e5969;border:1px solid #e5e6eb;border-radius:2px;height:32px;padding:0 12px;font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap" title="${t("issueSaveStopTitle")}">${t("issueSaveStop")}</button>
+        <input data-issue-actual placeholder="${t("issueActualPlaceholder")}" style="flex:1;box-sizing:border-box;height:34px;padding:0 10px;font-size:12px;font-family:inherit;outline:none;border-radius:2px">
+        <button data-issue-save class="__wbr_issue_action" style="display:inline-flex;align-items:center;gap:4px;background:#165dff;color:#ffffff;border:1px solid #165dff;border-radius:2px;height:34px;padding:0 14px;font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap">${t("issueSaveContinue")}</button>
+        <button data-issue-save-stop class="__wbr_issue_action" style="display:inline-flex;align-items:center;gap:4px;background:#f2f3f5;color:#4e5969;border:1px solid #e5e6eb;border-radius:2px;height:34px;padding:0 12px;font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap" title="${t("issueSaveStopTitle")}">${t("issueSaveStop")}</button>
       </div>
       <div data-issue-error style="color:#b42318;font-size:12px;padding:6px 10px;border-radius:2px;background:#fde3df;border:1px solid #f99f95;display:none"></div>
     </div>`;
@@ -302,7 +339,7 @@ export class IssueEditor {
     const positionControlCard = () => {
       if (!controlCard || !svg || userMovedCard) return;
       const rect = svg.getBoundingClientRect();
-      const box = annotation.targetBox;
+      const box = annotation.targetBox || annotation.targetBoxes?.[0];
       const targetX = box
         ? box.xRatio + box.widthRatio / 2
         : annotation.point.xRatio;
@@ -314,7 +351,7 @@ export class IssueEditor {
       const targetPxYBottom = rect.top + targetYBottom * rect.height;
       const targetPxYTop = rect.top + targetYTop * rect.height;
       const cardWidth = controlCard.offsetWidth || 560;
-      const cardHeight = controlCard.offsetHeight || 60;
+      const cardHeight = controlCard.offsetHeight || 52;
       let left = targetPxX - cardWidth / 2;
       left = Math.max(16, Math.min(window.innerWidth - cardWidth - 16, left));
       let top = targetPxYBottom + 14;
@@ -324,22 +361,117 @@ export class IssueEditor {
       top = Math.max(64, Math.min(window.innerHeight - cardHeight - 16, top));
       Object.assign(controlCard.style, { left: `${left}px`, top: `${top}px` });
     };
-    image.addEventListener("load", positionControlCard);
+    if (image.complete) {
+      positionControlCard();
+    } else {
+      image.addEventListener("load", positionControlCard);
+    }
     window.addEventListener("resize", positionControlCard);
     requestAnimationFrame(positionControlCard);
 
     const actualInput = root.querySelector<HTMLInputElement>(
       "[data-issue-actual]"
     );
-    // A2 前置回填：速记卡确认的期望已在 capture 阶段落库，打开编辑器时
-    // 回填到输入框，用户只需确认或微调。
-    const expectedInput = root.querySelector<HTMLInputElement>(
-      "[data-issue-expected]"
-    );
-    const backfillExpected = scene.narrative?.expected?.text?.trim();
-    if (expectedInput && backfillExpected) {
-      expectedInput.value = backfillExpected;
+    if (actualInput && scene.narrative?.actual) {
+      actualInput.value = scene.narrative.actual;
     }
+
+    const pill = root.querySelector<HTMLElement>("[data-issue-expected-pill]");
+    const removeExpectedBtn = root.querySelector<HTMLButtonElement>(
+      "[data-issue-expected-remove]"
+    );
+    removeExpectedBtn?.addEventListener("click", (e) => {
+      e.stopPropagation?.();
+      currentExpected = undefined;
+      pill?.remove();
+      positionControlCard();
+      actualInput?.focus();
+    });
+
+    // ─── 焦点隔离与防劫持屏障（反向焦点陷阱）───
+    // 背景：底层被测系统（如 BPM、ERP、Element UI/Ant Design 等企业框架）
+    // 弹出「确认离开」等模态窗时，常挂载全文档 focusin/focus 捕获监听器以强制锁定焦点；
+    // 一旦焦点落在扩展注入的输入框上，宿主页面的焦点陷阱就会立刻强行夺回焦点，
+    // 导致扩展编辑器输入框出现「无法聚焦、无法输入」的致命故障。
+    let activeField: HTMLElement | null = actualInput;
+    const updateActiveField = (target: EventTarget | null) => {
+      if (
+        target === actualInput ||
+        (textInputOverlay && target === textInputOverlay)
+      ) {
+        activeField = target as HTMLElement;
+      }
+    };
+
+    const attachFieldEventShield = (field: HTMLElement | null) => {
+      if (!field) return;
+      field.addEventListener("focus", (e) => {
+        updateActiveField(e.target);
+        e.stopPropagation?.();
+      });
+      field.addEventListener("pointerdown", (e) => {
+        updateActiveField(e.target);
+        e.stopPropagation?.();
+      });
+      field.addEventListener("mousedown", (e) => {
+        updateActiveField(e.target);
+        e.stopPropagation?.();
+        field.focus();
+      });
+      field.addEventListener("click", (e) => e.stopPropagation?.());
+      field.addEventListener("keydown", (e) => e.stopPropagation?.());
+      field.addEventListener("keyup", (e) => e.stopPropagation?.());
+      field.addEventListener("keypress", (e) => e.stopPropagation?.());
+      field.addEventListener("input", (e) => e.stopPropagation?.());
+      field.addEventListener("beforeinput", (e) => e.stopPropagation?.());
+      field.addEventListener("compositionstart", (e) => e.stopPropagation?.());
+      field.addEventListener("compositionupdate", (e) => e.stopPropagation?.());
+      field.addEventListener("compositionend", (e) => e.stopPropagation?.());
+    };
+
+    attachFieldEventShield(actualInput);
+
+    // 控制面板整体事件屏障：阻止宿主页面的 backdrop 监听器拦截 mousedown/click 并 preventDefault
+    controlCard.addEventListener("pointerdown", (e) => e.stopPropagation?.());
+    controlCard.addEventListener("mousedown", (e) => e.stopPropagation?.());
+    controlCard.addEventListener("mouseup", (e) => e.stopPropagation?.());
+    controlCard.addEventListener("click", (e) => e.stopPropagation?.());
+    controlCard.addEventListener("dblclick", (e) => e.stopPropagation?.());
+    controlCard.addEventListener("contextmenu", (e) => e.stopPropagation?.());
+    controlCard.addEventListener("focusin", (e) => e.stopPropagation?.());
+    controlCard.addEventListener("focusout", (e) => e.stopPropagation?.());
+
+    // Window 捕获阶段拦截：在宿主页面的 document 焦点陷阱收到事件前彻底截断
+    const handleWindowFocusCapture = (e: FocusEvent) => {
+      const target = e.target as Node | null;
+      if (target && (root.contains?.(target) ?? false)) {
+        // 编辑器内部元素的焦点转移，禁止向 document 传播，使宿主模态的 focus trap 无法感知
+        e.stopImmediatePropagation?.();
+        return;
+      }
+      const isExternalElement =
+        typeof HTMLElement !== "undefined"
+          ? target instanceof HTMLElement
+          : Boolean(target && (target as any).tagName);
+      // 宿主页面脚本企图异步夺走焦点：只要编辑器仍在编辑，强制把焦点拉回当前编辑字段
+      if (
+        activeField &&
+        (root.contains?.(activeField) ?? false) &&
+        this.isOpen &&
+        isExternalElement &&
+        target !== document.body &&
+        target !== document.documentElement
+      ) {
+        e.stopImmediatePropagation?.();
+        e.preventDefault?.();
+        activeField.focus();
+      }
+    };
+    this.focusCaptureListener = handleWindowFocusCapture;
+    this.focusinCaptureListener = handleWindowFocusCapture;
+    window.addEventListener("focus", this.focusCaptureListener, true);
+    window.addEventListener("focusin", this.focusinCaptureListener, true);
+
     setTimeout(() => actualInput?.focus(), 50);
 
     // ─── Drawing Tools ───
@@ -414,6 +546,34 @@ export class IssueEditor {
     if (redoBtn) redoBtn.title = `${t("redo")} (${redoShortcutText})`;
 
     this.keydownListener = (e: KeyboardEvent) => {
+      // Tab 键焦点循环锁定（Focus Trap）：确保键盘导航在编辑器各字段间平滑切换，
+      // 绝不外溢到宿主页面导致焦点丢失或被底层模态劫持
+      if (e.key === "Tab") {
+        const focusableSelectors = [
+          "[data-issue-actual]",
+          "[data-issue-save]",
+          "[data-issue-save-stop]",
+        ];
+        const focusables = focusableSelectors
+          .map((sel) => root.querySelector<HTMLElement>(sel))
+          .filter((el): el is HTMLElement =>
+            Boolean(el && !el.hasAttribute("disabled"))
+          );
+        const activeEl = document.activeElement as HTMLElement | null;
+        const currentIndex = focusables.indexOf(activeEl!);
+        if (currentIndex !== -1) {
+          e.preventDefault();
+          e.stopPropagation();
+          const nextIndex = e.shiftKey
+            ? (currentIndex - 1 + focusables.length) % focusables.length
+            : (currentIndex + 1) % focusables.length;
+          const nextTarget = focusables[nextIndex];
+          nextTarget?.focus();
+          updateActiveField(nextTarget);
+          return;
+        }
+      }
+
       // 模态一致性（第一性原理）：全应用覆盖层均支持 Esc 取消当前层，本编辑器是
       // 唯一缺失项；且未拦截的 Esc 会穿透到页面，触发网页自身的 Esc 快捷键，
       // 在扩展全屏编辑器之下悄悄改变被遮挡页面的状态。
@@ -421,9 +581,7 @@ export class IssueEditor {
         const activeEl = document.activeElement;
         const target = resolveEscapeTarget(
           activeEl === textInputOverlay,
-          activeEl === actualInput ||
-            activeEl === expectedInput ||
-            (activeEl?.tagName === "TEXTAREA" && root.contains(activeEl))
+          activeEl === actualInput
         );
         e.preventDefault();
         e.stopPropagation();
@@ -469,6 +627,7 @@ export class IssueEditor {
       if (textInputOverlay) {
         textInputOverlay.remove();
         textInputOverlay = undefined;
+        activeField = actualInput;
       }
     };
     let targetHandleDragging = false;
@@ -526,9 +685,15 @@ export class IssueEditor {
           outline: "none",
           boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
           minWidth: "100px",
+          pointerEvents: "auto",
+          userSelect: "text",
+          cursor: "text",
+          caretColor: "#165dff",
         });
         root.appendChild(input);
         textInputOverlay = input;
+        attachFieldEventShield(input);
+        updateActiveField(input);
         setTimeout(() => input.focus(), 10);
         const submitText = () => {
           const val = input.value.trim();
@@ -547,8 +712,9 @@ export class IssueEditor {
           removeTextInputOverlay();
         };
         input.addEventListener("keydown", (e) => {
+          e.stopPropagation?.();
           if (e.key === "Enter") {
-            e.preventDefault();
+            e.preventDefault?.();
             submitText();
           } else if (e.key === "Escape") {
             removeTextInputOverlay();
@@ -686,11 +852,6 @@ export class IssueEditor {
         actualInput?.focus();
         return;
       }
-      const expectedText = root.querySelector<HTMLInputElement>(
-        "[data-issue-expected]"
-      )!.value;
-      const note =
-        root.querySelector<HTMLTextAreaElement>("[data-issue-note]")!.value;
       root.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
         button.disabled = true;
       });
@@ -703,11 +864,8 @@ export class IssueEditor {
               nonce: session.nonce,
               narrative: {
                 actual,
-                // A3 结构化提交：编辑器中的期望视为用户显式表达（explicit）
-                expected: expectedText.trim()
-                  ? { text: expectedText.trim(), confidence: "explicit" }
-                  : undefined,
-                note,
+                expected: currentExpected,
+                note: undefined,
               },
               annotation,
               stopAfterCommit,
@@ -759,7 +917,6 @@ export class IssueEditor {
       commit(false);
     };
     actualInput?.addEventListener("keydown", onSingleLineEnter);
-    expectedInput?.addEventListener("keydown", onSingleLineEnter);
   }
 
   // ─── SVG Rendering ───

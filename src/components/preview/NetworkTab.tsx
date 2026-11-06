@@ -22,6 +22,7 @@ import { copyTextToClipboard } from "../../preview/clipboard.ts";
 import { handleFilterEscape } from "../../preview/filter-search.ts";
 import { escapeHtml, renderCodeBlockHtml } from "../../preview/rendering.ts";
 import { useFilteredList } from "../../hooks/useFilteredList.ts";
+import { Select } from "../common/Select.tsx";
 import { t, getLocale } from "../../shared/i18n.ts";
 import {
   formatDateTime,
@@ -390,32 +391,21 @@ export const NetworkTab = memo(function NetworkTab({
                   color: "var(--text-muted, #6c757d)",
                   display: "flex",
                   alignItems: "center",
-                  gap: "4px",
+                  gap: "6px",
                 }}
               >
                 <span>{t("snippetTargetLabel")}</span>
-                <select
+                <Select<ApiSnippetTarget>
+                  id="snippet-target-select"
                   className="snippet-target-select"
+                  direction="down"
                   value={snippetTarget}
-                  onChange={(e) =>
-                    setSnippetTarget(
-                      (e.target as HTMLSelectElement).value as ApiSnippetTarget
-                    )
-                  }
-                  style={{
-                    padding: "2px 6px",
-                    fontSize: "12px",
-                    borderRadius: "4px",
-                    border: "1px solid var(--border-color, #ced4da)",
-                    background: "var(--bg-card, #ffffff)",
-                  }}
-                >
-                  {API_SNIPPET_TARGETS.map((opt) => (
-                    <option key={opt.key} value={opt.key}>
-                      {opt.icon} {opt.label}
-                    </option>
-                  ))}
-                </select>
+                  options={API_SNIPPET_TARGETS.map((opt) => ({
+                    value: opt.key,
+                    label: `${opt.icon} ${opt.label}`,
+                  }))}
+                  onChange={(val) => setSnippetTarget(val)}
+                />
               </label>
             </div>
           ) : null}

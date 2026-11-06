@@ -790,7 +790,7 @@ test.describe("Bug Lens Chrome Extension E2E SCREENSHOT-004: 截图文本批注�
     logE2e("inline text input spawned");
 
     // ---- 2) 输入文本 ----
-    await page.keyboard.type("Bug Lens Text");
+    await page.keyboard.type("E2E Annotation Text");
     await delay(100);
 
     // ---- 3) 点击 rect 工具按钮：blur 提交文本批注并切换工具 ----

@@ -339,11 +339,16 @@ export class InlineTextEditor {
     };
 
     input.addEventListener("keydown", (e) => {
+      e.stopPropagation?.();
       if (e.key === "Escape") {
         // 统一的 Esc 取消语义（含还原原文 / 恢复状态机）
         this.cancelEdit();
       }
     });
+    input.addEventListener("keyup", (e) => e.stopPropagation?.());
+    input.addEventListener("keypress", (e) => e.stopPropagation?.());
+    input.addEventListener("pointerdown", (e) => e.stopPropagation?.());
+    input.addEventListener("mousedown", (e) => e.stopPropagation?.());
 
     input.addEventListener("blur", () => {
       commitText();

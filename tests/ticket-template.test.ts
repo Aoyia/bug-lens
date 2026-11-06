@@ -285,6 +285,9 @@ test("buildTicketHtml & buildTicketBundle: 包含内嵌 Base64 步骤截图富�
     bundle.html.includes(`src="data:image/jpeg;base64,${base64Expected}"`)
   );
   assert.ok(bundle.html.includes('alt="Step 1 screenshot"'));
+  assert.ok(bundle.html.includes('data-interaction-id="int-click-btn"'));
+  assert.ok(bundle.html.includes("cursor: zoom-in"));
+  assert.ok(bundle.html.includes('title="点击放大查看大图"'));
   assert.ok(bundle.html.includes("[步骤 1 截图]"));
   assert.ok(!bundle.html.includes("【自动捕获异常】"));
 });
@@ -311,4 +314,166 @@ test("buildTicketTemplate: 英文模式格式校验", async () => {
   assert.ok(result.includes("Please analyze"));
   // 恢复中文
   await setUserLanguagePreference("zh-CN");
+});
+
+test("buildTicketTemplate: 方案一（DOM 语义提升、动作合并、去除机械底层标签与字体图标清洗）", async () => {
+  await setUserLanguagePreference("zh-CN");
+  const session = createMockSession();
+
+  // 模拟真实工单上报数据（包含 span、i "i"、input 聚焦+输入、div "《"）
+  const interactions = [
+    {
+      id: "int-1",
+      sessionId: session.id,
+      kind: "click" as const,
+      status: "confirmed" as const,
+      createdAt: 1000,
+      page: { url: "https://example.com", title: "Test", frameId: 0 },
+      coordinates: {} as any,
+      element: { tagName: "SPAN", text: "单人验收" },
+    },
+    {
+      id: "int-2",
+      sessionId: session.id,
+      kind: "click" as const,
+      status: "confirmed" as const,
+      createdAt: 2000,
+      page: { url: "https://example.com", title: "Test", frameId: 0 },
+      coordinates: {} as any,
+      element: { tagName: "I", text: "i", classNames: ["el-icon-info"] },
+    },
+    {
+      id: "int-3",
+      sessionId: session.id,
+      kind: "click" as const,
+      status: "confirmed" as const,
+      createdAt: 3000,
+      page: { url: "https://example.com", title: "Test", frameId: 0 },
+      coordinates: {} as any,
+      element: { tagName: "SPAN", text: "单人验收" },
+    },
+    {
+      id: "int-4",
+      sessionId: session.id,
+      kind: "click" as const,
+      status: "confirmed" as const,
+      createdAt: 4000,
+      page: { url: "https://example.com", title: "Test", frameId: 0 },
+      coordinates: {} as any,
+      element: { tagName: "SPAN", text: "不通过" },
+    },
+    // 对 input 的聚焦点击 + 随后的输入操作
+    {
+      id: "int-5",
+      sessionId: session.id,
+      kind: "click" as const,
+      status: "confirmed" as const,
+      createdAt: 5000,
+      page: { url: "https://example.com", title: "Test", frameId: 0 },
+      coordinates: {} as any,
+      element: { tagName: "INPUT", id: "input-reason", text: "2" },
+    },
+    {
+      id: "int-6",
+      sessionId: session.id,
+      kind: "input" as const,
+      status: "confirmed" as const,
+      createdAt: 5500,
+      page: { url: "https://example.com", title: "Test", frameId: 0 },
+      coordinates: {} as any,
+      element: { tagName: "INPUT", id: "input-reason", text: "2" },
+    },
+    {
+      id: "int-7",
+      sessionId: session.id,
+      kind: "click" as const,
+      status: "confirmed" as const,
+      createdAt: 6000,
+      page: { url: "https://example.com", title: "Test", frameId: 0 },
+      coordinates: {} as any,
+      element: { tagName: "BUTTON", text: "确认离开" },
+    },
+    {
+      id: "int-8",
+      sessionId: session.id,
+      kind: "click" as const,
+      status: "confirmed" as const,
+      createdAt: 7000,
+      page: { url: "https://example.com", title: "Test", frameId: 0 },
+      coordinates: {} as any,
+      element: { tagName: "LI", text: "节点移交" },
+    },
+    {
+      id: "int-9",
+      sessionId: session.id,
+      kind: "click" as const,
+      status: "confirmed" as const,
+      createdAt: 8000,
+      page: { url: "https://example.com", title: "Test", frameId: 0 },
+      coordinates: {} as any,
+      element: { tagName: "INPUT", text: "input" },
+    },
+    {
+      id: "int-10",
+      sessionId: session.id,
+      kind: "click" as const,
+      status: "confirmed" as const,
+      createdAt: 9000,
+      page: { url: "https://example.com", title: "Test", frameId: 0 },
+      coordinates: {} as any,
+      element: { tagName: "LI", text: "kentest41" },
+    },
+    {
+      id: "int-11",
+      sessionId: session.id,
+      kind: "click" as const,
+      status: "confirmed" as const,
+      createdAt: 10000,
+      page: { url: "https://example.com", title: "Test", frameId: 0 },
+      coordinates: {} as any,
+      element: { tagName: "DIV", text: "《" },
+    },
+  ];
+
+  const snapshot: EvidencePackageSnapshot = {
+    session,
+    interactions: interactions as any,
+    consoleEntries: [],
+    networkEntries: [],
+    excluded: { interaction: 0, console: 0, network: 0 },
+    hasMedia: true,
+  };
+
+  const result = buildTicketTemplate(snapshot);
+
+  // 1. span 包装标签不再原样暴露
+  assert.ok(result.includes('1. 点击 "单人验收"'));
+  assert.ok(!result.includes('点击 span "单人验收"'));
+
+  // 2. 字体图标 "i" 被清洗，转化为图标语义描述
+  assert.ok(!result.includes('点击 i "i"'));
+  assert.ok(result.includes("2. 点击 详情/提示图标"));
+
+  // 3. span "不通过" 转为自然可读点击
+  assert.ok(result.includes('3. 点击 "单人验收"'));
+  assert.ok(result.includes('4. 点击 "不通过"'));
+  assert.ok(!result.includes('点击 span "不通过"'));
+
+  // 4. 对同一 input 的聚焦 click 与 input 操作被合并，只保留输入
+  assert.ok(!result.includes('点击 input "2"'));
+  assert.ok(result.includes('5. 输入 input "2"'));
+
+  // 5. 按钮与列表项正常保留
+  assert.ok(result.includes('6. 点击 button "确认离开"'));
+  assert.ok(result.includes('7. 点击 li "节点移交"'));
+
+  // 6. 重复的 input 标签名被清洗
+  assert.ok(result.includes("8. 点击 input"));
+  assert.ok(!result.includes('点击 input "input"'));
+
+  assert.ok(result.includes('9. 点击 li "kentest41"'));
+
+  // 7. 特殊符号 "《" 识别为折叠/返回
+  assert.ok(result.includes('10. 点击 折叠/返回 "《"'));
+  assert.ok(!result.includes('点击 div "《"'));
 });

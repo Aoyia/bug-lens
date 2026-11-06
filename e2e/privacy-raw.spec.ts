@@ -100,6 +100,8 @@ test.describe("Bug Lens Chrome Extension E2E PRIV-002: Raw Mode Risk Warning & E
 
     if (!(await popup.isVisible("#privacy"))) {
       await popup.click("#toggle-options");
+      await popup.waitForSelector(".advanced-panel-wrapper.open");
+      await new Promise((resolve) => setTimeout(resolve, 300));
     }
     await popup.waitForSelector("#privacy");
 

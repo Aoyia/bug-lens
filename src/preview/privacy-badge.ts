@@ -18,10 +18,19 @@ export function applyPrivacyBadge(
     return;
   }
   const mode = session.options.privacyMode;
-  const isRaw = mode === "raw";
   badge.hidden = false;
-  badge.textContent = isRaw ? t("privacyModeRaw") : t("privacyModeSafe");
-  badge.title = isRaw ? t("privacyModeRawDesc") : t("privacyModeSafeDesc");
+  const isRaw = mode === "raw";
+  const isStrict = mode === "strict";
+  if (isRaw) {
+    badge.textContent = t("privacyModeRaw");
+    badge.title = t("privacyModeRawDesc");
+  } else if (isStrict) {
+    badge.textContent = t("privacyModeStrict");
+    badge.title = t("privacyModeStrictDesc");
+  } else {
+    badge.textContent = t("privacyModeSafe");
+    badge.title = t("privacyModeSafeDesc");
+  }
   badge.classList.toggle("is-raw", isRaw);
   badge.classList.toggle("is-safe", !isRaw);
 }

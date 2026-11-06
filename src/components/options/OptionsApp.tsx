@@ -794,7 +794,7 @@ export function OptionsApp() {
               {typeof chrome !== "undefined" &&
               chrome.runtime?.getManifest?.()?.version
                 ? chrome.runtime.getManifest().version
-                : "0.7.39"}
+                : "0.7.40"}
             </div>
           </aside>
 
@@ -1327,12 +1327,12 @@ export function OptionsApp() {
                   <div className="setting-control">
                     <SegmentedControl
                       ariaLabel={t("responseBodiesLabel")}
-                      value={settings.defaultRecording.responseBodyPolicy}
+                      value={
+                        settings.defaultRecording.responseBodyPolicy === "full"
+                          ? "full"
+                          : "standard"
+                      }
                       options={[
-                        {
-                          value: "disabled",
-                          label: t("responseBodiesDisabled"),
-                        },
                         {
                           value: "standard",
                           label: t("responseBodiesStandard"),
@@ -1392,6 +1392,7 @@ export function OptionsApp() {
                       value={settings.defaultRecording.privacyMode}
                       options={[
                         { value: "safe", label: t("safeMode") },
+                        { value: "strict", label: t("strictMode") },
                         { value: "raw", label: t("rawMode") },
                       ]}
                       onChange={(val) =>

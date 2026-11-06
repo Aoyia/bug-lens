@@ -371,9 +371,23 @@ body {
   visibility: hidden;
 }
 .advanced-panel-wrapper.open {
+  position: relative;
+  z-index: 20;
   grid-template-rows: 1fr;
   visibility: visible;
   transition: grid-template-rows 0.26s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.advanced-panel-wrapper.open .advanced-panel-inner {
+  overflow: visible;
+}
+@media (prefers-reduced-motion: reduce) {
+  .advanced-panel-wrapper,
+  .advanced-panel-wrapper.open,
+  .advanced-panel,
+  .toggle-options-btn svg {
+    transition: none !important;
+    animation: none !important;
+  }
 }
 .advanced-panel-inner {
   overflow: hidden;
@@ -390,7 +404,7 @@ body {
 }
 .advanced-panel-wrapper.open .advanced-panel {
   opacity: 1;
-  transform: translateY(0);
+  transform: none;
 }
 .scopes-grid {
   display: grid;
@@ -399,6 +413,7 @@ body {
   margin-bottom: 8px;
 }
 .scope-chip {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -420,11 +435,16 @@ body {
   background: #e5e6eb;
   color: #1d2129;
 }
+.scope-chip:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
 .scope-chip span {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   text-align: center;
+  pointer-events: none;
 }
 .scope-chip:has(input:checked) {
   background: rgba(37, 99, 235, 0.08);
@@ -437,7 +457,16 @@ body {
   border-color: rgba(37, 99, 235, 0.35);
 }
 .scope-chip input[type="checkbox"] {
-  display: none;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.scope-chip input[type="checkbox"]:disabled {
+  cursor: not-allowed;
 }
 .privacy-select {
   width: 100%;
@@ -450,135 +479,6 @@ body {
   border-radius: var(--radius-sm);
   outline: none;
   cursor: pointer;
-}
-
-/* Popup 纯 DOM 向上展开下拉组件规范 */
-.popup-select {
-  position: relative;
-  user-select: none;
-  box-sizing: border-box;
-}
-/* 消除容器层背景与边框，视觉统一由内部 trigger 独占 */
-.popup-select.privacy-select {
-  background: transparent;
-  border: none;
-  padding: 0;
-  height: 24px;
-  box-shadow: none;
-  outline: none;
-}
-.popup-select-trigger {
-  width: 100%;
-  height: 24px;
-  padding: 0 8px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 4px;
-  font-size: 11px;
-  color: var(--ink-main);
-  background: #f4f5f7;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  outline: none;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  box-sizing: border-box;
-}
-.popup-select-trigger:hover:not(:disabled) {
-  background: #e5e6eb;
-  border-color: rgba(0, 0, 0, 0.12);
-}
-.popup-select-open .popup-select-trigger,
-.popup-select-trigger:focus-visible {
-  background: #ffffff;
-  border-color: var(--primary);
-  box-shadow: 0 0 0 2px rgba(22, 93, 255, 0.2);
-}
-.popup-select-disabled .popup-select-trigger,
-.popup-select-trigger:disabled {
-  background: #f0f1f4;
-  color: var(--ink-sub);
-  border-color: rgba(0, 0, 0, 0.05);
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-.popup-select-value {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  text-align: left;
-}
-.popup-select-suffix {
-  display: inline-flex;
-  align-items: center;
-  flex-shrink: 0;
-}
-.popup-select-arrow {
-  flex-shrink: 0;
-  color: var(--ink-muted);
-  transition: transform 0.2s cubic-bezier(0, 0, 1, 1);
-}
-.popup-select-open .popup-select-arrow {
-  transform: rotate(180deg);
-}
-.popup-select-menu {
-  position: absolute;
-  bottom: calc(100% + 4px);
-  left: 0;
-  min-width: 100%;
-  width: max-content;
-  max-width: 220px;
-  background: #ffffff;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: var(--radius-sm);
-  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.1);
-  padding: 4px;
-  z-index: 1000;
-  box-sizing: border-box;
-  transform-origin: center bottom;
-  animation: popupSelectIn 0.12s ease-out;
-}
-@keyframes popupSelectIn {
-  from {
-    opacity: 0;
-    transform: scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-.popup-select-item {
-  height: 26px;
-  padding: 0 8px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 11px;
-  color: var(--ink-main);
-  border-radius: 2px;
-  cursor: pointer;
-  transition: background 0.12s ease;
-  white-space: nowrap;
-}
-.popup-select-item:hover {
-  background: #f2f3f5;
-}
-.popup-select-item-selected {
-  color: var(--primary);
-  font-weight: 500;
-}
-.popup-select-item-disabled {
-  color: var(--ink-muted);
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-.popup-select-check {
-  flex-shrink: 0;
-  color: var(--primary);
 }
 
 /* 禁用态与录制锁定态交互反馈：光标统一 not-allowed，透明度弱化，且保持选中项的只读对比度 */
@@ -617,6 +517,10 @@ body {
   justify-content: space-between;
   gap: 6px;
   margin-top: 7px;
+}
+.video-quality-row:has(.popup-select-open) {
+  position: relative;
+  z-index: 1000;
 }
 .video-quality-label {
   width: 96px;
@@ -1038,6 +942,14 @@ input[type="search"] {
   color: var(--ink-main);
   outline: none;
   transition: all 0.15s ease;
+}
+/* 消除 WebKit 浏览器原生搜索输入框内部灰度清除叉号与修饰 */
+input[type="search"]::-webkit-search-decoration,
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-results-button,
+input[type="search"]::-webkit-search-results-decoration {
+  -webkit-appearance: none;
+  display: none;
 }
 input[type="search"]:focus {
   background: #ffffff;

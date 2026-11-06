@@ -133,7 +133,7 @@ export type RecordingOptions = {
   captureFrameworkState?: boolean;
   captureSource?: "tab" | "window" | "screen";
   autoTrackDerivedTabs?: boolean;
-  privacyMode: "safe" | "raw";
+  privacyMode: "safe" | "strict" | "raw";
   mediaTimesliceMs: number;
   maxResponseBodyBytes: number;
   maxSessionBytes: number;
@@ -1074,7 +1074,7 @@ export type RuntimeMessageResponseMap = {
     sessionId?: string;
     nonce?: string;
     startedAtEpochMs?: number;
-    privacyMode?: "safe" | "raw";
+    privacyMode?: "safe" | "strict" | "raw";
     captureFrameworkState?: boolean;
     health?: RecordingHealthInfo;
     frameId?: number;

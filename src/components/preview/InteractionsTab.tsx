@@ -6,6 +6,7 @@ import type {
 } from "../../shared/protocol";
 import {
   groupInteractions,
+  resolveSemanticElementName,
   type GroupedInteractionCard,
 } from "../../domain/interaction-grouping";
 import { formatElapsedEpochTime } from "../../domain/evidence-clock";
@@ -211,11 +212,32 @@ export const InteractionsTab = memo(function InteractionsTab({
           (card.aggregatedMeta.finalValue
             ? card.aggregatedMeta.finalValue.length
             : undefined);
-        const textDisplay = card.aggregatedMeta.finalValue
-          ? t("aiStepValue", card.aggregatedMeta.finalValue)
-          : inputLength !== undefined
-            ? t("inputCharsRedacted", String(inputLength))
-            : element.text || "-";
+
+        const cleanRawText =
+          element.text &&
+          element.text.trim() !== "i" &&
+          element.text.trim() !== "I"
+            ? element.text
+            : undefined;
+
+        let textDisplay = "-";
+        if (card.aggregatedMeta.finalValue) {
+          textDisplay = t("aiStepValue", card.aggregatedMeta.finalValue);
+        } else if (inputLength !== undefined) {
+          textDisplay = t("inputCharsRedacted", String(inputLength));
+        } else if (cleanRawText) {
+          textDisplay = cleanRawText;
+        } else {
+          const semanticName = resolveSemanticElementName(element);
+          if (
+            semanticName &&
+            semanticName !== element.tagName.toLowerCase() &&
+            semanticName !== "页面区域" &&
+            semanticName !== "element"
+          ) {
+            textDisplay = `${semanticName}${t("inferredSemanticSuffix") || " (语义推导)"}`;
+          }
+        }
 
         return (
           <article

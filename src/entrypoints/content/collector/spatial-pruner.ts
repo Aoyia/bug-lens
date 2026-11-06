@@ -46,7 +46,7 @@ export class SpatialPruner {
    */
   public static extractSpatialSnapshot(
     box: BoundingBox,
-    privacyMode: "safe" | "raw" = "safe"
+    privacyMode: "safe" | "strict" | "raw" = "safe"
   ): SpatialSnapshotResult {
     const matchedElements: Element[] = [];
     const matchedComponents: Array<{

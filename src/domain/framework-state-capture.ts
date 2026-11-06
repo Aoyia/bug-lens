@@ -124,7 +124,7 @@ function snapshotStorage(
 }
 
 export function captureWebStorage(
-  privacyMode: "safe" | "raw"
+  privacyMode: "safe" | "strict" | "raw"
 ): FrameworkStateEvidence["webStorage"] {
   if (typeof window === "undefined") return undefined;
   const safeMode = privacyMode !== "raw";
@@ -152,7 +152,7 @@ function captureTree(): FrameworkSnapshot | undefined {
 export function captureFrameworkState(input: {
   sessionId: string;
   trigger: FrameworkStateTrigger;
-  privacyMode: "safe" | "raw";
+  privacyMode: "safe" | "strict" | "raw";
   frameId?: number;
 }): FrameworkStateEvidence {
   const now = Date.now();

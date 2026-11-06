@@ -1,4 +1,9 @@
 import { message, type InteractionRecord } from "../../../shared/protocol";
+import {
+  type PrivacyMode,
+  isSensitiveKeyName,
+  containsSensitiveData,
+} from "../../../domain/privacy-policy";
 import { describe, isWidgetElement } from "./dom-snapshot";
 import { normalizeCoordinates } from "./frame-geometry";
 
@@ -7,7 +12,7 @@ export type DomObserverDeps = {
     | {
         nonce: string;
         sessionId: string;
-        privacyMode: "safe" | "raw";
+        privacyMode: PrivacyMode;
         frameId?: number;
       }
     | undefined;
@@ -196,6 +201,56 @@ export class DomObserver {
     return path.find((item): item is Element => item instanceof Element);
   }
 
+  private findInteractiveTarget(
+    path: EventTarget[],
+    fallback?: Element
+  ): Element | undefined {
+    const elements = path.filter(
+      (item): item is Element => item instanceof Element
+    );
+    if (elements.length === 0) {
+      return fallback && !isWidgetElement(fallback) ? fallback : undefined;
+    }
+
+    for (const el of elements) {
+      if (isWidgetElement(el)) return undefined;
+      const tag = el.tagName.toLowerCase();
+      if (tag === "body" || tag === "html") break;
+
+      if (
+        tag === "button" ||
+        tag === "a" ||
+        tag === "input" ||
+        tag === "select" ||
+        tag === "textarea"
+      ) {
+        return el;
+      }
+      const role = el.getAttribute("role");
+      if (
+        role &&
+        /^(button|tab|menuitem|menuitemcheckbox|menuitemradio|option|checkbox|radio|switch|link|treeitem)$/i.test(
+          role
+        )
+      ) {
+        return el;
+      }
+      if (tag === "summary" || tag === "label" || tag === "li") {
+        return el;
+      }
+      if (
+        el.classList.contains("el-button") ||
+        el.classList.contains("ant-btn") ||
+        el.classList.contains("btn")
+      ) {
+        return el;
+      }
+    }
+
+    const first = elements[0] ?? fallback;
+    return first && !isWidgetElement(first) ? first : undefined;
+  }
+
   private send(
     record: InteractionRecord,
     type:
@@ -382,50 +437,81 @@ export class DomObserver {
     };
   }
 
+  private isElementSensitive(element: Element): boolean {
+    if (
+      element instanceof HTMLInputElement &&
+      element.type.toLowerCase() === "password"
+    ) {
+      return true;
+    }
+    const name = element.getAttribute("name");
+    const id = element.id || element.getAttribute("id");
+    const autocomplete = element.getAttribute("autocomplete");
+    const ariaLabel = element.getAttribute("aria-label");
+    return Boolean(
+      (name && isSensitiveKeyName(name)) ||
+      (id && isSensitiveKeyName(id)) ||
+      (autocomplete && isSensitiveKeyName(autocomplete)) ||
+      (ariaLabel && isSensitiveKeyName(ariaLabel))
+    );
+  }
+
   private inputMetadata(
     element: Element,
-    session: { privacyMode: "safe" | "raw" },
+    session: { privacyMode: PrivacyMode },
     event?: InputEvent
   ): InteractionRecord["metadata"] {
-    const safeMode = session.privacyMode !== "raw";
+    const isSensitive = this.isElementSensitive(element);
+    const isStrict = session.privacyMode === "strict";
+    const isRaw = session.privacyMode === "raw";
+
     if (element instanceof HTMLInputElement) {
       const password = element.type.toLowerCase() === "password";
+      const rawVal = element.value;
+      const redact =
+        !isRaw && (isStrict || isSensitive || containsSensitiveData(rawVal));
       return {
         inputType: event?.inputType || element.type || "text",
-        value:
-          !safeMode && !password ? element.value.slice(0, 2_048) : undefined,
-        valueLength: element.value.length,
-        valueRedacted: safeMode || password || undefined,
+        value: !redact ? rawVal.slice(0, 2_048) : undefined,
+        valueLength: rawVal.length,
+        valueRedacted: redact || password || undefined,
         checked: ["checkbox", "radio"].includes(element.type.toLowerCase())
           ? element.checked
           : undefined,
       };
     }
     if (element instanceof HTMLTextAreaElement) {
+      const rawVal = element.value;
+      const redact =
+        !isRaw && (isStrict || isSensitive || containsSensitiveData(rawVal));
       return {
         inputType: event?.inputType || "textarea",
-        value: safeMode ? undefined : element.value.slice(0, 2_048),
-        valueLength: element.value.length,
-        valueRedacted: safeMode || undefined,
+        value: !redact ? rawVal.slice(0, 2_048) : undefined,
+        valueLength: rawVal.length,
+        valueRedacted: redact || undefined,
       };
     }
     if (element instanceof HTMLSelectElement) {
       const selected = Array.from(element.selectedOptions);
       const rawValue = selected.map((option) => option.value).join(",");
+      const redact =
+        !isRaw && (isStrict || isSensitive || containsSensitiveData(rawValue));
       return {
         inputType: element.multiple ? "select-multiple" : "select-one",
-        value: safeMode ? undefined : rawValue.slice(0, 2_048),
+        value: !redact ? rawValue.slice(0, 2_048) : undefined,
         valueLength: rawValue.length,
-        valueRedacted: safeMode || undefined,
+        valueRedacted: redact || undefined,
         selectedCount: selected.length,
       };
     }
     const text = element.textContent ?? "";
+    const redact =
+      !isRaw && (isStrict || isSensitive || containsSensitiveData(text));
     return {
       inputType: event?.inputType || "contenteditable",
-      value: safeMode ? undefined : text.slice(0, 2_048),
+      value: !redact ? text.slice(0, 2_048) : undefined,
       valueLength: text.length,
-      valueRedacted: safeMode || undefined,
+      valueRedacted: redact || undefined,
     };
   }
 
@@ -435,7 +521,10 @@ export class DomObserver {
     if (this.deps.isIssueActive()) return;
     const session = this.deps.getSession();
     if (!session || !event.isTrusted) return;
-    const element = this.firstElement(event.composedPath());
+    const element = this.findInteractiveTarget(
+      event.composedPath(),
+      event.target instanceof Element ? event.target : undefined
+    );
     if (!element || isWidgetElement(element)) return;
     const record = this.createRecord(event, element, "candidate");
     this.pending.set(record.id, record);
@@ -458,9 +547,10 @@ export class DomObserver {
     if (this.deps.isIssueActive()) return;
     const session = this.deps.getSession();
     if (!session || !event.isTrusted) return;
-    const element =
-      this.firstElement(event.composedPath()) ??
-      (event.target instanceof Element ? event.target : undefined);
+    const element = this.findInteractiveTarget(
+      event.composedPath(),
+      event.target instanceof Element ? event.target : undefined
+    );
     if (!element || isWidgetElement(element)) return;
     const nearest = Array.from(this.pending.values()).find(
       (candidate) =>
@@ -720,7 +810,7 @@ export class DomObserver {
   private onFileUpload(
     event: Event,
     input: HTMLInputElement,
-    session: { nonce: string; sessionId: string; privacyMode: "safe" | "raw" }
+    session: { nonce: string; sessionId: string; privacyMode: PrivacyMode }
   ): void {
     const files = input.files;
     if (!files || files.length === 0) return;

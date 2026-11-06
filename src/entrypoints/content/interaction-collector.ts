@@ -44,10 +44,16 @@ type ContentSession = {
   sessionId: string;
   nonce: string;
   startedAtEpochMs?: number;
-  privacyMode: "safe" | "raw";
+  privacyMode: "safe" | "strict" | "raw";
   captureFrameworkState?: boolean;
   frameId?: number;
 };
+
+function normalizePrivacyMode(mode?: string): "safe" | "strict" | "raw" {
+  if (mode === "raw") return "raw";
+  if (mode === "strict") return "strict";
+  return "safe";
+}
 type ContentController = {
   refresh: (next: ContentSession | undefined) => void;
 };
@@ -99,7 +105,7 @@ if (existingController) {
               nonce: response.nonce,
               frameId: response.frameId ?? (isTopFrame ? 0 : -1),
               startedAtEpochMs: response.startedAtEpochMs,
-              privacyMode: response.privacyMode === "raw" ? "raw" : "safe",
+              privacyMode: normalizePrivacyMode(response.privacyMode),
               captureFrameworkState: Boolean(response.captureFrameworkState),
             }
           : undefined
@@ -713,7 +719,7 @@ if (existingController) {
                   nonce: response.nonce!,
                   frameId: response.frameId ?? (isTopFrame ? 0 : -1),
                   startedAtEpochMs: response.startedAtEpochMs,
-                  privacyMode: response.privacyMode === "raw" ? "raw" : "safe",
+                  privacyMode: normalizePrivacyMode(response.privacyMode),
                   captureFrameworkState: Boolean(
                     response.captureFrameworkState
                   ),
@@ -746,7 +752,7 @@ if (existingController) {
               nonce: response.nonce,
               frameId: response.frameId ?? (isTopFrame ? 0 : -1),
               startedAtEpochMs: response.startedAtEpochMs,
-              privacyMode: response.privacyMode === "raw" ? "raw" : "safe",
+              privacyMode: normalizePrivacyMode(response.privacyMode),
               captureFrameworkState: Boolean(response.captureFrameworkState),
             }
           : undefined,

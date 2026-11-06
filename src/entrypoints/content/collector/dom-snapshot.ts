@@ -4,6 +4,11 @@ import type {
   FrameworkSnapshot,
   TargetDomSnapshot,
 } from "../../../shared/protocol";
+import {
+  type PrivacyMode,
+  isSensitiveKeyName,
+  containsSensitiveData,
+} from "../../../domain/privacy-policy";
 import { detectVue } from "../vue-detector";
 import { detectReact } from "../react-detector";
 
@@ -29,7 +34,7 @@ export function cssEscape(value: string): string {
 
 export function textOf(
   element: Element,
-  privacyMode: "safe" | "raw"
+  privacyMode: PrivacyMode
 ): string | undefined {
   const isInput =
     typeof HTMLInputElement !== "undefined" &&
@@ -46,8 +51,31 @@ export function textOf(
     (element as HTMLInputElement).type?.toLowerCase() === "password"
   )
     return undefined;
-  if (privacyMode === "safe" && (isInput || isTextarea || isSelect))
+  if (privacyMode === "strict" && (isInput || isTextarea || isSelect))
     return undefined;
+  if (privacyMode === "safe" && (isInput || isTextarea || isSelect)) {
+    const name = element.getAttribute("name");
+    const id = element.id || element.getAttribute("id");
+    const autocomplete = element.getAttribute("autocomplete");
+    const ariaLabel = element.getAttribute("aria-label");
+    if (
+      (name && isSensitiveKeyName(name)) ||
+      (id && isSensitiveKeyName(id)) ||
+      (autocomplete && isSensitiveKeyName(autocomplete)) ||
+      (ariaLabel && isSensitiveKeyName(ariaLabel))
+    ) {
+      return undefined;
+    }
+    const val =
+      isInput || isTextarea
+        ? (element as HTMLInputElement | HTMLTextAreaElement).value
+        : isSelect
+          ? (element as HTMLSelectElement).value
+          : undefined;
+    if (containsSensitiveData(val)) {
+      return undefined;
+    }
+  }
   const labelled =
     element.getAttribute("aria-label") ||
     element.getAttribute("alt") ||
@@ -57,7 +85,23 @@ export function textOf(
     (isInput || isTextarea
       ? (element as HTMLInputElement | HTMLTextAreaElement).value
       : element.textContent);
-  return text?.replace(/\s+/g, " ").trim().slice(0, 256) || undefined;
+  const clean = text?.replace(/\s+/g, " ").trim().slice(0, 256) || undefined;
+  if (!clean) return undefined;
+
+  // 图标类元素（i/svg/class包含icon）的无意义占位符过滤（如字体图标 "i"、"I" 或私有区代码点）
+  const tag = element.tagName.toLowerCase();
+  const isIconLike =
+    tag === "i" ||
+    tag === "svg" ||
+    Array.from(element.classList).some((c) => /icon|ico\b/i.test(c));
+  if (
+    isIconLike &&
+    !labelled &&
+    (clean.length <= 1 || /^[\ue000-\uf8ff]$/u.test(clean))
+  ) {
+    return undefined;
+  }
+  return clean;
 }
 
 export function getFrameSelector(frameEl: Element): string {
@@ -171,7 +215,7 @@ export function getFrameSelectorChain(win: Window | null): string[] {
 
 export function buildLocators(
   element: Element,
-  privacyMode: "safe" | "raw"
+  privacyMode: PrivacyMode
 ): ElementDescriptor["locators"] {
   const candidates: ElementDescriptor["locators"] = [];
   const root = element.getRootNode() as Document | ShadowRoot;
@@ -252,11 +296,96 @@ function probeElement(element: HTMLElement): FrameworkSnapshot | undefined {
   return detectVue(element) ?? detectReact(element);
 }
 
+export function resolveAccessibleName(element: Element): string | undefined {
+  // 1. 直接属性
+  const ariaLabel = element.getAttribute("aria-label")?.trim();
+  if (ariaLabel) return ariaLabel.slice(0, 256);
+
+  const title = element.getAttribute("title")?.trim();
+  if (title) return title.slice(0, 256);
+
+  // 2. aria-labelledby
+  const labelledBy = element.getAttribute("aria-labelledby");
+  if (labelledBy && element.ownerDocument) {
+    const ids = labelledBy.split(/\s+/).filter(Boolean);
+    const texts = ids
+      .map((id) =>
+        element.ownerDocument.getElementById(id)?.textContent?.trim()
+      )
+      .filter(Boolean);
+    if (texts.length > 0) {
+      return texts.join(" ").slice(0, 256);
+    }
+  }
+
+  // 3. 表单项关联 label
+  const tag = element.tagName.toLowerCase();
+  if (tag === "input" || tag === "textarea" || tag === "select") {
+    if (element.id && element.ownerDocument) {
+      const labelEl = element.ownerDocument.querySelector(
+        `label[for="${cssEscape(element.id)}"]`
+      );
+      const labelText = labelEl?.textContent
+        ?.replace(/\s+/g, " ")
+        .replace(/[:：]\s*$/, "")
+        .trim();
+      if (labelText) return labelText.slice(0, 256);
+    }
+    const parentLabel = element.closest("label");
+    if (parentLabel) {
+      const parentLabelText = parentLabel.textContent
+        ?.replace(/\s+/g, " ")
+        .replace(/[:：]\s*$/, "")
+        .trim();
+      if (parentLabelText) return parentLabelText.slice(0, 256);
+    }
+    const formItem = element.closest(
+      ".el-form-item, .ant-form-item, .form-group, .form-item, [class*='form-item']"
+    );
+    if (formItem) {
+      const labelEl = formItem.querySelector(
+        ".el-form-item__label, .ant-form-item-label, label, [class*='label']"
+      );
+      const formLabelText = labelEl?.textContent
+        ?.replace(/\s+/g, " ")
+        .replace(/[:：]\s*$/, "")
+        .trim();
+      if (formLabelText) return formLabelText.slice(0, 256);
+    }
+    const placeholder = element.getAttribute("placeholder")?.trim();
+    if (placeholder) return placeholder.slice(0, 256);
+  }
+
+  // 4. 图标类语义嗅探（从类名中解析意图）
+  const isIconLike =
+    tag === "i" ||
+    tag === "svg" ||
+    Array.from(element.classList).some((c) => /icon|ico\b/i.test(c));
+  if (isIconLike) {
+    const classStr = Array.from(element.classList).join(" ").toLowerCase();
+    if (/close|cancel/i.test(classStr)) return "关闭图标";
+    if (/arrow-left|prev|back|fold|collapse/i.test(classStr))
+      return "返回/折叠";
+    if (/arrow-right|next|expand|unfold/i.test(classStr)) return "前进/展开";
+    if (/arrow-down|caret-down/i.test(classStr)) return "下拉";
+    if (/arrow-up|caret-up/i.test(classStr)) return "收起";
+    if (/delete|remove|trash/i.test(classStr)) return "删除";
+    if (/edit|pencil/i.test(classStr)) return "编辑";
+    if (/search/i.test(classStr)) return "搜索";
+    if (/refresh|reload/i.test(classStr)) return "刷新";
+    if (/info|help|question/i.test(classStr)) return "详情/提示";
+    if (/check|success/i.test(classStr)) return "确认";
+    if (/more/i.test(classStr)) return "更多";
+  }
+
+  return undefined;
+}
+
 // ─── Element Descriptor ───
 
 export function describe(
   element: Element,
-  privacyMode: "safe" | "raw"
+  privacyMode: PrivacyMode
 ): ElementDescriptor {
   const rect = element.getBoundingClientRect();
   const attributes: Record<string, string> = {};
@@ -279,7 +408,7 @@ export function describe(
     attributes,
     text: textOf(element, privacyMode),
     role,
-    accessibleName: element.getAttribute("aria-label") || undefined,
+    accessibleName: resolveAccessibleName(element),
     boundingBox: {
       x: rect.x,
       y: rect.y,
@@ -343,7 +472,7 @@ export function snapshotHtml(element: Element): {
 
 export function buildDomSnapshot(
   element: Element,
-  privacyMode: "safe" | "raw"
+  privacyMode: PrivacyMode
 ): TargetDomSnapshot {
   const ancestors: DomAncestorSnapshot[] = [];
   let currEl: Element | null = element;

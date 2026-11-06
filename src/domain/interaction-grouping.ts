@@ -143,6 +143,96 @@ export function groupInteractions(
   return groups.map((children) => buildCard(children, translate));
 }
 
+/**
+ * 解析并提升元素的业务/语义名称，杜绝将 "i"、"span" 等无语义标签裸露在卡片标题中
+ */
+export function resolveSemanticElementName(element: ElementDescriptor): string {
+  const rawTag = element.tagName ? element.tagName.toLowerCase() : "element";
+  const classes = element.classNames || [];
+  const classStr = classes.join(" ").toLowerCase();
+
+  // 1. 获取原始候选文本
+  let rawText = element.accessibleName || element.text || "";
+  rawText = String(rawText)
+    .replace(/[\r\n]+/g, " ")
+    .trim();
+
+  // 2. 清洗字体图标占位符与机械 tag 名
+  const isIconTag =
+    rawTag === "i" ||
+    rawTag === "svg" ||
+    classes.some((c) => /icon|ico\b/i.test(c));
+
+  if (isIconTag && (rawText.toLowerCase() === "i" || rawText.length <= 1)) {
+    rawText = "";
+  }
+  if (rawTag === "input" && rawText.toLowerCase() === "input") {
+    rawText = "";
+  }
+
+  // 3. 特殊字符业务符号意图映射
+  if (
+    rawText === "《" ||
+    rawText === "<" ||
+    rawText === "‹" ||
+    rawText === "«"
+  ) {
+    return `折叠/返回 "${rawText}"`;
+  }
+  if (
+    rawText === "》" ||
+    rawText === ">" ||
+    rawText === "›" ||
+    rawText === "»"
+  ) {
+    return `展开/前进 "${rawText}"`;
+  }
+  if (
+    rawText === "×" ||
+    rawText === "X" ||
+    rawText === "x" ||
+    rawText === "✕" ||
+    rawText === "✖"
+  ) {
+    return `关闭 "${rawText}"`;
+  }
+
+  // 4. 若已有清洗后的有效文本，优先使用
+  if (rawText) {
+    return rawText;
+  }
+
+  // 5. 图标类元素：从类名中推导意图，杜绝暴露裸标签 "i"
+  if (isIconTag) {
+    if (/close|cancel/i.test(classStr)) return "关闭图标";
+    if (/arrow-left|prev|back|fold|collapse/i.test(classStr))
+      return "返回/折叠";
+    if (/arrow-right|next|expand|unfold/i.test(classStr)) return "前进/展开";
+    if (/arrow-down|caret-down/i.test(classStr)) return "下拉";
+    if (/arrow-up|caret-up/i.test(classStr)) return "收起";
+    if (/delete|remove|trash/i.test(classStr)) return "删除";
+    if (/edit|pencil/i.test(classStr)) return "编辑";
+    if (/search/i.test(classStr)) return "搜索";
+    if (/refresh|reload/i.test(classStr)) return "刷新";
+    if (/info|help|question/i.test(classStr)) return "详情/提示";
+    if (/check|success/i.test(classStr)) return "确认";
+    if (/more/i.test(classStr)) return "更多";
+    return "图标按钮";
+  }
+
+  // 6. 其他元素：优先使用 ID
+  if (element.id) {
+    return element.id;
+  }
+
+  // 7. 布局类包装标签（span, div），如果没有任何文本和类名意图
+  if (rawTag === "span" || rawTag === "div") {
+    return "页面区域";
+  }
+
+  return rawTag;
+}
+
 function buildCard(
   children: InteractionRecord[],
   translate: TranslateFn
@@ -153,10 +243,9 @@ function buildCard(
   if (children.length === 1) {
     const record = children[0];
     const elemName =
-      record.element.accessibleName ||
-      record.element.text ||
-      record.element.id ||
-      record.element.tagName.toLowerCase();
+      record.element.id && !record.element.text
+        ? record.element.id
+        : resolveSemanticElementName(record.element);
     const actionLabel =
       record.kind === "click"
         ? translate("stepClick")
@@ -265,10 +354,9 @@ function buildCard(
     ) ||
     screenshotRecord;
 
-  const elemTag = first.element.tagName.toLowerCase();
   const elemIdentifier = first.element.id
     ? `#${first.element.id}`
-    : first.element.accessibleName || first.element.text || elemTag;
+    : resolveSemanticElementName(first.element);
 
   let title = "";
   if (kind === "form_input_submit") {

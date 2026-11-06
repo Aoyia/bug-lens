@@ -79,6 +79,12 @@ function createElementMock(tag: string, created: any[]) {
     },
     remove() {},
     focus() {},
+    contains(child: any) {
+      if (child === this) return true;
+      return this.children.some(
+        (c) => c === child || (c.contains && c.contains(child))
+      );
+    },
     click() {
       (this.listeners["click"] || []).forEach((fn) =>
         fn({ stopPropagation() {}, preventDefault() {} })
@@ -100,6 +106,7 @@ function createDomMock() {
   const window = {
     innerWidth: undefined as number | undefined,
     innerHeight: undefined as number | undefined,
+    windowListeners,
     addEventListener(type: string, fn: Handler) {
       (windowListeners[type] ||= []).push(fn);
     },
@@ -161,6 +168,7 @@ function openCard(
     card,
     calls,
     restore() {
+      card.close();
       (globalThis as any).document = prevDocument;
       (globalThis as any).window = prevWindow;
     },
@@ -267,4 +275,84 @@ test("速记卡：在视窗黄金分割处居中弹出，避免与录制挂件�
     /transform:\s*["']translateX\(-50%\)["']/,
     "速记卡应通过 transform 水平居中"
   );
+});
+
+test("速记卡：焦点隔离与防劫持屏障（阻止外部模态夺焦并阻断事件外溢）", () => {
+  const ctx = openCard();
+  try {
+    const input = ctx.dom.findByAttr("data-expected-input", "true");
+    assert.ok(input, "应存在期望输入框");
+
+    // 1. 卡片内部聚焦时，阻止向 document/宿主外溢
+    let stoppedImmediate = false;
+    let preventedDefault = false;
+    const innerFocusEvent = {
+      target: input,
+      stopImmediatePropagation: () => {
+        stoppedImmediate = true;
+      },
+      preventDefault: () => {
+        preventedDefault = true;
+      },
+    };
+    const focusinListeners =
+      (ctx.dom.window as any).windowListeners?.["focusin"] || [];
+    // 验证捕获监听器已注册
+    assert.ok(focusinListeners.length > 0, "应注册 window focusin 捕获监听器");
+    focusinListeners[0](innerFocusEvent);
+    assert.equal(
+      stoppedImmediate,
+      true,
+      "卡片内部聚焦应阻断事件传播以屏蔽宿主 focus trap"
+    );
+
+    // 2. 外部元素（宿主页面弹窗等）企图抢夺焦点时，拦截并拉回卡片输入框
+    let hostInputFocused = false;
+    input.focus = () => {
+      hostInputFocused = true;
+    };
+    stoppedImmediate = false;
+    preventedDefault = false;
+    const externalTarget = {
+      tagName: "BUTTON",
+      nodeType: 1,
+    };
+    Object.setPrototypeOf(
+      externalTarget,
+      (globalThis as any).HTMLElement?.prototype || {}
+    );
+    const externalFocusEvent = {
+      target: externalTarget,
+      stopImmediatePropagation: () => {
+        stoppedImmediate = true;
+      },
+      preventDefault: () => {
+        preventedDefault = true;
+      },
+    };
+    focusinListeners[0](externalFocusEvent);
+    assert.equal(stoppedImmediate, true, "外部抢焦时应阻断事件传播");
+    assert.equal(preventedDefault, true, "外部抢焦时应阻止默认行为");
+    assert.equal(hostInputFocused, true, "外部抢焦时应将焦点拉回速记卡输入框");
+
+    // 3. 输入框键盘与指针事件阻断宿主冒泡
+    let inputKeydownStopped = false;
+    input.listeners["keydown"]?.[0]?.({
+      key: "a",
+      stopPropagation: () => {
+        inputKeydownStopped = true;
+      },
+    });
+    assert.equal(inputKeydownStopped, true, "按键事件应阻止向宿主冒泡");
+
+    let inputMousedownStopped = false;
+    input.listeners["mousedown"]?.[0]?.({
+      stopPropagation: () => {
+        inputMousedownStopped = true;
+      },
+    });
+    assert.equal(inputMousedownStopped, true, "鼠标事件应阻止向宿主冒泡");
+  } finally {
+    ctx.restore();
+  }
 });

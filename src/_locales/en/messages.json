@@ -345,7 +345,10 @@
     "message": "Masking"
   },
   "safeMode": {
-    "message": "Safe Mode (Sanitized)"
+    "message": "Safe Mode (Keep Regular Inputs)"
+  },
+  "strictMode": {
+    "message": "Safe Mode (Full Redaction)"
   },
   "rawMode": {
     "message": "Raw Mode (Plaintext)"
@@ -667,10 +670,16 @@
     "message": "Form inputs, APIs, and state will remain unredacted."
   },
   "privacyModeSafe": {
-    "message": "Safe mode"
+    "message": "Safe mode · Keep Regular Inputs"
   },
   "privacyModeSafeDesc": {
-    "message": "This session is in safe mode: URLs, text and request bodies are redacted. Recordings and screenshots are NOT auto-redacted; review before sharing."
+    "message": "Safe mode: Regular form inputs and search queries are plaintext; sensitive data (passwords, cards, tokens) is redacted. Videos and screenshots are NOT auto-redacted."
+  },
+  "privacyModeStrict": {
+    "message": "Safe mode · Full Redaction"
+  },
+  "privacyModeStrictDesc": {
+    "message": "Full redaction mode: URLs, text, inputs, and request bodies are fully redacted. Videos and screenshots are NOT auto-redacted."
   },
   "privacyModeRaw": {
     "message": "Raw mode · Unredacted"
@@ -1316,6 +1325,9 @@
   "inferredMark": {
     "message": "(inferred)"
   },
+  "inferredSemanticSuffix": {
+    "message": " (inferred semantic)"
+  },
   "labelNote": {
     "message": "Additional notes"
   },
@@ -1517,7 +1529,13 @@
     "message": "Cancel and close"
   },
   "issueActualPlaceholder": {
-    "message": "Actual behavior (e.g., clicking does nothing)"
+    "message": "Describe the issue (e.g. child form is not created after clicking add)"
+  },
+  "issueExpectedPillPrefix": {
+    "message": "Expected: "
+  },
+  "issueRemoveExpected": {
+    "message": "Remove expectation"
   },
   "issueExpectedPlaceholder": {
     "message": "Expected: e.g., a success message appears"
@@ -1541,7 +1559,7 @@
     "message": "Drag to move panel"
   },
   "issueEmptyActualWarning": {
-    "message": "Actual behavior is empty: please describe the issue; clicking save again will record it as empty"
+    "message": "Issue description is empty: please describe what went wrong; clicking save again will record as empty"
   },
   "issueSaveFailed": {
     "message": "Save failed: $ERROR$",

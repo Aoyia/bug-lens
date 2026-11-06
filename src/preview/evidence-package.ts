@@ -291,6 +291,202 @@ export function uint8ArrayToBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
+export interface FormattedTicketStep {
+  stepNum: number;
+  actionDesc: string;
+  interactionId: string;
+}
+
+export function formatTicketInteractions(
+  interactions: InteractionRecord[],
+  isEnglish: boolean
+): FormattedTicketStep[] {
+  if (!interactions || interactions.length === 0) return [];
+
+  // 1. 交互时序合并（Coalescing）
+  // 识别连续对同一 input/textarea 元素的 [聚焦点击] + [输入内容]，合并为单一 [输入] 步骤
+  const coalesced: InteractionRecord[] = [];
+  for (let i = 0; i < interactions.length; i++) {
+    const current = interactions[i];
+    const next = interactions[i + 1];
+
+    if (
+      current.kind === "click" &&
+      next &&
+      next.kind === "input" &&
+      current.element &&
+      next.element
+    ) {
+      const curTag = current.element.tagName?.toLowerCase();
+      const nextTag = next.element.tagName?.toLowerCase();
+      const isInputElem = (tag?: string) =>
+        tag === "input" || tag === "textarea";
+
+      const sameElement =
+        (current.element.id && current.element.id === next.element.id) ||
+        (isInputElem(curTag) && isInputElem(nextTag)) ||
+        (current.element.locators?.[0]?.expression &&
+          current.element.locators[0].expression ===
+            next.element.locators?.[0]?.expression);
+
+      const withinTime = Math.abs(next.createdAt - current.createdAt) <= 5000;
+
+      if (sameElement && withinTime) {
+        // 跳过输入框聚焦点击，保留紧随其后的实际输入
+        continue;
+      }
+    }
+
+    coalesced.push(current);
+  }
+
+  // 2. 步骤语义描述格式化
+  return coalesced.map((item, index) => {
+    const stepNum = index + 1;
+    const rawTag = item.element?.tagName
+      ? item.element.tagName.toLowerCase()
+      : "element";
+    const el = item.element;
+    const classes = el?.classNames || [];
+    const classStr = classes.join(" ").toLowerCase();
+
+    // 获取并清洗文本
+    let rawText = el?.accessibleName || el?.text || "";
+    rawText = oneLine(rawText).trim();
+
+    // 占位符清洗：字体图标字号 "i"/"I" 或重复 tag 名
+    const isIconTag =
+      rawTag === "i" ||
+      rawTag === "svg" ||
+      classes.some((c) => /icon|ico\b/i.test(c));
+    if (isIconTag && (rawText.toLowerCase() === "i" || rawText.length <= 1)) {
+      rawText = "";
+    }
+    if (rawTag === "input" && rawText.toLowerCase() === "input") {
+      rawText = "";
+    }
+
+    // 特殊符号业务意图解析
+    if (
+      rawText === "《" ||
+      rawText === "<" ||
+      rawText === "‹" ||
+      rawText === "«"
+    ) {
+      rawText = isEnglish
+        ? `Collapse / Back ("${rawText}")`
+        : `折叠/返回 "${rawText}"`;
+    } else if (
+      rawText === "》" ||
+      rawText === ">" ||
+      rawText === "›" ||
+      rawText === "»"
+    ) {
+      rawText = isEnglish
+        ? `Expand / Next ("${rawText}")`
+        : `展开/前进 "${rawText}"`;
+    } else if (
+      rawText === "×" ||
+      rawText === "X" ||
+      rawText === "x" ||
+      rawText === "✕" ||
+      rawText === "✖"
+    ) {
+      rawText = isEnglish ? `Close ("${rawText}")` : `关闭 "${rawText}"`;
+    }
+
+    // 图标语义回退嗅探
+    if (isIconTag && !rawText) {
+      if (/close|cancel/i.test(classStr)) {
+        rawText = isEnglish ? "Close icon" : "关闭图标";
+      } else if (/arrow-left|prev|back|fold|collapse/i.test(classStr)) {
+        rawText = isEnglish ? "Back / Collapse icon" : "返回/折叠图标";
+      } else if (/arrow-right|next|expand|unfold/i.test(classStr)) {
+        rawText = isEnglish ? "Next / Expand icon" : "前进/展开图标";
+      } else if (/arrow-down|caret-down/i.test(classStr)) {
+        rawText = isEnglish ? "Dropdown icon" : "下拉图标";
+      } else if (/arrow-up|caret-up/i.test(classStr)) {
+        rawText = isEnglish ? "Collapse icon" : "收起图标";
+      } else if (/delete|remove|trash/i.test(classStr)) {
+        rawText = isEnglish ? "Delete icon" : "删除图标";
+      } else if (/edit|pencil/i.test(classStr)) {
+        rawText = isEnglish ? "Edit icon" : "编辑图标";
+      } else if (/search/i.test(classStr)) {
+        rawText = isEnglish ? "Search icon" : "搜索图标";
+      } else if (/refresh|reload/i.test(classStr)) {
+        rawText = isEnglish ? "Refresh icon" : "刷新图标";
+      } else if (/info|help|question/i.test(classStr)) {
+        rawText = isEnglish ? "Details / Help icon" : "详情/提示图标";
+      } else if (/check|success/i.test(classStr)) {
+        rawText = isEnglish ? "Confirm icon" : "确认图标";
+      } else if (/more/i.test(classStr)) {
+        rawText = isEnglish ? "More icon" : "更多操作图标";
+      } else {
+        rawText = isEnglish ? "Icon button" : "图标按钮";
+      }
+    }
+
+    let actionDesc = "";
+
+    // (A) 纯布局/无语义行内标签 (span, div, p, font, b, strong, em)：去除底层无意义标签暴露
+    const isLayoutTag = /^(span|div|p|font|b|strong|em)$/.test(rawTag);
+    if (isLayoutTag) {
+      if (rawText) {
+        const cleanText =
+          rawText.startsWith(isEnglish ? "Collapse" : "折叠") ||
+          rawText.startsWith(isEnglish ? "Expand" : "展开") ||
+          rawText.startsWith(isEnglish ? "Close" : "关闭")
+            ? rawText
+            : `"${rawText.slice(0, 30)}"`;
+        actionDesc = isEnglish ? `Click ${cleanText}` : `点击 ${cleanText}`;
+      } else {
+        actionDesc = isEnglish ? `Click ${rawTag}` : `点击 ${rawTag}`;
+      }
+    } else if (rawTag === "i" || rawTag === "svg") {
+      // (B) 独立图标标签 (i, svg)
+      if (rawText) {
+        if (
+          rawText.includes("图标") ||
+          rawText.includes("icon") ||
+          rawText.includes("Icon")
+        ) {
+          actionDesc = isEnglish ? `Click ${rawText}` : `点击 ${rawText}`;
+        } else {
+          actionDesc = isEnglish
+            ? `Click "${rawText.slice(0, 30)}"`
+            : `点击 "${rawText.slice(0, 30)}"`;
+        }
+      } else {
+        actionDesc = isEnglish ? "Click icon button" : "点击 图标按钮";
+      }
+    } else {
+      // (C) 标准控件 (button, a, li, input 等)
+      const cleanText = rawText ? `"${rawText.slice(0, 30)}"` : "";
+      if (item.kind === "click") {
+        if (rawTag === "input" && !cleanText) {
+          actionDesc = isEnglish ? "Click input" : "点击 input";
+        } else {
+          actionDesc = isEnglish
+            ? `Click ${rawTag} ${cleanText}`.trim()
+            : `点击 ${rawTag} ${cleanText}`.trim();
+        }
+      } else if (item.kind === "input") {
+        actionDesc = isEnglish
+          ? `Input on ${rawTag} ${cleanText}`.trim()
+          : `输入 ${rawTag} ${cleanText}`.trim();
+      } else {
+        actionDesc = `${item.kind} ${rawTag} ${cleanText}`.trim();
+      }
+    }
+
+    return {
+      stepNum,
+      actionDesc,
+      interactionId: item.id,
+    };
+  });
+}
+
 export function buildTicketTemplate(
   snapshot: EvidencePackageSnapshot,
   zipPathOrFilename?: string
@@ -339,39 +535,15 @@ export function buildTicketTemplate(
   // 2. 关键操作步骤（全量已生效步骤）
   const interactions = snapshot.interactions ?? [];
   const stepLines: string[] = [];
-  if (interactions.length === 0) {
+  const formattedSteps = formatTicketInteractions(interactions, isEnglish);
+  if (formattedSteps.length === 0) {
     stepLines.push(
       isEnglish ? "- No click interactions recorded" : "- 未记录点击交互"
     );
   } else {
-    interactions.forEach((item, index) => {
-      const stepNum = index + 1;
-
-      const elText =
-        item.element?.accessibleName ||
-        item.element?.text ||
-        item.element?.locators?.[0]?.expression ||
-        "";
-      const tag = item.element?.tagName
-        ? item.element.tagName.toLowerCase()
-        : "element";
-      const cleanText = elText ? `"${oneLine(elText).slice(0, 30)}"` : "";
-
-      let actionDesc = "";
-      if (item.kind === "click") {
-        actionDesc = isEnglish
-          ? `Click ${tag} ${cleanText}`.trim()
-          : `点击 ${tag} ${cleanText}`.trim();
-      } else if (item.kind === "input") {
-        actionDesc = isEnglish
-          ? `Input on ${tag} ${cleanText}`.trim()
-          : `输入 ${tag} ${cleanText}`.trim();
-      } else {
-        actionDesc = `${item.kind} ${tag} ${cleanText}`.trim();
-      }
-
-      stepLines.push(`${stepNum}. ${actionDesc}`);
-    });
+    for (const step of formattedSteps) {
+      stepLines.push(`${step.stepNum}. ${step.actionDesc}`);
+    }
   }
 
   // 3. 自动捕获异常（仅存在异常时输出）
@@ -544,46 +716,22 @@ export function buildTicketHtml(
   // 2. 关键操作步骤列表与内嵌截图
   const interactions = snapshot.interactions ?? [];
   const stepItemsHtml: string[] = [];
-  if (interactions.length === 0) {
+  const formattedSteps = formatTicketInteractions(interactions, isEnglish);
+  if (formattedSteps.length === 0) {
     stepItemsHtml.push(
       `<li>${isEnglish ? "No click interactions recorded" : "未记录点击交互"}</li>`
     );
   } else {
-    interactions.forEach((item, index) => {
-      const stepNum = index + 1;
-
-      const elText =
-        item.element?.accessibleName ||
-        item.element?.text ||
-        item.element?.locators?.[0]?.expression ||
-        "";
-      const tag = item.element?.tagName
-        ? item.element.tagName.toLowerCase()
-        : "element";
-      const cleanText = elText ? `"${oneLine(elText).slice(0, 30)}"` : "";
-
-      let actionDesc = "";
-      if (item.kind === "click") {
-        actionDesc = isEnglish
-          ? `Click ${tag} ${cleanText}`.trim()
-          : `点击 ${tag} ${cleanText}`.trim();
-      } else if (item.kind === "input") {
-        actionDesc = isEnglish
-          ? `Input on ${tag} ${cleanText}`.trim()
-          : `输入 ${tag} ${cleanText}`.trim();
-      } else {
-        actionDesc = `${item.kind} ${tag} ${cleanText}`.trim();
-      }
-
-      const asset = assetByInteractionId.get(item.id);
+    formattedSteps.forEach((step) => {
+      const asset = assetByInteractionId.get(step.interactionId);
       let imgTag = "";
       if (asset && asset.bytes.byteLength > 0) {
         const base64 = uint8ArrayToBase64(asset.bytes);
-        imgTag = `<div style="margin: 6px 0 10px 0;"><img src="data:${asset.mimeType};base64,${base64}" style="max-width: 520px; width: 100%; height: auto; border: 1px solid #dcdfe6; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); display: block; cursor: pointer;" alt="Step ${stepNum} screenshot" title="${isEnglish ? "Click to copy image" : "点击复制此图片（可直接粘贴到飞书）"}" /><div style="margin-top: 3px; font-size: 11px; color: #86909c;"><em>[${isEnglish ? `Step ${stepNum} Screenshot` : `步骤 ${stepNum} 截图`}]</em></div></div>`;
+        imgTag = `<div style="margin: 6px 0 10px 0;"><img src="data:${asset.mimeType};base64,${base64}" data-interaction-id="${step.interactionId}" style="max-width: 520px; width: 100%; height: auto; border: 1px solid #dcdfe6; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); display: block; cursor: zoom-in;" alt="Step ${step.stepNum} screenshot" title="${isEnglish ? "Click to enlarge" : "点击放大查看大图"}" /><div style="margin-top: 4px; font-size: 12px; color: #86909c;"><em>[${isEnglish ? `Step ${step.stepNum} Screenshot` : `步骤 ${step.stepNum} 截图`}]</em></div></div>`;
       }
 
       stepItemsHtml.push(
-        `<p style="margin: 8px 0 3px 0; line-height: 1.5;"><strong>${stepNum}.</strong> ${actionDesc}</p>${imgTag}`
+        `<p style="margin: 8px 0 3px 0; line-height: 1.5;"><strong>${step.stepNum}.</strong> ${step.actionDesc}</p>${imgTag}`
       );
     });
   }
@@ -617,7 +765,7 @@ export function buildTicketHtml(
       .join("");
     const moreReq =
       failedRequests.length > maxReqs
-        ? `<p style="margin: 2px 0 2px 14px; font-size: 12px; color: #86909c;"><em>... (${failedRequests.length} total failed requests)</em></p>`
+        ? `<p style="margin: 2px 0 2px 14px; font-size: 12.5px; color: #86909c;"><em>... (${failedRequests.length} total failed requests)</em></p>`
         : "";
     anomalyItemsHtml.push(
       `<p style="margin: 4px 0 2px 0;">• <strong>${isEnglish ? "Failed Requests" : "失败接口"} (${failedRequests.length})：</strong></p>${reqList}${moreReq}`
@@ -635,7 +783,7 @@ export function buildTicketHtml(
       .join("");
     const moreErr =
       consoleErrors.length > maxErrors
-        ? `<p style="margin: 2px 0 2px 14px; font-size: 12px; color: #86909c;"><em>... (${consoleErrors.length} total errors)</em></p>`
+        ? `<p style="margin: 2px 0 2px 14px; font-size: 12.5px; color: #86909c;"><em>... (${consoleErrors.length} total errors)</em></p>`
         : "";
     anomalyItemsHtml.push(
       `<p style="margin: 4px 0 2px 0;">• <strong>${isEnglish ? "Console Errors" : "控制台报错"} (${consoleErrors.length})：</strong></p>${errList}${moreErr}`

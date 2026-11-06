@@ -1,4 +1,4 @@
-import { sanitizeUrl } from "./privacy-policy.ts";
+import { sanitizeUrl, type PrivacyMode } from "./privacy-policy.ts";
 import type {
   CacheEvidence,
   CacheSource,
@@ -41,7 +41,7 @@ export function isThirdPartyOrFrameworkFrame(url?: string): boolean {
 
 function toConciseFrame(
   frame: CdpCallFrame,
-  privacyMode: "safe" | "raw"
+  privacyMode: PrivacyMode
 ): ConciseCallFrame | undefined {
   if (!frame.url) return undefined;
   return {
@@ -54,7 +54,7 @@ function toConciseFrame(
 
 function findFirstAppFrame(
   stack?: CdpStackTrace,
-  privacyMode: "safe" | "raw" = "safe"
+  privacyMode: PrivacyMode = "safe"
 ): ConciseCallFrame | undefined {
   if (!stack?.callFrames) return undefined;
   for (const frame of stack.callFrames) {
@@ -69,7 +69,7 @@ function findFirstAppFrame(
 
 function findAsyncAnchorFrame(
   stack?: CdpStackTrace,
-  privacyMode: "safe" | "raw" = "safe"
+  privacyMode: PrivacyMode = "safe"
 ): ConciseCallFrame | undefined {
   let current: CdpStackTrace | undefined = stack?.parent;
   let lastAppFrame: ConciseCallFrame | undefined = undefined;
@@ -85,7 +85,7 @@ function findAsyncAnchorFrame(
 
 export function extractCallStackChain(
   stack?: CdpStackTrace,
-  privacyMode: "safe" | "raw" = "safe",
+  privacyMode: PrivacyMode = "safe",
   maxDepth = 15
 ): ConciseCallFrame[] | undefined {
   if (!stack?.callFrames && !stack?.parent) return undefined;
@@ -120,7 +120,7 @@ export function extractCallStackChain(
 
 export function sliceInitiator(
   cdpInitiator?: CdpInitiator,
-  privacyMode: "safe" | "raw" = "safe"
+  privacyMode: PrivacyMode = "safe"
 ): InitiatorEvidence | undefined {
   if (!cdpInitiator) return undefined;
 

@@ -145,9 +145,7 @@ export const test = base.extend<ExtensionFixtures>({
         res.writeHead(200, {
           "Content-Type": "application/json; charset=utf-8",
         });
-        res.end(
-          JSON.stringify({ id: 1, title: "Bug Lens E2E", completed: false })
-        );
+        res.end(JSON.stringify({ id: 1, title: "E2E Task", completed: false }));
         return;
       }
       if (pathname === "/api/preview/success") {

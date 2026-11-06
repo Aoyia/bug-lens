@@ -17,6 +17,8 @@ export interface SelectProps<T extends string = string> {
   className?: string;
   title?: string;
   suffix?: ComponentChildren;
+  direction?: "up" | "down";
+  ariaLabel?: string;
 }
 
 export function Select<T extends string = string>({
@@ -29,6 +31,8 @@ export function Select<T extends string = string>({
   className = "",
   title,
   suffix,
+  direction = "up",
+  ariaLabel,
 }: SelectProps<T>) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -86,7 +90,7 @@ export function Select<T extends string = string>({
     <div
       ref={containerRef}
       id={id ? `${id}-container` : undefined}
-      className={`popup-select ${className} ${open ? "popup-select-open" : ""} ${
+      className={`popup-select ${direction === "down" ? "popup-select-down" : "popup-select-up"} ${className} ${open ? "popup-select-open" : ""} ${
         disabled ? "popup-select-disabled" : ""
       }`.trim()}
       title={title}
@@ -131,6 +135,7 @@ export function Select<T extends string = string>({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-disabled={disabled}
+        aria-label={ariaLabel}
       >
         <span className="popup-select-value">{displayLabel}</span>
         {suffix && <span className="popup-select-suffix">{suffix}</span>}

@@ -266,3 +266,76 @@ test("步骤卡片标题与描述随界面语言（翻译函数）输出中英�
     "Input: 11 chars (redacted)"
   );
 });
+
+test("操作时间轴（InteractionsTab）卡片标题意图优先语义提升，消除点击 (i) 与裸标签", () => {
+  const baseTime = 1718000000000;
+  const records = [
+    // 1. 真实弹窗关闭图标：i 标签，无文本，包含 el-dialog__close el-icon el-icon-close 类名
+    mockRecord({
+      id: "rec-close",
+      kind: "click",
+      createdAt: baseTime,
+      element: {
+        tagName: "I",
+        classNames: ["el-dialog__close", "el-icon", "el-icon-close"],
+        text: "i",
+        attributes: {},
+        boundingBox: { x: 10, y: 10, width: 16, height: 16 },
+        locators: [],
+      },
+    }),
+    // 2. 详情图标：i 标签，带有 el-icon-info
+    mockRecord({
+      id: "rec-info",
+      kind: "click",
+      createdAt: baseTime + 1000,
+      element: {
+        tagName: "I",
+        classNames: ["el-icon", "el-icon-info"],
+        text: "i",
+        attributes: {},
+        boundingBox: { x: 10, y: 10, width: 16, height: 16 },
+        locators: [],
+      },
+    }),
+    // 3. 常见 span 文本
+    mockRecord({
+      id: "rec-span",
+      kind: "click",
+      createdAt: baseTime + 2000,
+      element: {
+        tagName: "SPAN",
+        classNames: ["el-tag"],
+        text: "单人验收",
+        attributes: {},
+        boundingBox: { x: 10, y: 10, width: 60, height: 20 },
+        locators: [],
+      },
+    }),
+    // 4. 特殊业务符号 "《"
+    mockRecord({
+      id: "rec-collapse",
+      kind: "click",
+      createdAt: baseTime + 3000,
+      element: {
+        tagName: "DIV",
+        classNames: ["sidebar-toggle"],
+        text: "《",
+        attributes: {},
+        boundingBox: { x: 10, y: 10, width: 24, height: 24 },
+        locators: [],
+      },
+    }),
+  ];
+
+  const cards = groupInteractions(records, zh, 3000);
+
+  // 1. 关闭图标消除 "点击 (i)"，升级为 "点击 (关闭图标)"
+  assert.equal(cards[0].aggregatedMeta.title, "点击 (关闭图标)");
+  // 2. 详情图标消除 "点击 (i)"，升级为 "点击 (详情/提示)"
+  assert.equal(cards[1].aggregatedMeta.title, "点击 (详情/提示)");
+  // 3. 文本卡片保持清晰文本
+  assert.equal(cards[2].aggregatedMeta.title, "点击 (单人验收)");
+  // 4. 特殊符号升级为意图
+  assert.equal(cards[3].aggregatedMeta.title, '点击 (折叠/返回 "《")');
+});

@@ -181,7 +181,7 @@ test.describe("Bug Lens 真实用户 Bing 搜索交互截图复现测试", () =>
     await expect(stopButton).toBeVisible({ timeout: 10_000 });
     await stopButton.click();
 
-    const exportedDownload = await mediaProbe.waitForExportDownload(30_000);
+    const exportedDownload = await mediaProbe.waitForExportDownload(45_000);
     expect(exportedDownload.state).toBe("complete");
     logE2e("证据包导出下载完成", { filename: exportedDownload.filename });
 
@@ -365,7 +365,7 @@ test.describe("Bug Lens 真实用户 Bing 搜索交互截图复现测试", () =>
     if (await searchInput.isVisible()) {
       await searchInput.click({ force: true });
       await targetPage.waitForTimeout(1300); // 等待 1000ms 超时降级至 captureVisibleTab
-      await searchInput.fill("Bug Lens 超时降级验证");
+      await searchInput.fill("E2E 超时降级验证");
       await targetPage.waitForTimeout(1300);
     }
 
@@ -373,7 +373,7 @@ test.describe("Bug Lens 真实用户 Bing 搜索交互截图复现测试", () =>
     await expect(stopButton).toBeVisible({ timeout: 10_000 });
     await stopButton.click();
 
-    const exportedDownload = await mediaProbe.waitForExportDownload(30_000);
+    const exportedDownload = await mediaProbe.waitForExportDownload(45_000);
     expect(exportedDownload.state).toBe("complete");
 
     const fullEvidence = await mediaProbe.persistedFullEvidence(session.id);

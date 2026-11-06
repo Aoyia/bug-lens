@@ -16,7 +16,7 @@ export interface OptionsGridProps {
   captureFullResponseBody?: boolean;
   responseBodyPolicy?: ResponseBodyPolicy;
   captureFrameworkState: boolean;
-  privacyMode: "safe" | "raw";
+  privacyMode: "safe" | "strict" | "raw";
   onToggleAdvanced: () => void;
   onSetCaptureVideo: (val: boolean) => void;
   onSetCaptureAudio: (val: boolean) => void;
@@ -27,7 +27,7 @@ export interface OptionsGridProps {
   onSetCaptureFullResponseBody?: (val: boolean) => void;
   onSetResponseBodyPolicy?: (policy: ResponseBodyPolicy) => void;
   onSetCaptureFrameworkState: (val: boolean) => void;
-  onSetPrivacyMode: (mode: "safe" | "raw") => void;
+  onSetPrivacyMode: (mode: "safe" | "strict" | "raw") => void;
 }
 
 export const OptionsGrid = memo(function OptionsGrid({
@@ -60,35 +60,34 @@ export const OptionsGrid = memo(function OptionsGrid({
     : undefined;
 
   const currentResponseBodyPolicy: ResponseBodyPolicy =
-    responseBodyPolicy ??
-    (!captureNetworkBodies
-      ? "disabled"
-      : captureFullResponseBody
-        ? "full"
-        : "standard");
+    responseBodyPolicy === "full" || captureFullResponseBody
+      ? "full"
+      : "standard";
 
   const responseBodiesTitle = lockedTitle;
 
   const handleResponseBodyPolicyChange = (policy: ResponseBodyPolicy) => {
+    const nextPolicy: ResponseBodyPolicy =
+      policy === "full" ? "full" : "standard";
     if (onSetResponseBodyPolicy) {
-      onSetResponseBodyPolicy(policy);
+      onSetResponseBodyPolicy(nextPolicy);
     }
     if (onSetCaptureNetworkBodies) {
-      onSetCaptureNetworkBodies(policy !== "disabled");
+      onSetCaptureNetworkBodies(true);
     }
     if (onSetCaptureFullResponseBody) {
-      onSetCaptureFullResponseBody(policy === "full");
+      onSetCaptureFullResponseBody(nextPolicy === "full");
     }
   };
 
   const responseBodyOptions: SelectOption<ResponseBodyPolicy>[] = [
-    { value: "disabled", label: t("responseBodiesDisabled") },
     { value: "standard", label: t("responseBodiesStandard") },
     { value: "full", label: t("responseBodiesFull") },
   ];
 
-  const privacyModeOptions: SelectOption<"safe" | "raw">[] = [
+  const privacyModeOptions: SelectOption<"safe" | "strict" | "raw">[] = [
     { value: "safe", label: t("safeMode") },
+    { value: "strict", label: t("strictMode") },
     { value: "raw", label: t("rawMode") },
   ];
 

@@ -684,8 +684,8 @@ test("OptionsGrid 一级采集源收敛为 2×3 矩阵，移除 bodies/full-resp
     "响应正文行必须复用 .video-quality-row 与 .privacy-select 统一表单样式"
   );
 
-  // 3 档互斥选项
-  assert.match(
+  // 响应正文选项：标准采集与完整采集（已移除冗余的 disabled 不采集项）
+  assert.doesNotMatch(
     optionsGrid,
     /(?:<option value="disabled">|value:\s*"disabled",\s*label:)\s*\{?t\("responseBodiesDisabled"\)\}?/
   );

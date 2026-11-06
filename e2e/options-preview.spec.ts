@@ -240,12 +240,12 @@ test.describe("Options Page 端到端自动化测试覆盖体系", () => {
     });
     await expect(page.locator(".switch input").nth(1)).toBeChecked();
 
-    // 响应体策略切换到第 3 项 (full / 完整保留)
+    // 响应体策略切换到 full / 完整保留（移除 disabled 后，仅保留 standard 和 full，full 为第 2 项即 index 1）
     const responseBodyBtns = page
       .locator(".segmented-control")
       .nth(0)
       .locator(".segmented-btn");
-    await responseBodyBtns.nth(2).click();
+    await responseBodyBtns.nth(1).click();
     await expect(page.locator(".save-status-badge")).toBeVisible({
       timeout: 5000,
     });
@@ -355,7 +355,7 @@ test.describe("Options Page 端到端自动化测试覆盖体系", () => {
       .locator(".segmented-control")
       .nth(0)
       .locator(".segmented-btn");
-    await expect(reloadedResponseBodyBtns.nth(2)).toHaveClass(/active/);
+    await expect(reloadedResponseBodyBtns.nth(1)).toHaveClass(/active/);
 
     // 7.4 Privacy 回显验证
     await reloadedNavItems.nth(3).click();

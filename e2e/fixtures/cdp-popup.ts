@@ -178,8 +178,12 @@ export class CdpPopup {
   async click(selector: string): Promise<void> {
     await this.waitForSelector(selector);
     const box = await this.evaluate<{ x: number; y: number } | null>(`(() => {
-      const element = document.querySelector(${JSON.stringify(selector)});
+      let element = document.querySelector(${JSON.stringify(selector)});
       if (!(element instanceof HTMLElement)) return null;
+      if (element instanceof HTMLInputElement && (element.offsetWidth === 0 || element.offsetHeight === 0)) {
+        const parentLabel = element.closest("label");
+        if (parentLabel) element = parentLabel;
+      }
       element.scrollIntoView({ block: "center", inline: "center" });
       const rect = element.getBoundingClientRect();
       return { x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2) };

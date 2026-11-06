@@ -206,3 +206,23 @@ test("image viewer opens issue scene screenshots and selects the requested mode"
     assert.equal(modal.hidden, true);
   });
 });
+
+test("image viewer opens with fallback when interactionId is not in interactions list", () => {
+  withStubWindow(() => {
+    const root = previewDocument();
+    const viewer = new ImageViewer(root, () => undefined);
+    const modal = root.querySelector<FakeElement>("#image-modal")!;
+    const modalImage = root.querySelector<FakeElement>("#modal-image")!;
+    const modalTitle = root.querySelector<FakeElement>("#modal-step-title")!;
+    modal.hidden = true;
+
+    viewer.open([], "fallback-id", {
+      title: "Fallback Title",
+      dataUrl: "data:image/png;base64,FALLBACK==",
+    });
+
+    assert.equal(modal.hidden, false);
+    assert.equal(modalImage.src, "data:image/png;base64,FALLBACK==");
+    assert.equal(modalTitle.textContent, "Fallback Title");
+  });
+});

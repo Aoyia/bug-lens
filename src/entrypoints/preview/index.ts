@@ -245,13 +245,56 @@ function openTicketPreview(): void {
   if (ticketRichView) {
     ticketRichView.innerHTML = bundle.html;
     ticketRichView.querySelectorAll<HTMLImageElement>("img").forEach((img) => {
-      img.addEventListener("click", async () => {
+      const interactionId = img.getAttribute("data-interaction-id") || "";
+
+      // 包装容器以支持悬停复制按钮
+      const wrapper = document.createElement("div");
+      wrapper.className = "ticket-image-wrapper";
+      img.parentNode?.insertBefore(wrapper, img);
+      wrapper.appendChild(img);
+
+      // 创建悬停快捷复制按钮
+      const copyBtn = document.createElement("button");
+      copyBtn.type = "button";
+      copyBtn.className = "ticket-image-copy-btn";
+      copyBtn.setAttribute("title", t("copyImage"));
+      copyBtn.innerHTML = `
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+        </svg>
+        <span>${t("copyImage")}</span>
+      `;
+
+      copyBtn.addEventListener("click", async (event) => {
+        event.stopPropagation();
+        event.preventDefault();
         try {
           await copyDataUrlImageToClipboard(img.src);
           reportView.notify(t("stepImageCopied"));
+          const textSpan = copyBtn.querySelector("span");
+          if (textSpan) {
+            const originalText = textSpan.textContent;
+            textSpan.textContent = t("copiedTitle");
+            copyBtn.classList.add("copied");
+            window.setTimeout(() => {
+              textSpan.textContent = originalText;
+              copyBtn.classList.remove("copied");
+            }, 1500);
+          }
         } catch (error) {
           reportView.notify(t("copyFailed", String(error)));
         }
+      });
+
+      wrapper.appendChild(copyBtn);
+
+      // 点击图片主体：唤起大图查看器
+      img.addEventListener("click", () => {
+        reportView.openImageViewer(interactionId, {
+          title: img.alt || t("screenshotModalAlt"),
+          dataUrl: img.src,
+        });
       });
     });
   }

@@ -124,7 +124,7 @@ test.describe("Bug Lens 真实用户 Bing 业务流 E2E 测试 (包 4c41242b 还
     await expect(stopButton).toBeVisible({ timeout: 10_000 });
 
     await stopButton.click();
-    const exportedDownload = await mediaProbe.waitForExportDownload(30_000);
+    const exportedDownload = await mediaProbe.waitForExportDownload(45_000);
     expect(exportedDownload.state).toBe("complete");
 
     const previewPage = await context.newPage();

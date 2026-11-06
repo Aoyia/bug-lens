@@ -161,7 +161,13 @@ test.describe("Bug Lens Chrome Extension recording lifecycle", () => {
     expect(secondStatusText).toBeTruthy();
 
     // 4. 计时器存在、格式正确，并且会继续递增
-    const timer1 = await secondPopup.text("#timer");
+    let timer1 = "";
+    const timer1Deadline = Date.now() + 3_000;
+    while (Date.now() < timer1Deadline) {
+      timer1 = await secondPopup.text("#timer");
+      if (/^\d{2}:\d{2}$/.test(timer1)) break;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
     expect(timer1).toMatch(/^\d{2}:\d{2}$/);
     let timer2 = timer1;
     const timerDeadline = Date.now() + 5_000;
@@ -535,10 +541,10 @@ test.describe("Bug Lens Chrome Extension recording lifecycle", () => {
 
     await targetPage
       .locator('[data-testid="test-text-input"]')
-      .fill("Bug Lens Unexpected Tab Close Test");
+      .fill("E2E Unexpected Tab Close Test");
     await expect(
       targetPage.locator('[data-testid="test-text-input"]')
-    ).toHaveValue("Bug Lens Unexpected Tab Close Test");
+    ).toHaveValue("E2E Unexpected Tab Close Test");
 
     await targetPage.locator('[data-testid="test-fetch-btn"]').click();
     await expect(targetPage.locator("#output")).toContainText("Fetch 请求成功");
@@ -734,7 +740,7 @@ test.describe("Bug Lens Chrome Extension recording lifecycle", () => {
     );
     expect(inputEntry).toBeDefined();
     expect(inputEntry?.metadata?.valueLength).toBe(
-      "Bug Lens Unexpected Tab Close Test".length
+      "E2E Unexpected Tab Close Test".length
     );
 
     // 验证正常 console.log 及报错 console.error 均被精确持久化

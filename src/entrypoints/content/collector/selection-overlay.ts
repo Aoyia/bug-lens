@@ -26,7 +26,11 @@ export type SelectedTargetItem = {
 
 export type SelectionOverlayDeps = {
   getSession():
-    | { sessionId: string; nonce: string; privacyMode: "safe" | "raw" }
+    | {
+        sessionId: string;
+        nonce: string;
+        privacyMode: "safe" | "strict" | "raw";
+      }
     | undefined;
   /** 速记卡确认的期望（按下"标记问题"瞬间捕获），随 capture 消息透传 */
   getPendingExpected?(): ExpectedStatement | undefined;

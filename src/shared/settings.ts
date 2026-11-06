@@ -20,7 +20,7 @@ export interface DefaultRecordingSettings {
   captureNetwork: boolean;
   responseBodyPolicy: "disabled" | "standard" | "full";
   captureFrameworkState: boolean;
-  privacyMode: "safe" | "raw";
+  privacyMode: "safe" | "strict" | "raw";
 }
 
 export interface AiSettings {
@@ -157,8 +157,9 @@ export function mergeAppSettings(
           ? srcDefaultRec.captureFrameworkState
           : target.defaultRecording.captureFrameworkState,
       privacyMode:
-        srcDefaultRec.privacyMode === "raw"
-          ? "raw"
+        srcDefaultRec.privacyMode === "raw" ||
+        srcDefaultRec.privacyMode === "strict"
+          ? srcDefaultRec.privacyMode
           : target.defaultRecording.privacyMode,
     },
     ai: {
@@ -262,7 +263,11 @@ export async function loadAppSettings(): Promise<AppSettings> {
                         : "standard",
                   captureFrameworkState:
                     lastOpts.captureFrameworkState !== false,
-                  privacyMode: lastOpts.privacyMode === "raw" ? "raw" : "safe",
+                  privacyMode:
+                    lastOpts.privacyMode === "raw" ||
+                    lastOpts.privacyMode === "strict"
+                      ? lastOpts.privacyMode
+                      : "safe",
                 }
               : {}),
           },

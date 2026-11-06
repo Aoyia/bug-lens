@@ -80,7 +80,9 @@ export function PopupApp() {
     useState<boolean>(false);
   const [captureFrameworkState, setCaptureFrameworkState] =
     useState<boolean>(true);
-  const [privacyMode, setPrivacyMode] = useState<"safe" | "raw">("safe");
+  const [privacyMode, setPrivacyMode] = useState<"safe" | "strict" | "raw">(
+    "safe"
+  );
   const [i18nVersion, setI18nVersion] = useState<number>(0);
 
   // 历史记录状态
@@ -137,10 +139,14 @@ export function PopupApp() {
             setCaptureScreenshots(last.captureScreenshots);
           if (typeof last.captureConsole === "boolean")
             setCaptureConsole(last.captureConsole);
-          if (typeof last.captureNetwork === "boolean")
+          if (typeof last.captureNetwork === "boolean") {
             setCaptureNetwork(last.captureNetwork);
+            if (last.captureNetwork) {
+              setCaptureNetworkBodies(true);
+            }
+          }
           if (typeof last.captureNetworkBodies === "boolean")
-            setCaptureNetworkBodies(last.captureNetworkBodies);
+            setCaptureNetworkBodies(true);
           if (typeof last.captureFullResponseBody === "boolean")
             setCaptureFullResponseBody(
               last.captureFullResponseBody &&
@@ -148,7 +154,11 @@ export function PopupApp() {
             );
           if (typeof last.captureFrameworkState === "boolean")
             setCaptureFrameworkState(last.captureFrameworkState);
-          if (last.privacyMode === "safe" || last.privacyMode === "raw")
+          if (
+            last.privacyMode === "safe" ||
+            last.privacyMode === "strict" ||
+            last.privacyMode === "raw"
+          )
             setPrivacyMode(last.privacyMode);
         }
       } catch {
@@ -198,23 +208,14 @@ export function PopupApp() {
   ]);
 
   const responseBodyPolicy: "disabled" | "standard" | "full" = useMemo(() => {
-    if (!captureNetworkBodies) return "disabled";
     if (captureFullResponseBody) return "full";
     return "standard";
-  }, [captureNetworkBodies, captureFullResponseBody]);
+  }, [captureFullResponseBody]);
 
   const handleSetResponseBodyPolicy = useCallback(
     (policy: "disabled" | "standard" | "full") => {
-      if (policy === "disabled") {
-        setCaptureNetworkBodies(false);
-        setCaptureFullResponseBody(false);
-      } else if (policy === "full") {
-        setCaptureNetworkBodies(true);
-        setCaptureFullResponseBody(true);
-      } else {
-        setCaptureNetworkBodies(true);
-        setCaptureFullResponseBody(false);
-      }
+      setCaptureNetworkBodies(true);
+      setCaptureFullResponseBody(policy === "full");
     },
     []
   );
@@ -672,6 +673,8 @@ export function PopupApp() {
             className="icon-action-btn tab"
             onClick={() => setCurrentView("history")}
             title={t("history")}
+            data-tooltip={t("history")}
+            data-tooltip-pos="down"
           >
             <svg
               width="15"
@@ -698,6 +701,8 @@ export function PopupApp() {
               }
             }}
             title={t("settingsTitle")}
+            data-tooltip={t("settingsTitle")}
+            data-tooltip-pos="down"
           >
             <svg
               width="15"
@@ -726,6 +731,8 @@ export function PopupApp() {
           className="back-btn tab"
           onClick={() => setCurrentView("record")}
           title={t("backToRecord")}
+          data-tooltip={t("backToRecord")}
+          data-tooltip-pos="down"
         >
           <svg
             width="14"

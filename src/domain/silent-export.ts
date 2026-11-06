@@ -1,6 +1,6 @@
 import type { CaptureIssue, RecordingSession } from "../shared/protocol";
 import type { PerfMetricItem, PerfReportData } from "../shared/dev-profiler";
-import { sanitizeText } from "./privacy-policy";
+import { sanitizeText, type PrivacyMode } from "./privacy-policy";
 import type { RecordingSessionEvent } from "./recording-session";
 import { t } from "../shared/i18n";
 import type {
@@ -95,7 +95,7 @@ export function resolveSilentExportResult(
  */
 export function buildSilentExportFailureEvent(
   error: string,
-  privacyMode: "safe" | "raw"
+  privacyMode: PrivacyMode
 ): RecordingSessionEvent {
   const issue: CaptureIssue = {
     code: "SILENT_EXPORT_FAILED",

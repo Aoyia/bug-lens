@@ -345,7 +345,10 @@
     "message": "脱敏模式"
   },
   "safeMode": {
-    "message": "安全模式（脱敏）"
+    "message": "安全模式（保留常规输入）"
+  },
+  "strictMode": {
+    "message": "安全模式（全量脱敏）"
   },
   "rawMode": {
     "message": "原始模式（明文）"
@@ -667,10 +670,16 @@
     "message": "表单输入、接口与状态将保持明文"
   },
   "privacyModeSafe": {
-    "message": "安全模式"
+    "message": "安全模式 · 保留常规输入"
   },
   "privacyModeSafeDesc": {
-    "message": "本次会话为安全模式：URL、文本与请求体已脱敏；录像与截图不会自动脱敏，分享前请人工检查。"
+    "message": "本次会话为安全模式：保留常规表单输入、搜索词与参数明文；密码、卡号、Token 等敏感信息已脱敏。录像与截图不会自动脱敏，分享前请人工检查。"
+  },
+  "privacyModeStrict": {
+    "message": "安全模式 · 全量脱敏"
+  },
+  "privacyModeStrictDesc": {
+    "message": "本次会话为全量脱敏模式：URL、文本、交互输入与请求体均已脱敏；录像与截图不会自动脱敏，分享前请人工检查。"
   },
   "privacyModeRaw": {
     "message": "原始模式 · 未脱敏"
@@ -1316,6 +1325,9 @@
   "inferredMark": {
     "message": "(推断)"
   },
+  "inferredSemanticSuffix": {
+    "message": " (语义推导)"
+  },
   "labelNote": {
     "message": "补充说明"
   },
@@ -1517,7 +1529,13 @@
     "message": "取消关闭"
   },
   "issueActualPlaceholder": {
-    "message": "实际表现 (例如：点击无反应)"
+    "message": "问题描述（例如：子表单在点击新增后未生成）"
+  },
+  "issueExpectedPillPrefix": {
+    "message": "预期："
+  },
+  "issueRemoveExpected": {
+    "message": "移除预期"
   },
   "issueExpectedPlaceholder": {
     "message": "预期：例如应显示成功提示"
@@ -1541,7 +1559,7 @@
     "message": "按住拖拽拖动面板"
   },
   "issueEmptyActualWarning": {
-    "message": "实际表现为空：请补充问题现象；再次点击保存将按空记录"
+    "message": "问题描述为空：请补充问题现象；再次点击保存将按空记录"
   },
   "issueSaveFailed": {
     "message": "保存失败：$ERROR$",

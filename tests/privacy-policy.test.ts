@@ -8,11 +8,21 @@ import {
   sanitizeUrl,
 } from "../src/domain/privacy-policy.ts";
 
-test("safe URLs remove credentials, fragments, identifiers, and query values", () => {
+test("safe URLs retain regular query parameters and redact sensitive keys", () => {
   assert.equal(
     sanitizeUrl(
       "https://alice:secret@example.test/users/550e8400-e29b-41d4-a716-446655440000?token=abc&view=full#profile",
       "safe"
+    ),
+    "https://example.test/users/[ID]?token=[REDACTED]&view=full"
+  );
+});
+
+test("strict URLs redact all query values", () => {
+  assert.equal(
+    sanitizeUrl(
+      "https://alice:secret@example.test/users/550e8400-e29b-41d4-a716-446655440000?token=abc&view=full#profile",
+      "strict"
     ),
     "https://example.test/users/[ID]?token=[REDACTED]&view=[REDACTED]"
   );
@@ -212,6 +222,84 @@ test("sanitizeInteractionRecord redacts credentials in element attributes and me
     }
   );
   return sanitized;
+});
+
+test("sanitizeInteractionRecord preserves regular user inputs in safe mode and redacts in strict mode", async () => {
+  const { sanitizeInteractionRecord } =
+    await import("../src/domain/privacy-policy.ts");
+  const normalRecord: Parameters<typeof sanitizeInteractionRecord>[0] = {
+    id: "int-normal",
+    sessionId: "sess-1",
+    kind: "input",
+    status: "confirmed",
+    createdAt: Date.now(),
+    page: {
+      url: "https://example.test/search",
+      title: "Search Page",
+      frameId: 0,
+    },
+    input: { pointerType: "keyboard", button: 0, isTrusted: true },
+    coordinates: {
+      clientX: 0,
+      clientY: 0,
+      pageX: 0,
+      pageY: 0,
+      scrollX: 0,
+      scrollY: 0,
+      devicePixelRatio: 1,
+      viewport: { width: 1920, height: 1080 },
+    },
+    element: {
+      tagName: "input",
+      id: "search-box",
+      classNames: ["form-input"],
+      attributes: {
+        type: "text",
+        name: "keyword",
+        value: "iPhone 16 Pro",
+      },
+      text: "iPhone 16 Pro",
+      accessibleName: "Search",
+      locators: [
+        { kind: "css", expression: "#search-box", score: 1, reasons: ["id"] },
+      ],
+    },
+    metadata: {
+      value: "iPhone 16 Pro",
+      key: "o",
+      code: "KeyO",
+    },
+    screenshot: { status: "disabled" },
+  };
+
+  // 1. safe 模式：常规输入保留明文
+  const safeRes = sanitizeInteractionRecord(normalRecord, "safe");
+  assert.equal(safeRes.metadata?.value, "iPhone 16 Pro");
+  assert.equal(safeRes.metadata?.valueRedacted, undefined);
+  assert.equal(safeRes.metadata?.key, "o");
+  assert.equal(safeRes.element.attributes.value, "iPhone 16 Pro");
+
+  // 2. strict 模式：全部脱敏
+  const strictRes = sanitizeInteractionRecord(normalRecord, "strict");
+  assert.equal(strictRes.metadata?.value, undefined);
+  assert.equal(strictRes.metadata?.valueRedacted, true);
+  assert.equal(strictRes.metadata?.key, "[REDACTED:key]");
+  assert.equal(strictRes.element.attributes.value, "[REDACTED]");
+
+  // 3. safe 模式下若常规输入包含敏感卡号/JWT，依然触发内容级脱敏
+  const sensitiveContentRecord = {
+    ...normalRecord,
+    metadata: {
+      ...normalRecord.metadata,
+      value: "4111 1111 1111 1111",
+    },
+  };
+  const safeSensitiveRes = sanitizeInteractionRecord(
+    sensitiveContentRecord,
+    "safe"
+  );
+  assert.equal(safeSensitiveRes.metadata?.value, undefined);
+  assert.equal(safeSensitiveRes.metadata?.valueRedacted, true);
 });
 
 test("sanitizeConsoleEntry and stackTrace redacts urls and stack traces", async () => {

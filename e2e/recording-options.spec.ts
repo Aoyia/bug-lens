@@ -12,6 +12,10 @@ function logE2e(message: string, details?: unknown): void {
   );
 }
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function waitForPopupChecked(
   popup: CdpPopup,
   selector: string,
@@ -66,6 +70,8 @@ test.describe("Bug Lens Chrome Extension recording options", () => {
     const popup = await openActionPopup(targetPage);
     await popup.waitForSelector('[data-testid="record-panel"]');
     await popup.click("#toggle-options");
+    await popup.waitForSelector(".advanced-panel-wrapper.open");
+    await delay(300);
     await popup.waitForSelector("#advanced-options");
 
     // 1. 验证 2×3 矩阵几何规整性：6 个 Chip 均分两行，每行 3 个，宽度一致无折行
@@ -155,8 +161,8 @@ test.describe("Bug Lens Chrome Extension recording options", () => {
       expect(Math.abs(chip.width - row1Chips[0].width)).toBeLessThanOrEqual(1);
       expect(chip.overflowing).toBe(false);
     }
-    // 表单行（Response Bodies、Masking、Language）左侧标签与右侧 Select 完美垂直对齐
-    expect(gridLayout.formRows.length).toBe(3);
+    // 表单行（Response Bodies、Masking）左侧标签与右侧 Select 完美垂直对齐
+    expect(gridLayout.formRows.length).toBe(2);
     for (let i = 1; i < gridLayout.formRows.length; i++) {
       expect(gridLayout.formRows[i].labelLeft).toBe(
         gridLayout.formRows[0].labelLeft
@@ -173,42 +179,7 @@ test.describe("Bug Lens Chrome Extension recording options", () => {
       ).toBeLessThanOrEqual(1);
     }
 
-    // 2. 验证多语言切换（zh-CN <-> en-US）下的视觉布局稳定性与对齐无漂移
-    await popup.selectOptionByKeys("#language-preference", "en-US");
-    const enLayout = await popup.evaluate<{
-      labels: string[];
-      labelLefts: number[];
-      labelWidths: number[];
-      selectLefts: number[];
-    }>(`(() => {
-      const rows = Array.from(
-        document.querySelectorAll(".video-quality-row")
-      );
-      const labels = rows.map((r) =>
-        r.querySelector(".video-quality-label")?.textContent?.trim() || ""
-      );
-      const labelRects = rows.map((r) =>
-        r.querySelector(".video-quality-label")?.getBoundingClientRect()
-      );
-      const selectRects = rows.map((r) =>
-        r.querySelector(".privacy-select")?.getBoundingClientRect()
-      );
-      return {
-        labels,
-        labelLefts: labelRects.map((r) => Math.round(r?.left ?? 0)),
-        labelWidths: labelRects.map((r) => Math.round(r?.width ?? 0)),
-        selectLefts: selectRects.map((r) => Math.round(r?.left ?? 0)),
-      };
-    })()`);
-    expect(enLayout.labels).toEqual(["Response Bodies", "Masking", "Language"]);
-    expect(enLayout.labelWidths).toEqual([96, 96, 96]);
-    expect(enLayout.labelLefts[0]).toBe(enLayout.labelLefts[1]);
-    expect(enLayout.labelLefts[1]).toBe(enLayout.labelLefts[2]);
-    expect(enLayout.selectLefts[0]).toBe(enLayout.selectLefts[1]);
-    expect(enLayout.selectLefts[1]).toBe(enLayout.selectLefts[2]);
-
-    // 切换回 zh-CN
-    await popup.selectOptionByKeys("#language-preference", "zh-CN");
+    // 2. 验证高级面板中的标签文本与对齐稳定性
     const zhLayout = await popup.evaluate<string[]>(`(() => {
       const rows = Array.from(
         document.querySelectorAll(".video-quality-row")
@@ -217,7 +188,7 @@ test.describe("Bug Lens Chrome Extension recording options", () => {
         r.querySelector(".video-quality-label")?.textContent?.trim() || ""
       );
     })()`);
-    expect(zhLayout).toEqual(["响应正文", "脱敏模式", "界面语言"]);
+    expect(zhLayout).toEqual(["响应正文", "脱敏模式"]);
 
     expect(
       await popup.evaluate<boolean>(
@@ -441,6 +412,8 @@ test.describe("Bug Lens Chrome Extension recording options", () => {
     const popup = await openActionPopup(targetPage);
     await popup.waitForSelector('[data-testid="record-panel"]');
     await popup.click("#toggle-options");
+    await popup.waitForSelector(".advanced-panel-wrapper.open");
+    await delay(300);
     await popup.waitForSelector("#advanced-options");
 
     await popup.click("#audio");
@@ -466,13 +439,7 @@ test.describe("Bug Lens Chrome Extension recording options", () => {
     await popup.click("#console");
     await waitForPopupChecked(popup, "#console", false);
 
-    // 验证响应正文策略三态切换与 Network 联动
-    await popup.selectOptionByKeys("#response-bodies", "disabled");
-    expect(
-      await popup.evaluate<string>(
-        "document.querySelector('#response-bodies')?.value || ''"
-      )
-    ).toBe("disabled");
+    // 验证响应正文策略二态切换与 Network 联动（已移除冗余的 disabled 不采集项）
     await popup.selectOptionByKeys("#response-bodies", "full");
     expect(
       await popup.evaluate<string>(
@@ -712,6 +679,8 @@ test.describe("Bug Lens Chrome Extension recording options", () => {
     const popup = await openActionPopup(targetPage);
     await popup.waitForSelector('[data-testid="record-panel"]');
     await popup.click("#toggle-options");
+    await popup.waitForSelector(".advanced-panel-wrapper.open");
+    await delay(300);
     await popup.waitForSelector("#advanced-options");
 
     // 1. 验证初次展开：默认勾选 network 时，#response-bodies 必须存在

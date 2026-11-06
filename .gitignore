@@ -31,3 +31,4 @@ playwright-report/
 .random_sample*
 videos/
 /tools/
+site/*-prototypes.html

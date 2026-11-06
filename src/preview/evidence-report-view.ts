@@ -203,6 +203,15 @@ export class EvidenceReportView {
     this.shell.notify(message);
   }
 
+  openImageViewer(
+    interactionId: string,
+    fallback?: { title: string; dataUrl: string; downloadName?: string }
+  ): void {
+    const snapshot = this.adapter.getSnapshot();
+    const interactions = snapshot?.interactions.included ?? [];
+    this.imageViewer.open(interactions, interactionId, fallback);
+  }
+
   render(targetTabs?: PreviewTab[]): void {
     const snapshot = this.adapter.getSnapshot();
     if (!snapshot) return;

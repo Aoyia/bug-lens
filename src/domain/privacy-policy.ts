@@ -39,13 +39,67 @@ const SENSITIVE_HEADER_NAMES = new Set([
 ]);
 
 const URL_HEADER_NAMES = new Set(["location", "referer", "referrer", "origin"]);
-const SENSITIVE_JSON_KEY =
-  /(?:password|passwd|passcode|token|authorization|secret|cookie|session|email|phone|address|card|cvv|ssn|dateofbirth|dob|apikey|xapikey|xauthtoken)/i;
+export const SENSITIVE_JSON_KEY =
+  /(?:password|passwd|passcode|token|authorization|secret|cookie|session|email|phone|address|card|cvv|ssn|dateofbirth|dob|apikey|xapikey|xauthtoken|credential)/i;
+const COMPOUND_SENSITIVE_KEY =
+  /^(?:api[_-]?key|secret[_-]?key|access[_-]?key|private[_-]?key|app[_-]?key|auth[_-]?token|access[_-]?token|refresh[_-]?token|oauth[_-]?token|oauth[_-]?code|auth[_-]?code|verify[_-]?code|sms[_-]?code|vcode|captcha|id[_-]?card|credit[_-]?card|bank[_-]?card|key|code|ticket|signature|sig|auth)$/i;
 const OPAQUE_PATH_SEGMENT =
   /^(?:[0-9a-f]{8}-[0-9a-f-]{27,}|[^@/]+@[^@/]+\.[^@/]+|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+|\d{8,}|[A-Za-z0-9_-]{24,})$/i;
 
-function normalizeName(value: string): string {
+export function normalizeName(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+export function isSensitiveKeyName(name: string): boolean {
+  if (!name) return false;
+  const rawLower = name.trim().toLowerCase();
+  const normalized = normalizeName(name);
+  if (SENSITIVE_JSON_KEY.test(normalized)) return true;
+  if (
+    COMPOUND_SENSITIVE_KEY.test(rawLower) ||
+    COMPOUND_SENSITIVE_KEY.test(normalized)
+  )
+    return true;
+  return false;
+}
+
+export function containsSensitiveData(
+  value: string | undefined | null
+): boolean {
+  if (!value) return false;
+  const str = String(value);
+  if (/-----BEGIN [^-]+-----/.test(str)) return true;
+  if (/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/.test(str))
+    return true;
+  if (/\b(?:Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/i.test(str)) return true;
+  if (/\b(?:\d[ -]*?){13,19}\b/.test(str)) return true;
+  return false;
+}
+
+export function isSensitiveInputElement(element: {
+  tagName?: string;
+  id?: string;
+  attributes?: Record<string, string>;
+}): boolean {
+  if ((element.tagName || "").toUpperCase() === "INPUT") {
+    const type = (element.attributes?.type || "").toLowerCase();
+    if (type === "password") return true;
+  }
+  const attrs = element.attributes || {};
+  const namesToCheck = [
+    attrs.name,
+    element.id,
+    attrs.id,
+    attrs.autocomplete,
+    attrs["aria-label"],
+    attrs.placeholder,
+  ];
+  for (const name of namesToCheck) {
+    if (name && isSensitiveKeyName(name)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 export function sanitizeUrl(value: string, mode: PrivacyMode): string {
@@ -66,13 +120,29 @@ export function sanitizeUrl(value: string, mode: PrivacyMode): string {
         return OPAQUE_PATH_SEGMENT.test(decoded) ? "[ID]" : segment;
       })
       .join("/");
-    const queryKeys: string[] = [];
-    parsed.searchParams.forEach((_value, key) => {
-      if (!queryKeys.includes(key)) queryKeys.push(key);
+
+    if (mode === "strict") {
+      const queryKeys: string[] = [];
+      parsed.searchParams.forEach((_value, key) => {
+        if (!queryKeys.includes(key)) queryKeys.push(key);
+      });
+      const query = queryKeys
+        .map((key) => `${encodeURIComponent(key)}=[REDACTED]`)
+        .join("&");
+      return `${parsed.protocol}//${parsed.host}${pathname}${query ? `?${query}` : ""}`;
+    }
+
+    const queryEntries: string[] = [];
+    parsed.searchParams.forEach((val, key) => {
+      const isKeySensitive = isSensitiveKeyName(key);
+      const isValSensitive = containsSensitiveData(val);
+      const sanitizedVal =
+        isKeySensitive || isValSensitive
+          ? "[REDACTED]"
+          : encodeURIComponent(val);
+      queryEntries.push(`${encodeURIComponent(key)}=${sanitizedVal}`);
     });
-    const query = queryKeys
-      .map((key) => `${encodeURIComponent(key)}=[REDACTED]`)
-      .join("&");
+    const query = queryEntries.join("&");
     return `${parsed.protocol}//${parsed.host}${pathname}${query ? `?${query}` : ""}`;
   } catch {
     const withoutFragment = value.split("#", 1)[0];
@@ -80,8 +150,19 @@ export function sanitizeUrl(value: string, mode: PrivacyMode): string {
       /^(https?:\/\/)(?:[^/@\s]+@)/i,
       "$1"
     );
+    if (mode === "strict") {
+      return withoutCredentials
+        .replace(/([?&][^=&#\s]+)=([^&#\s]*)/g, "$1=[REDACTED]")
+        .slice(0, 2_048);
+    }
     return withoutCredentials
-      .replace(/([?&][^=&#\s]+)=([^&#\s]*)/g, "$1=[REDACTED]")
+      .replace(/([?&][^=&#\s]+)=([^&#\s]*)/g, (_match, prefix, val) => {
+        const key = prefix.slice(1);
+        if (isSensitiveKeyName(key) || containsSensitiveData(val)) {
+          return `${prefix}=[REDACTED]`;
+        }
+        return `${prefix}=${val}`;
+      })
       .slice(0, 2_048);
   }
 }
@@ -301,7 +382,7 @@ export function sanitizeResponseBody(input: {
           )) {
             if (["__proto__", "prototype", "constructor"].includes(key))
               continue;
-            result[key] = SENSITIVE_JSON_KEY.test(normalizeName(key))
+            result[key] = isSensitiveKeyName(key)
               ? `[REDACTED:${key}]`
               : redactValue(child, depth + 1);
           }
@@ -400,11 +481,22 @@ export function sanitizeInteractionRecord(
       },
     };
   }
+
+  const isSensitiveElement =
+    isPasswordInput || isSensitiveInputElement(record.element);
+  const isValSensitive = containsSensitiveData(record.metadata?.value);
+  const shouldRedactValue =
+    mode === "strict" || isSensitiveElement || isValSensitive;
+
   const attributes = Object.fromEntries(
     Object.entries(record.element.attributes).map(([key, value]) => {
       const normKey = normalizeName(key);
       let sanitizedValue: string;
-      if (normKey === "value" || SENSITIVE_JSON_KEY.test(normKey)) {
+      if (normKey === "value") {
+        sanitizedValue = shouldRedactValue
+          ? "[REDACTED]"
+          : sanitizeText(value, mode, 512);
+      } else if (isSensitiveKeyName(key) || isSensitiveKeyName(normKey)) {
         sanitizedValue = "[REDACTED]";
       } else if (/^(?:href|src|action|formaction)$/i.test(key)) {
         sanitizedValue = sanitizeUrl(value, mode);
@@ -414,6 +506,7 @@ export function sanitizeInteractionRecord(
       return [key, sanitizedValue];
     })
   );
+
   return {
     ...record,
     page: {
@@ -427,21 +520,26 @@ export function sanitizeInteractionRecord(
           inputType: record.metadata.inputType
             ? sanitizeText(record.metadata.inputType, mode, 128, false)
             : undefined,
-          value: undefined,
-          valueRedacted:
-            record.metadata.value != null ||
-            record.metadata.valueRedacted ||
-            undefined,
+          value: shouldRedactValue
+            ? undefined
+            : record.metadata.value != null
+              ? sanitizeText(record.metadata.value, mode, 2_048)
+              : undefined,
+          valueRedacted: shouldRedactValue
+            ? record.metadata.value != null ||
+              record.metadata.valueRedacted ||
+              true
+            : undefined,
           valueLength:
             record.metadata.valueLength ??
             (record.metadata.value != null
               ? record.metadata.value.length
               : undefined),
-          key:
-            record.metadata.isShortcut ||
-            record.metadata.metaKey ||
-            record.metadata.ctrlKey ||
-            record.metadata.altKey
+          key: shouldRedactValue
+            ? record.metadata.isShortcut ||
+              record.metadata.metaKey ||
+              record.metadata.ctrlKey ||
+              record.metadata.altKey
               ? record.metadata.key
                 ? sanitizeText(record.metadata.key, mode, 64, false)
                 : undefined
@@ -449,7 +547,10 @@ export function sanitizeInteractionRecord(
                 ? "[REDACTED:key]"
                 : record.metadata.key
                   ? sanitizeText(record.metadata.key, mode, 64, false)
-                  : undefined,
+                  : undefined
+            : record.metadata.key
+              ? sanitizeText(record.metadata.key, mode, 64, false)
+              : undefined,
           code: record.metadata.code
             ? sanitizeText(record.metadata.code, mode, 64, false)
             : undefined,
@@ -485,19 +586,19 @@ export function sanitizeInteractionRecord(
         sanitizeText(value, mode, 128)
       ),
       attributes,
-      text: isPasswordInput
+      text: shouldRedactValue
         ? "[REDACTED]"
         : record.element.text
           ? sanitizeText(record.element.text, mode, 256)
           : undefined,
-      accessibleName: isPasswordInput
+      accessibleName: shouldRedactValue
         ? "[REDACTED]"
         : record.element.accessibleName
           ? sanitizeText(record.element.accessibleName, mode, 256)
           : undefined,
       locators: record.element.locators.map((locator) => ({
         ...locator,
-        expression: isPasswordInput
+        expression: shouldRedactValue
           ? locator.expression.replace(/['"][^'"]+['"]/g, "'[REDACTED]'")
           : sanitizeText(locator.expression, mode, 512),
         reasons: locator.reasons.map((reason) =>

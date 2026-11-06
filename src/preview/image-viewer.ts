@@ -42,7 +42,11 @@ export class ImageViewer {
     this.bindEvents();
   }
 
-  open(interactions: InteractionRecord[], interactionId: string): void {
+  open(
+    interactions: InteractionRecord[],
+    interactionId: string,
+    fallback?: { title: string; dataUrl: string; downloadName?: string }
+  ): void {
     const items: ViewerImageItem[] = interactions.flatMap(
       (interaction, stepIndex) => {
         const dataUrl = interaction.screenshot.dataUrl;
@@ -60,6 +64,18 @@ export class ImageViewer {
         ];
       }
     );
+    if (
+      fallback &&
+      !items.some((item) => item.id === interactionId) &&
+      fallback.dataUrl
+    ) {
+      items.push({
+        id: interactionId || "fallback-screenshot",
+        title: fallback.title,
+        downloadName: fallback.downloadName || "step-screenshot.png",
+        dataUrl: fallback.dataUrl,
+      });
+    }
     this.openItems(items, interactionId);
   }
 
@@ -312,8 +328,10 @@ export class ImageViewer {
     });
     window.addEventListener("keydown", (event) => {
       if (modal.hidden) return;
-      if (event.key === "Escape") this.close();
-      else if (["ArrowLeft", "a", "A"].includes(event.key)) this.previous();
+      if (event.key === "Escape") {
+        event.stopPropagation();
+        this.close();
+      } else if (["ArrowLeft", "a", "A"].includes(event.key)) this.previous();
       else if (["ArrowRight", "d", "D"].includes(event.key)) this.next();
       else if (["+", "="].includes(event.key)) this.zoom(1.25);
       else if (["-", "_"].includes(event.key)) this.zoom(0.8);

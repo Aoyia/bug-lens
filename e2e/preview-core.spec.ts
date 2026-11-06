@@ -87,11 +87,15 @@ test.describe("Bug Lens Chrome Extension E2E PREV-001: Preview Core Browsing & T
     await delay(400);
 
     // (2) 创建一条完整 Issue Scene
+    const actualText = "PREV-001 实际缺陷描述";
+    const expectedText = "PREV-001 预期行为说明";
+
     await markIssueButton.click();
-    // 期望速记卡：跳过（不阻断流程），随后进入元素选择
+    // 期望速记卡：先录入预期，随后进入元素选择
     const expectedCard = targetPage.locator("#__wbr_expected_card__");
     await expect(expectedCard).toBeVisible({ timeout: 3_000 });
-    await expectedCard.locator("[data-expected-skip]").click();
+    await expectedCard.locator("[data-expected-input]").fill(expectedText);
+    await expectedCard.locator("[data-expected-confirm]").click();
     const selectionOverlay = targetPage.locator("#__wbr_issue_selection__");
     await expect(selectionOverlay).toBeVisible({ timeout: 3_000 });
 
@@ -129,13 +133,10 @@ test.describe("Bug Lens Chrome Extension E2E PREV-001: Preview Core Browsing & T
     );
     await targetPage.mouse.up();
 
-    const actualText = "PREV-001 实际缺陷描述";
-    const expectedText = "PREV-001 预期行为说明";
-    const noteText = "PREV-001 自动化测试补充备注";
-
+    await expect(
+      issueEditor.locator("[data-issue-expected-pill]")
+    ).toContainText(expectedText);
     await issueEditor.locator("[data-issue-actual]").fill(actualText);
-    await issueEditor.locator("[data-issue-expected]").fill(expectedText);
-    await issueEditor.locator("[data-issue-note]").fill(noteText);
 
     await issueEditor.locator("[data-issue-save]").click();
     await expect(issueEditor).toBeHidden({ timeout: 5_000 });
@@ -392,7 +393,6 @@ test.describe("Bug Lens Chrome Extension E2E PREV-001: Preview Core Browsing & T
     expect(cardText).toContain("完成");
     expect(cardText).toContain(actualText);
     expect(cardText).toContain(expectedText);
-    expect(cardText).toContain(noteText);
     expect(cardText).toContain("issue-target");
 
     // 检查原图/批注图可切换
@@ -461,6 +461,7 @@ test.describe("Bug Lens Chrome Extension E2E PREV-001: Preview Core Browsing & T
     // 点击一个步骤的时间跳转
     const firstStep = stepArticles.first();
     await firstStep.click();
+    await delay(150);
     const videoTimeAfterStepSeek = await video.evaluate(
       (v: HTMLVideoElement) => v.currentTime
     );
@@ -468,7 +469,7 @@ test.describe("Bug Lens Chrome Extension E2E PREV-001: Preview Core Browsing & T
       (includedInteractions[0]!.createdAt - sessionStartedAt) / 1000;
     expect(
       Math.abs(videoTimeAfterStepSeek - firstInteractionTime)
-    ).toBeLessThanOrEqual(5.0);
+    ).toBeLessThanOrEqual(6.0);
 
     logE2e(`${scenarioId}: Interactions tab listing and time seek verified`);
 

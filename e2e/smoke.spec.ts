@@ -57,7 +57,7 @@ test.describe("Bug Lens 核心功能极速冒烟测试 (Smoke Suite)", () => {
     await targetPage.waitForTimeout(400);
 
     const textInput = targetPage.locator('[data-testid="test-text-input"]');
-    await textInput.fill("Bug Lens Smoke Test 2026");
+    await textInput.fill("E2E Smoke Test 2026");
     await textInput.press("Enter");
 
     // 等待在途截屏完成落盘，确保质量状态达到 complete
