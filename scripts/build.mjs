@@ -8,8 +8,9 @@ import {
   writeFile,
   readdir,
 } from "node:fs/promises";
+import { realpathSync, watch as watchFS } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { watch as watchFS } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { WebSocketServer } from "ws";
 
 const root = resolve(process.cwd());
@@ -19,11 +20,17 @@ const isE2e =
   process.argv.includes("--e2e") || process.env.E2E_BUILD === "true";
 
 let wss = null;
-if (isWatch) {
-  wss = new WebSocketServer({ port: 8899 });
-  console.log(
-    "[dev-reloader] WebSocket server listening on ws://localhost:8899"
-  );
+
+function isMainModule() {
+  if (!process.argv[1]) return false;
+  try {
+    return (
+      realpathSync(process.argv[1]) ===
+      realpathSync(fileURLToPath(import.meta.url))
+    );
+  } catch {
+    return false;
+  }
 }
 
 function notifyReload() {
@@ -34,9 +41,6 @@ function notifyReload() {
     }
   });
 }
-
-await rm(outdir, { recursive: true, force: true });
-await mkdir(outdir, { recursive: true });
 
 function minifyHtml(html) {
   if (isWatch) return html;
@@ -240,93 +244,109 @@ export async function buildTriageSkillCli(customOutfile) {
   await chmod(skillCliOut, 0o755);
 }
 
-if (isWatch) {
-  console.log("Starting esbuild watch mode...");
-  await copyStaticAssets();
+async function runMain() {
+  await rm(outdir, { recursive: true, force: true });
+  await mkdir(outdir, { recursive: true });
 
-  for (const [name, entry] of Object.entries(entries)) {
-    const ctx = await context({
-      entryPoints: [resolve(root, entry)],
-      bundle: true,
-      format: "iife",
-      platform: "browser",
-      target: ["chrome125"],
-      outfile: resolve(outdir, `${name}.js`),
-      sourcemap: true,
-      minify: false,
-      jsx: "automatic",
-      jsxImportSource: "preact",
-      define: {
-        "process.env.NODE_ENV": '"development"',
-        "process.env.BUG_LENS_IS_E2E": JSON.stringify(isE2e),
-      },
-      plugins: [
-        {
-          name: "rebuild-notify",
-          setup(build) {
-            build.onEnd((result) => {
-              const time = new Date().toLocaleTimeString();
-              if (result.errors.length > 0) {
-                console.error(
-                  `[${time}] [watch] ${name}.js rebuild failed with errors.`
-                );
-              } else {
-                console.log(`[${time}] [watch] ${name}.js rebuild complete.`);
-                notifyReload();
-              }
-            });
-          },
+  if (isWatch) {
+    wss = new WebSocketServer({ port: 8899 });
+    console.log(
+      "[dev-reloader] WebSocket server listening on ws://localhost:8899"
+    );
+
+    console.log("Starting esbuild watch mode...");
+    await copyStaticAssets();
+
+    for (const [name, entry] of Object.entries(entries)) {
+      const ctx = await context({
+        entryPoints: [resolve(root, entry)],
+        bundle: true,
+        format: "iife",
+        platform: "browser",
+        target: ["chrome125"],
+        outfile: resolve(outdir, `${name}.js`),
+        sourcemap: true,
+        minify: false,
+        jsx: "automatic",
+        jsxImportSource: "preact",
+        define: {
+          "process.env.NODE_ENV": '"development"',
+          "process.env.BUG_LENS_IS_E2E": JSON.stringify(isE2e),
         },
-      ],
-    });
-    await ctx.watch();
-  }
+        plugins: [
+          {
+            name: "rebuild-notify",
+            setup(build) {
+              build.onEnd((result) => {
+                const time = new Date().toLocaleTimeString();
+                if (result.errors.length > 0) {
+                  console.error(
+                    `[${time}] [watch] ${name}.js rebuild failed with errors.`
+                  );
+                } else {
+                  console.log(`[${time}] [watch] ${name}.js rebuild complete.`);
+                  notifyReload();
+                }
+              });
+            },
+          },
+        ],
+      });
+      await ctx.watch();
+    }
 
-  watchFS(
-    resolve(root, "src"),
-    { recursive: true },
-    async (eventType, filename) => {
-      if (
-        filename &&
-        !filename.endsWith(".ts") &&
-        !filename.endsWith(".tsx") &&
-        !filename.endsWith(".js")
-      ) {
-        try {
-          await copyStaticAssets();
-          const time = new Date().toLocaleTimeString();
-          console.log(`[${time}] [watch] Static assets updated (${filename}).`);
-          notifyReload();
-        } catch (e) {
-          console.error("[watch] Error updating static assets:", e);
+    watchFS(
+      resolve(root, "src"),
+      { recursive: true },
+      async (eventType, filename) => {
+        if (
+          filename &&
+          !filename.endsWith(".ts") &&
+          !filename.endsWith(".tsx") &&
+          !filename.endsWith(".js")
+        ) {
+          try {
+            await copyStaticAssets();
+            const time = new Date().toLocaleTimeString();
+            console.log(
+              `[${time}] [watch] Static assets updated (${filename}).`
+            );
+            notifyReload();
+          } catch (e) {
+            console.error("[watch] Error updating static assets:", e);
+          }
         }
       }
-    }
-  );
+    );
 
-  console.log("Watch mode ready. Watching for file changes...");
-} else {
-  for (const [name, entry] of Object.entries(entries)) {
-    await build({
-      entryPoints: [resolve(root, entry)],
-      bundle: true,
-      format: "iife",
-      platform: "browser",
-      target: ["chrome125"],
-      outfile: resolve(outdir, `${name}.js`),
-      sourcemap: false,
-      minify: true,
-      jsx: "automatic",
-      jsxImportSource: "preact",
-      define: {
-        "process.env.NODE_ENV": '"production"',
-        "process.env.BUG_LENS_IS_E2E": JSON.stringify(isE2e),
-      },
-    });
+    console.log("Watch mode ready. Watching for file changes...");
+  } else {
+    for (const [name, entry] of Object.entries(entries)) {
+      await build({
+        entryPoints: [resolve(root, entry)],
+        bundle: true,
+        format: "iife",
+        platform: "browser",
+        target: ["chrome125"],
+        outfile: resolve(outdir, `${name}.js`),
+        sourcemap: false,
+        minify: true,
+        jsx: "automatic",
+        jsxImportSource: "preact",
+        define: {
+          "process.env.NODE_ENV": '"production"',
+          "process.env.BUG_LENS_IS_E2E": JSON.stringify(isE2e),
+        },
+      });
+    }
+    await copyStaticAssets();
+    await buildTriageSkillCli();
+    console.log(
+      `Built extension to ${outdir}${isE2e ? " (with E2E pre-granted host permissions)" : ""} and triage CLI to .agents/skills/bug-lens-triage/scripts/bug-lens-cli.mjs`
+    );
   }
-  await copyStaticAssets();
-  await buildTriageSkillCli();
-  console.log(
-    `Built extension to ${outdir}${isE2e ? " (with E2E pre-granted host permissions)" : ""} and triage CLI to .agents/skills/bug-lens-triage/scripts/bug-lens-cli.mjs`
-  );
+}
+
+if (isMainModule()) {
+  await runMain();
 }
