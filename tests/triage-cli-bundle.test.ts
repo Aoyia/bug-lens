@@ -239,8 +239,14 @@ test("Bundle freshness guard: committed bug-lens-cli.mjs matches fresh esbuild c
     const tempCompiledCli = join(tempRoot, "fresh-cli.mjs");
     await buildTriageSkillCli(tempCompiledCli);
 
-    const committedContent = readFileSync(BUNDLE_PATH, "utf8");
-    const freshContent = readFileSync(tempCompiledCli, "utf8");
+    const committedContent = readFileSync(BUNDLE_PATH, "utf8").replace(
+      /\r\n/g,
+      "\n"
+    );
+    const freshContent = readFileSync(tempCompiledCli, "utf8").replace(
+      /\r\n/g,
+      "\n"
+    );
 
     assert.equal(
       freshContent,
