@@ -49,10 +49,10 @@ Bug Lens 提供官方 [`bug-lens-triage`](.agents/skills/bug-lens-triage/SKILL.m
 
 ```bash
 # 全局安装（支持 Claude Code / Cursor / Antigravity 等）
-npx skills add Aoyia/bug-lens --skill bug-lens-triage -g -y
+npx skills add Aoyia/bug-lens-skill -g -y
 
 # 或仅安装到当前业务工程目录
-npx skills add Aoyia/bug-lens --skill bug-lens-triage -y
+npx skills add Aoyia/bug-lens-skill -y
 ```
 
 ---

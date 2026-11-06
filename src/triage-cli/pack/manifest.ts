@@ -40,7 +40,7 @@ export function verifyPackIntegrity(
     )
   ) {
     if (schemaVersion > MAX_SUPPORTED_SCHEMA_VERSION) {
-      schemaWarning = `Package schemaVersion (${schemaVersion}) is newer than max supported version (${MAX_SUPPORTED_SCHEMA_VERSION}). Reading in best-effort mode; please upgrade bug-lens-mcp if fields are missing.`;
+      schemaWarning = `Package schemaVersion (${schemaVersion}) is newer than max supported version (${MAX_SUPPORTED_SCHEMA_VERSION}). Reading in best-effort mode; please run 'npx skills update bug-lens-triage' if fields are missing.`;
     } else {
       schemaWarning = `Package schemaVersion (${schemaVersion}) is not in standard supported list (${SUPPORTED_SCHEMA_VERSIONS.join(", ")}). Reading in best-effort mode.`;
     }

@@ -4,6 +4,8 @@ description: >-
   Release Bug Lens extension to GitHub Releases, GitHub Pages, and Chrome Web Store.
   Use when the user asks to release a new version, bump version numbers, publish an
   update, or submit Bug Lens to the Chrome Developer Dashboard.
+metadata:
+  internal: true
 ---
 
 # Bug Lens Release SOP
@@ -74,13 +76,14 @@ gh release create v<version> "dist-zip/bug-lens-v<version>.zip" \
   --notes "<Release Notes>"
 ```
 
-验证 GitHub Pages 工作流状态：
+验证 GitHub Pages 工作流状态并同步 Skill 镜像：
 
 ```bash
 gh run list --limit 3
+node scripts/publish-skill.mjs
 ```
 
-**Completion Criterion**: `v<version>` Tag 与 GitHub Release（含 `bug-lens-v<version>.zip` 资产）已创建，且 GitHub Pages 部署工作流触发成功。
+**Completion Criterion**: `v<version>` Tag 与 GitHub Release（含 `bug-lens-v<version>.zip` 资产）已创建，GitHub Pages 部署工作流触发成功，且 `Aoyia/bug-lens-skill` 镜像仓库已同步更新。
 
 ## Step 5: Chrome Web Store 自动化提审 (`chrome-devtools` MCP)
 

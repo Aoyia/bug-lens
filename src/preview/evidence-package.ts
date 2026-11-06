@@ -183,7 +183,7 @@ ${environmentLine}${sourceMappedErrorsText}
 
 [Workspace Setup (Do NOT extract into active project directory; overwrite singleton directory for O(1) storage)]
 - Preferred (when \`bug-lens-triage\` Skill is installed): Run the bundled \`node "<skillDir>/scripts/bug-lens-cli.mjs" open_pack ${targetZipPathEn}\`, \`get_scene\`, \`timeline\`, \`query_network\`, \`get_request\`, \`get_framework_state\`, and \`get_screenshot\` directly in memory (subsequent commands reuse the cached pack path and auto-export screenshots to temp workspace; inspect interaction step screenshots via \`get_screenshot --step N\`; do NOT redundantly call \`read_pack_file\` on \`AI_PROMPT.md\` or \`data/session-data.js\`). Skip shell extraction below and NEVER manually run \`unzip\` or write \`node -e\` / \`vm\` scripts to parse \`session-data.js\` (only run \`extract_pack\` if you need to run \`reproduce.spec.ts\`).
-- Fallback Extraction Command (only when \`bug-lens-triage\` Skill is unavailable):
+- Fallback Extraction Command (only when \`bug-lens-triage\` Skill is unavailable; install via \`npx skills add Aoyia/bug-lens-skill -g -y\`):
   ${unzipCmdEn}
 - Workspace Path: \`${workspacePath}\` (Evidence files, session data, and Playwright scripts reside here)
 
@@ -236,7 +236,7 @@ ${environmentLine}${sourceMappedErrorsText}
 
 【工作区准备（严禁解压在当前代码工程目录内，使用固定单例目录覆盖以实现 O(1) 存储占用）】
 - 首选方式（已安装 \`bug-lens-triage\` Skill 时）：直接使用该技能内置的 \`node "<skillDir>/scripts/bug-lens-cli.mjs" open_pack ${targetZipPathZh}\`、\`get_scene\`、\`timeline\`、\`query_network\`、\`get_request\`、\`get_framework_state\`、\`get_screenshot\` 内存直读分析（自动缓存当前包路径并将关键截图导出至临时目录，步骤截图使用 \`get_screenshot --step N\` 导出，无需再用 \`read_pack_file\` 重复读取 \`AI_PROMPT.md\` 或 \`data/session-data.js\`），跳过下方命令行解压，严禁手写 \`node -e\` / \`vm\` 脚本解析 \`session-data.js\`（仅在需运行 \`reproduce.spec.ts\` 时执行 \`extract_pack\`）。
-- 降级解压命令（仅当未安装 \`bug-lens-triage\` Skill 时执行）：
+- 降级解压命令（仅当未安装 \`bug-lens-triage\` Skill 时执行；可先执行 \`npx skills add Aoyia/bug-lens-skill -g -y\` 一键安装）：
   ${unzipCmdZh}
 - 工作区路径：\`${workspacePath}\`（解压与后续排查均以此目录为准）
 

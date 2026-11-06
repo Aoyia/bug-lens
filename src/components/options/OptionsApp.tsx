@@ -1148,7 +1148,7 @@ export function OptionsApp() {
                             type="button"
                             onClick={() => {
                               const snippet =
-                                "npx skills add Aoyia/bug-lens --skill bug-lens-triage -g -y";
+                                "npx skills add Aoyia/bug-lens-skill -g -y";
                               void navigator.clipboard
                                 .writeText(snippet)
                                 .then(() => {
@@ -1180,7 +1180,7 @@ export function OptionsApp() {
                           </button>
                         </div>
                         <pre className="inline-code-content">
-                          {`# Global install (Antigravity / Claude Code / Cursor)\nnpx skills add Aoyia/bug-lens --skill bug-lens-triage -g -y\n\n# Or project-scoped install\nnpx skills add Aoyia/bug-lens --skill bug-lens-triage -y`}
+                          {`# Global install (Antigravity / Claude Code / Cursor)\nnpx skills add Aoyia/bug-lens-skill -g -y\n\n# Or project-scoped install\nnpx skills add Aoyia/bug-lens-skill -y`}
                         </pre>
                       </div>
                     )}

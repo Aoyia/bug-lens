@@ -121,7 +121,7 @@ test.describe("Options Page 端到端自动化测试覆盖体系", () => {
       page.locator(".inline-prompt-preview-box").nth(1)
     ).toBeVisible();
     await expect(page.locator(".inline-code-content").nth(1)).toContainText(
-      "npx skills add Aoyia/bug-lens --skill bug-lens-triage"
+      "npx skills add Aoyia/bug-lens-skill"
     );
 
     // Tab 3: 录制默认项 (Recording)

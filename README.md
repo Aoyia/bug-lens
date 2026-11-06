@@ -49,10 +49,10 @@ Bug Lens ships with an official [`bug-lens-triage`](.agents/skills/bug-lens-tria
 
 ```bash
 # Install globally for Claude Code, Cursor, Antigravity, etc.
-npx skills add Aoyia/bug-lens --skill bug-lens-triage -g -y
+npx skills add Aoyia/bug-lens-skill -g -y
 
 # Or install into the current project workspace
-npx skills add Aoyia/bug-lens --skill bug-lens-triage -y
+npx skills add Aoyia/bug-lens-skill -y
 ```
 
 ---

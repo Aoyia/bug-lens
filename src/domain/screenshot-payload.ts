@@ -696,7 +696,7 @@ Metadata Summary:
 
 [Workspace Setup (Do NOT extract into active project directory; overwrite singleton directory for O(1) storage)]
 - Preferred (when \`bug-lens-triage\` Skill is installed): Run the bundled \`node "<skillDir>/scripts/bug-lens-cli.mjs" open_pack ${targetZipPathEn}\`, \`get_scene --selector "..."\`, \`search_pack\`, and \`get_framework_state\` directly in memory (\`open_pack\` auto-exports \`screenshot.jpg\` to a temp file path — call \`read_file\` on that path to view it visually; do NOT call \`read_pack_file\` on \`ai-prompt.md\` as full instructions are already here). Skip shell extraction below and NEVER run \`unzip\` or ad-hoc \`node -e\` / \`python\` scripts.
-- Fallback Extraction Command (only when \`bug-lens-triage\` Skill is unavailable):
+- Fallback Extraction Command (only when \`bug-lens-triage\` Skill is unavailable; install via \`npx skills add Aoyia/bug-lens-skill -g -y\`):
   ${unzipCmdEn}
 - Workspace Path: \`${workspacePath}\` (Evidence files screenshot.jpg and JSON context reside here)
 
@@ -800,7 +800,7 @@ ${pathLine}
 
 【工作区准备（严禁解压在当前代码工程目录内，使用固定单例目录覆盖以实现 O(1) 存储占用）】
 - 首选方式（已安装 \`bug-lens-triage\` Skill 时）：直接使用该技能内置的 \`node "<skillDir>/scripts/bug-lens-cli.mjs" open_pack ${targetZipPathZh}\`、\`get_scene --selector "..."\`、\`search_pack\` 与 \`get_framework_state\` 内存直读分析（\`open_pack\` 会自动将 \`screenshot.jpg\` 导出至临时目录并打印路径，直接对其调用 \`read_file\` 查看视觉画面；本提示词已包含完整排查指引，无需再调用 \`read_pack_file\` 读取 \`ai-prompt.md\`），跳过下方命令行解压，严禁执行 \`unzip\` 或手写 \`node -e\` / \`python\` 脚本解析 JSON。
-- 降级解压命令（仅当未安装 \`bug-lens-triage\` Skill 时执行）：
+- 降级解压命令（仅当未安装 \`bug-lens-triage\` Skill 时执行；可先执行 \`npx skills add Aoyia/bug-lens-skill -g -y\` 一键安装）：
   ${unzipCmdZh}
 - 工作区路径：\`${workspacePath}\`（解压与后续排查均以此目录为准）
 

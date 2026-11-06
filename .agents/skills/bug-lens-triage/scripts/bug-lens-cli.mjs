@@ -495,7 +495,7 @@ function nt(e, t, r) {
   typeof n == "number" &&
     !Ye.includes(n) &&
     (n > et
-      ? (s = `Package schemaVersion (${n}) is newer than max supported version (${et}). Reading in best-effort mode; please upgrade bug-lens-mcp if fields are missing.`)
+      ? (s = `Package schemaVersion (${n}) is newer than max supported version (${et}). Reading in best-effort mode; please run 'npx skills update bug-lens-triage' if fields are missing.`)
       : (s = `Package schemaVersion (${n}) is not in standard supported list (${Ye.join(", ")}). Reading in best-effort mode.`));
   let a = e.files ?? {},
     i = 0,
