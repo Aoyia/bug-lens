@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
+  globalSetup: "./e2e/global-setup.ts",
   testDir: "./e2e",
   testIgnore: process.env.RUN_STRESS === "true" ? [] : ["**/30min*.spec.ts"],
   timeout: 90_000,

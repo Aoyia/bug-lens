@@ -44,8 +44,13 @@ function run(
   return new Promise((resolve, reject) => {
     execFile(file, args, { timeout }, (error, stdout, stderr) => {
       if (error) {
+        const code = (error as NodeJS.ErrnoException).code ?? "";
         const detail = stderr.trim() || error.message;
-        reject(new Error(`${path.basename(file)} failed: ${detail}`));
+        reject(
+          new Error(
+            `${path.basename(file)} failed${code ? ` (${code})` : ""}: ${detail}`
+          )
+        );
         return;
       }
       resolve({ stdout: stdout.trim(), stderr: stderr.trim() });
@@ -118,10 +123,36 @@ function macOSPermissionHost(): string {
   );
 }
 
-function isMacOSInputPermissionError(error: unknown): boolean {
-  return /not allowed to send keystrokes|不允许发送按键|accessibility permission|辅助功能权限|\(1002\)/i.test(
+export function isMacOSInputPermissionError(error: unknown): boolean {
+  return /not allowed to send keystrokes|不允许发送按键|accessibility permission|辅助功能权限|\(1002\)|-2700|-1712|AppleEvent|ETIMEDOUT|killed/i.test(
     String(error)
   );
+}
+
+export async function checkMacOSAccessibilityPermission(): Promise<{
+  granted: boolean;
+  error?: unknown;
+}> {
+  if (process.platform !== "darwin") {
+    return { granted: true };
+  }
+  try {
+    const { stdout } = await run("/usr/bin/osascript", [
+      "-e",
+      'tell application "System Events" to get UI elements enabled',
+    ]);
+    if (stdout.trim() === "true") {
+      return { granted: true };
+    }
+    return {
+      granted: false,
+      error: new Error(
+        "osascript failed: Accessibility permission is disabled (-2700)"
+      ),
+    };
+  } catch (error) {
+    return { granted: false, error };
+  }
 }
 
 export function formatMacOSInputPermissionError(
@@ -190,10 +221,12 @@ class MacOSShortcutDriver implements NativeShortcutDriver {
     try {
       result = await run("/usr/bin/osascript", ["-e", script]);
     } catch (error) {
-      console.warn(
-        `[NativeShortcutDriver] Accessibility permission missing, fallback mode enabled: ${String(error)}`
+      if (isMacOSInputPermissionError(error)) {
+        throw new Error(formatMacOSInputPermissionError(error));
+      }
+      throw new Error(
+        `NATIVE_SHORTCUT_PREFLIGHT_FAILED: 预检全局快捷键驱动失败。${String(error)}`
       );
-      result = { stdout: "Fallback", stderr: "" };
     }
     return {
       platform: process.platform,

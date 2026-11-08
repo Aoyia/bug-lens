@@ -1,6 +1,9 @@
 import { execFile } from "node:child_process";
 import path from "node:path";
-import { formatMacOSInputPermissionError } from "./native-shortcut.ts";
+import {
+  formatMacOSInputPermissionError,
+  isMacOSInputPermissionError,
+} from "./native-shortcut.ts";
 import { withOsInteractionLock } from "./os-mutex.ts";
 
 function run(
@@ -11,8 +14,13 @@ function run(
   return new Promise((resolve, reject) => {
     execFile(file, args, { timeout }, (error, stdout, stderr) => {
       if (error) {
+        const code = (error as NodeJS.ErrnoException).code ?? "";
         const detail = stderr.trim() || error.message;
-        reject(new Error(`${path.basename(file)} failed: ${detail}`));
+        reject(
+          new Error(
+            `${path.basename(file)} failed${code ? ` (${code})` : ""}: ${detail}`
+          )
+        );
         return;
       }
       resolve({ stdout: stdout.trim(), stderr: stderr.trim() });
@@ -22,12 +30,6 @@ function run(
 
 function appleScriptString(value: string): string {
   return `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
-}
-
-function isMacOSInputPermissionError(error: unknown): boolean {
-  return /not allowed to send keystrokes|不允许发送按键|accessibility permission|辅助功能权限|\(1002\)/i.test(
-    String(error)
-  );
 }
 
 export interface NativeSaveDialogDriver {
