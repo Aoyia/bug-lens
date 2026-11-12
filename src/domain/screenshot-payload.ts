@@ -67,59 +67,24 @@ export interface RecentFailedNetworkRequest {
  * 替代原全量相交 DOM 树，压缩体积的同时提升信息密度。
  */
 
-/** CascadeIndex 级联快照数据模型 */
-export interface CascadeSheetSource {
-  id: string;
-  href?: string;
-  ownerNodeTag?: string;
-  rulesCount: number;
-  isInline?: boolean;
-}
+import type {
+  AiSettings,
+  CascadeElementRef,
+  CascadeIndex,
+  CascadeInheritedRuleRef,
+  CascadePropertySource,
+  CascadeRuleSource,
+  CascadeSheetSource,
+} from "../shared/protocol";
 
-export interface CascadeRuleSource {
-  id: string;
-  sheetId: string;
-  selectorText: string;
-  cssText: string;
-  styleProps: Record<string, string>;
-}
-
-export interface CascadeInheritedRuleRef {
-  ancestorSelector: string;
-  ancestorTagName: string;
-  ruleId: string;
-  inheritedProps: Record<string, string>;
-}
-
-export interface CascadeElementRef {
-  id: string;
-  selector: string;
-  tagName: string;
-  matchedRuleIds: string[];
-  inheritedRules?: CascadeInheritedRuleRef[];
-}
-
-export interface CascadePropertySource {
-  property: string;
-  value: string;
-  sourceRuleId?: string;
-  isInline?: boolean;
-  isImportant?: boolean;
-  inheritedFromSelector?: string;
-}
-
-export interface CascadeIndex {
-  sheets: CascadeSheetSource[];
-  rules: CascadeRuleSource[];
-  elements: CascadeElementRef[];
-  perProperty: Record<string, CascadePropertySource[]>;
-  meta: {
-    sheetCount: number;
-    ruleCount: number;
-    elementCount: number;
-    capturedAtEpochMs: number;
-  };
-}
+export type {
+  CascadeElementRef,
+  CascadeIndex,
+  CascadeInheritedRuleRef,
+  CascadePropertySource,
+  CascadeRuleSource,
+  CascadeSheetSource,
+};
 
 export interface DirectionalFourMetrics {
   top: number;
@@ -423,11 +388,14 @@ export function isWindowsEnvironment(payload?: AIScreenshotPayload): boolean {
   return false;
 }
 
-function buildPromptBody(
-  payload: AIScreenshotPayload,
-  pathLine: string,
-  zipPath?: string
-): string {
+interface SourceLocationItem {
+  componentName?: string;
+  componentFile: string;
+  componentLine?: number;
+  isAnchor?: boolean;
+}
+
+function extractScreenshotDiagnostics(payload: AIScreenshotPayload) {
   const errCount = payload.environment.recentConsoleErrors.length;
   const reqCount = payload.environment.recentFailedRequests.length;
   const w = Math.round(payload.cropBounds.width);
@@ -477,14 +445,6 @@ function buildPromptBody(
       }
     }
   };
-
-  // 提取源码物理定位信息
-  interface SourceLocationItem {
-    componentName?: string;
-    componentFile: string;
-    componentLine?: number;
-    isAnchor?: boolean;
-  }
 
   const sourceMap = new Map<string, SourceLocationItem>();
   const componentNamesSet = new Set<string>();
@@ -560,6 +520,47 @@ function buildPromptBody(
   }
 
   const sourceLocations = Array.from(sourceMap.values());
+  const hasCascade = Boolean(payload.cascadeIndex);
+  const hasTextAnnotation = payload.annotations.some(
+    (a) => a.type === "text" && a.text.trim().length > 0
+  );
+
+  return {
+    errCount,
+    reqCount,
+    w,
+    h,
+    dpr,
+    squeezedNodes,
+    truncatedNodes,
+    gridOverflowNodes,
+    sourceLocations,
+    componentNamesSet,
+    hasCascade,
+    hasTextAnnotation,
+  };
+}
+
+function buildPromptBody(
+  payload: AIScreenshotPayload,
+  pathLine: string,
+  zipPath?: string
+): string {
+  const {
+    errCount,
+    reqCount,
+    w,
+    h,
+    dpr,
+    squeezedNodes,
+    truncatedNodes,
+    gridOverflowNodes,
+    sourceLocations,
+    componentNamesSet,
+    hasCascade,
+    hasTextAnnotation,
+  } = extractScreenshotDiagnostics(payload);
+
   let sourceLocationSectionZh = "";
   let sourceLocationSectionEn = "";
 
@@ -622,16 +623,11 @@ ${fileListEn}
   - No physical source paths captured (the page may be a production build or minified). Please refer to DOM structure and component name(s)${compHintEn} for global codebase search.`;
   }
 
-  const hasCascade = Boolean(payload.cascadeIndex);
-  const hasTextAnnotation = payload.annotations.some(
-    (a) => a.type === "text" && a.text.trim().length > 0
-  );
-
   if (isEn()) {
     const title = payload.environment.title || "Unknown Page";
     const url = payload.environment.url || "Unknown URL";
     const cascadeHint = hasCascade
-      ? `\n- Cascade Index: Style adjustment mode active. Package includes \`cascade.json\` (schema: \`sheets\` / \`rules\` / \`elements[matchedRuleIds, inheritedRules]\` / \`perProperty[prop][]{value, sourceRuleId}\`). Query matched CSS rules and stylesheet URLs directly in memory via \`bug-lens-triage\` CLI (\`open_pack\`, \`get_scene --selector "..." --cssProperty "..."\`, or \`search_pack\`).`
+      ? `\n- Cascade Index: Style adjustment mode active. Package includes \`cascade.json\` (schema: \`sheets\` / \`rules\` / \`elements[matchedRuleIds, inheritedRules]\` / \`perProperty[prop][]{value, sourceRuleId}\`). Query matched CSS rules and stylesheet URLs via \`bug-lens-triage\` CLI (\`open_pack\`, \`get_scene --selector "..." --cssProperty "..."\`, or \`search_pack\`) or inspect \`cascade.json\` in the extracted workspace.`
       : "";
 
     let squeezeWarning = "";
@@ -695,7 +691,7 @@ Metadata Summary:
 - Anomalies: ${errCount} console error(s) | ${reqCount} failed network request(s)${sourceLocationSectionEn}${cascadeHint}${squeezeWarning}
 
 [Workspace Setup (Do NOT extract into active project directory; overwrite singleton directory for O(1) storage)]
-- Preferred (when \`bug-lens-triage\` Skill is installed): Run the bundled \`node "<skillDir>/scripts/bug-lens-cli.mjs" open_pack ${targetZipPathEn}\`, \`get_scene --selector "..."\`, \`search_pack\`, and \`get_framework_state\` directly in memory (\`open_pack\` auto-exports \`screenshot.jpg\` to a temp file path — call \`read_file\` on that path to view it visually; do NOT call \`read_pack_file\` on \`ai-prompt.md\` as full instructions are already here). Skip shell extraction below and NEVER run \`unzip\` or ad-hoc \`node -e\` / \`python\` scripts.
+- Preferred (when \`bug-lens-triage\` Skill is installed): Run the bundled \`node "<skillDir>/scripts/bug-lens-cli.mjs" open_pack ${targetZipPathEn}\` to idempotently extract the pack to an isolated workspace directory and generate \`INDEX.md\`, then run \`get_scene --selector "..."\`, \`search_pack\`, and \`get_framework_state\` (call \`read_file\` on the printed \`screenshot.jpg\` path to view it visually; query \`dom-context.json\` / \`cascade.json\` directly with \`jq\` when needed). Skip manual \`unzip\` below.
 - Fallback Extraction Command (only when \`bug-lens-triage\` Skill is unavailable; install via \`npx skills add Aoyia/bug-lens-skill -g -y\`):
   ${unzipCmdEn}
 - Workspace Path: \`${workspacePath}\` (Evidence files screenshot.jpg and JSON context reside here)
@@ -725,17 +721,19 @@ Please follow the Dual-Track Intent Analysis Framework:
 - Zero-Regression & Isolation Principle: Keep changes strictly localized to preserve business logic and data flow.
 - Workspace Isolation & Zero Disk Leak: Never decompress files into active git/project directories; strictly use the singleton directory \`${workspacePath}\`.
 
-[Output Format]
-1. Intent Identification (Bug Fix vs Feature Development) & Affected Components
-2. Deviation Evidence Analysis (Screenshot + DOM + Error Logs)
-3. Root Cause or Feature Requirement Analysis
-4. Recommended Fix / Implementation & Exact Code Locations`;
+[Output Format (Conclusion-First, On-Demand Visuals, Replace Text with Diagrams)]
+1. One-Line Conclusion & Deviation Table: State the intent track (Bug Fix vs Feature Dev), root cause, and target \`file:line\` in 1 sentence, followed by a compact Markdown table (\`Dimension | Expected / Intent | Actual | Key Evidence (DOM / CSS / State)\`).
+2. On-Demand Visual Diagnosis (ONLY draw when spatial geometry, cascade overrides, or component flow is clearer as a diagram than text; skip diagrams for trivial single-property tweaks):
+   - Spatial / Box-Model Deviations (Flex squeeze, text overflow, Grid track blowout, stacking occlusion): Draw a compact ASCII box-model / dimension comparison diagram showing parent vs child intrinsic/rendered sizes.
+   - CSS Cascade Overrides or Component State Flow: Render a \`mermaid\` \`flowchart LR/TD\` (quote labels containing special characters) showing \`S* -> R*\` rule precedence or data flow.
+   - Diagram-Replaces-Text Rule: Never repeat in prose paragraphs what the diagram or table already communicates.
+3. Minimal Fix / Implementation & Exact Code Locations: Exact file paths, line numbers, and concise before/after code diff.`;
   }
 
   const title = payload.environment.title || "未知页面";
   const url = payload.environment.url || "未知 URL";
   const cascadeHint = hasCascade
-    ? `\n- 级联快照 (Cascade Index)：已开启样式微调模式，包内包含 \`cascade.json\`（结构：\`sheets\` / \`rules\` / \`elements[matchedRuleIds, inheritedRules]\` / \`perProperty[prop][]{value, sourceRuleId}\`）。优先通过 \`bug-lens-triage\` 技能内置脚本 \`open_pack\`、\`get_scene --selector "..." --cssProperty "..."\` 或 \`search_pack\` 在内存中直接关联查询 CSS 规则覆盖关系与样式表 URL。`
+    ? `\n- 级联快照 (Cascade Index)：已开启样式微调模式，包内包含 \`cascade.json\`（结构：\`sheets\` / \`rules\` / \`elements[matchedRuleIds, inheritedRules]\` / \`perProperty[prop][]{value, sourceRuleId}\`）。优先通过 \`bug-lens-triage\` 技能内置脚本 \`open_pack\`、\`get_scene --selector "..." --cssProperty "..."\` 或 \`search_pack\` 关联查询 CSS 规则覆盖关系与样式表 URL，或直接检索解压工作区内的 \`cascade.json\`。`
     : "";
 
   let squeezeWarning = "";
@@ -799,7 +797,7 @@ ${pathLine}
 - 异常日志：${errCount} 条 Console 报错 | ${reqCount} 个失败网络请求${sourceLocationSectionZh}${cascadeHint}${squeezeWarning}
 
 【工作区准备（严禁解压在当前代码工程目录内，使用固定单例目录覆盖以实现 O(1) 存储占用）】
-- 首选方式（已安装 \`bug-lens-triage\` Skill 时）：直接使用该技能内置的 \`node "<skillDir>/scripts/bug-lens-cli.mjs" open_pack ${targetZipPathZh}\`、\`get_scene --selector "..."\`、\`search_pack\` 与 \`get_framework_state\` 内存直读分析（\`open_pack\` 会自动将 \`screenshot.jpg\` 导出至临时目录并打印路径，直接对其调用 \`read_file\` 查看视觉画面；本提示词已包含完整排查指引，无需再调用 \`read_pack_file\` 读取 \`ai-prompt.md\`），跳过下方命令行解压，严禁执行 \`unzip\` 或手写 \`node -e\` / \`python\` 脚本解析 JSON。
+- 首选方式（已安装 \`bug-lens-triage\` Skill 时）：直接使用该技能内置的 \`node "<skillDir>/scripts/bug-lens-cli.mjs" open_pack ${targetZipPathZh}\` 将证据包幂等解压至隔离工作区并生成 \`INDEX.md\`，配合 \`get_scene --selector "..."\`、\`search_pack\` 与 \`get_framework_state\` 分析（直接对打印出的 \`screenshot.jpg\` 路径调用 \`read_file\` 查看视觉画面；按需用 \`jq\` 直读工作区内的 \`dom-context.json\` 与 \`cascade.json\`），跳过下方手动 \`unzip\`。
 - 降级解压命令（仅当未安装 \`bug-lens-triage\` Skill 时执行；可先执行 \`npx skills add Aoyia/bug-lens-skill -g -y\` 一键安装）：
   ${unzipCmdZh}
 - 工作区路径：\`${workspacePath}\`（解压与后续排查均以此目录为准）
@@ -829,11 +827,13 @@ ${pathLine}
 - 零回归与隔离原则：针对已存在的代码模块，任何改动必须严格局部化，保证业务逻辑、交互监听与数据流动完好无损；如果是纯视觉/样式调整，必须严格限制在样式层（Style/Layout）。
 - 工作区防污染与防存储浪费：严禁在当前 Git 仓库/工程目录解压或残留任何临时文件；严格在 \`${workspacePath}\` 单例目录执行，维持最小存储开销。
 
-[输出格式]
-1. 意图识别（缺陷修复 vs 需求开发）与受影响组件
-2. 异常与偏离证据分析（截图图片 + DOM + 报错日志）
-3. 根本原因定位 (Root Cause) 或 需求改进分析
-4. 建议修复/开发方案与具体代码位置`;
+[输出格式（结论先行、按需上图、以图替文，拒绝大段文字）]
+1. 一句话结论与偏差对照表：首句直接点明意图分轨（缺陷修复 vs 需求开发）、根因结论及目标 \`文件:行号\`，并用紧凑 Markdown 表格对齐 \`维度 | 预期/诉求 | 实际现状 | 关键证据 (DOM/CSS/State)\`。
+2. 按需可视化诊断图（仅在空间盒模型冲突、多级样式覆盖或组件状态流用图比文字更直观时绘制；简单单点改动直接跳过，严禁强行凑图）：
+   - 空间几何与盒模型偏差（Flex 挤压、文本截断溢出、Grid 轨道撑爆、层级遮挡）：绘制紧凑的 ASCII 几何尺寸/盒模型对比示意图（直观标注父容器与子项的 \`固有尺寸 vs 实际渲染尺寸\`、损耗像素或遮挡层级）；
+   - CSS 级联覆盖链或组件数据流：使用 \`mermaid\` \`flowchart LR/TD\`（含特殊字符的节点名必须加双引号）展示 \`S* -> R*\` 样式覆写链或组件状态传递；
+   - 以图替文铁律：一旦绘制图表，严禁在图外再用文字段落重复叙述图中已表达的层级、尺寸或覆盖关系。
+3. 最小化修复/实现代码与具体位置：直接给出精确源码路径、行号及修改代码对比。`;
 }
 
 /**
@@ -871,6 +871,195 @@ export function formatPayloadToMarkdownForZip(
 ): string {
   const guidance = isEn() ? ZIP_PATH_GUIDANCE_EN : ZIP_PATH_GUIDANCE_ZH;
   return buildPromptBody(payload, guidance);
+}
+
+export type ClipboardScreenshotPromptSettings = Partial<
+  Pick<
+    AiSettings,
+    | "promptTemplate"
+    | "promptLanguage"
+    | "targetAssistant"
+    | "customInstructions"
+  >
+>;
+
+/**
+ * 截图批注包剪贴板提示词分发入口。
+ * 未选择 compact 时与 formatPayloadToMarkdown 完全一致；包内 ai-prompt.md 始终走 formatPayloadToMarkdownForZip。
+ */
+export function buildClipboardScreenshotPrompt(
+  payload: AIScreenshotPayload,
+  zipPath?: string,
+  ai?: ClipboardScreenshotPromptSettings
+): string {
+  if (ai?.promptTemplate === "compact") {
+    return buildCompactScreenshotPrompt(payload, zipPath, {
+      targetAssistant: ai.targetAssistant,
+      promptLanguage: ai.promptLanguage,
+      customInstructions: ai.customInstructions,
+    });
+  }
+  return formatPayloadToMarkdown(payload, zipPath);
+}
+
+/**
+ * 截图批注包精简剪贴板提示词：保留路径、关键诊断摘要、Skill 自动安装路由与底线约束。
+ * 完整排查流程由 bug-lens-triage Skill 或包内 ai-prompt.md 承载。
+ */
+export function buildCompactScreenshotPrompt(
+  payload: AIScreenshotPayload,
+  zipPath?: string,
+  options?: {
+    targetAssistant?: AiSettings["targetAssistant"];
+    promptLanguage?: AiSettings["promptLanguage"];
+    customInstructions?: string;
+  }
+): string {
+  const en =
+    options?.promptLanguage === "en-US"
+      ? true
+      : options?.promptLanguage === "zh-CN"
+        ? false
+        : isEn();
+  const isWindows = isWindowsEnvironment(payload);
+  const {
+    errCount,
+    reqCount,
+    w,
+    h,
+    dpr,
+    squeezedNodes,
+    truncatedNodes,
+    gridOverflowNodes,
+    sourceLocations,
+    hasCascade,
+    hasTextAnnotation,
+  } = extractScreenshotDiagnostics(payload);
+
+  const isClaudeCode = options?.targetAssistant === "claude-code";
+  const custom = options?.customInstructions?.trim() ?? "";
+
+  const workspace = isWindows
+    ? "$env:TEMP\\bug-lens-workspace"
+    : "/tmp/bug-lens-workspace";
+  const skillFile = isWindows
+    ? "%USERPROFILE%\\.agents\\skills\\bug-lens-triage\\SKILL.md"
+    : "~/.agents/skills/bug-lens-triage/SKILL.md";
+  const installCmd = "npx -y skills add Aoyia/bug-lens-skill -g -y";
+  const unzipCmd = isWindows
+    ? `powershell -Command "New-Item -ItemType Directory -Force -Path ${workspace}; Expand-Archive -Force -Path '<ZIP>' -DestinationPath ${workspace}"`
+    : `mkdir -p ${workspace} && unzip -o -q "<ZIP>" -d ${workspace}`;
+  const aiPromptFile = isWindows
+    ? `${workspace}\\ai-prompt.md`
+    : `${workspace}/ai-prompt.md`;
+  const screenshotFile = isWindows
+    ? `${workspace}\\screenshot.jpg`
+    : `${workspace}/screenshot.jpg`;
+
+  const sourceSummary =
+    sourceLocations.length > 0
+      ? sourceLocations
+          .slice(0, 3)
+          .map(
+            (s) =>
+              `\`${s.componentFile}${s.componentLine ? `:${s.componentLine}` : ""}\`${s.componentName ? ` (${s.componentName})` : ""}`
+          )
+          .join(", ")
+      : "";
+
+  if (en) {
+    const title = payload.environment.title || "Unknown Page";
+    const url = payload.environment.url || "Unknown URL";
+    const pathBlock = zipPath
+      ? `File Path:\n${zipPath}`
+      : ZIP_PATH_PLACEHOLDER_EN;
+    const layoutHints: string[] = [];
+    if (squeezedNodes.length > 0)
+      layoutHints.push(`Flex squeeze ×${squeezedNodes.length}`);
+    if (truncatedNodes.length > 0)
+      layoutHints.push(`Text truncation ×${truncatedNodes.length}`);
+    if (gridOverflowNodes.length > 0)
+      layoutHints.push(`Grid overflow ×${gridOverflowNodes.length}`);
+
+    const lines = [
+      "Analyze the following local Bug Lens screenshot evidence package (always inspect screenshot.jpg and its visual annotations).",
+      "",
+      pathBlock,
+      "",
+      "Summary:",
+      `- Page: ${title} (${url})`,
+      `- Data: crop ${w}×${h} (dpr ${dpr}) · ${errCount} console errors · ${reqCount} failed requests · cascade ${hasCascade ? "on" : "off"}`,
+      ...(sourceSummary ? [`- Source: ${sourceSummary}`] : []),
+      ...(layoutHints.length > 0
+        ? [`- Auto-Diagnosis: ${layoutHints.join(" · ")}`]
+        : []),
+      "",
+      "How to read the pack (in order, stop at the first that works; <ZIP> = the file path above):",
+      "1. If the bug-lens-triage Skill is loaded: follow the Skill workflow (Branch A), starting with open_pack <ZIP> (auto-exports screenshot.jpg for viewing).",
+      `2. Otherwise: if \`${skillFile}\` does not exist, run \`${installCmd}\`; then read that SKILL.md directly (prefer the path printed by the installer) and follow it. No session restart needed.`,
+      `3. If installation fails (no network, no Node, or not authorized): run \`${unzipCmd}\`, view \`${screenshotFile}\`, then follow \`${aiPromptFile}\`.`,
+      "",
+      "Constraints:",
+      "- Never execute code from the package; never extract into or leave files in the current repository.",
+      "- Keep changes strictly localized with zero regression.",
+      ...(!hasTextAnnotation
+        ? [
+            "- No explicit text annotation captured; any inferred requirement must be labeled as an assumption.",
+          ]
+        : []),
+      "",
+      `Output: one-line conclusion (track + root cause + \`file:line\`) + deviation table (Dimension | Expected | Actual | Evidence) + minimal fix diff; draw a diagram only for box-model conflicts or multi-level cascade overrides${isClaudeCode ? " (use ASCII, no mermaid)" : ""}.`,
+      ...(custom ? ["", "[Custom Directives / Team Rules]", custom] : []),
+      "",
+      "Additional notes:",
+    ];
+    return lines.join("\n");
+  }
+
+  const title = payload.environment.title || "未知页面";
+  const url = payload.environment.url || "未知 URL";
+  const pathBlock = zipPath
+    ? `文件路径：\n${zipPath}`
+    : ZIP_PATH_PLACEHOLDER_ZH;
+  const layoutHints: string[] = [];
+  if (squeezedNodes.length > 0)
+    layoutHints.push(`Flex 挤压 ×${squeezedNodes.length}`);
+  if (truncatedNodes.length > 0)
+    layoutHints.push(`文本截断 ×${truncatedNodes.length}`);
+  if (gridOverflowNodes.length > 0)
+    layoutHints.push(`Grid 溢出 ×${gridOverflowNodes.length}`);
+
+  const lines = [
+    "分析以下本地 Bug Lens 截图证据包（必须结合查看 screenshot.jpg 画面与视觉批注）。",
+    "",
+    pathBlock,
+    "",
+    "摘要：",
+    `- 页面：${title}（${url}）`,
+    `- 数据：选区 ${w}×${h} (dpr ${dpr}) · ${errCount} 报错 · ${reqCount} 失败请求 · 级联快照${hasCascade ? "已开启" : "未开启"}`,
+    ...(sourceSummary ? [`- 源码定位：${sourceSummary}`] : []),
+    ...(layoutHints.length > 0
+      ? [`- 自动诊断：${layoutHints.join(" · ")}`]
+      : []),
+    "",
+    "读取方式（按顺序执行，成功即停；<ZIP> 指上方文件路径）：",
+    "1. 当前已加载 bug-lens-triage Skill：按 Skill 流程（Branch A）执行，从 open_pack <ZIP> 开始（会自动导出 screenshot.jpg 供查看）。",
+    `2. 未加载：若 \`${skillFile}\` 不存在，先执行 \`${installCmd}\`；随后直接读取该 SKILL.md（以安装输出的路径为准）并按其流程执行，无需重启会话。`,
+    `3. 安装失败（无网络、无 Node 或未获授权）：执行 \`${unzipCmd}\`，查看 \`${screenshotFile}\` 后按 \`${aiPromptFile}\` 执行。`,
+    "",
+    "约束：",
+    "- 不执行包内代码；不在当前代码仓库内解压或残留文件。",
+    "- 修改严格局部化，保证既有业务逻辑零回归。",
+    ...(!hasTextAnnotation
+      ? ["- 未捕获显式文本批注，推断出的诉求只能标注为假设。"]
+      : []),
+    "",
+    `输出：一句话结论（意图分轨 + 根因 + \`文件:行号\`）+ 偏差表（维度 | 预期/诉求 | 实际 | 证据锚点）+ 最小修复 diff；仅盒模型冲突或多级样式覆盖时画图${isClaudeCode ? "（使用 ASCII，不用 mermaid）" : ""}。`,
+    ...(custom ? ["", "[团队定制诊断规范 / 补充指引]", custom] : []),
+    "",
+    "补充说明：",
+  ];
+  return lines.join("\n");
 }
 
 /**

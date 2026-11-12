@@ -74,10 +74,16 @@ test("resumeSessionNotFound 占位符必须双语齐全且可被 t() 替换", ()
     /\$ID\$/,
     "sess-1"
   );
-  assert.ok(zhResult.includes("sess-1"), "zh resumeSessionNotFound 占位符可替换");
+  assert.ok(
+    zhResult.includes("sess-1"),
+    "zh resumeSessionNotFound 占位符可替换"
+  );
   const enResult = loadDict("en").resumeSessionNotFound.message.replace(
     /\$ID\$/,
     "sess-1"
   );
-  assert.ok(enResult.includes("sess-1"), "en resumeSessionNotFound 占位符可替换");
+  assert.ok(
+    enResult.includes("sess-1"),
+    "en resumeSessionNotFound 占位符可替换"
+  );
 });

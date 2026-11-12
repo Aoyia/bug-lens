@@ -8,7 +8,7 @@ export * from "./overlay/overlay-template";
 export * from "./annotations/annotation-controller";
 export * from "./annotations/annotation-renderer";
 export * from "./annotations/text-layout";
-export * from "./annotations/undo-manager";
+export * from "../shared/undo-manager";
 export * from "./annotations/renderers/renderer-registry";
 
 export * from "./probes/cascade-snapshot-collector";

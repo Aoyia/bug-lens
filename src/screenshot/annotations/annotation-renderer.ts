@@ -2,19 +2,8 @@ import type {
   AnnotationItem,
   RectBounds,
 } from "../../domain/screenshot-payload";
-import {
-  pointInRectEdgeBand,
-  pointToSegmentDistance,
-} from "../overlay/overlay-geometry";
-import {
-  computeTextLayout,
-  getTextHaloColor,
-  TEXT_ANNOTATION_FONT,
-  TEXT_DEFAULT_COLOR,
-  TEXT_LINE_HEIGHT,
-  TEXT_MAX_WIDTH,
-  TEXT_STROKE_WIDTH,
-} from "./text-layout";
+import { getRenderer } from "./renderers/renderer-registry";
+import { computeTextLayout } from "./text-layout";
 
 /** renderAnnotations 的渲染输入：仅读状态，不改动任何调用方状态 */
 export interface RenderAnnotationsOptions {
@@ -52,150 +41,17 @@ export function renderAnnotations(
     ctx.clearRect(selection.x, selection.y, selection.width, selection.height);
   }
 
-  // 3. 绘制用户标注图层
+  // 3. 绘制用户标注图层（委托给 RendererRegistry）
   const list = [...annotations];
   if (tempAnnotation) list.push(tempAnnotation);
+  const rc = { selection, viewportImage };
 
   for (const ann of list) {
     ctx.save();
     ctx.strokeStyle = ann.color || "#FA5252";
     ctx.fillStyle = ann.color || "#FA5252";
     ctx.lineWidth = 2.5;
-
-    if (ann.type === "rect") {
-      const lw = 2;
-      const rx = Math.floor(ann.bounds.x);
-      const ry = Math.floor(ann.bounds.y);
-      const rw = Math.round(ann.bounds.width);
-      const rh = Math.round(ann.bounds.height);
-
-      const rOuter = Math.min(6, Math.min(rw, rh) / 2);
-      const rInner = Math.max(0, rOuter - lw);
-
-      ctx.save();
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = "high";
-      ctx.fillStyle = ann.color || "#FA5252";
-
-      ctx.beginPath();
-      if (ctx.roundRect && rw > 2 * lw && rh > 2 * lw) {
-        ctx.roundRect(rx, ry, rw, rh, rOuter);
-        ctx.roundRect(rx + lw, ry + lw, rw - 2 * lw, rh - 2 * lw, rInner);
-      } else {
-        ctx.rect(rx, ry, rw, rh);
-        if (rw > 2 * lw && rh > 2 * lw) {
-          ctx.rect(rx + lw, ry + lw, rw - 2 * lw, rh - 2 * lw);
-        }
-      }
-      ctx.fill("evenodd");
-      ctx.restore();
-    } else if (ann.type === "arrow") {
-      const sx = ann.startPoint.x;
-      const sy = ann.startPoint.y;
-      const ex = ann.endPoint.x;
-      const ey = ann.endPoint.y;
-
-      ctx.beginPath();
-      ctx.moveTo(sx, sy);
-      ctx.lineTo(ex, ey);
-      ctx.stroke();
-
-      const angle = Math.atan2(ey - sy, ex - sx);
-      const headLen = 14;
-      ctx.beginPath();
-      ctx.moveTo(ex, ey);
-      ctx.lineTo(
-        ex - headLen * Math.cos(angle - Math.PI / 6),
-        ey - headLen * Math.sin(angle - Math.PI / 6)
-      );
-      ctx.lineTo(
-        ex - headLen * Math.cos(angle + Math.PI / 6),
-        ey - headLen * Math.sin(angle + Math.PI / 6)
-      );
-      ctx.closePath();
-      ctx.fill();
-    } else if (ann.type === "privacy") {
-      const x = Math.round(ann.bounds.x);
-      const y = Math.round(ann.bounds.y);
-      const w = Math.round(ann.bounds.width);
-      const h = Math.round(ann.bounds.height);
-      const dpr = window.devicePixelRatio || 1;
-
-      if (w > 0 && h > 0 && viewportImage) {
-        const tileSize = 8;
-        const sampleW = Math.max(1, Math.floor(w / tileSize));
-        const sampleH = Math.max(1, Math.floor(h / tileSize));
-
-        const offCanvas = document.createElement("canvas");
-        offCanvas.width = sampleW;
-        offCanvas.height = sampleH;
-        const offCtx = offCanvas.getContext("2d");
-        if (offCtx) {
-          offCtx.imageSmoothingEnabled = false;
-          offCtx.drawImage(
-            viewportImage,
-            x * dpr,
-            y * dpr,
-            w * dpr,
-            h * dpr,
-            0,
-            0,
-            sampleW,
-            sampleH
-          );
-
-          ctx.save();
-          ctx.imageSmoothingEnabled = false;
-          ctx.drawImage(offCanvas, 0, 0, sampleW, sampleH, x, y, w, h);
-          ctx.restore();
-        }
-      } else if (w > 0 && h > 0) {
-        ctx.fillStyle = "rgba(100, 116, 139, 0.7)";
-        ctx.fillRect(x, y, w, h);
-      }
-    } else if (ann.type === "text") {
-      const px = ann.position.x;
-      const py = ann.position.y;
-      const text = ann.text;
-
-      ctx.save();
-      ctx.font = TEXT_ANNOTATION_FONT;
-
-      const boundsRight = selection
-        ? selection.x + selection.width
-        : window.innerWidth;
-      const maxTextWidth = Math.max(
-        60,
-        Math.min(TEXT_MAX_WIDTH, boundsRight - px - 8)
-      );
-
-      const { lines } = computeTextLayout(text, {
-        measure: (s) => ctx.measureText(s).width,
-        maxWidth: maxTextWidth,
-      });
-
-      const textColor = ann.color || TEXT_DEFAULT_COLOR;
-      const haloColor = getTextHaloColor(textColor);
-
-      ctx.textAlign = "left";
-      ctx.textBaseline = "top";
-
-      // 通道 1：底层反色外光晕描边
-      ctx.strokeStyle = haloColor;
-      ctx.lineWidth = TEXT_STROKE_WIDTH;
-      ctx.lineJoin = "round";
-      ctx.miterLimit = 2;
-      for (let i = 0; i < lines.length; i++) {
-        ctx.strokeText(lines[i], px, py + i * TEXT_LINE_HEIGHT);
-      }
-
-      // 通道 2：顶层文字填充
-      ctx.fillStyle = textColor;
-      for (let i = 0; i < lines.length; i++) {
-        ctx.fillText(lines[i], px, py + i * TEXT_LINE_HEIGHT);
-      }
-      ctx.restore();
-    }
+    getRenderer(ann.type).draw(ctx, ann, rc);
     ctx.restore();
   }
 
@@ -261,34 +117,9 @@ export function hitTestAnnotationHandle(
   x: number,
   y: number
 ): { ann: AnnotationItem; handle: string } | null {
-  const radius = 8;
-
-  if (ann.type === "rect" || ann.type === "privacy") {
-    const { x: bx, y: by, width: bw, height: bh } = ann.bounds;
-    const handles = [
-      { name: "nw", x: bx, y: by },
-      { name: "ne", x: bx + bw, y: by },
-      { name: "se", x: bx + bw, y: by + bh },
-      { name: "sw", x: bx, y: by + bh },
-    ];
-    for (const h of handles) {
-      if (Math.hypot(x - h.x, y - h.y) <= radius) {
-        return { ann, handle: h.name };
-      }
-    }
-  } else if (ann.type === "arrow") {
-    if (Math.hypot(x - ann.startPoint.x, y - ann.startPoint.y) <= radius) {
-      return { ann, handle: "start" };
-    }
-    if (Math.hypot(x - ann.endPoint.x, y - ann.endPoint.y) <= radius) {
-      return { ann, handle: "end" };
-    }
-  }
-  return null;
+  const handle = getRenderer(ann.type).hitTestHandle(ann, x, y);
+  return handle ? { ann, handle } : null;
 }
-
-/** 矩形批注（rect/privacy）的命中容差：仅边框 ±6px 环形带可命中，内部视为空白穿透 */
-const RECT_EDGE_HIT_TOLERANCE = 6;
 
 /** 检测坐标是否命中任意批注（纯查询，无副作用），命中顺序：后添加者优先 */
 export function hitTestAnnotation(
@@ -298,33 +129,8 @@ export function hitTestAnnotation(
 ): AnnotationItem | null {
   for (let i = annotations.length - 1; i >= 0; i--) {
     const ann = annotations[i];
-    if (ann.type === "rect" || ann.type === "privacy") {
-      // 仅边框 ±6px 环形带可命中：避免上层方框内部遮罩下层方框无法选中
-      if (pointInRectEdgeBand(x, y, ann.bounds, RECT_EDGE_HIT_TOLERANCE)) {
-        return ann;
-      }
-    } else if (ann.type === "text") {
-      // 与绘制共用同一布局：命中区 = 气泡区域（±4px 容差），杜绝"点空白也选中"
-      const layout = computeTextLayout(ann.text);
-      const px = ann.position.x;
-      const py = ann.position.y;
-      if (
-        x >= px - 4 &&
-        x <= px + layout.bgWidth + 4 &&
-        y >= py - 4 &&
-        y <= py + layout.bgHeight + 4
-      ) {
-        return ann;
-      }
-    } else if (ann.type === "arrow") {
-      const dist = pointToSegmentDistance(
-        { x, y },
-        ann.startPoint,
-        ann.endPoint
-      );
-      if (dist <= 10) {
-        return ann;
-      }
+    if (getRenderer(ann.type).hitTest(ann, x, y)) {
+      return ann;
     }
   }
   return null;

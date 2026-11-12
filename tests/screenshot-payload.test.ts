@@ -4,6 +4,8 @@ import {
   formatPayloadToMarkdown,
   formatPayloadToMarkdownForZip,
   buildAiPromptTemplate,
+  buildClipboardScreenshotPrompt,
+  buildCompactScreenshotPrompt,
   formatPayloadToHtml,
   isWindowsEnvironment,
   normalizePayloadKeyOrder,
@@ -782,5 +784,48 @@ describe("Screenshot Payload Formatter", () => {
       vueSnapshot.componentFile,
       "src/components/TodoItem.vue"
     );
+  });
+
+  test("buildClipboardScreenshotPrompt keeps standard output unless compact is selected, and compact routes Skill -> auto install -> unzip", () => {
+    const zip = "/Users/tester/Downloads/bug-lens-screenshot-1.zip";
+    const standard = formatPayloadToMarkdown(mockPayload, zip);
+    assert.equal(buildClipboardScreenshotPrompt(mockPayload, zip), standard);
+    assert.equal(
+      buildClipboardScreenshotPrompt(mockPayload, zip, {
+        promptTemplate: "standard",
+        targetAssistant: "claude-code",
+        customInstructions: "规范",
+      }),
+      standard
+    );
+
+    const compact = buildClipboardScreenshotPrompt(mockPayload, zip, {
+      promptTemplate: "compact",
+      targetAssistant: "claude-code",
+      customInstructions: "检查 Flex 布局",
+    });
+    assert.equal(compact.split(zip).length - 1, 1);
+    assert.match(
+      compact,
+      /文件路径：\n\/Users\/tester\/Downloads\/bug-lens-screenshot-1\.zip/
+    );
+    assert.match(compact, /当前已加载 bug-lens-triage Skill/);
+    assert.match(compact, /npx -y skills add Aoyia\/bug-lens-skill -g -y/);
+    assert.match(compact, /\/tmp\/bug-lens-workspace\/ai-prompt\.md/);
+    assert.match(compact, /使用 ASCII，不用 mermaid/);
+    assert.match(compact, /\[团队定制诊断规范 \/ 补充指引\]\n检查 Flex 布局/);
+    assert.ok(
+      compact.length < 1000,
+      `compact screenshot prompt too long: ${compact.length}`
+    );
+
+    const enCompact = buildCompactScreenshotPrompt(mockPayload, zip, {
+      promptLanguage: "en-US",
+    });
+    assert.match(
+      enCompact,
+      /File Path:\n\/Users\/tester\/Downloads\/bug-lens-screenshot-1\.zip/
+    );
+    assert.match(enCompact, /If the bug-lens-triage Skill is loaded/);
   });
 });

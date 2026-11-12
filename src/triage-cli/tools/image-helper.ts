@@ -1,7 +1,8 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import type { LoadedPack } from "../pack/cache.ts";
 import {
+  getPackWorkspaceDir,
   getTriageWorkspaceDir,
   sanitizeRelativePathForDisk,
 } from "../pack/open.ts";
@@ -27,6 +28,12 @@ export function exportPackImageToTemp(
   const bytes = pack.getBinaryFile(relPath);
   if (!bytes) return undefined;
   const { sanitized } = sanitizeRelativePathForDisk(relPath);
+  // 解压模式：图片已在工作区内，直接返回其路径
+  const workspaceDir = getPackWorkspaceDir(pack);
+  if (workspaceDir) {
+    const inWorkspace = resolve(workspaceDir, ...sanitized.split("/"));
+    if (existsSync(inWorkspace)) return inWorkspace;
+  }
   const packPrefix =
     pack.kind === "session"
       ? pack.sessionId.slice(0, 8) || "session"
@@ -66,7 +73,7 @@ export function buildImageContentBlocks(
         type: "text",
         text: savedPath
           ? `[Image "${relPath}" (${sizeKb} KB) saved to: ${savedPath} — call read_file on this path to view it directly]`
-          : `[Image "${relPath}" (${sizeKb} KB) exceeds inline size limit (1.5 MB). Call extract_pack to write files to disk and read the image from the extracted path.]`,
+          : `[Image "${relPath}" (${sizeKb} KB) exceeds inline size limit (1.5 MB) and could not be located on disk.]`,
       },
     ];
   }
@@ -74,7 +81,7 @@ export function buildImageContentBlocks(
   const blocks: McpContentBlock[] = [];
   const pathNotice = savedPath ? ` -> Saved to: ${savedPath}` : "";
   const offloadHint =
-    " (Tip: call read_file on the saved image path to view the visual image directly — do NOT unzip or run scripts)";
+    " (Tip: call read_file on the saved image path to view the visual image directly)";
   if (label) {
     blocks.push({
       type: "text",

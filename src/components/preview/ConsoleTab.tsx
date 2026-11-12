@@ -1,15 +1,18 @@
 import { memo } from "preact/compat";
 import { useState, useCallback } from "preact/hooks";
 import type { ConsoleEntry, RecordingSession } from "../../shared/protocol.ts";
-import { formatElapsedEpochTime } from "../../domain/evidence-clock.ts";
+import {
+  formatEvidenceTime,
+  resolveSessionOriginEpochMs,
+} from "../../domain/evidence-clock.ts";
 import { useFilteredList } from "../../hooks/useFilteredList.ts";
 import {
   filterConsoleEntries,
   matchesConsoleEntry,
 } from "../../preview/console-filter.ts";
 import { handleFilterEscape } from "../../preview/filter-search.ts";
-import { t, getLocale } from "../../shared/i18n.ts";
-import { formatTime } from "../../shared/intl-formatter.ts";
+import { t } from "../../shared/i18n.ts";
+import { FrameBadge } from "./FrameBadge.tsx";
 
 export interface ConsoleTabProps {
   snapshot: {
@@ -37,18 +40,10 @@ export const ConsoleTab = memo(function ConsoleTab({
   // （与 NetworkTab / StreamTab / InteractionsTab 的证据时间线契约一致，
   //  点击行 seek 视频时行时间必须与视频时间轴同基准）。
   // 无起点或时间早于起点时回退到本地绝对时间，不丢信息、不抛异常。
-  const originEpochMs =
-    snapshot.session?.timeline.startedAtEpochMs ??
-    snapshot.session?.timeline.createdAtEpochMs;
+  const originEpochMs = resolveSessionOriginEpochMs(snapshot.session);
 
   const formatRowTime = useCallback(
-    (epochMs: number): string => {
-      if (originEpochMs != null) {
-        const relative = formatElapsedEpochTime(epochMs, originEpochMs);
-        if (relative !== undefined) return relative;
-      }
-      return formatTime(epochMs, undefined, getLocale());
-    },
+    (epochMs: number): string => formatEvidenceTime(epochMs, originEpochMs),
     [originEpochMs]
   );
 
@@ -210,20 +205,11 @@ export const ConsoleTab = memo(function ConsoleTab({
                         <span className="console-icon log-prompt">❯</span>
                       )}
                       <span className="console-level-tag">{level}</span>
-                      <span
-                        className={`console-frame-badge ${entry.frameId ? "badge-subframe" : "badge-topframe"}`}
-                        title={
-                          entry.frameId
-                            ? entry.url
-                              ? `${entry.url} (Frame [${entry.frameId}])`
-                              : `Frame [${entry.frameId}]`
-                            : "Top Frame"
-                        }
-                      >
-                        {entry.frameId
-                          ? `Frame [${entry.frameId}]`
-                          : "Top Frame"}
-                      </span>
+                      <FrameBadge
+                        classNamePrefix="console"
+                        frameId={entry.frameId}
+                        frameUrl={entry.url}
+                      />
                       <pre className="console-message">{displayText}</pre>
                     </div>
                     <div className="console-row-right">

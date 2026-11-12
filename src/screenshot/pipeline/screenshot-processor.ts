@@ -1,22 +1,14 @@
 import {
-  formatPayloadToMarkdown,
+  buildClipboardScreenshotPrompt,
   normalizePayloadKeyOrder,
   type AIScreenshotPayload,
   type AnnotationItem,
   type FrameworkComponentStateSnapshot,
   type RectBounds,
 } from "../../domain/screenshot-payload";
+import { loadAppSettings } from "../../shared/settings";
 import { message } from "../../shared/protocol";
-import {
-  getTextHaloColor,
-  TEXT_ANNOTATION_FONT_FAMILY,
-  TEXT_ANNOTATION_FONT_SIZE,
-  TEXT_ANNOTATION_FONT_WEIGHT,
-  TEXT_DEFAULT_COLOR,
-  TEXT_LINE_HEIGHT,
-  TEXT_MAX_WIDTH,
-  TEXT_STROKE_WIDTH,
-} from "../annotations/text-layout";
+import { getRenderer } from "../annotations/renderers/renderer-registry";
 import { collectSpatialDomTree } from "../probes/dom-spatial-collector";
 import { collectCascadeIndex } from "../probes/cascade-snapshot-collector";
 import { probeFrameworkComponents } from "../probes/framework-probe";
@@ -30,7 +22,7 @@ import {
   recordTaskProfile,
   incrementPromptCopyCount,
 } from "../../diagnostics/diagnostics-store";
-import { copyTextToClipboard } from "../../preview/clipboard";
+import { copyTextToClipboard } from "../../shared/clipboard";
 
 export interface ProcessScreenshotOptions {
   viewportDataUrl: string;
@@ -52,13 +44,20 @@ function loadImage(dataUrl: string): Promise<HTMLImageElement> {
   });
 }
 
-/** 在 Canvas 上绘制批注 (Burn-in 离屏渲染) */
+/** 在 Canvas 上绘制批注 (Burn-in 离屏渲染，统一委托给 RendererRegistry) */
 export function drawAnnotationsOnCanvas(
   ctx: CanvasRenderingContext2D,
   annotations: AnnotationItem[],
   dpr: number
 ): void {
   ctx.save();
+  const logicalWidth = (ctx.canvas?.width || 800) / dpr;
+  const logicalHeight = (ctx.canvas?.height || 600) / dpr;
+  const rc = {
+    selection: { x: 0, y: 0, width: logicalWidth, height: logicalHeight },
+    viewportImage: null,
+    dpr,
+  };
 
   for (const ann of annotations) {
     ctx.save();
@@ -66,179 +65,7 @@ export function drawAnnotationsOnCanvas(
     ctx.strokeStyle = strokeColor;
     ctx.fillStyle = strokeColor;
     ctx.lineWidth = 3 * dpr;
-
-    if (ann.type === "rect") {
-      const lw = Math.max(2, Math.round(2 * dpr));
-      const rx = Math.floor(ann.bounds.x * dpr);
-      const ry = Math.floor(ann.bounds.y * dpr);
-      const rw = Math.round(ann.bounds.width * dpr);
-      const rh = Math.round(ann.bounds.height * dpr);
-
-      const rOuter = Math.min(6 * dpr, Math.min(rw, rh) / 2);
-      const rInner = Math.max(0, rOuter - lw);
-
-      ctx.save();
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = "high";
-      ctx.fillStyle = ann.color || "#FA5252";
-
-      ctx.beginPath();
-      if (ctx.roundRect && rw > 2 * lw && rh > 2 * lw) {
-        ctx.roundRect(rx, ry, rw, rh, rOuter);
-        ctx.roundRect(rx + lw, ry + lw, rw - 2 * lw, rh - 2 * lw, rInner);
-      } else {
-        ctx.rect(rx, ry, rw, rh);
-        if (rw > 2 * lw && rh > 2 * lw) {
-          ctx.rect(rx + lw, ry + lw, rw - 2 * lw, rh - 2 * lw);
-        }
-      }
-      ctx.fill("evenodd");
-      ctx.restore();
-    } else if (ann.type === "arrow") {
-      const sx = ann.startPoint.x * dpr;
-      const sy = ann.startPoint.y * dpr;
-      const ex = ann.endPoint.x * dpr;
-      const ey = ann.endPoint.y * dpr;
-
-      // 绘制矢量干线
-      ctx.beginPath();
-      ctx.moveTo(sx, sy);
-      ctx.lineTo(ex, ey);
-      ctx.stroke();
-
-      // 绘制经典的 30° 矢量箭头头部
-      const angle = Math.atan2(ey - sy, ex - sx);
-      const headLen = 14 * dpr;
-      ctx.beginPath();
-      ctx.moveTo(ex, ey);
-      ctx.lineTo(
-        ex - headLen * Math.cos(angle - Math.PI / 6),
-        ey - headLen * Math.sin(angle - Math.PI / 6)
-      );
-      ctx.lineTo(
-        ex - headLen * Math.cos(angle + Math.PI / 6),
-        ey - headLen * Math.sin(angle + Math.PI / 6)
-      );
-      ctx.closePath();
-      ctx.fill();
-    } else if (ann.type === "privacy") {
-      // 真实像素化马赛克 (Pixelated Mosaic)
-      const x = Math.round(ann.bounds.x * dpr);
-      const y = Math.round(ann.bounds.y * dpr);
-      const w = Math.round(ann.bounds.width * dpr);
-      const h = Math.round(ann.bounds.height * dpr);
-
-      if (w > 0 && h > 0) {
-        const tileSize = Math.max(6, Math.round(10 * dpr));
-        const sampleW = Math.max(1, Math.floor(w / tileSize));
-        const sampleH = Math.max(1, Math.floor(h / tileSize));
-
-        const offCanvas =
-          typeof document !== "undefined"
-            ? document.createElement("canvas")
-            : null;
-        if (offCanvas) {
-          offCanvas.width = sampleW;
-          offCanvas.height = sampleH;
-          const offCtx = offCanvas.getContext("2d");
-          if (offCtx) {
-            offCtx.imageSmoothingEnabled = false;
-            offCtx.drawImage(ctx.canvas, x, y, w, h, 0, 0, sampleW, sampleH);
-
-            ctx.save();
-            ctx.imageSmoothingEnabled = false;
-            ctx.drawImage(offCanvas, 0, 0, sampleW, sampleH, x, y, w, h);
-            ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
-            ctx.lineWidth = 1 * dpr;
-            ctx.strokeRect(x, y, w, h);
-            ctx.restore();
-          }
-        } else if (w > 0 && h > 0) {
-          ctx.save();
-          const blockSize = 8 * dpr;
-          for (let bx = x; bx < x + w; bx += blockSize) {
-            for (let by = y; by < y + h; by += blockSize) {
-              const isEven =
-                (Math.floor(bx / blockSize) + Math.floor(by / blockSize)) %
-                  2 ===
-                0;
-              ctx.fillStyle = isEven
-                ? "rgba(71, 85, 105, 0.9)"
-                : "rgba(30, 41, 59, 0.95)";
-              ctx.fillRect(
-                bx,
-                by,
-                Math.min(blockSize, x + w - bx),
-                Math.min(blockSize, y + h - by)
-              );
-            }
-          }
-          ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
-          ctx.lineWidth = 1 * dpr;
-          ctx.strokeRect(x, y, w, h);
-          ctx.restore();
-        }
-      }
-    } else if (ann.type === "text") {
-      const px = ann.position.x * dpr;
-      const py = ann.position.y * dpr;
-      const text = ann.text;
-
-      ctx.save();
-      ctx.font = `${TEXT_ANNOTATION_FONT_WEIGHT} ${TEXT_ANNOTATION_FONT_SIZE * dpr}px ${TEXT_ANNOTATION_FONT_FAMILY}`;
-      ctx.textAlign = "left";
-      ctx.textBaseline = "top";
-
-      const boundsRight = ctx.canvas?.width || 800;
-      const maxTextWidth = Math.max(
-        60 * dpr,
-        Math.min(TEXT_MAX_WIDTH * dpr, boundsRight - px - 8 * dpr)
-      );
-
-      // 按换行符与 maxTextWidth 自动拆分多行
-      const lines: string[] = [];
-      const paragraphs = text.split("\n");
-      for (const p of paragraphs) {
-        if (!p) {
-          lines.push("");
-          continue;
-        }
-        let cur = "";
-        for (const ch of p) {
-          const test = cur + ch;
-          if (ctx.measureText(test).width > maxTextWidth && cur !== "") {
-            lines.push(cur);
-            cur = ch;
-          } else {
-            cur = test;
-          }
-        }
-        if (cur) lines.push(cur);
-      }
-
-      const textColor = ann.color || TEXT_DEFAULT_COLOR;
-      const haloColor = getTextHaloColor(textColor);
-      const lineHeight = TEXT_LINE_HEIGHT * dpr;
-      const strokeWidth = TEXT_STROKE_WIDTH * dpr;
-
-      // 通道 1：底层反色描边光晕
-      if (typeof ctx.strokeText === "function") {
-        ctx.strokeStyle = haloColor;
-        ctx.lineWidth = strokeWidth;
-        ctx.lineJoin = "round";
-        ctx.miterLimit = 2;
-        for (let i = 0; i < lines.length; i++) {
-          ctx.strokeText(lines[i], px, py + i * lineHeight);
-        }
-      }
-
-      // 通道 2：顶层字符填充
-      ctx.fillStyle = textColor;
-      for (let i = 0; i < lines.length; i++) {
-        ctx.fillText(lines[i], px, py + i * lineHeight);
-      }
-      ctx.restore();
-    }
+    getRenderer(ann.type).draw(ctx, ann, rc);
     ctx.restore();
   }
 
@@ -528,11 +355,18 @@ export async function processScreenshot(
     };
   })();
 
-  // 双轨并行等待就绪
+  // 三轨并行等待就绪（含剪贴板提示词模板配置读取，失败则回退标准模板）
   const [
     croppedBase64,
     { spatialDom, frameworkComponentStates, cascadeIndex, styleSourceMs },
-  ] = await Promise.all([imagePromise, domAndStylePromise]);
+    promptSettings,
+  ] = await Promise.all([
+    imagePromise,
+    domAndStylePromise,
+    loadAppSettings()
+      .then((s) => s.ai)
+      .catch(() => undefined),
+  ]);
 
   const tPromptStart = performance.now();
   // 5. 组装完整 AIScreenshotPayload 并规范化 Key 顺序（确保意图/DOM在上，大图像/底层规则在下）
@@ -577,7 +411,9 @@ export async function processScreenshot(
 
   // 5. 先写入占位符提示词：发生在用户点击“完成”的手势窗口内，写入最可靠，
   //    确保用户在任何后续失败下都能拿到可用的 AI 提示词。
-  await writeTextToClipboard(formatPayloadToMarkdown(payload));
+  await writeTextToClipboard(
+    buildClipboardScreenshotPrompt(payload, undefined, promptSettings)
+  );
 
   // 6. 打包 ZIP 并触发下载。
   //    先在页面内触发标准原生下载，确保浏览器/Playwright 均可感知下载事件；
@@ -618,7 +454,11 @@ export async function processScreenshot(
 
   // 7. 拿到真实绝对路径后，覆盖写回带真实路径的最终提示词，替换占位符。
   let promptInjectedWithPath = false;
-  const finalPrompt = formatPayloadToMarkdown(payload, zipPath);
+  const finalPrompt = buildClipboardScreenshotPrompt(
+    payload,
+    zipPath,
+    promptSettings
+  );
   promptInjectedWithPath = await writeTextToClipboard(finalPrompt);
 
   const promptDurationMs = Math.max(

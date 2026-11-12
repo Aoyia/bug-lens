@@ -1,6 +1,6 @@
 import { applyCharBudget } from "../format/budget.ts";
 import { formatDuration, formatRelativeTime } from "../format/time.ts";
-import { openPack } from "../pack/open.ts";
+import { getPackWorkspaceDir, openPack } from "../pack/open.ts";
 import { inspectNetworkRequest } from "../query/network.ts";
 
 export function runGetRequestTool(args: {
@@ -30,6 +30,11 @@ export function runGetRequestTool(args: {
   }
 
   const { entry, details } = res;
+  const workspaceDir = getPackWorkspaceDir(loaded);
+  const fullBodyPath =
+    workspaceDir && entry.response?.bodyPath
+      ? `${workspaceDir}/${entry.response.bodyPath}`
+      : undefined;
   const includeSet = new Set(
     args.include && args.include.length > 0
       ? args.include
@@ -46,7 +51,7 @@ export function runGetRequestTool(args: {
       `- **Time**: ${formatRelativeTime(res.relativeMs)} | Duration: ${formatDuration(entry.durationMs)} | Type: ${entry.type ?? "—"}`
     );
     lines.push(
-      `- **Response Info**: mimeType=${entry.response?.mimeType ?? "—"}, bodyStatus=${entry.response?.bodyStatus ?? "—"}, byteLength=${entry.response?.byteLength ?? "—"}, bodyPath=${entry.response?.bodyPath ?? "inline/none"}`
+      `- **Response Info**: mimeType=${entry.response?.mimeType ?? "—"}, bodyStatus=${entry.response?.bodyStatus ?? "—"}, byteLength=${entry.response?.byteLength ?? "—"}, bodyPath=${fullBodyPath ? `\`${fullBodyPath}\`` : (entry.response?.bodyPath ?? "inline/none")}`
     );
     if (entry.errorText) {
       lines.push(`- **Error**: ${entry.errorText}`);
@@ -90,8 +95,13 @@ export function runGetRequestTool(args: {
     } else {
       lines.push(res.bodyText);
       if (res.bodyTruncated) {
+        const directHint = fullBodyPath
+          ? ` Or query \`${fullBodyPath}\` directly with \`jq\` / \`read_file\`.`
+          : workspaceDir
+            ? ` Or query \`${workspaceDir}/data/session-data.json\` directly with \`jq\`.`
+            : "";
         lines.push(
-          `\n… [Response body truncated at ${args.bodyMaxChars ?? 8000} chars. Pass \`jsonPath\` (e.g. "data.definition.form.elements[id=ssd_a]") or a higher \`bodyMaxChars\` to inspect further.]`
+          `\n… [Response body truncated at ${args.bodyMaxChars ?? 8000} chars. Pass \`jsonPath\` (e.g. "data.definition.form.elements[id=ssd_a]") or a higher \`bodyMaxChars\` to inspect further.${directHint}]`
         );
       }
     }

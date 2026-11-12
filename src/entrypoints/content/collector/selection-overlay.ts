@@ -11,6 +11,7 @@ import {
   isWidgetElement,
 } from "./dom-snapshot";
 import { t } from "../../../shared/i18n";
+import { lockViewportScroll } from "../../../shared/dom/scroll-lock";
 
 export type SelectedTargetItem = {
   element: Element;
@@ -56,11 +57,7 @@ export class SelectionOverlay {
   private escapeListener: ((event: KeyboardEvent) => void) | undefined;
 
   // 滚动锁定状态
-  private scrollPreventListener: ((event: Event) => void) | undefined;
-  private scrollKeyPreventListener:
-    ((event: KeyboardEvent) => void) | undefined;
-  private originalDocOverflow: string | undefined;
-  private originalBodyOverflow: string | undefined;
+  private unlockScrollFn: (() => void) | undefined;
 
   constructor(private readonly deps: SelectionOverlayDeps) {}
 
@@ -398,65 +395,17 @@ export class SelectionOverlay {
   // ─── Private ───
 
   private lockScroll(): void {
-    if (this.scrollPreventListener) return;
-    this.originalDocOverflow = document.documentElement.style.overflow;
-    this.originalBodyOverflow = document.body?.style.overflow;
-    document.documentElement.style.overflow = "hidden";
-    if (document.body) document.body.style.overflow = "hidden";
-
-    this.scrollPreventListener = (event: Event) => {
-      event.preventDefault();
-      event.stopPropagation();
-    };
-    const scrollKeys = new Set([
-      "ArrowUp",
-      "ArrowDown",
-      "PageUp",
-      "PageDown",
-      "Home",
-      "End",
-      " ",
-    ]);
-    this.scrollKeyPreventListener = (event: KeyboardEvent) => {
-      if (scrollKeys.has(event.key)) {
-        event.preventDefault();
-        event.stopPropagation();
-      }
-    };
-    window.addEventListener("wheel", this.scrollPreventListener, {
-      passive: false,
-      capture: true,
-    });
-    window.addEventListener("touchmove", this.scrollPreventListener, {
-      passive: false,
-      capture: true,
-    });
-    window.addEventListener("keydown", this.scrollKeyPreventListener, {
-      capture: true,
+    if (this.unlockScrollFn) return;
+    this.unlockScrollFn = lockViewportScroll({
+      lockOverflow: true,
+      allowEditableKeys: false,
     });
   }
 
   private unlockScroll(): void {
-    if (this.originalDocOverflow !== undefined) {
-      document.documentElement.style.overflow = this.originalDocOverflow;
-      this.originalDocOverflow = undefined;
-    }
-    if (this.originalBodyOverflow !== undefined && document.body) {
-      document.body.style.overflow = this.originalBodyOverflow;
-      this.originalBodyOverflow = undefined;
-    }
-    if (this.scrollPreventListener) {
-      window.removeEventListener("wheel", this.scrollPreventListener, true);
-      window.removeEventListener("touchmove", this.scrollPreventListener, true);
-      this.scrollPreventListener = undefined;
-    }
-    if (this.scrollKeyPreventListener) {
-      window.removeEventListener(
-        "keydown",
-        this.scrollKeyPreventListener,
-        true
-      );
-      this.scrollKeyPreventListener = undefined;
+    if (this.unlockScrollFn) {
+      this.unlockScrollFn();
+      this.unlockScrollFn = undefined;
     }
   }
 

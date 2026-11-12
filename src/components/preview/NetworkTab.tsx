@@ -7,7 +7,10 @@ import {
   useMemo,
 } from "preact/hooks";
 import type { NetworkEntry, RecordingSession } from "../../shared/protocol.ts";
-import { formatElapsedEpochTime } from "../../domain/evidence-clock.ts";
+import {
+  formatEvidenceTime,
+  resolveSessionOriginEpochMs,
+} from "../../domain/evidence-clock.ts";
 import {
   formatBytes,
   formatNetworkEntrySize,
@@ -18,16 +21,14 @@ import {
   generateApiSnippet,
   type ApiSnippetTarget,
 } from "../../domain/api-snippet-generator.ts";
-import { copyTextToClipboard } from "../../preview/clipboard.ts";
+import { copyTextToClipboard } from "../../shared/clipboard.ts";
 import { handleFilterEscape } from "../../preview/filter-search.ts";
 import { escapeHtml, renderCodeBlockHtml } from "../../preview/rendering.ts";
 import { useFilteredList } from "../../hooks/useFilteredList.ts";
 import { Select } from "../common/Select.tsx";
 import { t, getLocale } from "../../shared/i18n.ts";
-import {
-  formatDateTime,
-  formatTimeWithMs,
-} from "../../shared/intl-formatter.ts";
+import { formatDateTime } from "../../shared/intl-formatter.ts";
+import { FrameBadge } from "./FrameBadge.tsx";
 
 export interface NetworkTabProps {
   snapshot: {
@@ -43,19 +44,59 @@ export interface NetworkTabProps {
 }
 
 function networkTime(entry: NetworkEntry, session?: RecordingSession): string {
-  const originEpochMs =
-    session?.timeline.startedAtEpochMs ?? session?.timeline.createdAtEpochMs;
-  const relativeTime =
-    originEpochMs == null
-      ? undefined
-      : formatElapsedEpochTime(entry.createdAt, originEpochMs);
-  if (relativeTime) return relativeTime;
-  return formatTimeWithMs(entry.createdAt, getLocale());
+  return formatEvidenceTime(
+    entry.createdAt,
+    resolveSessionOriginEpochMs(session),
+    { withMillisecondsFallback: true }
+  );
 }
 
-function renderNetworkDetailHtml(entry?: NetworkEntry): string {
-  if (!entry)
-    return `<div class="network-detail-empty">${t("clickToViewDetail")}</div>`;
+interface NetworkDetailViewProps {
+  entry?: NetworkEntry;
+  snippetTarget: ApiSnippetTarget;
+  onNotify?: (message: string) => void;
+}
+
+const NetworkDetailView = memo(function NetworkDetailView({
+  entry,
+  snippetTarget,
+  onNotify,
+}: NetworkDetailViewProps) {
+  const [copiedText, setCopiedText] = useState<string | null>(null);
+  const copyTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    setCopiedText(null);
+    return () => {
+      if (copyTimerRef.current) window.clearTimeout(copyTimerRef.current);
+    };
+  }, [entry?.id, snippetTarget]);
+
+  const handleCopySnippet = useCallback(() => {
+    if (!entry) return;
+    const code = generateApiSnippet(entry, snippetTarget);
+    const targetOpt = API_SNIPPET_TARGETS.find((t) => t.key === snippetTarget);
+    const labelName = targetOpt?.label || "Code";
+
+    void copyTextToClipboard(
+      code,
+      typeof document !== "undefined" ? document : undefined
+    )
+      .then(() => {
+        setCopiedText(t("snippetCopied", labelName));
+        onNotify?.(t("snippetCopiedNotify", labelName));
+        if (copyTimerRef.current) window.clearTimeout(copyTimerRef.current);
+        copyTimerRef.current = window.setTimeout(() => {
+          setCopiedText(null);
+        }, 1800);
+      })
+      .catch((error) => onNotify?.(t("copyFailed", String(error))));
+  }, [entry, snippetTarget, onNotify]);
+
+  if (!entry) {
+    return <div className="network-detail-empty">{t("clickToViewDetail")}</div>;
+  }
+
   const response = entry.response;
   const extraDetail =
     typeof window !== "undefined" && window.__BUG_LENS_NETWORK_DETAILS__
@@ -68,70 +109,185 @@ function renderNetworkDetailHtml(entry?: NetworkEntry): string {
   const reqHeaderNames = Object.keys(reqHeaders);
   const headerNames = Object.keys(headers);
 
-  const reqHeaderBlock = reqHeaderNames.length
-    ? `<div class="network-detail-section"><details><summary>${t("requestHeadersCount", String(reqHeaderNames.length))}</summary><div class="network-detail-content"><table class="headers-table">${reqHeaderNames.map((name) => `<tr><td class="header-name">${escapeHtml(name)}:</td><td class="header-value">${escapeHtml(reqHeaders[name])}</td></tr>`).join("")}</table></div></details></div>`
-    : "";
-
-  let initiatorBlock = "";
+  let initiatorText: string | null = null;
   if (initiator) {
-    let initiatorContent = "";
     if (typeof initiator === "string") {
-      initiatorContent = escapeHtml(initiator);
+      initiatorText = initiator;
     } else if (initiator.concise?.topFrame) {
       const top = initiator.concise.topFrame;
-      initiatorContent = t("initiatorContent", [
-        escapeHtml(initiator.type || "script"),
-        `${escapeHtml(top.url)}:${top.lineNumber}:${top.columnNumber}`,
+      initiatorText = t("initiatorContent", [
+        initiator.type || "script",
+        `${top.url}:${top.lineNumber}:${top.columnNumber}`,
       ]);
     } else {
-      initiatorContent = escapeHtml(JSON.stringify(initiator, null, 2));
+      initiatorText = JSON.stringify(initiator, null, 2);
     }
-    initiatorBlock = `<div class="network-detail-section"><details><summary>${t("initiatorSection")}</summary><div class="network-detail-content"><pre class="code" style="white-space: pre-wrap; font-size: 11px;">${initiatorContent}</pre></div></details></div>`;
   }
 
-  const headerBlock = `
-    ${reqHeaderBlock}
-    <div class="network-detail-section"><details><summary>${t("responseHeadersCount", String(headerNames.length))}</summary><div class="network-detail-content">
-      ${headerNames.length ? `<table class="headers-table">${headerNames.map((name) => `<tr><td class="header-name">${escapeHtml(name)}:</td><td class="header-value">${escapeHtml(headers[name])}</td></tr>`).join("")}</table>` : `<div class="muted">${t("noResponseHeaders")}</div>`}
-    </div></details></div>
-    ${initiatorBlock}`;
+  const renderResponseBody = () => {
+    if (!response) return <div className="muted">{t("noResponseMeta")}</div>;
+    if (response.bodyStatus === "pending")
+      return <div className="muted">{t("responseBodyPending")}</div>;
+    if (response.bodyStatus === "not-present")
+      return <div className="muted">{t("responseNoBody")}</div>;
+    if (response.bodyStatus === "redacted")
+      return (
+        <div className="muted">
+          {t("responseBodyRedacted", response.redactionReason || "policy")}
+        </div>
+      );
+    if (response.bodyStatus === "unavailable")
+      return (
+        <div className="muted">
+          {t(
+            "responseBodyUnavailable",
+            response.error || t("browserNotProvided")
+          )}
+        </div>
+      );
+    if (response.base64Encoded)
+      return (
+        <div className="code-wrapper">
+          <div className="code">
+            {t("binaryResponseSaved", String(response.body?.length ?? 0))}
+          </div>
+        </div>
+      );
 
-  let body = "";
-  if (!response) body = `<div class="muted">${t("noResponseMeta")}</div>`;
-  else if (response.bodyStatus === "pending")
-    body = `<div class="muted">${t("responseBodyPending")}</div>`;
-  else if (response.bodyStatus === "not-present")
-    body = `<div class="muted">${t("responseNoBody")}</div>`;
-  else if (response.bodyStatus === "redacted")
-    body = `<div class="muted">${t("responseBodyRedacted", escapeHtml(response.redactionReason || "policy"))}</div>`;
-  else if (response.bodyStatus === "unavailable")
-    body = `<div class="muted">${t("responseBodyUnavailable", escapeHtml(response.error || t("browserNotProvided")))}</div>`;
-  else if (response.base64Encoded)
-    body = `<div class="code-wrapper"><div class="code">${t("binaryResponseSaved", String(response.body?.length ?? 0))}</div></div>`;
-  else {
     const source = response.body ?? "";
     const limited =
       source.length > 200_000
         ? `${source.slice(0, 200_000)}\n\n${t("previewTruncated")}`
         : source;
+    if (!limited) {
+      return (
+        <div className="code-wrapper">
+          <div className="code">{t("emptyResponseBody")}</div>
+        </div>
+      );
+    }
     const isJson = Boolean(
       response.mimeType?.includes("json") || /^[\s]*[\[{]/.test(limited)
     );
-    body = limited
-      ? renderCodeBlockHtml(limited, isJson)
-      : `<div class="code-wrapper"><div class="code">${t("emptyResponseBody")}</div></div>`;
-  }
+    return (
+      <div
+        dangerouslySetInnerHTML={{
+          __html: renderCodeBlockHtml(limited, isJson),
+        }}
+      />
+    );
+  };
 
-  return `
-    <div class="network-detail-view">
-      <div class="network-detail-header"><span>${t("requestDetails")}</span><button id="btn-copy-curl" class="btn-copy-curl" title="${t("copyAsCurl")}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span class="btn-copy-curl-text">${t("copyCurl")}</span></button></div>
-      <div class="network-detail-url"><strong>${escapeHtml((entry.method || "GET").toUpperCase())}</strong> ${escapeHtml(entry.url)}</div>
-      <div class="network-detail-frame"><strong>Frame:</strong> ${escapeHtml(entry.frameId ? `Frame [${entry.frameId}]${entry.documentUrl ? ` (${entry.documentUrl})` : ""}` : "Top Frame")}</div>
-      ${headerBlock}
-      <div class="network-detail-section"><details open><summary>${t("responseBodyHeader", escapeHtml(response?.mimeType || t("unknownMime")))} ${response?.byteLength != null ? `(${formatBytes(response.byteLength)})` : ""}</summary><div class="network-detail-content">${body}</div></details></div>
+  return (
+    <div className="network-detail-view">
+      <div className="network-detail-header">
+        <span>{t("requestDetails")}</span>
+        <button
+          id="btn-copy-curl"
+          className={`btn-copy-curl${copiedText ? " copied" : ""}`}
+          title={t("copyAsCurl")}
+          onClick={handleCopySnippet}
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <rect x="9" y="9" width="13" height="13" rx="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+          <span className="btn-copy-curl-text">
+            {copiedText ?? t("copyCurl")}
+          </span>
+        </button>
+      </div>
+      <div className="network-detail-url">
+        <strong>{(entry.method || "GET").toUpperCase()}</strong> {entry.url}
+      </div>
+      <div className="network-detail-frame">
+        <strong>Frame:</strong>{" "}
+        {entry.frameId
+          ? `Frame [${entry.frameId}]${entry.documentUrl ? ` (${entry.documentUrl})` : ""}`
+          : "Top Frame"}
+      </div>
+      {reqHeaderNames.length > 0 && (
+        <div className="network-detail-section">
+          <details>
+            <summary>
+              {t("requestHeadersCount", String(reqHeaderNames.length))}
+            </summary>
+            <div className="network-detail-content">
+              <table className="headers-table">
+                <tbody>
+                  {reqHeaderNames.map((name) => (
+                    <tr key={name}>
+                      <td className="header-name">{name}:</td>
+                      <td className="header-value">{reqHeaders[name]}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </details>
+        </div>
+      )}
+      <div className="network-detail-section">
+        <details>
+          <summary>
+            {t("responseHeadersCount", String(headerNames.length))}
+          </summary>
+          <div className="network-detail-content">
+            {headerNames.length > 0 ? (
+              <table className="headers-table">
+                <tbody>
+                  {headerNames.map((name) => (
+                    <tr key={name}>
+                      <td className="header-name">{name}:</td>
+                      <td className="header-value">{headers[name]}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div className="muted">{t("noResponseHeaders")}</div>
+            )}
+          </div>
+        </details>
+      </div>
+      {initiatorText !== null && (
+        <div className="network-detail-section">
+          <details>
+            <summary>{t("initiatorSection")}</summary>
+            <div className="network-detail-content">
+              <pre
+                className="code"
+                style={{ whiteSpace: "pre-wrap", fontSize: "11px" }}
+              >
+                {initiatorText}
+              </pre>
+            </div>
+          </details>
+        </div>
+      )}
+      <div className="network-detail-section">
+        <details open>
+          <summary>
+            {t("responseBodyHeader", response?.mimeType || t("unknownMime"))}{" "}
+            {response?.byteLength != null
+              ? `(${formatBytes(response.byteLength)})`
+              : ""}
+          </summary>
+          <div className="network-detail-content">{renderResponseBody()}</div>
+        </details>
+      </div>
     </div>
-  `;
-}
+  );
+});
 
 import {
   filterNetworkEntries,
@@ -157,7 +313,50 @@ export const NetworkTab = memo(function NetworkTab({
     countText,
   } = useFilteredList(snapshot.included, networkFilterFn);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const detailRef = useRef<HTMLDivElement>(null);
+  const splitRef = useRef<HTMLDivElement>(null);
+  const tableRef = useRef<HTMLDivElement>(null);
+  const [tableHeight, setTableHeight] = useState<number | null>(null);
+  const [isDraggingResizer, setIsDraggingResizer] = useState(false);
+
+  const handleResizerMouseDown = useCallback((event: MouseEvent) => {
+    const table = tableRef.current;
+    const split = splitRef.current;
+    if (!table || !split || typeof document === "undefined") return;
+
+    const startY = event.clientY;
+    const startHeight = table.getBoundingClientRect().height;
+    setIsDraggingResizer(true);
+    document.body.style.cursor = "row-resize";
+    document.body.style.userSelect = "none";
+
+    const dragOverlay = document.createElement("div");
+    dragOverlay.style.cssText =
+      "position:fixed;inset:0;z-index:9999;cursor:row-resize;";
+    document.body.appendChild(dragOverlay);
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const nextHeight = Math.max(
+        60,
+        Math.min(
+          split.getBoundingClientRect().height - 80,
+          startHeight + moveEvent.clientY - startY
+        )
+      );
+      setTableHeight(nextHeight);
+    };
+
+    const handleMouseUp = () => {
+      setIsDraggingResizer(false);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      dragOverlay.remove();
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+  }, []);
 
   // 自动选中逻辑
   let activeSelectedId = selectedId;
@@ -190,48 +389,7 @@ export const NetworkTab = memo(function NetworkTab({
   );
 
   const selectedEntry = entries.find((entry) => entry.id === activeSelectedId);
-  const detailHtml = useMemo(
-    () => renderNetworkDetailHtml(selectedEntry),
-    [selectedEntry]
-  );
   const [snippetTarget, setSnippetTarget] = useState<ApiSnippetTarget>("curl");
-
-  // 多语言代码片段复制逻辑
-  useEffect(() => {
-    if (!detailRef.current || !selectedEntry) return;
-
-    const copyButton =
-      detailRef.current.querySelector<HTMLButtonElement>("#btn-copy-curl");
-    if (!copyButton) return;
-
-    const handleCopy = () => {
-      const code = generateApiSnippet(selectedEntry, snippetTarget);
-      const targetOpt = API_SNIPPET_TARGETS.find(
-        (t) => t.key === snippetTarget
-      );
-      const labelName = targetOpt?.label || "Code";
-
-      void copyTextToClipboard(code, document)
-        .then(() => {
-          copyButton.classList.add("copied");
-          const label = copyButton.querySelector<HTMLElement>(
-            ".btn-copy-curl-text"
-          );
-          if (label) label.textContent = t("snippetCopied", labelName);
-          onNotify?.(t("snippetCopiedNotify", labelName));
-          window.setTimeout(() => {
-            copyButton.classList.remove("copied");
-            if (label) label.textContent = t("copyCurl");
-          }, 1800);
-        })
-        .catch((error) => onNotify?.(t("copyFailed", String(error))));
-    };
-
-    copyButton.addEventListener("click", handleCopy);
-    return () => {
-      copyButton.removeEventListener("click", handleCopy);
-    };
-  }, [selectedEntry, snippetTarget, onNotify]);
 
   return (
     <div className="integrated-card-panel">
@@ -247,8 +405,16 @@ export const NetworkTab = memo(function NetworkTab({
         />
         <span className="panel-filter-count">{countText}</span>
       </div>
-      <div className="network-main-split">
-        <div className="network-table-view">
+      <div className="network-main-split" ref={splitRef}>
+        <div
+          className="network-table-view"
+          ref={tableRef}
+          style={
+            tableHeight != null
+              ? { height: `${tableHeight}px`, flex: "none" }
+              : undefined
+          }
+        >
           {entries.length > 0 ? (
             (() => {
               const extraDetails =
@@ -309,20 +475,11 @@ export const NetworkTab = memo(function NetworkTab({
                         {(entry.method || "GET").toUpperCase()}
                       </span>
                       <span className="col-url" title={entry.url}>
-                        <span
-                          className={`network-frame-badge ${entry.frameId ? "badge-subframe" : "badge-topframe"}`}
-                          title={
-                            entry.frameId
-                              ? entry.documentUrl
-                                ? `${entry.documentUrl} (Frame [${entry.frameId}])`
-                                : `Frame [${entry.frameId}]`
-                              : "Top Frame"
-                          }
-                        >
-                          {entry.frameId
-                            ? `Frame [${entry.frameId}]`
-                            : "Top Frame"}
-                        </span>
+                        <FrameBadge
+                          classNamePrefix="network"
+                          frameId={entry.frameId}
+                          frameUrl={entry.documentUrl}
+                        />
                         {entry.url}
                       </span>
                       <span className="col-size">{size}</span>
@@ -365,8 +522,9 @@ export const NetworkTab = memo(function NetworkTab({
         </div>
         <div
           id="network-resizer"
-          className="network-resizer"
+          className={`network-resizer${isDraggingResizer ? " dragging" : ""}`}
           title={t("resizerTitle")}
+          onMouseDown={handleResizerMouseDown}
         ></div>
         <div
           className="network-detail-container"
@@ -409,14 +567,13 @@ export const NetworkTab = memo(function NetworkTab({
               </label>
             </div>
           ) : null}
-          <div
-            className="network-detail-panel"
-            ref={detailRef}
-            style={{ flex: 1 }}
-            dangerouslySetInnerHTML={{
-              __html: detailHtml,
-            }}
-          />
+          <div className="network-detail-panel" style={{ flex: 1 }}>
+            <NetworkDetailView
+              entry={selectedEntry}
+              snippetTarget={snippetTarget}
+              onNotify={onNotify}
+            />
+          </div>
         </div>
       </div>
     </div>

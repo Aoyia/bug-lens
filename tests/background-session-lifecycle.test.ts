@@ -139,17 +139,41 @@ test("stopSession: 正常停止后进入 PREVIEW_READY 并清活动标记", asyn
   assert.ok(recordingCoordinator.calls.includes("finishStopping:sess-stop"));
 });
 
-test("stopSession: discard 模式下删除会话并清活动标记", async () => {
-  const { runtime, db } = createTestRuntime();
+test("stopSession: discard 模式下删除会话并清活动标记，且跳过重度收尾", async () => {
+  const { runtime, db, cdpCollector } = createTestRuntime();
   const session = makeSession({ id: "sess-discard", status: "RECORDING" });
   db.sessions.set(session.id, session);
   db.activeSessionId = session.id;
 
+  let finalizedNetwork = false;
+  cdpCollector.finalizeNetworkBodies = async () => {
+    finalizedNetwork = true;
+    return undefined as any;
+  };
+
   const result = await runtime.stopSession("cmd-discard", false, true);
   assert.equal(result, undefined);
+  assert.equal(finalizedNetwork, false);
   assert.ok(db.deleted.includes("sess-discard"));
   assert.equal(db.activeSessionId, undefined);
   assert.equal(db.sessions.has("sess-discard"), false);
+});
+
+test("stopSession: PREVIEW_READY 状态下触发 discard 仍能删除会话并清活动标记", async () => {
+  const { runtime, db, contentScripts } = createTestRuntime();
+  const session = makeSession({
+    id: "sess-preview-discard",
+    status: "PREVIEW_READY",
+  });
+  db.sessions.set(session.id, session);
+  db.activeSessionId = session.id;
+
+  const result = await runtime.stopSession("cmd-preview-discard", false, true);
+  assert.equal(result, undefined);
+  assert.ok(db.deleted.includes("sess-preview-discard"));
+  assert.equal(db.activeSessionId, undefined);
+  assert.equal(db.sessions.has("sess-preview-discard"), false);
+  assert.ok(contentScripts.calls.some((call) => call.startsWith("remove:")));
 });
 
 test("stopSession: silentExport 成功时清 active 且返回结果", async () => {

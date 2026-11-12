@@ -9,9 +9,10 @@ import { evaluateOffscreenStorageWrite } from "../../storage/storage-health-coor
 import { PreviewSessionRuntime } from "../../preview/preview-session-runtime";
 import {
   buildEvidencePackage,
-  buildAiPrompt,
+  buildClipboardAiPrompt,
   buildTicketTemplate,
   buildTicketBundle,
+  type ClipboardPromptSettings,
 } from "../../preview/evidence-package";
 import { loadStaticReportAssets } from "../../preview/static-report-assets";
 import { buildExportManifest } from "../../export/export-manifest";
@@ -568,6 +569,7 @@ async function renderIssueImage(
 async function exportPack(payload: {
   sessionId: string;
   traceContext?: ExportTraceContext;
+  promptSettings?: ClipboardPromptSettings;
 }): Promise<{
   prompt: string;
   ticketTemplate?: string;
@@ -609,7 +611,11 @@ async function exportPack(payload: {
 
     // 4. AI Prompt 提示词与工单模板渲染耗时与字符规模
     const tPromptStart = performance.now();
-    const prompt = buildAiPrompt(snapshot, filename);
+    const prompt = buildClipboardAiPrompt(
+      snapshot,
+      filename,
+      payload.promptSettings
+    );
     const ticketBundle = buildTicketBundle(snapshot, filename);
     const promptRenderDurationMs = performance.now() - tPromptStart;
     const promptCharCount = prompt.length;

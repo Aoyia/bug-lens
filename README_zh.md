@@ -37,7 +37,7 @@
 
 ## 🚀 3 步极速上手
 
-1. **安装插件**：下载预编译安装包 [bug-lens-v0.7.40.zip](https://github.com/Aoyia/bug-lens/releases/latest) 并解压，在 Chrome 扩展管理页（`chrome://extensions/` 开启开发者模式）点击 **“加载已解压的扩展程序”**。
+1. **安装插件**：下载预编译安装包 [bug-lens-v0.7.41.zip](https://github.com/Aoyia/bug-lens/releases/latest) 并解压，在 Chrome 扩展管理页（`chrome://extensions/` 开启开发者模式）点击 **“加载已解压的扩展程序”**。
 2. **一键录制**：在目标网页点击插件图标或按 `Cmd/Ctrl+Shift+Y` 开始录制并复现问题。
 3. **丢给 AI**：点击 **“结束并导出”**，Bug Lens 自动下载离线证据包并将生成的 AI 提示词写入剪贴板，直接粘贴到 Cursor、Claude Code、Codex 或 Antigravity 等 AI 助手即可开启精准修复！
 
@@ -45,7 +45,7 @@
 
 ## 🤖 AI 助手深度接入（`bug-lens-triage` 诊断 Skill）
 
-Bug Lens 提供官方 [`bug-lens-triage`](.agents/skills/bug-lens-triage/SKILL.md) 诊断技能（内置零依赖内存解析脚本 `scripts/bug-lens-cli.mjs`），支持 AI 助手在内存中免解压直读 `.zip` 证据包、自动导出关键截图并按需检索 Console/Network/DOM/CSS 级联快照，彻底告别手动解压与临时解析脚本。
+Bug Lens 提供官方 [`bug-lens-triage`](.agents/skills/bug-lens-triage/SKILL.md) 诊断技能（内置零依赖检索脚本 `scripts/bug-lens-cli.mjs`），支持 AI 助手将 `.zip` 证据包幂等解压至隔离工作区、自动剥离生成标准 `data/*.json` 与字段地图 `INDEX.md`，结合 CLI 宏观定位与 `jq` / `ffmpeg` 深度下钻，彻底告别临时解析脚本。
 
 ```bash
 # 全局安装（支持 Claude Code / Cursor / Antigravity 等）
@@ -53,6 +53,15 @@ npx skills add Aoyia/bug-lens-skill -g -y
 
 # 或仅安装到当前业务工程目录
 npx skills add Aoyia/bug-lens-skill -y
+
+# 更新至最新版本
+npx skills update bug-lens-triage
+
+# 全局卸载
+npx skills remove bug-lens-triage -g -y
+
+# 或从当前工程卸载
+npx skills remove bug-lens-triage -y
 ```
 
 ---

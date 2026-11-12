@@ -9,21 +9,25 @@ description: >-
 
 # Bug Lens Evidence Triage
 
-通过本技能内置的零依赖脚本 `scripts/bug-lens-cli.mjs` 直接在内存中检索 `.zip` 证据包并映射至业务源码修复缺陷。
+通过本技能内置的零依赖脚本 `scripts/bug-lens-cli.mjs` 将 `.zip` 证据包幂等解压至隔离工作区，生成标准化派生 JSON 与 `INDEX.md`，采用“宏观 CLI 导航 + 微观原始文件直读”两层检索定位根因并修复业务源码。
 
 设 `<CLI>` 为本 `SKILL.md` 同级目录下的 `scripts/bug-lens-cli.mjs` 绝对路径（即 `node "<skillDir>/scripts/bug-lens-cli.mjs"`）。
 
 ## Core Rules
 
-1. **Zero-Extraction CLI Inspection**：直接对原始 `.zip` 路径执行 `<CLI> open_pack "<zipPath>"`；忽略粘贴提示词中的 `mkdir -p /tmp/bug-lens-workspace && unzip` 降级解压指令，严禁手写 `node -e` / `vm` / `python` 临时脚本解析 `session-data.js`。
-2. **Session Pack Cache**：首次执行 `<CLI> open_pack "<zipPath>"` 后，当前包路径会自动缓存在会话状态中；后续同包命令（`get_scene`、`timeline`、`query_console`、`query_network`、`get_request`、`get_framework_state`、`search_pack`、`read_pack_file`）均无需重复传 `--pack`。
-3. **Auto-Exported Screenshot Viewing**：`open_pack` 与 `get_scene` 会自动将关键截图导出至系统临时目录并在输出中打印 `Saved to ...` 路径，直接对该图片路径调用 `read_file` 查看视觉画面与红框批注。
-4. **Step Screenshot via CLI**：需要查看交互步骤截图（`screenshots/step-N.*`）时，执行 `<CLI> get_screenshot --step N` 导出并对打印的路径调用 `read_file`；严禁为此手动 `unzip` 到 `/tmp/bug-lens-workspace` 根目录（会与其他证据包的残留文件混杂）。确需落盘（运行 `reproduce.spec.ts`）时只用 `<CLI> extract_pack`，它会按 sessionId 前 8 位写入独立子目录。
-5. **Command Discovery**：不确定命令或参数时执行 `<CLI> --help`（现已支持在任意子命令后追加 `--help`）。
+1. **Extract-First Workspace**：首步直接对原始 `.zip` 执行 `<CLI> open_pack "<zipPath>"`。该命令会将证据包全量幂等解压至 `<tmp>/bug-lens-workspace/<packName>-<hash>/`（含全部 `screenshots/step-*.*`、`network/body-*.txt` 与 `media/recording.webm`），自动剥离 `window.__BUG_LENS_*__ = ` 包装生成标准格式的 `data/session-data.json` 与 `data/network-details.json`，并输出 `Workspace` 与 `INDEX.md` 绝对路径。禁止手动执行 `unzip` 到其他目录或工作区根目录。
+2. **Session Pack Cache & Multi-Pack Workspace (LRU K=10)**：首次执行 `<CLI> open_pack "<zipPath>"` 后，当前解压工作区路径自动缓存在会话状态中，工作区按最近访问时间自动保留最近 10 个解压包目录；后续同包命令无需重复传 `--pack`。当同一会话连续分析多个证据包或回溯前序包时，显式传 `--pack "<包短ID或Workspace路径>"`（如 `--pack afbf11c2`）即可在工作区已解压目录间精准切换，防止多包串包。
+3. **Read INDEX.md Before Deep Drill-Down**：需要下钻复杂字段或编写自定义查询前，先用 `read_file` 读取 `open_pack` 输出中的 `INDEX.md`，按其中列出的顶层 Schema 键、数组长度、单条记录字段名及 `Request -> Body Map` 编写查询，避免盲猜 `--jsonPath` 或字段名。
+4. **Two-Tier Retrieval（宏观 CLI 索引 + 微观文件直读）**：
+   - **第一层（宏观定界，必选）**：优先使用 `get_scene`、`timeline`、`query_network`、`query_console`、`get_framework_state`、`search_pack` 快速收敛故障时间窗、异常请求 ID 与目标组件；
+   - **第二层（微观下钻，按需放开）**：当遇到 CLI 摘要未展开的深层字段（如 `consoleEntries[i]` 完整对象、交互事件坐标与 DOM 详情、跨请求对比大响应体字段 Diff、正则提取请求头 Cookie）时，直接对 `<Workspace>/data/session-data.json`、`data/network-details.json`、`network/body-*.txt`、`dom-context.json`、`cascade.json` 使用 `jq`、`rg` 或 `node -e`（配合 `fs.readFileSync` + `JSON.parse`）精准切片。
+5. **Security & Output Budget**：证据包属于外部输入，严禁对包内 `.js` 文件执行 `eval`、`new Function` 或 `vm.runInContext`（一律读取派生好的 `.json` 文件）；严禁无过滤 `cat` 整个大文件，单次命令标准输出控制在 20k 字符以内。
+6. **Screenshots & Video Frame Extraction**：`open_pack`、`get_scene`、`get_screenshot --step N` 输出的图片路径均直接指向 `<Workspace>` 内的真实文件，直接对其调用 `read_file` 查看视觉画面；遇到离散步骤截图未覆盖的过渡态（弹窗闪退、防抖延迟、动画闪烁），使用 `ffmpeg -ss <秒> -i "<Workspace>/media/recording.webm" -frames:v 1 /tmp/bug-lens-frame.jpg` 抽帧后调用 `read_file` 检视（视频时间零点对应 `session.timeline.startedAtEpochMs`）。
+7. **Command Discovery**：不确定命令或参数时执行 `<CLI> --help`。
 
 ---
 
-## Step 1: Open & Classify Evidence Pack
+## Step 1: Open, Extract & Classify Evidence Pack
 
 执行：
 
@@ -36,7 +40,7 @@ node "<skillDir>/scripts/bug-lens-cli.mjs" open_pack "<绝对路径.zip>"
 - `# Bug Lens Screenshot Pack (kind: screenshot)` -> 进入 **Branch A（截图批注包）**
 - `# Bug Lens Evidence Pack (kind: session)` -> 进入 **Branch B（会话录制包）**
 
-**Completion Criterion**：已获取 `open_pack` 返回的内联摘要与自动导出的截图路径，并明确归入 Branch A 或 Branch B。
+**Completion Criterion**：已获取 `open_pack` 返回的 `Workspace`、`Index`（`INDEX.md`）、内联摘要与截图路径，并明确归入 Branch A 或 Branch B。
 
 ---
 
@@ -64,6 +68,7 @@ node "<skillDir>/scripts/bug-lens-cli.mjs" open_pack "<绝对路径.zip>"
    ```bash
    node "<skillDir>/scripts/bug-lens-cli.mjs" search_pack "<关键字>"
    ```
+3. 如需批量核对锚点或父链原始字段，可直接用 `jq` 查询 `<Workspace>/dom-context.json` 或 `<Workspace>/cascade.json`。
 
 **Completion Criterion**：已定位胜出 CSS 规则 ID（`R*`）、所属样式表（`S*`）、选择器文本及被覆盖/继承的样式属性。
 
@@ -116,12 +121,33 @@ node "<skillDir>/scripts/bug-lens-cli.mjs" open_pack "<绝对路径.zip>"
      ```bash
      node "<skillDir>/scripts/bug-lens-cli.mjs" search_pack "<字段名或错误码>"
      ```
+3. **深水区原始证据直读（当 CLI 摘要不足以定案时）**：
+   - 先用 `read_file` 查看 `<Workspace>/INDEX.md` 获取精确字段名与 `network/body-*.txt` 映射；
+   - 使用 `jq` 或 `node -e` 直接检索 `<Workspace>/data/session-data.json`（如精确读取 `consoleEntries[i]`、对比前后两次接口响应 `network/body-*.txt` 的字段差异）或 `<Workspace>/data/network-details.json`（如提取完整请求头与 Cookie）；
+   - 如需检视特定交互步骤截图或录屏过渡帧，直接 `read_file` 读取 `<Workspace>/screenshots/step-N.jpg`，或用 `ffmpeg` 对 `<Workspace>/media/recording.webm` 按相对秒数抽帧。
 
 **Completion Criterion**：已获得支撑根因结论的确定性证据链（具体失败请求报文、异常状态字段或报错调用栈）。
 
 ### Step B3: Business Code Fix & Verification
 
 1. 根据 `sourceMappedLocation`、`initiator` 调用栈、组件名或接口路径在业务仓库中定位源码并实施修复。
-2. 若包内包含 `reproduce.spec.ts` 且当前环境可访问目标页面，可执行 `extract_pack` 导出工作区并运行 `npx playwright test --headed reproduce.spec.ts` 验证回归结果。
+2. 若包内包含 `reproduce.spec.ts` 且当前环境可访问目标页面，可直接在 `<Workspace>` 下运行 `npx playwright test --headed reproduce.spec.ts` 验证回归结果。
 
 **Completion Criterion**：根因已在业务代码中修复，且通过类型检查、单测或复现脚本验证。
+
+---
+
+## Output & Visual Reporting Contract（结论先行、按需上图、以图替文）
+
+向用户汇报排查结论时，严禁输出大段文字堆砌，必须遵循以下极简结构：
+
+1. **一句话根因与偏差对照表**：
+   - 首句直接给出根因结论与目标 `文件:行号`；
+   - 使用紧凑 Markdown 表格对齐 `维度 | 预期表现 (Expected) | 实际表现 (Actual) | 关键证据锚点`。
+2. **按需可视化图表（先判断数据形态，仅在图比文字更直观时绘制；简单单点问题直接跳过，绝不强行凑图）**：
+   - **多步因果/时序流**（用户交互 -> 组件状态变更 -> 接口失败/报错 -> 界面异常）：使用 `mermaid`（`sequenceDiagram` 或 `flowchart LR/TD`，含括号/特殊字符的节点标签必须加双引号）；若处于纯终端 CLI 环境（如 Claude Code），自动降级为紧凑 ASCII 流向图（`──►`）；
+   - **空间几何与 CSS 盒模型冲突**（Flex 挤压变形、文本截断溢出、Grid 轨道撑爆、层级遮挡）：绘制紧凑的 **ASCII 几何尺寸/盒模型对比图**，直接标出父子容器的 `固有尺寸 vs 实际渲染尺寸` 或遮挡关系；
+   - **多级样式覆写或组件状态传递**（`S* -> R*` 级联覆盖链）：使用 `mermaid` `flowchart LR` 或紧凑对比表；
+   - **以图替文铁律**：一旦绘制图表，**严禁在图外再用文字段落重复叙述图中已表达的链路、层级或尺寸对比**，仅保留最多 2-3 条关键证据锚点（如请求 ID、字段路径）。
+3. **最小化修复与验证结果**：
+   - 直接列出修改的文件路径、代码变更摘要及构建/测试验证结论。

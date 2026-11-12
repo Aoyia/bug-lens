@@ -1,4 +1,4 @@
-import { copyTextToClipboard } from "./clipboard.ts";
+import { copyTextToClipboard } from "../shared/clipboard.ts";
 import { t } from "../shared/i18n.ts";
 
 export type PreviewTab =
@@ -17,7 +17,6 @@ export class PreviewPageShell {
     this.bindAiDrawer();
     this.bindDelegatedCopyActions();
     this.bindTooltips();
-    this.bindNetworkResizer();
   }
 
   get activeTab(): PreviewTab {
@@ -233,61 +232,6 @@ export class PreviewPageShell {
         return;
       tooltip.classList.remove("visible");
       tooltip.hidden = true;
-    });
-  }
-
-  private bindNetworkResizer(): void {
-    const resizer = this.root.querySelector<HTMLElement>("#network-resizer");
-    const table = this.root.querySelector<HTMLElement>("#network");
-    const split = this.root.querySelector<HTMLElement>(".network-main-split");
-    if (!resizer || !table || !split) return;
-    let isDragging = false;
-    let startY = 0;
-    let startHeight = 0;
-
-    // 拖拽激活时的全屏透明蒙层，防止鼠标快速滑过 video/iframe 导致事件丢失
-    let dragOverlay: HTMLDivElement | null = null;
-
-    const createOverlay = () => {
-      dragOverlay = this.root.createElement("div");
-      dragOverlay.style.cssText =
-        "position:fixed;inset:0;z-index:9999;cursor:row-resize;";
-      this.root.body.appendChild(dragOverlay);
-    };
-
-    const removeOverlay = () => {
-      dragOverlay?.remove();
-      dragOverlay = null;
-    };
-
-    resizer.addEventListener("mousedown", (event) => {
-      isDragging = true;
-      startY = event.clientY;
-      startHeight = table.getBoundingClientRect().height;
-      resizer.classList.add("dragging");
-      this.root.body.style.cursor = "row-resize";
-      this.root.body.style.userSelect = "none";
-      createOverlay();
-    });
-    this.root.addEventListener("mousemove", (event) => {
-      if (!isDragging) return;
-      const height = Math.max(
-        60,
-        Math.min(
-          split.getBoundingClientRect().height - 80,
-          startHeight + event.clientY - startY
-        )
-      );
-      table.style.height = `${height}px`;
-      table.style.flex = "none";
-    });
-    this.root.addEventListener("mouseup", () => {
-      if (!isDragging) return;
-      isDragging = false;
-      resizer.classList.remove("dragging");
-      this.root.body.style.cursor = "";
-      this.root.body.style.userSelect = "";
-      removeOverlay();
     });
   }
 }

@@ -10,6 +10,12 @@ import {
   ANNOTATION_TOOLBAR_ICONS,
 } from "../../../shared/ui/annotation-toolbar";
 import { UndoManager } from "../../../shared/undo-manager";
+import {
+  attachContainerEventShield,
+  attachFieldEventShield as bindFieldEventShield,
+  installWindowFocusShield,
+} from "../../../shared/dom/focus-shield";
+import { escapeHtml } from "../../../shared/html-escape";
 
 type ActiveDrawing = {
   type: "rect" | "arrow";
@@ -81,15 +87,6 @@ export function isEnterCommitKey(e: {
   return true;
 }
 
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
 /**
  * 问题现场编辑器。
  * 这是一个覆盖全屏的 UI 组件，允许用户在截图上进行圈选、添加批注、
@@ -98,8 +95,7 @@ function escapeHtml(str: string): string {
 export class IssueEditor {
   private editorElement: HTMLDivElement | undefined;
   private keydownListener: ((e: KeyboardEvent) => void) | undefined;
-  private focusCaptureListener: ((e: FocusEvent) => void) | undefined;
-  private focusinCaptureListener: ((e: FocusEvent) => void) | undefined;
+  private removeFocusShield: (() => void) | undefined;
 
   constructor(private readonly deps: IssueEditorDeps) {}
 
@@ -115,13 +111,9 @@ export class IssueEditor {
       window.removeEventListener("keydown", this.keydownListener, true);
       this.keydownListener = undefined;
     }
-    if (this.focusCaptureListener) {
-      window.removeEventListener("focus", this.focusCaptureListener, true);
-      this.focusCaptureListener = undefined;
-    }
-    if (this.focusinCaptureListener) {
-      window.removeEventListener("focusin", this.focusinCaptureListener, true);
-      this.focusinCaptureListener = undefined;
+    if (this.removeFocusShield) {
+      this.removeFocusShield();
+      this.removeFocusShield = undefined;
     }
     this.editorElement?.remove();
     this.editorElement = undefined;
@@ -389,10 +381,6 @@ export class IssueEditor {
     });
 
     // ─── 焦点隔离与防劫持屏障（反向焦点陷阱）───
-    // 背景：底层被测系统（如 BPM、ERP、Element UI/Ant Design 等企业框架）
-    // 弹出「确认离开」等模态窗时，常挂载全文档 focusin/focus 捕获监听器以强制锁定焦点；
-    // 一旦焦点落在扩展注入的输入框上，宿主页面的焦点陷阱就会立刻强行夺回焦点，
-    // 导致扩展编辑器输入框出现「无法聚焦、无法输入」的致命故障。
     let activeField: HTMLElement | null = actualInput;
     const updateActiveField = (target: EventTarget | null) => {
       if (
@@ -404,73 +392,20 @@ export class IssueEditor {
     };
 
     const attachFieldEventShield = (field: HTMLElement | null) => {
-      if (!field) return;
-      field.addEventListener("focus", (e) => {
-        updateActiveField(e.target);
-        e.stopPropagation?.();
-      });
-      field.addEventListener("pointerdown", (e) => {
-        updateActiveField(e.target);
-        e.stopPropagation?.();
-      });
-      field.addEventListener("mousedown", (e) => {
-        updateActiveField(e.target);
-        e.stopPropagation?.();
-        field.focus();
-      });
-      field.addEventListener("click", (e) => e.stopPropagation?.());
-      field.addEventListener("keydown", (e) => e.stopPropagation?.());
-      field.addEventListener("keyup", (e) => e.stopPropagation?.());
-      field.addEventListener("keypress", (e) => e.stopPropagation?.());
-      field.addEventListener("input", (e) => e.stopPropagation?.());
-      field.addEventListener("beforeinput", (e) => e.stopPropagation?.());
-      field.addEventListener("compositionstart", (e) => e.stopPropagation?.());
-      field.addEventListener("compositionupdate", (e) => e.stopPropagation?.());
-      field.addEventListener("compositionend", (e) => e.stopPropagation?.());
+      bindFieldEventShield(field, { onFocusOrPointer: updateActiveField });
     };
 
     attachFieldEventShield(actualInput);
+    attachContainerEventShield(controlCard);
 
-    // 控制面板整体事件屏障：阻止宿主页面的 backdrop 监听器拦截 mousedown/click 并 preventDefault
-    controlCard.addEventListener("pointerdown", (e) => e.stopPropagation?.());
-    controlCard.addEventListener("mousedown", (e) => e.stopPropagation?.());
-    controlCard.addEventListener("mouseup", (e) => e.stopPropagation?.());
-    controlCard.addEventListener("click", (e) => e.stopPropagation?.());
-    controlCard.addEventListener("dblclick", (e) => e.stopPropagation?.());
-    controlCard.addEventListener("contextmenu", (e) => e.stopPropagation?.());
-    controlCard.addEventListener("focusin", (e) => e.stopPropagation?.());
-    controlCard.addEventListener("focusout", (e) => e.stopPropagation?.());
-
-    // Window 捕获阶段拦截：在宿主页面的 document 焦点陷阱收到事件前彻底截断
-    const handleWindowFocusCapture = (e: FocusEvent) => {
-      const target = e.target as Node | null;
-      if (target && (root.contains?.(target) ?? false)) {
-        // 编辑器内部元素的焦点转移，禁止向 document 传播，使宿主模态的 focus trap 无法感知
-        e.stopImmediatePropagation?.();
-        return;
-      }
-      const isExternalElement =
-        typeof HTMLElement !== "undefined"
-          ? target instanceof HTMLElement
-          : Boolean(target && (target as any).tagName);
-      // 宿主页面脚本企图异步夺走焦点：只要编辑器仍在编辑，强制把焦点拉回当前编辑字段
-      if (
-        activeField &&
-        (root.contains?.(activeField) ?? false) &&
-        this.isOpen &&
-        isExternalElement &&
-        target !== document.body &&
-        target !== document.documentElement
-      ) {
-        e.stopImmediatePropagation?.();
-        e.preventDefault?.();
-        activeField.focus();
-      }
-    };
-    this.focusCaptureListener = handleWindowFocusCapture;
-    this.focusinCaptureListener = handleWindowFocusCapture;
-    window.addEventListener("focus", this.focusCaptureListener, true);
-    window.addEventListener("focusin", this.focusinCaptureListener, true);
+    this.removeFocusShield = installWindowFocusShield({
+      root,
+      isOpen: () => this.isOpen,
+      getActiveField: () =>
+        activeField && (root.contains?.(activeField) ?? false)
+          ? activeField
+          : null,
+    });
 
     setTimeout(() => actualInput?.focus(), 50);
 

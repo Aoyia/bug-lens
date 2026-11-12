@@ -50,7 +50,10 @@ test("ConsoleTab 行键盘激活与点击共享同一选择处理器", () => {
   );
   assert.ok(source.includes("onKeyDown"), "日志行应绑定键盘事件处理器");
   assert.ok(source.includes("tabIndex={0}"), "日志行应声明 tabIndex={0}");
-  assert.ok(source.includes("aria-current"), "日志行应暴露 aria-current 当前态");
+  assert.ok(
+    source.includes("aria-current"),
+    "日志行应暴露 aria-current 当前态"
+  );
   assert.match(
     source,
     /handleRowClick\(entry\.id,\s*entry\.createdAt\)/,

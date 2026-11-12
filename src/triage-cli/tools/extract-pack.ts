@@ -1,13 +1,23 @@
 import { applyCharBudget } from "../format/budget.ts";
-import { extractPackToDisk, openPack } from "../pack/open.ts";
+import {
+  describeWorkspace,
+  extractPackToDisk,
+  getPackWorkspaceDir,
+  openPack,
+} from "../pack/open.ts";
 
 export function runExtractPackTool(args: {
   pack?: string;
   dest?: string;
   format?: "text" | "json";
 }): string {
+  // open_pack 已将 ZIP 解压到工作区；未指定 --dest 时直接返回该工作区，指定时再复制一份
   const loaded = openPack(args.pack);
-  const res = extractPackToDisk(loaded, args.dest);
+  const workspaceDir = getPackWorkspaceDir(loaded);
+  const res =
+    !args.dest && workspaceDir
+      ? describeWorkspace(loaded, workspaceDir)
+      : extractPackToDisk(loaded, args.dest);
 
   if (args.format === "json") {
     return applyCharBudget(JSON.stringify(res, null, 2));

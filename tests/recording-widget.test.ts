@@ -848,6 +848,11 @@ describe("RecordingWidget - i18n", () => {
       "widgetBubbleGotIt",
       "widgetToolbarIssueTooltip",
       "widgetToolbarStopTooltip",
+      "discardRecording",
+      "confirmDiscard",
+      "widgetToolbarDiscardTooltip",
+      "discarding",
+      "recordingDiscarded",
     ] as const) {
       assert.ok(key in zhDict, `i18n key '${key}' 缺失于 zh_CN/messages.json`);
       assert.ok(key in enDict, `i18n key '${key}' 缺失于 en/messages.json`);
@@ -896,20 +901,35 @@ describe("RecordingWidget - Smooth Close and Saving Lifecycle", () => {
 
   let stopBtnMock: any;
   let issueBtnMock: any;
+  let discardBtnMock: any;
   let dragHandleMock: any;
   let stopCallCount = 0;
   let issueCallCount = 0;
+  let discardCallCount = 0;
 
   beforeEach(() => {
     stopCallCount = 0;
     issueCallCount = 0;
+    discardCallCount = 0;
     const createMockBtn = () => {
       const btnListeners = new Map<string, Function[]>();
+      const btnClassSet = new Set<string>();
       return {
         style: {},
         disabled: false,
         textContent: "",
         title: "",
+        classList: {
+          add(cls: string) {
+            btnClassSet.add(cls);
+          },
+          remove(cls: string) {
+            btnClassSet.delete(cls);
+          },
+          contains(cls: string) {
+            return btnClassSet.has(cls);
+          },
+        },
         addEventListener(event: string, fn: Function) {
           if (!btnListeners.has(event)) btnListeners.set(event, []);
           btnListeners.get(event)!.push(fn);
@@ -940,6 +960,7 @@ describe("RecordingWidget - Smooth Close and Saving Lifecycle", () => {
     };
     stopBtnMock = createMockBtn();
     issueBtnMock = createMockBtn();
+    discardBtnMock = createMockBtn();
     dragHandleMock = createMockBtn();
 
     const classSet = new Set<string>();
@@ -981,6 +1002,9 @@ describe("RecordingWidget - Smooth Close and Saving Lifecycle", () => {
         }
         if (sel.includes("issue_btn")) {
           return issueBtnMock;
+        }
+        if (sel.includes("discard_btn")) {
+          return discardBtnMock;
         }
         if (sel.includes("drag_handle")) {
           return dragHandleMock;
@@ -1268,6 +1292,95 @@ describe("RecordingWidget - Smooth Close and Saving Lifecycle", () => {
       );
     } finally {
       (globalThis as any).window.removeEventListener = origRemoveEventListener;
+    }
+  });
+
+  test("discard 按钮行内二次确认：首次点击进入确认态，二次点击触发 onDiscard", () => {
+    widget = new RecordingWidget({
+      ...callbacks,
+      onDiscard: () => {
+        discardCallCount++;
+      },
+    });
+    widget.mount();
+
+    assert.equal(discardBtnMock.textContent, t("discardRecording"));
+    assert.equal(
+      discardBtnMock.classList.contains("__wbr_confirming__"),
+      false
+    );
+
+    // 首次点击：仅进入确认态，不触发 onDiscard
+    discardBtnMock.click();
+    assert.equal(discardCallCount, 0);
+    assert.equal(discardBtnMock.textContent, t("confirmDiscard"));
+    assert.equal(discardBtnMock.classList.contains("__wbr_confirming__"), true);
+
+    // 二次点击：触发 onDiscard 并恢复按钮初始状态
+    discardBtnMock.click();
+    assert.equal(discardCallCount, 1);
+    assert.equal(discardBtnMock.textContent, t("discardRecording"));
+    assert.equal(
+      discardBtnMock.classList.contains("__wbr_confirming__"),
+      false
+    );
+  });
+
+  test("discard 按钮行内二次确认：超时 3 秒未点击或点击其他按钮时自动恢复", () => {
+    let confirmTimeoutFn: (() => void) | undefined;
+    const origSetTimeout = (globalThis as any).window.setTimeout;
+    (globalThis as any).window.setTimeout = (fn: () => void, ms: number) => {
+      if (ms === 3000) {
+        confirmTimeoutFn = fn;
+        return 3001;
+      }
+      return origSetTimeout(fn, ms);
+    };
+
+    try {
+      widget = new RecordingWidget({
+        ...callbacks,
+        onStop: () => {
+          stopCallCount++;
+        },
+        onDiscard: () => {
+          discardCallCount++;
+        },
+      });
+      widget.mount();
+
+      // 首次点击进入确认态
+      discardBtnMock.click();
+      assert.equal(
+        discardBtnMock.classList.contains("__wbr_confirming__"),
+        true
+      );
+      assert.ok(confirmTimeoutFn, "应当注册 3000ms 超时恢复定时器");
+
+      // 触发 3 秒超时：自动恢复为初始态
+      confirmTimeoutFn!();
+      assert.equal(
+        discardBtnMock.classList.contains("__wbr_confirming__"),
+        false
+      );
+      assert.equal(discardBtnMock.textContent, t("discardRecording"));
+      assert.equal(discardCallCount, 0);
+
+      // 再次点击重新进入确认态，随后点击 stopBtn 应主动重置确认态
+      discardBtnMock.click();
+      assert.equal(
+        discardBtnMock.classList.contains("__wbr_confirming__"),
+        true
+      );
+      stopBtnMock.click();
+      assert.equal(stopCallCount, 1);
+      assert.equal(
+        discardBtnMock.classList.contains("__wbr_confirming__"),
+        false
+      );
+      assert.equal(discardCallCount, 0);
+    } finally {
+      (globalThis as any).window.setTimeout = origSetTimeout;
     }
   });
 });

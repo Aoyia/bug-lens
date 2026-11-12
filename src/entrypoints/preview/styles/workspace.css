@@ -155,9 +155,9 @@
 /* 浮动 AI 导引 Popover Drawer */
 .ai-prompt-popover-wrapper {
   position: relative;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 0;
 }
 
 .zen-ai-drawer {

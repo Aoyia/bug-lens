@@ -1,10 +1,71 @@
-import type { CascadeIndex } from "../domain/screenshot-payload.ts";
 import type {
   ExportTraceContext,
   Stage3Metrics,
   Stage4Metrics,
 } from "../export/export-trace.ts";
 import type { PerfReportData } from "./dev-profiler.ts";
+
+export interface AiSettings {
+  targetAssistant: "generic" | "cursor" | "claude-code" | "antigravity";
+  promptLanguage: "auto" | "zh-CN" | "en-US";
+  customInstructions: string;
+  /** 剪贴板提示词模板：standard 为原有完整模板，compact 为精简模板（试用）。包内 AI_PROMPT.md 始终为完整模板。 */
+  promptTemplate: "standard" | "compact";
+}
+
+/** CascadeIndex 级联快照数据模型 */
+export interface CascadeSheetSource {
+  id: string;
+  href?: string;
+  ownerNodeTag?: string;
+  rulesCount: number;
+  isInline?: boolean;
+}
+
+export interface CascadeRuleSource {
+  id: string;
+  sheetId: string;
+  selectorText: string;
+  cssText: string;
+  styleProps: Record<string, string>;
+}
+
+export interface CascadeInheritedRuleRef {
+  ancestorSelector: string;
+  ancestorTagName: string;
+  ruleId: string;
+  inheritedProps: Record<string, string>;
+}
+
+export interface CascadeElementRef {
+  id: string;
+  selector: string;
+  tagName: string;
+  matchedRuleIds: string[];
+  inheritedRules?: CascadeInheritedRuleRef[];
+}
+
+export interface CascadePropertySource {
+  property: string;
+  value: string;
+  sourceRuleId?: string;
+  isInline?: boolean;
+  isImportant?: boolean;
+  inheritedFromSelector?: string;
+}
+
+export interface CascadeIndex {
+  sheets: CascadeSheetSource[];
+  rules: CascadeRuleSource[];
+  elements: CascadeElementRef[];
+  perProperty: Record<string, CascadePropertySource[]>;
+  meta: {
+    sheetCount: number;
+    ruleCount: number;
+    elementCount: number;
+    capturedAtEpochMs: number;
+  };
+}
 
 export const PROTOCOL_VERSION = 3 as const;
 export const EXPORT_FORMAT_VERSION = "3.0" as const;
@@ -1013,6 +1074,16 @@ export type RuntimeMessage =
         sessionId: string;
         exportMode?: "ai" | "ticket";
         traceContext?: ExportTraceContext;
+        /** 剪贴板提示词模板设置（offscreen 无法读取 chrome.storage，由 background 透传） */
+        promptSettings?: Partial<
+          Pick<
+            AiSettings,
+            | "promptTemplate"
+            | "promptLanguage"
+            | "targetAssistant"
+            | "customInstructions"
+          >
+        >;
       }
     >
   | Envelope<"i18n/get-dict", { locale: "zh-CN" | "en-US" }>;

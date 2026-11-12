@@ -1,13 +1,13 @@
 import { useState, useRef, useEffect, useCallback } from "preact/hooks";
 import type { ComponentChildren } from "preact";
 
-export interface SelectOption<T extends string = string> {
+export interface SelectOption<T extends string | number = string> {
   value: T;
   label: string;
   disabled?: boolean;
 }
 
-export interface SelectProps<T extends string = string> {
+export interface SelectProps<T extends string | number = string> {
   id?: string;
   value: T;
   options: SelectOption<T>[];
@@ -19,9 +19,10 @@ export interface SelectProps<T extends string = string> {
   suffix?: ComponentChildren;
   direction?: "up" | "down";
   ariaLabel?: string;
+  variant?: "popup" | "options";
 }
 
-export function Select<T extends string = string>({
+export function Select<T extends string | number = string>({
   id,
   value,
   options,
@@ -33,6 +34,7 @@ export function Select<T extends string = string>({
   suffix,
   direction = "up",
   ariaLabel,
+  variant = "popup",
 }: SelectProps<T>) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -86,13 +88,18 @@ export function Select<T extends string = string>({
     };
   }, [open]);
 
+  const isOptions = variant === "options";
+  const wrapClass = isOptions
+    ? `custom-select-wrap ${open ? "open" : ""} ${className}`.trim()
+    : `popup-select ${direction === "down" ? "popup-select-down" : "popup-select-up"} ${className} ${open ? "popup-select-open" : ""} ${
+        disabled ? "popup-select-disabled" : ""
+      }`.trim();
+
   return (
     <div
       ref={containerRef}
       id={id ? `${id}-container` : undefined}
-      className={`popup-select ${direction === "down" ? "popup-select-down" : "popup-select-up"} ${className} ${open ? "popup-select-open" : ""} ${
-        disabled ? "popup-select-disabled" : ""
-      }`.trim()}
+      className={wrapClass}
       title={title}
     >
       {/* 隐藏原生 select：保证表单兼容性、CDP 自动化测试与无障碍访问 */}
@@ -101,9 +108,12 @@ export function Select<T extends string = string>({
         tabIndex={-1}
         aria-hidden="true"
         disabled={disabled}
-        value={value}
+        value={String(value)}
         onChange={(e) => {
-          onChange(e.currentTarget.value as T);
+          const matched = options.find(
+            (opt) => String(opt.value) === e.currentTarget.value
+          );
+          onChange((matched ? matched.value : e.currentTarget.value) as T);
         }}
         style={{
           position: "absolute",
@@ -119,7 +129,7 @@ export function Select<T extends string = string>({
         }}
       >
         {options.map((opt) => (
-          <option key={opt.value} value={opt.value}>
+          <option key={String(opt.value)} value={String(opt.value)}>
             {opt.label}
           </option>
         ))}
@@ -129,7 +139,7 @@ export function Select<T extends string = string>({
         ref={triggerRef}
         id={id ? `${id}-trigger` : undefined}
         type="button"
-        className="popup-select-trigger"
+        className={isOptions ? "custom-select-trigger" : "popup-select-trigger"}
         disabled={disabled}
         onClick={toggleOpen}
         aria-haspopup="listbox"
@@ -137,10 +147,12 @@ export function Select<T extends string = string>({
         aria-disabled={disabled}
         aria-label={ariaLabel}
       >
-        <span className="popup-select-value">{displayLabel}</span>
+        <span className={isOptions ? undefined : "popup-select-value"}>
+          {displayLabel}
+        </span>
         {suffix && <span className="popup-select-suffix">{suffix}</span>}
         <svg
-          className="popup-select-arrow"
+          className={isOptions ? "custom-select-chevron" : "popup-select-arrow"}
           viewBox="0 0 12 12"
           width="12"
           height="12"
@@ -156,23 +168,36 @@ export function Select<T extends string = string>({
       </button>
 
       {open && !disabled && (
-        <div className="popup-select-menu" role="listbox" tabIndex={-1}>
+        <div
+          className={isOptions ? "custom-select-dropdown" : "popup-select-menu"}
+          role="listbox"
+          tabIndex={-1}
+        >
           {options.map((opt) => {
             const isSelected = opt.value === value;
+            const itemClass = isOptions
+              ? `custom-select-option ${isSelected ? "selected" : ""}`
+              : `popup-select-item ${
+                  isSelected ? "popup-select-item-selected" : ""
+                } ${opt.disabled ? "popup-select-item-disabled" : ""}`.trim();
             return (
               <div
-                key={opt.value}
-                className={`popup-select-item ${
-                  isSelected ? "popup-select-item-selected" : ""
-                } ${opt.disabled ? "popup-select-item-disabled" : ""}`.trim()}
+                key={String(opt.value)}
+                className={itemClass}
                 role="option"
                 aria-selected={isSelected}
                 onClick={() => handleSelect(opt.value, opt.disabled)}
               >
-                <span className="popup-select-item-label">{opt.label}</span>
+                <span
+                  className={isOptions ? undefined : "popup-select-item-label"}
+                >
+                  {opt.label}
+                </span>
                 {isSelected && (
                   <svg
-                    className="popup-select-check"
+                    className={
+                      isOptions ? "custom-select-check" : "popup-select-check"
+                    }
                     viewBox="0 0 12 12"
                     width="12"
                     height="12"

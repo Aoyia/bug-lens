@@ -433,8 +433,13 @@ button.preview-ticket-btn {
   gap: 4px;
 }
 
+.ticket-action-group button.preview-ticket-btn {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-right: none;
+}
+
 button.preview-ticket-btn:hover {
   background: rgba(22, 93, 255, 0.12);
   border-color: rgba(22, 93, 255, 0.35);
-  transform: translateY(-1px);
 }

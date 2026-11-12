@@ -1,6 +1,10 @@
 import { memo } from "preact/compat";
 import { t } from "../../shared/i18n";
 import { Select, type SelectOption } from "../common/Select";
+import {
+  applyRecordingOptionPatch,
+  normalizeResponseBodyPolicy,
+} from "../../domain/recording-options-patch";
 
 export type ResponseBodyPolicy = "disabled" | "standard" | "full";
 
@@ -60,15 +64,12 @@ export const OptionsGrid = memo(function OptionsGrid({
     : undefined;
 
   const currentResponseBodyPolicy: ResponseBodyPolicy =
-    responseBodyPolicy === "full" || captureFullResponseBody
-      ? "full"
-      : "standard";
+    normalizeResponseBodyPolicy(responseBodyPolicy, captureFullResponseBody);
 
   const responseBodiesTitle = lockedTitle;
 
   const handleResponseBodyPolicyChange = (policy: ResponseBodyPolicy) => {
-    const nextPolicy: ResponseBodyPolicy =
-      policy === "full" ? "full" : "standard";
+    const nextPolicy: ResponseBodyPolicy = normalizeResponseBodyPolicy(policy);
     if (onSetResponseBodyPolicy) {
       onSetResponseBodyPolicy(nextPolicy);
     }
@@ -129,8 +130,14 @@ export const OptionsGrid = memo(function OptionsGrid({
                   checked={captureVideo}
                   disabled={controlsLocked}
                   onChange={(e) => {
-                    onSetCaptureVideo(e.currentTarget.checked);
-                    if (!e.currentTarget.checked) onSetCaptureAudio(false);
+                    const next = applyRecordingOptionPatch(
+                      { captureVideo, captureAudio },
+                      { captureVideo: e.currentTarget.checked }
+                    );
+                    onSetCaptureVideo(next.captureVideo);
+                    if (next.captureAudio !== captureAudio) {
+                      onSetCaptureAudio(next.captureAudio);
+                    }
                   }}
                 />
                 <span>{t("video")}</span>

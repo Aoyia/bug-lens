@@ -1,5 +1,12 @@
 import { t } from "../../../shared/i18n.ts";
 import { getEpochTimestampMs } from "../../../export/export-trace.ts";
+import { formatRecordingTimer } from "../../../domain/evidence-clock.ts";
+import {
+  animateToastIn,
+  animateToastOutAndRemove,
+  buildToastInnerHtml,
+  FLOATING_TOAST_BASE_CSS,
+} from "../../../shared/ui/toast";
 
 export type WidgetClickInfo = {
   clickTimestamp?: number;
@@ -11,6 +18,8 @@ export type WidgetCallbacks = {
   onStop(info?: WidgetClickInfo): void;
   /** 点击"标记问题"时触发；anchor 为鼠标点击坐标（用于速记卡就近定位）。 */
   onMarkIssue(anchor?: { x: number; y: number }): void;
+  /** 二次确认后触发放弃并删除本次录制。 */
+  onDiscard?(): void;
   isPaused?(): boolean;
   getStartedAtEpochMs(): number;
   isIdlePaused(): boolean;
@@ -38,6 +47,8 @@ export class RecordingWidget {
   private cleanupDragListeners?: () => void;
   private _isSaving = false;
   private _isClosing = false;
+  private isConfirmingDiscard = false;
+  private discardConfirmTimer: number | undefined;
   private closeTimer?: number;
   private closePromise?: Promise<void>;
   private closeResolve?: () => void;
@@ -261,7 +272,7 @@ export class RecordingWidget {
           flex-direction: row !important;
           align-items: center !important;
           gap: 8px !important;
-          max-width: 520px !important;
+          max-width: 600px !important;
           opacity: 1 !important;
           overflow: hidden !important;
           white-space: nowrap !important;
@@ -279,6 +290,7 @@ export class RecordingWidget {
         }
         #__wbr_recording_widget__.__wbr_collapsed__ #__wbr_issue_btn__,
         #__wbr_recording_widget__.__wbr_collapsed__ #__wbr_ticket_btn__,
+        #__wbr_recording_widget__.__wbr_collapsed__ #__wbr_discard_btn__,
         #__wbr_recording_widget__.__wbr_collapsed__ #__wbr_health_msg__ {
           display: none !important;
         }
@@ -321,7 +333,7 @@ export class RecordingWidget {
         .__wbr_btn {
           border: none !important; background: #f53f3f !important; color: #fff !important; border-radius: 4px !important;
           padding: 5px 10px !important; font-size: 11px !important; font-weight: 500 !important; cursor: pointer !important;
-          transition: background 0.15s ease !important;
+          transition: background 0.15s ease, color 0.15s ease !important;
           outline: none !important;
           height: auto !important;
           line-height: 1.2 !important;
@@ -333,6 +345,26 @@ export class RecordingWidget {
         .__wbr_btn:active { background: #cb2727 !important; }
         #__wbr_ticket_btn__:hover { background: #4080ff !important; }
         #__wbr_ticket_btn__:active { background: #0e42d2 !important; }
+        #__wbr_discard_btn__ {
+          background: rgba(255, 255, 255, 0.12) !important;
+          color: rgba(255, 255, 255, 0.78) !important;
+        }
+        #__wbr_discard_btn__:hover {
+          background: rgba(245, 63, 63, 0.25) !important;
+          color: #ff7875 !important;
+        }
+        #__wbr_discard_btn__:active {
+          background: rgba(245, 63, 63, 0.4) !important;
+          color: #ffffff !important;
+        }
+        #__wbr_discard_btn__.__wbr_confirming__ {
+          background: #f53f3f !important;
+          color: #ffffff !important;
+        }
+        #__wbr_discard_btn__.__wbr_confirming__:hover {
+          background: #f76565 !important;
+          color: #ffffff !important;
+        }
         .__wbr_timer { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important; font-size: 12px !important; color: #e5e6eb !important; font-weight: 600 !important; flex-shrink: 0 !important; }
       </style>
       <span class="__wbr_drag_handle" title="${t("dragToMove")}">⋮⋮</span>
@@ -344,6 +376,7 @@ export class RecordingWidget {
         <button id="__wbr_issue_btn__" class="__wbr_btn" style="background:#b42318;" title="${t("widgetToolbarIssueTooltip", [this.shortcutKeyText])}">${t("markIssue")} (${this.shortcutKeyText})</button>
         <button id="__wbr_ticket_btn__" class="__wbr_btn" style="background:#165dff;" title="${t("widgetToolbarTicketTooltip")}">${t("createTicket")}</button>
         <button id="__wbr_stop_btn__" class="__wbr_btn" title="${t("widgetToolbarStopTooltip", [this.stopShortcutKeyText])}">${t("stopRecording")}</button>
+        <button id="__wbr_discard_btn__" class="__wbr_btn" title="${t("widgetToolbarDiscardTooltip")}">${t("discardRecording")}</button>
       </div>
     `;
 
@@ -362,6 +395,7 @@ export class RecordingWidget {
               e.stopPropagation();
               e.preventDefault();
               if (this._isSaving || this._isClosing) return;
+              this.resetDiscardConfirm();
               const clickTimestamp = performance.now();
               const clickEpochMs = getEpochTimestampMs();
               this.callbacks.onStop({
@@ -381,6 +415,7 @@ export class RecordingWidget {
               e.stopPropagation();
               e.preventDefault();
               if (this._isSaving || this._isClosing) return;
+              this.resetDiscardConfirm();
               const clickTimestamp = performance.now();
               const clickEpochMs = getEpochTimestampMs();
               this.callbacks.onStop({
@@ -399,11 +434,40 @@ export class RecordingWidget {
             e.stopPropagation();
             e.preventDefault();
             if (this._isSaving || this._isClosing) return;
+            this.resetDiscardConfirm();
             const me = e as MouseEvent;
             this.callbacks.onMarkIssue({ x: me.clientX, y: me.clientY });
           },
           true
         );
+        const discardBtn = root.querySelector<HTMLButtonElement>(
+          "#__wbr_discard_btn__"
+        );
+        if (discardBtn) {
+          discardBtn.addEventListener(
+            "click",
+            (e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              if (this._isSaving || this._isClosing) return;
+              if (!this.isConfirmingDiscard) {
+                this.isConfirmingDiscard = true;
+                discardBtn.classList?.add("__wbr_confirming__");
+                discardBtn.textContent = t("confirmDiscard");
+                if (this.discardConfirmTimer) {
+                  window.clearTimeout(this.discardConfirmTimer);
+                }
+                this.discardConfirmTimer = window.setTimeout(() => {
+                  this.resetDiscardConfirm();
+                }, 3000);
+                return;
+              }
+              this.resetDiscardConfirm();
+              this.callbacks.onDiscard?.();
+            },
+            true
+          );
+        }
 
         // 拖拽手柄逻辑
         const dragHandle =
@@ -413,6 +477,7 @@ export class RecordingWidget {
             e.stopPropagation();
             e.preventDefault();
             if (this._isSaving || this._isClosing) return;
+            this.resetDiscardConfirm();
             this.isDragging = true;
             if (this.autoCollapseTimer) {
               window.clearTimeout(this.autoCollapseTimer);
@@ -527,6 +592,7 @@ export class RecordingWidget {
           if (!this.isDragging) {
             this.autoCollapseTimer = window.setTimeout(() => {
               if (this.container && !this.isDragging && !this._isSaving) {
+                this.resetDiscardConfirm();
                 this.container.classList.add("__wbr_collapsed__");
               }
             }, 1500);
@@ -769,9 +835,26 @@ export class RecordingWidget {
     if (!this.isDragging && !this.isHovering) {
       this.autoCollapseTimer = window.setTimeout(() => {
         if (this.container && !this.isDragging && !this._isSaving) {
+          this.resetDiscardConfirm();
           this.container.classList.add("__wbr_collapsed__");
         }
       }, 1500);
+    }
+  }
+
+  private resetDiscardConfirm(): void {
+    if (this.discardConfirmTimer) {
+      window.clearTimeout(this.discardConfirmTimer);
+      this.discardConfirmTimer = undefined;
+    }
+    if (!this.isConfirmingDiscard) return;
+    this.isConfirmingDiscard = false;
+    const discardBtn = this.container?.querySelector<HTMLButtonElement>(
+      "#__wbr_discard_btn__"
+    );
+    if (discardBtn) {
+      discardBtn.classList?.remove("__wbr_confirming__");
+      discardBtn.textContent = t("discardRecording");
     }
   }
 
@@ -834,6 +917,7 @@ export class RecordingWidget {
     this.isHovering = false;
     this.isBubbleShowing = false;
     this.isSelectingIssue = false;
+    this.resetDiscardConfirm();
     if (this.cleanupDragListeners) {
       this.cleanupDragListeners();
       this.cleanupDragListeners = undefined;
@@ -880,6 +964,7 @@ export class RecordingWidget {
     if (saving) {
       this.isHovering = false;
       this.isDragging = false;
+      this.resetDiscardConfirm();
       this.container.classList.remove("__wbr_collapsed__");
       this.container.classList.add("__wbr_saving__");
       const display = this.container.querySelector("#__wbr_timer_display__");
@@ -912,13 +997,9 @@ export class RecordingWidget {
     if (display) {
       const startTime = this.callbacks.getStartedAtEpochMs();
       const pausedDurationMs = this.callbacks.getPausedDurationMs?.() ?? 0;
-      const sec = Math.max(
-        0,
-        Math.floor((Date.now() - startTime - pausedDurationMs) / 1000)
+      display.textContent = formatRecordingTimer(
+        Date.now() - startTime - pausedDurationMs
       );
-      const m = String(Math.floor(sec / 60)).padStart(2, "0");
-      const s = String(sec % 60).padStart(2, "0");
-      display.textContent = `${m}:${s}`;
     }
   }
 
@@ -955,6 +1036,16 @@ export class RecordingWidget {
       this.container.querySelector<HTMLButtonElement>("#__wbr_stop_btn__");
     if (stopBtn) {
       stopBtn.textContent = t("stopRecording");
+    }
+
+    const discardBtn = this.container.querySelector<HTMLButtonElement>(
+      "#__wbr_discard_btn__"
+    );
+    if (discardBtn) {
+      discardBtn.title = t("widgetToolbarDiscardTooltip");
+      discardBtn.textContent = this.isConfirmingDiscard
+        ? t("confirmDiscard")
+        : t("discardRecording");
     }
   }
 
@@ -1033,59 +1124,13 @@ export class RecordingWidget {
     const toast = document.createElement("div");
     toast.id = "__wbr_toast__";
     toast.setAttribute("data-wbr-ignore", "true");
-    toast.style.cssText = `
-      position: fixed !important;
-      top: 16px !important;
-      left: 50% !important;
-      transform: translateX(-50%) translateY(-10px) !important;
-      z-index: 2147483647 !important;
-      background: #ffffff !important;
-      -webkit-backdrop-filter: blur(16px) !important;
-      backdrop-filter: blur(16px) !important;
-      border: 1px solid rgba(0, 0, 0, 0.08) !important;
-      color: #1d2129 !important;
-      padding: 8px 18px !important;
-      border-radius: 8px !important;
-      font-size: 13.5px !important;
-      font-weight: 500 !important;
-      box-shadow: 0 16px 42px -6px rgba(0, 0, 0, 0.18), 0 6px 16px -2px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04) !important;
-      display: flex !important;
-      align-items: flex-start !important;
-      gap: 10px !important;
-      pointer-events: auto !important;
-      transition: opacity 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
-      opacity: 0 !important;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-    `;
-
-    const isDualLine = message.includes("\n");
-    let contentHtml = "";
+    toast.style.cssText = `${FLOATING_TOAST_BASE_CSS} pointer-events: auto !important;`;
 
     const actionHtml = action
       ? `<span style="color:#c9cdd4!important;margin:0 4px!important;user-select:none!important;">·</span><span id="__wbr_toast_action__" role="button" tabindex="0" style="color:#165dff!important;cursor:pointer!important;text-decoration:none!important;font-weight:500!important;white-space:nowrap!important;transition:color 0.15s ease!important;">${action.label}</span>`
       : "";
 
-    if (isDualLine) {
-      const [title, ...rest] = message.split("\n");
-      const desc = rest.join("\n");
-      const kbdRegex = /(⌘V|Ctrl\+V)/g;
-      const descHtml = desc.replace(
-        kbdRegex,
-        `<kbd style="display:inline-flex!important;align-items:center!important;justify-content:center!important;padding:0 4px!important;min-width:20px!important;height:16px!important;font-size:10px!important;font-family:inherit!important;font-weight:600!important;color:#4e5969!important;background:#f2f3f5!important;border:1px solid #e5e6eb!important;border-radius:3px!important;vertical-align:baseline!important;margin:0 2px!important;">$1</kbd>`
-      );
-      contentHtml = `
-        <div style="display:flex!important;flex-direction:column!important;gap:2px!important;align-items:flex-start!important;text-align:left!important;">
-          <div style="font-size:13.5px!important;font-weight:600!important;color:#1d2129!important;line-height:1.4!important;">${title}</div>
-          <div style="font-size:12px!important;font-weight:400!important;color:#86909c!important;line-height:1.4!important;">${descHtml}${actionHtml}</div>
-        </div>
-      `;
-    } else {
-      contentHtml = `<span style="line-height:1.4!important;">${message}${actionHtml}</span>`;
-    }
-
-    const icon = tone === "error" ? "!" : "✓";
-    const iconColor = tone === "error" ? "#d5484c" : "#00b42a";
-    toast.innerHTML = `<span style="color:${iconColor};font-size:16px;font-weight:700;line-height:1;margin-top:${isDualLine ? "2px" : "0"};align-self:${isDualLine ? "flex-start" : "center"};">${icon}</span> ${contentHtml}`;
+    toast.innerHTML = buildToastInnerHtml(message, tone, actionHtml);
 
     if (action) {
       const btn = toast.querySelector(
@@ -1107,30 +1152,17 @@ export class RecordingWidget {
           } catch {
             // 忽略回调执行异常
           }
-          toast.style.opacity = "0";
-          toast.style.transform = "translateX(-50%) translateY(-10px)";
-          setTimeout(() => toast.remove(), 200);
+          animateToastOutAndRemove(toast);
         });
       }
     }
     document.body.appendChild(toast);
-
-    const rAF =
-      typeof requestAnimationFrame === "function"
-        ? (fn: FrameRequestCallback) => requestAnimationFrame(fn)
-        : (fn: FrameRequestCallback) => setTimeout(fn, 0);
-
-    rAF(() => {
-      toast.style.opacity = "1";
-      toast.style.transform = "translateX(-50%) translateY(0)";
-    });
+    animateToastIn(toast);
 
     let hideTimeout: number | undefined;
     const startHideTimer = () => {
       hideTimeout = window.setTimeout(() => {
-        toast.style.opacity = "0";
-        toast.style.transform = "translateX(-50%) translateY(-10px)";
-        setTimeout(() => toast.remove(), 200);
+        animateToastOutAndRemove(toast);
       }, durationMs);
     };
 

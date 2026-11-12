@@ -15,10 +15,6 @@ import {
   formatPlaywrightLocator,
   generatePlaywrightScript,
 } from "../src/preview/playwright-generator.ts";
-import {
-  SpatialPruner,
-  type BoundingBox,
-} from "../src/entrypoints/content/collector/spatial-pruner.ts";
 import type {
   RecordingSession,
   InteractionRecord,
@@ -734,76 +730,6 @@ describe("Challenger Adversarial Stress Suite: M3 R4 穿透定位器与 DOM 快�
       assert.ok(snapshot, "已脱离 iframe 的子元素生成快照不能抛出异常");
       assert.equal(snapshot.element.id, "orphan-btn");
       assert.equal(snapshot.frameSelector, undefined);
-    });
-  });
-
-  test("对抗 3.3：SpatialPruner 面对 contentDocument 为 null 或抛出异常的 iframe 具备健壮容错", () => {
-    const topWin: any = {};
-    topWin.top = topWin;
-    topWin.parent = topWin;
-
-    // 模拟包含 3 种异常 iframe 的文档：
-    // 1. contentDocument === null（已卸载 iframe）
-    // 2. contentDocument 抛错（跨域/崩溃 iframe）
-    // 3. 正常同源 iframe
-    const hostDoc: any = {
-      defaultView: topWin,
-      getElementById: () => null,
-      querySelector: () => null,
-      querySelectorAll: (sel: string) => {
-        if (sel === "*") return [iframeNull, iframeThrow, iframeNormal];
-        return [];
-      },
-    };
-
-    const iframeNull = createMockElement({
-      tagName: "iframe",
-      id: "null-frame",
-      bounds: { left: 0, top: 0, width: 200, height: 200 },
-      ownerDocument: hostDoc,
-      contentDocument: null,
-    });
-
-    const iframeThrow = createMockElement({
-      tagName: "iframe",
-      id: "throw-frame",
-      bounds: { left: 0, top: 0, width: 200, height: 200 },
-      ownerDocument: hostDoc,
-    });
-    Object.defineProperty(iframeThrow, "contentDocument", {
-      get() {
-        throw new Error("Simulated Document Access Failure");
-      },
-    });
-
-    const normalDoc: any = {
-      querySelectorAll: () => [normalBtn],
-    };
-    const normalBtn = createMockElement({
-      tagName: "button",
-      id: "ok-btn",
-      bounds: { left: 10, top: 10, width: 50, height: 30 },
-      ownerDocument: normalDoc,
-    });
-    const iframeNormal = createMockElement({
-      tagName: "iframe",
-      id: "normal-frame",
-      bounds: { left: 0, top: 0, width: 200, height: 200 },
-      ownerDocument: hostDoc,
-      contentDocument: normalDoc,
-    });
-
-    (globalThis as any).window = topWin;
-    (globalThis as any).document = hostDoc;
-
-    const box: BoundingBox = { x: 0, y: 0, width: 300, height: 300 };
-
-    assert.doesNotThrow(() => {
-      const result = SpatialPruner.extractSpatialSnapshot(box, "safe");
-      assert.ok(
-        result.nodes.length >= 2,
-        "遇到损坏 iframe 时不阻断正常 iframe 采集"
-      );
     });
   });
 

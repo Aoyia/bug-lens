@@ -172,9 +172,9 @@ function formatHelp(): string {
 Usage: node bug-lens-cli.mjs <command> [options]
 
 Commands:
-  open_pack <zipPath>                         Open pack in memory, cache session path, export key screenshots, and print overview
+  open_pack <zipOrDir>                        Extract pack to workspace (idempotent), generate derived JSON & INDEX.md, cache session path, and print overview
   get_scene [--selector S] [--cssProperty P]  Inspect issue scene (session) or DOM anchor & CSS cascade rules (screenshot)
-  get_screenshot [--kind K] [--step N]        Export screenshot image to temp workspace and print path
+  get_screenshot [--kind K] [--step N]        Locate screenshot image in workspace and print path
   timeline [--aroundSceneId ID] [--windowMs]  Unified chronological timeline of interactions, console errors, and network requests
   query_console [--levels error,warning]      Filter console logs and source-mapped stack traces
   query_network [--status failed|4xx|5xx]     Filter network requests (prioritizes failures)
@@ -182,8 +182,8 @@ Commands:
   get_interactions [--fromIndex N] [--limit]  List recorded user interactions
   get_framework_state [--component NAME]      Inspect Vue/React component props, state, and webStorage snapshots
   search_pack <query>                         Cross-search console, network URLs/bodies, interactions, cascade rules, and state
-  read_pack_file <path> [--jsonPath EXPR]     Read raw JSON/JS/text file inside the pack without extraction
-  extract_pack [--dest DIR]                   Safely extract pack to disk to run Playwright reproduce.spec.ts`;
+  read_pack_file <path> [--jsonPath EXPR]     Read raw JSON/JS/text file or workspace artifact (INDEX.md, data/*.json)
+  extract_pack [--dest DIR]                   Describe active workspace or copy extracted pack to custom directory`;
 }
 
 export function runTriageCli(argv: string[]): string {

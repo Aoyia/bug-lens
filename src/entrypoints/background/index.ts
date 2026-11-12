@@ -111,7 +111,9 @@ const deps: BackgroundDeps = {
 
 const runtime = createBackgroundRuntime(deps);
 runtimeRef = runtime;
-(self as unknown as { __BUGLENS_BACKGROUND_RUNTIME__?: unknown }).__BUGLENS_BACKGROUND_RUNTIME__ = runtime;
+(
+  self as unknown as { __BUGLENS_BACKGROUND_RUNTIME__?: unknown }
+).__BUGLENS_BACKGROUND_RUNTIME__ = runtime;
 
 // chrome 事件注册（debugger / tabs / startup / installed / alarms / commands / onMessage）
 registerBackgroundEvents(runtime);

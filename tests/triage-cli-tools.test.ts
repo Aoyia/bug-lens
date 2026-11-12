@@ -29,11 +29,24 @@ test("triage-cli executes all 12 commands, exports screenshots on open_pack, and
     writeFileSync(sessionZipPath, buildRealSessionZipBytes());
     writeFileSync(screenshotZipPath, await buildRealScreenshotZipBytes());
 
-    // 1. open_pack (session) — positional argument, auto-exports scene image
+    // 1. open_pack (session) — positional argument, extracts workspace & auto-locates scene image
     const openText = runTriageCli(["open_pack", sessionZipPath]);
     assert.match(openText, /Assignment Portal/);
     assert.match(openText, /勾选 Form A 的 standby 后取消勾选/);
+    assert.match(openText, /- \*\*Workspace\*\*:/);
+    assert.match(openText, /INDEX\.md/);
     assert.match(openText, /savedImagePath/);
+
+    // 1b. read_pack_file supports workspace artifacts (INDEX.md & data/session-data.json)
+    const indexText = runTriageCli(["read_pack_file", "INDEX.md"]);
+    assert.match(indexText, /# Bug Lens Evidence Workspace Index/);
+    const derivedJsonText = runTriageCli([
+      "read_pack_file",
+      "data/session-data.json",
+      "--jsonPath",
+      "summary.title",
+    ]);
+    assert.match(derivedJsonText, /Assignment Portal/);
 
     // 2. get_scene (omitting --pack, using cached session pack)
     const sceneText = runTriageCli(["get_scene"]);

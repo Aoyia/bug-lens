@@ -12,8 +12,9 @@ import {
   downloadDiagnosticsZipAndResolvePath,
   buildDiagnosticsAiPrompt,
 } from "../../diagnostics/diagnostics-zip-builder";
-import { isEn } from "../../shared/i18n";
-import { copyTextToClipboard } from "../../preview/clipboard";
+import { isEn, t } from "../../shared/i18n";
+import { copyTextToClipboard } from "../../shared/clipboard";
+import { formatBytes } from "../../domain/byte-format";
 import {
   message,
   type SessionOverview,
@@ -37,9 +38,7 @@ function formatDuration(ms: number): string {
 
 function formatBytesShort(bytes: number | undefined): string {
   if (!bytes || bytes <= 0) return "0 B";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+  return formatBytes(bytes);
 }
 
 function formatTimestamp(epochMs: number): string {
@@ -48,7 +47,55 @@ function formatTimestamp(epochMs: number): string {
   return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
-export function DiagnosticsTab() {
+async function fetchRuntimeOverviews(): Promise<{
+  storage?: StorageOverview;
+  sessions?: SessionOverview[];
+}> {
+  if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage) {
+    return {};
+  }
+  try {
+    const [stRes, sessRes] = await Promise.all([
+      chrome.runtime
+        .sendMessage(message("storage/get", undefined))
+        .catch(() => undefined) as Promise<
+        | {
+            ok?: boolean;
+            storage?: StorageOverview;
+            overview?: StorageOverview;
+          }
+        | undefined
+      >,
+      chrome.runtime
+        .sendMessage(message("session/list", undefined))
+        .catch(() => undefined) as Promise<
+        { ok?: boolean; sessions?: SessionOverview[] } | undefined
+      >,
+    ]);
+    const resolvedStorage = stRes?.storage ?? stRes?.overview;
+    return {
+      storage: stRes?.ok && resolvedStorage ? resolvedStorage : undefined,
+      sessions:
+        sessRes?.ok && Array.isArray(sessRes.sessions)
+          ? sessRes.sessions
+          : undefined,
+    };
+  } catch {
+    return {};
+  }
+}
+
+export interface DiagnosticsTabProps {
+  onRequestConfirm?: (dialog: {
+    title: string;
+    message: string;
+    confirmLabel: string;
+    isDanger?: boolean;
+    onConfirm: () => void | Promise<void>;
+  }) => void;
+}
+
+export function DiagnosticsTab({ onRequestConfirm }: DiagnosticsTabProps = {}) {
   const [data, setData] = useState<DiagnosticsData | null>(null);
   const [storageOverview, setStorageOverview] = useState<
     StorageOverview | undefined
@@ -68,36 +115,11 @@ export function DiagnosticsTab() {
     setLoading(true);
     try {
       let res = await getDiagnosticsData();
-      if (typeof chrome !== "undefined" && chrome.runtime?.sendMessage) {
-        try {
-          const [stRes, sessRes] = await Promise.all([
-            chrome.runtime
-              .sendMessage(message("storage/get", undefined))
-              .catch(() => undefined) as Promise<
-              | {
-                  ok?: boolean;
-                  storage?: StorageOverview;
-                  overview?: StorageOverview;
-                }
-              | undefined
-            >,
-            chrome.runtime
-              .sendMessage(message("session/list", undefined))
-              .catch(() => undefined) as Promise<
-              { ok?: boolean; sessions?: SessionOverview[] } | undefined
-            >,
-          ]);
-          const resolvedStorage = stRes?.storage ?? stRes?.overview;
-          if (stRes?.ok && resolvedStorage) {
-            setStorageOverview(resolvedStorage);
-          }
-          if (sessRes?.ok && Array.isArray(sessRes.sessions)) {
-            setSessionOverviews(sessRes.sessions);
-            res = enrichDiagnosticsWithSessionOverviews(res, sessRes.sessions);
-          }
-        } catch {
-          // 忽略
-        }
+      const { storage, sessions } = await fetchRuntimeOverviews();
+      if (storage) setStorageOverview(storage);
+      if (sessions) {
+        setSessionOverviews(sessions);
+        res = enrichDiagnosticsWithSessionOverviews(res, sessions);
       }
       setData(res);
     } catch {
@@ -119,37 +141,14 @@ export function DiagnosticsTab() {
       let latestStorage = storageOverview;
       let latestSessions = sessionOverviews;
 
-      if (typeof chrome !== "undefined" && chrome.runtime?.sendMessage) {
-        try {
-          const [stRes, sessRes] = await Promise.all([
-            chrome.runtime
-              .sendMessage(message("storage/get", undefined))
-              .catch(() => undefined) as Promise<
-              | {
-                  ok?: boolean;
-                  storage?: StorageOverview;
-                  overview?: StorageOverview;
-                }
-              | undefined
-            >,
-            chrome.runtime
-              .sendMessage(message("session/list", undefined))
-              .catch(() => undefined) as Promise<
-              { ok?: boolean; sessions?: SessionOverview[] } | undefined
-            >,
-          ]);
-          const resolvedStorage = stRes?.storage ?? stRes?.overview;
-          if (stRes?.ok && resolvedStorage) {
-            latestStorage = resolvedStorage;
-            setStorageOverview(resolvedStorage);
-          }
-          if (sessRes?.ok && Array.isArray(sessRes.sessions)) {
-            latestSessions = sessRes.sessions;
-            setSessionOverviews(sessRes.sessions);
-          }
-        } catch {
-          // 忽略
-        }
+      const { storage, sessions } = await fetchRuntimeOverviews();
+      if (storage) {
+        latestStorage = storage;
+        setStorageOverview(storage);
+      }
+      if (sessions) {
+        latestSessions = sessions;
+        setSessionOverviews(sessions);
       }
 
       if (latestSessions && latestSessions.length > 0) {
@@ -203,19 +202,33 @@ export function DiagnosticsTab() {
     }
   };
 
-  const handleClearData = async () => {
-    const confirmText = isEn()
-      ? "Are you sure you want to clear all diagnostics records?"
-      : "确定要清空所有性能与诊断记录吗？";
-    if (typeof window !== "undefined" && !window.confirm(confirmText)) {
-      return;
-    }
+  const performClearData = async () => {
     await clearDiagnosticsData();
     await loadData();
     setActionStatus(
       isEn() ? "Diagnostics data cleared" : "本地黑匣子诊断数据已清空"
     );
     window.setTimeout(() => setActionStatus(""), 2000);
+  };
+
+  const handleClearData = async () => {
+    const confirmText = isEn()
+      ? "Are you sure you want to clear all diagnostics records?"
+      : "确定要清空所有性能与诊断记录吗？";
+    if (onRequestConfirm) {
+      onRequestConfirm({
+        title: isEn() ? "Clear Diagnostics" : "清空诊断记录",
+        message: confirmText,
+        confirmLabel: t("expectedConfirm"),
+        isDanger: true,
+        onConfirm: performClearData,
+      });
+      return;
+    }
+    if (typeof window !== "undefined" && !window.confirm(confirmText)) {
+      return;
+    }
+    await performClearData();
   };
 
   const metrics = data?.metrics;

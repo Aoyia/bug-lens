@@ -24,9 +24,17 @@ import {
 import { useRpc } from "../../hooks/useRpc";
 import {
   buildAiPrompt,
+  buildCompactAiPrompt,
   type EvidencePackageSnapshot,
 } from "../../preview/evidence-package";
 import { DiagnosticsTab } from "./DiagnosticsTab";
+import { Select } from "../common/Select";
+import { bindConfirmDialogDismiss } from "../../shared/confirm-dialog";
+import "./options-fallback-i18n";
+import {
+  applyRecordingOptionPatch,
+  normalizeResponseBodyPolicy,
+} from "../../domain/recording-options-patch";
 
 type NavTab =
   | "workflow"
@@ -183,108 +191,6 @@ const SAMPLE_SNAPSHOT: EvidencePackageSnapshot = {
   hasMedia: false,
 };
 
-interface CustomSelectOption<T extends string | number> {
-  value: T;
-  label: string;
-}
-
-function CustomSelect<T extends string | number>({
-  value,
-  options,
-  onChange,
-  ariaLabel,
-}: {
-  value: T;
-  options: CustomSelectOption<T>[];
-  onChange: (val: T) => void;
-  ariaLabel?: string;
-}) {
-  const [isOpen, setIsOpen] = useState(false);
-  const wrapRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        setIsOpen(false);
-      }
-    }
-    if (isOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-      document.addEventListener("keydown", handleKeyDown);
-    }
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isOpen]);
-
-  const selectedOption = options.find((o) => o.value === value) || options[0];
-
-  return (
-    <div ref={wrapRef} className={`custom-select-wrap ${isOpen ? "open" : ""}`}>
-      <button
-        type="button"
-        className="custom-select-trigger"
-        onClick={() => setIsOpen(!isOpen)}
-        aria-expanded={isOpen}
-        aria-label={ariaLabel}
-      >
-        <span>{selectedOption?.label}</span>
-        <svg
-          className="custom-select-chevron"
-          width="12"
-          height="12"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
-        >
-          <polyline points="6 9 12 15 18 9" />
-        </svg>
-      </button>
-      {isOpen && (
-        <div className="custom-select-dropdown" role="listbox">
-          {options.map((opt) => {
-            const isSelected = opt.value === value;
-            return (
-              <div
-                key={String(opt.value)}
-                role="option"
-                aria-selected={isSelected}
-                className={`custom-select-option ${isSelected ? "selected" : ""}`}
-                onClick={() => {
-                  onChange(opt.value);
-                  setIsOpen(false);
-                }}
-              >
-                <span>{opt.label}</span>
-                {isSelected && (
-                  <svg
-                    className="custom-select-check"
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                  >
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function SegmentedControl<T extends string | number>({
   options,
   value,
@@ -427,6 +333,19 @@ export function OptionsApp() {
     }, 1500);
   }, []);
 
+  const updateRecordingSettings = useCallback(
+    (patch: Partial<AppSettings["defaultRecording"]>) => {
+      void triggerAutoSave({
+        ...settings,
+        defaultRecording: applyRecordingOptionPatch(
+          settings.defaultRecording,
+          patch
+        ),
+      });
+    },
+    [settings, triggerAutoSave]
+  );
+
   const commitTextSettings = useCallback(() => {
     const sensitiveKeys = customKeysText
       .split(/[,，\n]/)
@@ -481,21 +400,12 @@ export function OptionsApp() {
 
   useEffect(() => {
     if (!confirmDialog) return;
-    // 打开时把焦点移到安全默认操作（取消），键盘用户立即可见、回车即取消
-    cancelBtnRef.current?.focus();
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        e.stopPropagation();
-        closeConfirmDialog();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [confirmDialog, closeConfirmDialog]);
+    return bindConfirmDialogDismiss({
+      trigger: triggerRef.current,
+      cancelButton: cancelBtnRef.current,
+      onCancel: () => setConfirmDialog(null),
+    });
+  }, [confirmDialog]);
 
   const handleReset = useCallback(
     (e?: MouseEvent) => {
@@ -557,15 +467,32 @@ export function OptionsApp() {
 
   // 动态生成 AI Prompt 模板预览（仅在用户展开折叠时供内联预览查看）
   const liveAiPrompt = useMemo(() => {
+    if (settings.ai.promptTemplate === "compact") {
+      return buildCompactAiPrompt(
+        SAMPLE_SNAPSHOT,
+        "/Users/developer/Downloads/bug-lens-checkout-error.zip",
+        {
+          targetAssistant: settings.ai.targetAssistant,
+          promptLanguage: settings.ai.promptLanguage,
+          customInstructions: customInstructionsText,
+        }
+      );
+    }
     return buildAiPrompt(
       SAMPLE_SNAPSHOT,
       "/Users/developer/Downloads/bug-lens-checkout-error.zip",
       {
         targetAssistant: settings.ai.targetAssistant,
+        promptLanguage: settings.ai.promptLanguage,
         customInstructions: customInstructionsText,
       }
     );
-  }, [settings.ai.targetAssistant, customInstructionsText]);
+  }, [
+    settings.ai.promptTemplate,
+    settings.ai.promptLanguage,
+    settings.ai.targetAssistant,
+    customInstructionsText,
+  ]);
 
   if (!loaded) {
     return (
@@ -607,7 +534,7 @@ export function OptionsApp() {
             <input
               type="text"
               className="topbar-search-input"
-              placeholder="搜索设置项..."
+              placeholder={t("searchSettingsPlaceholder")}
               value={searchQuery}
               onInput={(e) => setSearchQuery(e.currentTarget.value)}
             />
@@ -794,7 +721,7 @@ export function OptionsApp() {
               {typeof chrome !== "undefined" &&
               chrome.runtime?.getManifest?.()?.version
                 ? chrome.runtime.getManifest().version
-                : "0.7.40"}
+                : "0.7.41"}
             </div>
           </aside>
 
@@ -964,7 +891,9 @@ export function OptionsApp() {
                     </span>
                   </div>
                   <div className="setting-control">
-                    <CustomSelect
+                    <Select
+                      variant="options"
+                      direction="down"
                       value={settings.ai.targetAssistant}
                       ariaLabel={t("settingTargetAssistant")}
                       options={[
@@ -1023,6 +952,42 @@ export function OptionsApp() {
                   </div>
                 </div>
 
+                <div className="setting-row">
+                  <div className="setting-info">
+                    <span className="setting-label">
+                      {t("settingPromptTemplate")}
+                    </span>
+                    <span className="setting-desc">
+                      {t("settingPromptTemplateDesc")}
+                    </span>
+                  </div>
+                  <div className="setting-control">
+                    <SegmentedControl
+                      ariaLabel={t("settingPromptTemplate")}
+                      value={settings.ai.promptTemplate}
+                      options={[
+                        {
+                          value: "standard",
+                          label: t("promptTemplateStandard"),
+                        },
+                        {
+                          value: "compact",
+                          label: t("promptTemplateCompact"),
+                        },
+                      ]}
+                      onChange={(val) =>
+                        triggerAutoSave({
+                          ...settings,
+                          ai: {
+                            ...settings.ai,
+                            promptTemplate: val as any,
+                          },
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+
                 <div
                   className="setting-row"
                   style={{ flexDirection: "column", alignItems: "stretch" }}
@@ -1070,9 +1035,17 @@ export function OptionsApp() {
                         <polyline points="9 18 15 12 9 6" />
                       </svg>
                       <span>
-                        {showPromptPreview
-                          ? "收起生成的 AI Prompt 效果预览"
-                          : "展开预览生成的 AI Prompt 模板 (AI_PROMPT.md)"}
+                        {isEn()
+                          ? showPromptPreview
+                            ? "Hide Generated AI Prompt Preview"
+                            : settings.ai.promptTemplate === "compact"
+                              ? "Preview Compact Clipboard Prompt (AI_PROMPT.md stays full)"
+                              : "Preview Generated AI Prompt Template (AI_PROMPT.md)"
+                          : showPromptPreview
+                            ? "收起生成的 AI Prompt 效果预览"
+                            : settings.ai.promptTemplate === "compact"
+                              ? "展开预览剪贴板精简提示词（AI_PROMPT.md 仍为完整模板）"
+                              : "展开预览生成的 AI Prompt 模板 (AI_PROMPT.md)"}
                       </span>
                       <span className="inline-preview-badge">
                         {settings.ai.targetAssistant}
@@ -1141,8 +1114,8 @@ export function OptionsApp() {
                         >
                           <span>
                             {isEn()
-                              ? "Run in terminal (or send to your AI assistant) to install the bug-lens-triage skill with bundled in-memory ZIP inspection CLI."
-                              : "在终端执行（或复制发给 AI 助手）即可一键安装自带内存 ZIP 直读脚本的 bug-lens-triage 技能。"}
+                              ? "Run in terminal (or send to your AI assistant) to install the bug-lens-triage skill with bundled workspace extraction & CLI inspection."
+                              : "在终端执行（或复制发给 AI 助手）即可一键安装自带隔离工作区解压与 CLI 检索脚本的 bug-lens-triage 技能。"}
                           </span>
                           <button
                             type="button"
@@ -1180,7 +1153,7 @@ export function OptionsApp() {
                           </button>
                         </div>
                         <pre className="inline-code-content">
-                          {`# Global install (Antigravity / Claude Code / Cursor)\nnpx skills add Aoyia/bug-lens-skill -g -y\n\n# Or project-scoped install\nnpx skills add Aoyia/bug-lens-skill -y`}
+                          {`# Global install (Antigravity / Claude Code / Cursor)\nnpx skills add Aoyia/bug-lens-skill -g -y\n\n# Or project-scoped install\nnpx skills add Aoyia/bug-lens-skill -y\n\n# Update / Uninstall\nnpx skills update bug-lens-triage\nnpx skills remove bug-lens-triage -g -y`}
                         </pre>
                       </div>
                     )}
@@ -1202,15 +1175,8 @@ export function OptionsApp() {
                         type="checkbox"
                         checked={settings.defaultRecording.captureVideo}
                         onChange={(e) =>
-                          triggerAutoSave({
-                            ...settings,
-                            defaultRecording: {
-                              ...settings.defaultRecording,
-                              captureVideo: e.currentTarget.checked,
-                              captureAudio: e.currentTarget.checked
-                                ? settings.defaultRecording.captureAudio
-                                : false,
-                            },
+                          updateRecordingSettings({
+                            captureVideo: e.currentTarget.checked,
                           })
                         }
                       />
@@ -1230,12 +1196,8 @@ export function OptionsApp() {
                         disabled={!settings.defaultRecording.captureVideo}
                         checked={settings.defaultRecording.captureAudio}
                         onChange={(e) =>
-                          triggerAutoSave({
-                            ...settings,
-                            defaultRecording: {
-                              ...settings.defaultRecording,
-                              captureAudio: e.currentTarget.checked,
-                            },
+                          updateRecordingSettings({
+                            captureAudio: e.currentTarget.checked,
                           })
                         }
                       />
@@ -1256,12 +1218,8 @@ export function OptionsApp() {
                         type="checkbox"
                         checked={settings.defaultRecording.captureScreenshots}
                         onChange={(e) =>
-                          triggerAutoSave({
-                            ...settings,
-                            defaultRecording: {
-                              ...settings.defaultRecording,
-                              captureScreenshots: e.currentTarget.checked,
-                            },
+                          updateRecordingSettings({
+                            captureScreenshots: e.currentTarget.checked,
                           })
                         }
                       />
@@ -1280,12 +1238,8 @@ export function OptionsApp() {
                         type="checkbox"
                         checked={settings.defaultRecording.captureConsole}
                         onChange={(e) =>
-                          triggerAutoSave({
-                            ...settings,
-                            defaultRecording: {
-                              ...settings.defaultRecording,
-                              captureConsole: e.currentTarget.checked,
-                            },
+                          updateRecordingSettings({
+                            captureConsole: e.currentTarget.checked,
                           })
                         }
                       />
@@ -1304,12 +1258,8 @@ export function OptionsApp() {
                         type="checkbox"
                         checked={settings.defaultRecording.captureNetwork}
                         onChange={(e) =>
-                          triggerAutoSave({
-                            ...settings,
-                            defaultRecording: {
-                              ...settings.defaultRecording,
-                              captureNetwork: e.currentTarget.checked,
-                            },
+                          updateRecordingSettings({
+                            captureNetwork: e.currentTarget.checked,
                           })
                         }
                       />
@@ -1327,11 +1277,9 @@ export function OptionsApp() {
                   <div className="setting-control">
                     <SegmentedControl
                       ariaLabel={t("responseBodiesLabel")}
-                      value={
-                        settings.defaultRecording.responseBodyPolicy === "full"
-                          ? "full"
-                          : "standard"
-                      }
+                      value={normalizeResponseBodyPolicy(
+                        settings.defaultRecording.responseBodyPolicy
+                      )}
                       options={[
                         {
                           value: "standard",
@@ -1340,12 +1288,8 @@ export function OptionsApp() {
                         { value: "full", label: t("responseBodiesFull") },
                       ]}
                       onChange={(val) =>
-                        triggerAutoSave({
-                          ...settings,
-                          defaultRecording: {
-                            ...settings.defaultRecording,
-                            responseBodyPolicy: val as any,
-                          },
+                        updateRecordingSettings({
+                          responseBodyPolicy: val as any,
                         })
                       }
                     />
@@ -1366,12 +1310,8 @@ export function OptionsApp() {
                           settings.defaultRecording.captureFrameworkState
                         }
                         onChange={(e) =>
-                          triggerAutoSave({
-                            ...settings,
-                            defaultRecording: {
-                              ...settings.defaultRecording,
-                              captureFrameworkState: e.currentTarget.checked,
-                            },
+                          updateRecordingSettings({
+                            captureFrameworkState: e.currentTarget.checked,
                           })
                         }
                       />
@@ -1396,12 +1336,8 @@ export function OptionsApp() {
                         { value: "raw", label: t("rawMode") },
                       ]}
                       onChange={(val) =>
-                        triggerAutoSave({
-                          ...settings,
-                          defaultRecording: {
-                            ...settings.defaultRecording,
-                            privacyMode: val as any,
-                          },
+                        updateRecordingSettings({
+                          privacyMode: val as any,
                         })
                       }
                     />
@@ -1656,7 +1592,21 @@ export function OptionsApp() {
             )}
 
             {/* 7. 性能与用量诊断 */}
-            {activeTab === "diagnostics" && <DiagnosticsTab />}
+            {activeTab === "diagnostics" && (
+              <DiagnosticsTab
+                onRequestConfirm={(dialog) => {
+                  triggerRef.current =
+                    (document.activeElement as HTMLElement) || null;
+                  setConfirmDialog({
+                    ...dialog,
+                    onConfirm: async () => {
+                      setConfirmDialog(null);
+                      await dialog.onConfirm();
+                    },
+                  });
+                }}
+              />
+            )}
           </main>
         </div>
       </div>

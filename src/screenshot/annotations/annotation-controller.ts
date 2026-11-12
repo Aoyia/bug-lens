@@ -2,13 +2,14 @@ import type {
   AnnotationItem,
   RectBounds,
 } from "../../domain/screenshot-payload";
-import { clampPointToRect } from "../overlay/overlay-geometry";
 import {
   hitTestAnnotation as hitTestAnnotationInList,
   hitTestAnnotationHandle as hitTestAnnotationHandleOf,
 } from "./annotation-renderer";
+import { getRenderer } from "./renderers/renderer-registry";
+import { getToolStrategy, type ToolContext } from "./tools/tool-registry";
 import type { OverlayPhase } from "../overlay/overlay-state";
-import { UndoManager } from "./undo-manager";
+import { UndoManager } from "../../shared/undo-manager";
 
 /** AnnotationController 所需的外部依赖（由组合根注入，无双向引用） */
 export interface AnnotationControllerOptions {
@@ -41,7 +42,7 @@ export class AnnotationController {
   private dragStartPoint: { x: number; y: number } | null = null;
   private activeResizeHandle: string | null = null;
 
-  private readonly undoManager = new UndoManager();
+  private readonly undoManager = new UndoManager<AnnotationItem[]>();
 
   private readonly getSelection: () => RectBounds | null;
   private readonly getCurrentTool: () => string;
@@ -89,13 +90,13 @@ export class AnnotationController {
     }
 
     // 3. 非 select 工具且已拉框：允许点击拖拽已选中批注；未选中批注才触发画图
-    if (this.getCurrentTool() !== "select") {
-      const selection = this.getSelection();
-      if (selection) {
-        this.startPoint = clampPointToRect(
-          { x: e.clientX, y: e.clientY },
-          selection
-        );
+    const toolStrategy = getToolStrategy(this.getCurrentTool());
+    if (toolStrategy) {
+      const started = toolStrategy.onDown(
+        { x: e.clientX, y: e.clientY },
+        this.buildToolContext()
+      );
+      if (started) {
         return "draw";
       }
     }
@@ -116,46 +117,10 @@ export class AnnotationController {
       this.dragStartPoint = { x: e.clientX, y: e.clientY };
 
       const ann = this.selectedAnnotation;
-      const handle = this.activeResizeHandle;
-
-      if (ann.type === "rect" || ann.type === "privacy") {
-        let { x, y, width, height } = ann.bounds;
-        if (handle === "nw") {
-          x += dx;
-          width -= dx;
-          y += dy;
-          height -= dy;
-        } else if (handle === "ne") {
-          width += dx;
-          y += dy;
-          height -= dy;
-        } else if (handle === "se") {
-          width += dx;
-          height += dy;
-        } else if (handle === "sw") {
-          x += dx;
-          width -= dx;
-          height += dy;
-        }
-        if (width > 10 && height > 10) {
-          ann.bounds = { x, y, width, height };
-        }
-      } else if (ann.type === "arrow") {
-        const selection = this.getSelection();
-        const clampTo = (p: { x: number; y: number }) =>
-          selection ? clampPointToRect(p, selection) : p;
-        if (handle === "start") {
-          ann.startPoint = clampTo({
-            x: ann.startPoint.x + dx,
-            y: ann.startPoint.y + dy,
-          });
-        } else if (handle === "end") {
-          ann.endPoint = clampTo({
-            x: ann.endPoint.x + dx,
-            y: ann.endPoint.y + dy,
-          });
-        }
-      }
+      getRenderer(ann.type).resize(ann, dx, dy, this.activeResizeHandle, {
+        selection: this.getSelection(),
+        viewportImage: null,
+      });
 
       this.rerender();
       return true;
@@ -172,18 +137,7 @@ export class AnnotationController {
       this.dragStartPoint = { x: e.clientX, y: e.clientY };
 
       const ann = this.draggedAnnotation;
-      if (ann.type === "rect" || ann.type === "privacy") {
-        ann.bounds.x += dx;
-        ann.bounds.y += dy;
-      } else if (ann.type === "text") {
-        ann.position.x += dx;
-        ann.position.y += dy;
-      } else if (ann.type === "arrow") {
-        ann.startPoint.x += dx;
-        ann.startPoint.y += dy;
-        ann.endPoint.x += dx;
-        ann.endPoint.y += dy;
-      }
+      getRenderer(ann.type).drag(ann, dx, dy);
 
       this.rerender();
       return true;
@@ -191,43 +145,12 @@ export class AnnotationController {
 
     // 在拉框选区内绘制批注（临时标注）
     if (this.getPhase() === "drawing" && this.startPoint) {
-      const selection = this.getSelection();
-      if (selection) {
-        const currentPoint = clampPointToRect(
+      const toolStrategy = getToolStrategy(this.getCurrentTool());
+      if (toolStrategy && this.getSelection()) {
+        toolStrategy.onMove(
           { x: e.clientX, y: e.clientY },
-          selection
+          this.buildToolContext()
         );
-
-        if (this.getCurrentTool() === "rect") {
-          this.activeTempAnnotation = {
-            id: `ann_${Date.now()}`,
-            type: "rect",
-            bounds: {
-              x: Math.min(this.startPoint.x, currentPoint.x),
-              y: Math.min(this.startPoint.y, currentPoint.y),
-              width: Math.abs(currentPoint.x - this.startPoint.x),
-              height: Math.abs(currentPoint.y - this.startPoint.y),
-            },
-          };
-        } else if (this.getCurrentTool() === "arrow") {
-          this.activeTempAnnotation = {
-            id: `ann_${Date.now()}`,
-            type: "arrow",
-            startPoint: this.startPoint,
-            endPoint: currentPoint,
-          };
-        } else if (this.getCurrentTool() === "privacy") {
-          this.activeTempAnnotation = {
-            id: `ann_${Date.now()}`,
-            type: "privacy",
-            bounds: {
-              x: Math.min(this.startPoint.x, currentPoint.x),
-              y: Math.min(this.startPoint.y, currentPoint.y),
-              width: Math.abs(currentPoint.x - this.startPoint.x),
-              height: Math.abs(currentPoint.y - this.startPoint.y),
-            },
-          };
-        }
         this.rerender();
       }
       return true;
@@ -253,24 +176,41 @@ export class AnnotationController {
     }
 
     if (this.getPhase() === "drawing") {
-      if (this.activeTempAnnotation) {
-        this.saveUndoState();
-        this.annotations.push(this.activeTempAnnotation);
-        this.activeTempAnnotation = null;
-      }
-      const isText = this.getCurrentTool() === "text";
-      if (isText) {
-        const selection = this.getSelection();
-        const textPos = selection
-          ? clampPointToRect({ x: e.clientX, y: e.clientY }, selection)
-          : { x: e.clientX, y: e.clientY };
-        this.spawnInlineTextInput(textPos.x, textPos.y);
-      }
+      const toolStrategy = getToolStrategy(this.getCurrentTool());
+      const outcome = toolStrategy
+        ? toolStrategy.onUp(
+            { x: e.clientX, y: e.clientY },
+            this.buildToolContext()
+          )
+        : "committed";
       this.rerender();
-      return isText ? "spawned-text" : "committed";
+      return outcome;
     }
 
     return null;
+  }
+
+  private buildToolContext(): ToolContext {
+    return {
+      selection: this.getSelection(),
+      getPhase: this.getPhase,
+      getStartPoint: () => this.startPoint,
+      setStartPoint: (p) => {
+        this.startPoint = p;
+      },
+      setTempAnnotation: (ann) => {
+        this.activeTempAnnotation = ann;
+      },
+      commitTemp: () => {
+        if (this.activeTempAnnotation) {
+          this.saveUndoState();
+          this.annotations.push(this.activeTempAnnotation);
+          this.activeTempAnnotation = null;
+        }
+      },
+      spawnInlineTextInput: (x, y) => this.spawnInlineTextInput(x, y),
+      rerender: this.rerender,
+    };
   }
 
   /** 追加一个已确认的批注（文本编辑器提交等场景） */

@@ -38,14 +38,13 @@ node scripts/release-bump.mjs <version>
    - 将上一版本行的状态由 `Ready for Submission` 改为 `Submitted`。
    - 在表头下方第一行插入新版本记录：
      `| \`v<version>\` | <YYYY-MM-DD> | <英文特性摘要> | Ready for Submission |`
-2. **`site/index.html` 三处联动更新**（设 `<NN>` 为补丁号，如 `0.7.38` 对应 `v38`）：
-   - **Hero 呼吸灯徽标**：將 `[data-l10n="heroVersionBadge"]` 文本更新为 `v<version> 现已上线 · 查看更新日志`。
-   - **时间轴 (`div.changelog-timeline`)**：
-     - 移除原首项 `<div class="changelog-item latest">` 上的 `latest` 类名及其内部的 `<span class="changelog-tag" data-l10n="tagLatest">Latest</span>`。
-     - 在时间轴最上方插入新版本节点 `<div class="changelog-item latest">`，绑定 `data-l10n="v<NN>_f1_t"`、`data-l10n="v<NN>_f1_d"`、`data-l10n="v<NN>_f2_t"`、`data-l10n="v<NN>_f2_d"`。
+2. **`site/index.html` 联动更新**（设 `<NN>` 为补丁号，如 `0.7.41` 对应 `v41`）：
+   - **Hero 呼吸灯徽标**：将 `.version-pill-tag` 与 `[data-l10n="heroVersionBadge"]` 文本更新为 `v<version> 现已上线 · 查看更新日志`。
+   - **主屏与抽屉聚焦卡片**：
+     - 将主屏 `.changelog-summary-card` 与抽屉 `.drawer-spotlight-card` 的版本更新为 `v<version>`，日期更新为当前发布日期，属性绑定 `v<NN>_f1_t/d`、`v<NN>_f2_t/d`。
+     - 更新抽屉分割线 `[data-l10n="drawerHistoryTitle"]` 范围，在 `.changelog-timeline` 最上方插入上一版本的归档卡片节点。
    - **双语字典 (`dict.zh` 与 `dict.en`)**：
-     - 更新 `dict.zh.heroVersionBadge` 为 `"v<version> 现已上线 · 查看更新日志"`。
-     - 更新 `dict.en.heroVersionBadge` 为 `"v<version> is Live · See What's New"`。
+     - 更新 `heroVersionBadge`、`changelogViewAll` 与 `drawerHistoryTitle`。
      - 在 `dict.zh` 与 `dict.en` 中同步新增 `v<NN>_f1_t`、`v<NN>_f1_d`、`v<NN>_f2_t`、`v<NN>_f2_d` 词条。
 
 **Completion Criterion**: `git grep -n "<oldVersion>" site/index.html` 仅命中历史时间轴节点（`<!-- v<oldVersion> -->` 与 `<span class="changelog-ver">v<oldVersion></span>`），`heroVersionBadge` 与新 `v<NN>_*` 词条在 `dict.zh` 和 `dict.en` 中成对存在。

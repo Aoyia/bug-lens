@@ -1,5 +1,10 @@
 import { isEn, t } from "../../../shared/i18n";
 import type { ExpectedStatement } from "../../../shared/protocol";
+import {
+  attachContainerEventShield,
+  attachFieldEventShield,
+  installWindowFocusShield,
+} from "../../../shared/dom/focus-shield";
 
 export type ExpectedCaptureCardDeps = {
   onSubmit(expected: ExpectedStatement): void;
@@ -41,8 +46,7 @@ export class ExpectedCaptureCard {
   private countdownInterval: number | undefined;
   private countdownElement: HTMLDivElement | undefined;
   private keydownListener: ((e: KeyboardEvent) => void) | undefined;
-  private focusCaptureListener: ((e: FocusEvent) => void) | undefined;
-  private focusinCaptureListener: ((e: FocusEvent) => void) | undefined;
+  private removeFocusShield: (() => void) | undefined;
   private submitted = false;
 
   constructor(private readonly deps: ExpectedCaptureCardDeps) {}
@@ -150,23 +154,9 @@ export class ExpectedCaptureCard {
       // 输入即视为活跃操作，重新武装超时，避免组织语言时卡片静默收起
       this.resetAutoSkipTimer();
     });
-    input.addEventListener("focus", (e) => {
-      this.resetAutoSkipTimer();
-      e.stopPropagation?.();
+    attachFieldEventShield(input, {
+      onFocusOrPointer: () => this.resetAutoSkipTimer(),
     });
-    input.addEventListener("pointerdown", (e) => e.stopPropagation?.());
-    input.addEventListener("mousedown", (e) => {
-      e.stopPropagation?.();
-      input.focus();
-    });
-    input.addEventListener("click", (e) => e.stopPropagation?.());
-    input.addEventListener("keydown", (e) => e.stopPropagation?.());
-    input.addEventListener("keyup", (e) => e.stopPropagation?.());
-    input.addEventListener("keypress", (e) => e.stopPropagation?.());
-    input.addEventListener("beforeinput", (e) => e.stopPropagation?.());
-    input.addEventListener("compositionstart", (e) => e.stopPropagation?.());
-    input.addEventListener("compositionupdate", (e) => e.stopPropagation?.());
-    input.addEventListener("compositionend", (e) => e.stopPropagation?.());
 
     const actionsRow = document.createElement("div");
     Object.assign(actionsRow.style, {
@@ -219,38 +209,12 @@ export class ExpectedCaptureCard {
     root.append(title, countdown, chipsRow, input, actionsRow);
 
     // 卡片整体事件屏障与焦点防劫持
-    root.addEventListener("pointerdown", (e) => e.stopPropagation?.());
-    root.addEventListener("mousedown", (e) => e.stopPropagation?.());
-    root.addEventListener("mouseup", (e) => e.stopPropagation?.());
-    root.addEventListener("click", (e) => e.stopPropagation?.());
-    root.addEventListener("focusin", (e) => e.stopPropagation?.());
-    root.addEventListener("focusout", (e) => e.stopPropagation?.());
-
-    const handleWindowFocusCapture = (e: FocusEvent) => {
-      const target = e.target as Node | null;
-      if (target && (root.contains?.(target) ?? false)) {
-        e.stopImmediatePropagation?.();
-        return;
-      }
-      const isExternalElement =
-        typeof HTMLElement !== "undefined"
-          ? target instanceof HTMLElement
-          : Boolean(target && (target as any).tagName);
-      if (
-        this.isOpen &&
-        isExternalElement &&
-        target !== document.body &&
-        target !== document.documentElement
-      ) {
-        e.stopImmediatePropagation?.();
-        e.preventDefault?.();
-        input.focus();
-      }
-    };
-    this.focusCaptureListener = handleWindowFocusCapture;
-    this.focusinCaptureListener = handleWindowFocusCapture;
-    window.addEventListener("focus", this.focusCaptureListener, true);
-    window.addEventListener("focusin", this.focusinCaptureListener, true);
+    attachContainerEventShield(root);
+    this.removeFocusShield = installWindowFocusShield({
+      root,
+      isOpen: () => this.isOpen,
+      getActiveField: () => input,
+    });
 
     document.documentElement.appendChild(root);
     this.cardElement = root;
@@ -284,13 +248,9 @@ export class ExpectedCaptureCard {
       window.removeEventListener("keydown", this.keydownListener, true);
       this.keydownListener = undefined;
     }
-    if (this.focusCaptureListener) {
-      window.removeEventListener("focus", this.focusCaptureListener, true);
-      this.focusCaptureListener = undefined;
-    }
-    if (this.focusinCaptureListener) {
-      window.removeEventListener("focusin", this.focusinCaptureListener, true);
-      this.focusinCaptureListener = undefined;
+    if (this.removeFocusShield) {
+      this.removeFocusShield();
+      this.removeFocusShield = undefined;
     }
     this.cardElement?.remove();
     this.cardElement = undefined;

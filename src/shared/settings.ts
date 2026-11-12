@@ -23,11 +23,9 @@ export interface DefaultRecordingSettings {
   privacyMode: "safe" | "strict" | "raw";
 }
 
-export interface AiSettings {
-  targetAssistant: "generic" | "cursor" | "claude-code" | "antigravity";
-  promptLanguage: "auto" | "zh-CN" | "en-US";
-  customInstructions: string;
-}
+import type { AiSettings } from "./protocol";
+
+export type { AiSettings };
 
 export interface PrivacySettings {
   customSensitiveKeys: string[];
@@ -69,6 +67,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = Object.freeze({
     targetAssistant: "generic",
     promptLanguage: "auto",
     customInstructions: "",
+    promptTemplate: "standard",
   }),
   privacy: Object.freeze({
     customSensitiveKeys: [],
@@ -179,6 +178,11 @@ export function mergeAppSettings(
         typeof srcAi.customInstructions === "string"
           ? srcAi.customInstructions.slice(0, 4000)
           : target.ai.customInstructions,
+      promptTemplate:
+        srcAi.promptTemplate === "standard" ||
+        srcAi.promptTemplate === "compact"
+          ? srcAi.promptTemplate
+          : target.ai.promptTemplate,
     },
     privacy: {
       customSensitiveKeys: Array.isArray(srcPrivacy.customSensitiveKeys)

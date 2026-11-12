@@ -1,7 +1,21 @@
+import { existsSync, readFileSync } from "node:fs";
+import { resolve, sep } from "node:path";
 import { applyCharBudget, DEFAULT_MAX_CHARS } from "../format/budget.ts";
 import { parseWindowAssignmentJson } from "../pack/js-json.ts";
-import { openPack } from "../pack/open.ts";
+import { getPackWorkspaceDir, openPack } from "../pack/open.ts";
 import { evaluateJsonPath } from "../query/json-path.ts";
+
+/** 读取工作区内的派生文件（INDEX.md、data/*.json），这些文件不属于原始证据包。 */
+function readWorkspaceFile(
+  workspaceDir: string | undefined,
+  relPath: string
+): string | undefined {
+  if (!workspaceDir) return undefined;
+  const root = resolve(workspaceDir);
+  const target = resolve(root, ...relPath.split("/"));
+  if (!target.startsWith(root + sep) || !existsSync(target)) return undefined;
+  return readFileSync(target, "utf8");
+}
 
 export function runReadPackFileTool(args: {
   pack?: string;
@@ -12,7 +26,9 @@ export function runReadPackFileTool(args: {
 }): string {
   const loaded = openPack(args.pack);
   const cleanPath = args.path.replace(/^\.?\//, "");
-  const rawText = loaded.getTextFile(cleanPath);
+  const rawText =
+    loaded.getTextFile(cleanPath) ??
+    readWorkspaceFile(getPackWorkspaceDir(loaded), cleanPath);
 
   if (rawText === undefined) {
     const available = loaded

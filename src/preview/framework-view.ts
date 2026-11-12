@@ -3,15 +3,7 @@ import type {
   FrameworkSnapshot,
 } from "../shared/protocol";
 import { t } from "../shared/i18n.ts";
-
-function escapeStr(str: any): string {
-  if (typeof str !== "string") str = String(str);
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
+import { escapeHtml as escapeStr } from "../shared/html-escape.ts";
 
 function componentColor(framework: "vue" | "react"): string {
   return framework === "vue" ? "#42b883" : "#61dafb";

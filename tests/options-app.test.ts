@@ -125,7 +125,8 @@ describe("OptionsApp 导航结构与核心容器静态防退化测试", () => {
     process.cwd(),
     "src/components/options/OptionsApp.tsx"
   );
-  const optionsAppCode = readFileSync(optionsAppPath, "utf8");
+  const selectPath = resolve(process.cwd(), "src/components/common/Select.tsx");
+  const optionsAppCode = `${readFileSync(optionsAppPath, "utf8")}\n${readFileSync(selectPath, "utf8")}`;
 
   test("断言 6 个主导航 Tab 标识与导航按钮完整存续", () => {
     const requiredTabs = [

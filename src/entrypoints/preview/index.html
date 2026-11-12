@@ -35,11 +35,85 @@
           </div>
         </div>
         <div class="zen-titlebar-right">
-          <div class="ai-prompt-popover-wrapper">
+          <!-- 工单组：预览工单 + 一键复制工单 -->
+          <div class="titlebar-action-group ticket-action-group">
+            <button
+              id="preview-ticket-btn"
+              class="secondary preview-ticket-btn"
+              type="button"
+              data-i18n-title="previewTicketTitle"
+              title="预览工单草稿图文与内容"
+            >
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                style="margin-right: 4px; vertical-align: middle"
+              >
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+              <span data-i18n="previewTicket">预览工单</span>
+            </button>
+            <button
+              id="copy-ticket-template"
+              class="primary ticket-btn"
+              type="button"
+              data-i18n-title="copyTicketTitle"
+              title="复制图文工单到剪贴板，可直接粘贴至 TAPD、飞书、Jira"
+            >
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                style="margin-right: 4px; vertical-align: middle"
+              >
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path
+                  d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
+                ></path>
+              </svg>
+              <span data-i18n="copyTicketTemplate">复制工单</span>
+            </button>
+            <div id="ticket-progress-bar" class="export-progress-bar" hidden>
+              <div
+                id="ticket-progress-fill"
+                class="export-progress-fill"
+                style="width: 0%"
+              ></div>
+            </div>
+          </div>
+
+          <!-- 离线报告与 AI 诊断组：导出离线报告 + AI 交接抽屉 -->
+          <div
+            class="titlebar-action-group export-action-group ai-prompt-popover-wrapper"
+          >
+            <div class="export-btn-wrapper">
+              <button id="export" data-i18n="exportReport">导出离线报告</button>
+              <div id="export-progress-bar" class="export-progress-bar" hidden>
+                <div
+                  id="export-progress-fill"
+                  class="export-progress-fill"
+                  style="width: 0%"
+                ></div>
+              </div>
+            </div>
+
             <!-- AI 交接状态 + 抽屉开关（复制提示词 / 路径 / Playwright 均在抽屉内） -->
             <button
               id="toggle-ai-drawer"
               class="ghost"
+              type="button"
               data-i18n-title="toggleAiDrawerTitle"
               title="查看文件绝对路径与更多选项"
             >
@@ -88,47 +162,6 @@
                   </svg>
                   <span data-i18n="copyAiPrompt">复制 AI 提示词</span>
                 </button>
-                <button id="copy-ticket-template" class="secondary">
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    style="margin-right: 4px; vertical-align: middle"
-                  >
-                    <path
-                      d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
-                    ></path>
-                    <polyline points="14 2 14 8 20 8"></polyline>
-                    <line x1="16" y1="13" x2="8" y2="13"></line>
-                    <line x1="16" y1="17" x2="8" y2="17"></line>
-                    <polyline points="10 9 9 9 8 9"></polyline>
-                  </svg>
-                  <span data-i18n="copyTicketTemplate">复制工单模板</span>
-                </button>
-                <button id="drawer-preview-ticket" class="secondary">
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    style="margin-right: 4px; vertical-align: middle"
-                  >
-                    <path
-                      d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"
-                    ></path>
-                    <circle cx="12" cy="12" r="3"></circle>
-                  </svg>
-                  <span data-i18n="previewTicket">预览工单</span>
-                </button>
                 <button
                   id="copy-ai-path"
                   class="secondary"
@@ -176,60 +209,6 @@
                 <span data-i18n="generatePlaywright">生成 Playwright 脚本</span>
               </button>
             </section>
-          </div>
-
-          <div class="export-btn-wrapper">
-            <button
-              id="preview-ticket-btn"
-              class="secondary preview-ticket-btn"
-              type="button"
-              data-i18n-title="previewTicketTitle"
-              title="预览工单草稿图文与内容"
-            >
-              <svg
-                width="13"
-                height="13"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                style="margin-right: 4px; vertical-align: middle"
-              >
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                <circle cx="12" cy="12" r="3"></circle>
-              </svg>
-              <span data-i18n="previewTicket">预览工单</span>
-            </button>
-          </div>
-
-          <div class="export-btn-wrapper">
-            <button
-              id="create-ticket-btn"
-              class="primary ticket-btn"
-              data-i18n="createTicket"
-            >
-              提工单
-            </button>
-            <div id="ticket-progress-bar" class="export-progress-bar" hidden>
-              <div
-                id="ticket-progress-fill"
-                class="export-progress-fill"
-                style="width: 0%"
-              ></div>
-            </div>
-          </div>
-
-          <div class="export-btn-wrapper">
-            <button id="export" data-i18n="exportReport">导出离线报告</button>
-            <div id="export-progress-bar" class="export-progress-bar" hidden>
-              <div
-                id="export-progress-fill"
-                class="export-progress-fill"
-                style="width: 0%"
-              ></div>
-            </div>
           </div>
         </div>
       </header>

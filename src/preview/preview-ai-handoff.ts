@@ -1,7 +1,20 @@
 import type { ExportArtifact } from "../shared/protocol";
-import { copyTextToClipboard, copyRichTextToClipboard } from "./clipboard";
+import {
+  copyTextToClipboard,
+  copyRichTextToClipboard,
+} from "../shared/clipboard";
 import { incrementPromptCopyCount } from "../diagnostics/diagnostics-store";
 import { t } from "../shared/i18n.ts";
+
+function isUserCanceled(error?: string): boolean {
+  if (!error) return false;
+  const upper = error.toUpperCase();
+  return (
+    upper.includes("USER_CANCELED") ||
+    upper.includes("USER CANCELLED") ||
+    upper.includes("USER CANCELED")
+  );
+}
 
 export type PreviewAiHandoffOptions = {
   root: Document;
@@ -32,6 +45,8 @@ export class PreviewAiHandoff {
     const artifact = this.options.getArtifact();
     const path = artifact?.filename;
     const complete = artifact?.state === "complete" && Boolean(path);
+    const canceled =
+      artifact?.state === "interrupted" && isUserCanceled(artifact?.error);
     const status = this.options.root.querySelector<HTMLElement>("#ai-status");
     if (status)
       status.textContent = complete
@@ -40,16 +55,18 @@ export class PreviewAiHandoff {
           ? t("downloadCompleteNoPath")
           : artifact?.state === "in_progress"
             ? t("downloading")
-            : artifact?.state === "interrupted"
+            : artifact?.state === "interrupted" && !canceled
               ? t("downloadInterrupted")
-              : t("waitForEvidenceLoad");
+              : t("aiStatusWaitingExport");
     const pathNode = this.options.root.querySelector<HTMLElement>("#ai-path");
     if (pathNode)
       pathNode.textContent = complete
         ? path!
         : artifact?.state === "complete"
           ? t("downloadNoAbsolutePath")
-          : artifact?.error || t("exportBeforeCopyPath");
+          : canceled
+            ? t("exportBeforeCopyPath")
+            : artifact?.error || t("exportBeforeCopyPath");
     const prompt = this.options.root.querySelector<HTMLElement>("#ai-prompt");
     if (prompt) prompt.textContent = this.options.getPrompt(path);
     const copyPath =

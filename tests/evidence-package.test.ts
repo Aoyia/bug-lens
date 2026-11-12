@@ -3,11 +3,14 @@ import test from "node:test";
 
 import {
   buildAiPrompt,
+  buildClipboardAiPrompt,
+  buildCompactAiPrompt,
   buildEvidencePackage,
   isWindowsEnvironmentFromSnapshot,
   type EvidencePackageSnapshot,
   type StaticReportAssets,
 } from "../src/preview/evidence-package.ts";
+import { injectAbsolutePathToPrompt } from "../src/domain/silent-export.ts";
 import type { RecordingSession } from "../src/shared/protocol.ts";
 
 const session: RecordingSession = {
@@ -606,4 +609,112 @@ test("buildEvidencePackage sanitizes ':' in split network body filenames for Win
       .slice(0, -1)
   );
   assert.ok(colonNetId in detailsData);
+});
+
+test("buildClipboardAiPrompt keeps standard output identical unless compact is selected", () => {
+  const zip = "/Users/tester/Downloads/report.zip";
+  const standard = buildAiPrompt(snapshot, zip);
+  assert.equal(buildClipboardAiPrompt(snapshot, zip), standard);
+  assert.equal(
+    buildClipboardAiPrompt(snapshot, zip, {
+      promptTemplate: "standard",
+      targetAssistant: "claude-code",
+      customInstructions: "团队规范",
+    }),
+    standard
+  );
+  assert.equal(
+    buildClipboardAiPrompt(snapshot, zip, { promptTemplate: "compact" }),
+    buildCompactAiPrompt(snapshot, zip)
+  );
+});
+
+test("buildCompactAiPrompt routes Skill -> auto install -> unzip fallback and stays short", async () => {
+  const zip = "/Users/tester/Downloads/report.zip";
+  const prompt = buildCompactAiPrompt(snapshot, zip, {
+    customInstructions: "优先排查鉴权",
+  });
+
+  // ZIP 路径只出现一次，静默导出时绝对路径注入可整体生效
+  assert.equal(prompt.split(zip).length - 1, 1);
+  assert.match(prompt, /文件路径：\n\/Users\/tester\/Downloads\/report\.zip/);
+  assert.equal(
+    injectAbsolutePathToPrompt(
+      buildCompactAiPrompt(snapshot, "report.zip"),
+      "report.zip",
+      "/abs/report.zip"
+    ).includes("文件路径：\n/abs/report.zip"),
+    true
+  );
+
+  assert.match(prompt, /当前已加载 bug-lens-triage Skill/);
+  assert.match(prompt, /npx -y skills add Aoyia\/bug-lens-skill -g -y/);
+  assert.match(prompt, /~\/\.agents\/skills\/bug-lens-triage\/SKILL\.md/);
+  assert.match(
+    prompt,
+    /mkdir -p \/tmp\/bug-lens-workspace && unzip -o -q "<ZIP>" -d \/tmp\/bug-lens-workspace/
+  );
+  assert.match(prompt, /\/tmp\/bug-lens-workspace\/AI_PROMPT\.md/);
+  assert.match(prompt, /\[团队定制诊断规范 \/ 补充指引\]\n优先排查鉴权/);
+  assert.doesNotMatch(prompt, /issueScenes\[\]/);
+  assert.ok(prompt.length < 1000, `compact prompt too long: ${prompt.length}`);
+
+  // 无标记现场时提示改用时间轴线索
+  const noScene = buildCompactAiPrompt({ ...snapshot, issueScenes: [] }, zip);
+  assert.match(noScene, /本包无标记现场/);
+
+  // Claude Code 降级 ASCII 图
+  assert.match(
+    buildCompactAiPrompt(snapshot, zip, { targetAssistant: "claude-code" }),
+    /使用 ASCII，不用 mermaid/
+  );
+
+  // Windows 路径
+  const winPrompt = buildCompactAiPrompt(
+    {
+      ...snapshot,
+      session: {
+        ...snapshot.session,
+        target: {
+          ...snapshot.session.target,
+          environment: {
+            userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+            platform: "Win32",
+            language: "zh-CN",
+            screenWidth: 1920,
+            screenHeight: 1080,
+            devicePixelRatio: 1,
+            viewportWidth: 1920,
+            viewportHeight: 900,
+            online: true,
+            capturedAtEpochMs: 1700000000000,
+          },
+        },
+      },
+    },
+    "C:\\Users\\tester\\Downloads\\report.zip"
+  );
+  assert.match(
+    winPrompt,
+    /%USERPROFILE%\\\.agents\\skills\\bug-lens-triage\\SKILL\.md/
+  );
+  assert.match(winPrompt, /Expand-Archive -Force -Path '<ZIP>'/);
+
+  // 英文
+  const { setUserLanguagePreference } = await import("../src/shared/i18n.ts");
+  await setUserLanguagePreference("en-US");
+  const enPrompt = buildCompactAiPrompt(snapshot, zip);
+  assert.match(enPrompt, /File Path:\n\/Users\/tester\/Downloads\/report\.zip/);
+  assert.match(enPrompt, /If the bug-lens-triage Skill is loaded/);
+  await setUserLanguagePreference("auto");
+
+  // promptLanguage 显式覆盖界面语言
+  const forcedEn = buildCompactAiPrompt(snapshot, zip, {
+    promptLanguage: "en-US",
+  });
+  assert.match(forcedEn, /File Path:\n\/Users\/tester\/Downloads\/report\.zip/);
+  const forcedZh = buildCompactAiPrompt(snapshot, zip, {
+    promptLanguage: "zh-CN",
+  });
+  assert.match(forcedZh, /文件路径：\n\/Users\/tester\/Downloads\/report\.zip/);
 });

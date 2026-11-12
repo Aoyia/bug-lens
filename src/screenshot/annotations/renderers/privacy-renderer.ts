@@ -1,18 +1,20 @@
 import type { PrivacyAnnotation } from "../../../domain/screenshot-payload";
 import { pointInRectEdgeBand } from "../../overlay/overlay-geometry";
-import type { AnnotationRenderer, RendererContext } from "./renderer-registry";
+import type { AnnotationRenderer, RendererContext } from "../annotation-types";
 
 export const privacyRenderer: AnnotationRenderer<PrivacyAnnotation> = {
   type: "privacy",
 
   draw(ctx, ann, rc) {
-    const x = Math.round(ann.bounds.x);
-    const y = Math.round(ann.bounds.y);
-    const w = Math.round(ann.bounds.width);
-    const h = Math.round(ann.bounds.height);
-    const dpr = window.devicePixelRatio || 1;
+    const scale = rc?.dpr ?? 1;
+    const x = Math.round(ann.bounds.x * scale);
+    const y = Math.round(ann.bounds.y * scale);
+    const w = Math.round(ann.bounds.width * scale);
+    const h = Math.round(ann.bounds.height * scale);
+    const viewDpr =
+      typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
 
-    if (w > 0 && h > 0 && rc.viewportImage) {
+    if (w > 0 && h > 0 && rc.viewportImage && typeof document !== "undefined") {
       const tileSize = 8;
       const sampleW = Math.max(1, Math.floor(w / tileSize));
       const sampleH = Math.max(1, Math.floor(h / tileSize));
@@ -25,10 +27,10 @@ export const privacyRenderer: AnnotationRenderer<PrivacyAnnotation> = {
         offCtx.imageSmoothingEnabled = false;
         offCtx.drawImage(
           rc.viewportImage,
-          x * dpr,
-          y * dpr,
-          w * dpr,
-          h * dpr,
+          x * viewDpr,
+          y * viewDpr,
+          w * viewDpr,
+          h * viewDpr,
           0,
           0,
           sampleW,
@@ -38,6 +40,31 @@ export const privacyRenderer: AnnotationRenderer<PrivacyAnnotation> = {
         ctx.save();
         ctx.imageSmoothingEnabled = false;
         ctx.drawImage(offCanvas, 0, 0, sampleW, sampleH, x, y, w, h);
+        ctx.restore();
+      }
+    } else if (
+      w > 0 &&
+      h > 0 &&
+      scale !== 1 &&
+      typeof document !== "undefined" &&
+      ctx.canvas
+    ) {
+      const tileSize = Math.max(6, Math.round(10 * scale));
+      const sampleW = Math.max(1, Math.floor(w / tileSize));
+      const sampleH = Math.max(1, Math.floor(h / tileSize));
+      const offCanvas = document.createElement("canvas");
+      offCanvas.width = sampleW;
+      offCanvas.height = sampleH;
+      const offCtx = offCanvas.getContext("2d");
+      if (offCtx) {
+        offCtx.imageSmoothingEnabled = false;
+        offCtx.drawImage(ctx.canvas, x, y, w, h, 0, 0, sampleW, sampleH);
+        ctx.save();
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(offCanvas, 0, 0, sampleW, sampleH, x, y, w, h);
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
+        ctx.lineWidth = 1 * scale;
+        ctx.strokeRect(x, y, w, h);
         ctx.restore();
       }
     } else if (w > 0 && h > 0) {

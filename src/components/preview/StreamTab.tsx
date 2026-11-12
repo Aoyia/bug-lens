@@ -6,9 +6,11 @@ import type {
   NetworkEntry,
   RecordingSession,
 } from "../../shared/protocol";
-import { formatElapsedEpochTime } from "../../domain/evidence-clock";
-import { t, getLocale } from "../../shared/i18n.ts";
-import { formatTime } from "../../shared/intl-formatter.ts";
+import {
+  formatEvidenceTime,
+  resolveSessionOriginEpochMs,
+} from "../../domain/evidence-clock";
+import { t } from "../../shared/i18n.ts";
 
 interface StreamTabProps {
   snapshot: {
@@ -86,9 +88,7 @@ export const StreamTab = memo(function StreamTab({
     filterErrorOnly,
   ]);
 
-  const originEpochMs =
-    snapshot.session?.timeline.startedAtEpochMs ??
-    snapshot.session?.timeline.createdAtEpochMs;
+  const originEpochMs = resolveSessionOriginEpochMs(snapshot.session);
 
   const handleNodeClick = useCallback(
     (id: string, timestamp: number) => {
@@ -202,15 +202,7 @@ export const StreamTab = memo(function StreamTab({
           <div className="stream-empty-text">{t("noStreamEvents")}</div>
         ) : (
           nodes.map((node) => {
-            // 相对时间优先（与 Console/Network/Interactions 的证据时间线契约一致）；
-            // 节点时间早于录制起点时 formatElapsedEpochTime 返回 undefined，
-            // 此时回退到本地绝对时间，避免时间列渲染成空白（不丢信息）。
-            const relative =
-              originEpochMs != null
-                ? formatElapsedEpochTime(node.timestamp, originEpochMs)
-                : undefined;
-            const relTime =
-              relative ?? formatTime(node.timestamp, undefined, getLocale());
+            const relTime = formatEvidenceTime(node.timestamp, originEpochMs);
             let badgeHtml = null;
             let contentHtml = null;
 

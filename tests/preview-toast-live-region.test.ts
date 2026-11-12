@@ -32,16 +32,24 @@ function readToastTag(entryHtml: string): string {
 
 test("preview/index.html 的 #toast-message 是 polite live region", () => {
   const tag = readToastTag("src/entrypoints/preview/index.html");
-  assert.match(tag, /role="status"/, "缺少 role=\"status\"");
-  assert.match(tag, /aria-live="polite"/, "缺少 aria-live=\"polite\"");
-  assert.doesNotMatch(tag, /aria-hidden="true"/, "live region 不得 aria-hidden");
+  assert.match(tag, /role="status"/, '缺少 role="status"');
+  assert.match(tag, /aria-live="polite"/, '缺少 aria-live="polite"');
+  assert.doesNotMatch(
+    tag,
+    /aria-hidden="true"/,
+    "live region 不得 aria-hidden"
+  );
 });
 
 test("report/index.html 的 #toast-message 是 polite live region", () => {
   const tag = readToastTag("src/entrypoints/report/index.html");
-  assert.match(tag, /role="status"/, "缺少 role=\"status\"");
-  assert.match(tag, /aria-live="polite"/, "缺少 aria-live=\"polite\"");
-  assert.doesNotMatch(tag, /aria-hidden="true"/, "live region 不得 aria-hidden");
+  assert.match(tag, /role="status"/, '缺少 role="status"');
+  assert.match(tag, /aria-live="polite"/, '缺少 aria-live="polite"');
+  assert.doesNotMatch(
+    tag,
+    /aria-hidden="true"/,
+    "live region 不得 aria-hidden"
+  );
 });
 
 test("notify() 先取消 hidden 再写文案，保证 live region 播报可靠", () => {

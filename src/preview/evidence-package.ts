@@ -17,6 +17,7 @@ import {
   formatEnvironmentSummary,
 } from "../domain/environment-capture.ts";
 import { SourceMapCoordinator } from "../sourcemap/index.js";
+import type { AiSettings } from "../shared/settings.ts";
 
 export type EvidencePackageSnapshot = {
   session: RecordingSession;
@@ -120,9 +121,16 @@ export function buildAiPrompt(
   zipPath?: string,
   promptOptions?: {
     targetAssistant?: "generic" | "cursor" | "claude-code" | "antigravity";
+    promptLanguage?: AiSettings["promptLanguage"];
     customInstructions?: string;
   }
 ): string {
+  const en =
+    promptOptions?.promptLanguage === "en-US"
+      ? true
+      : promptOptions?.promptLanguage === "zh-CN"
+        ? false
+        : isEn();
   const issueScenes = snapshot.issueScenes ?? [];
   const sourceMappedErrorsText = formatSourceMappedErrors(
     snapshot.consoleEntries
@@ -136,7 +144,7 @@ export function buildAiPrompt(
     : "<ZIP_PATH>";
   const targetZipPathPs = zipPath
     ? `'${zipPath.replace(/'/g, "''")}'`
-    : isEn()
+    : en
       ? "'<ZIP_PATH>'"
       : "'<ZIP路径>'";
 
@@ -152,7 +160,7 @@ export function buildAiPrompt(
     ? `powershell -Command "New-Item -ItemType Directory -Force -Path $env:TEMP\\bug-lens-workspace; Expand-Archive -Force -Path ${targetZipPathPs} -DestinationPath $env:TEMP\\bug-lens-workspace"`
     : `mkdir -p /tmp/bug-lens-workspace && unzip -o -q ${targetZipPathEn} -d /tmp/bug-lens-workspace`;
 
-  if (isEn()) {
+  if (en) {
     const path = zipPath
       ? `File Path:\n${zipPath}`
       : "File Path:\n{Please replace this with the absolute path to the exported ZIP}";
@@ -169,6 +177,10 @@ export function buildAiPrompt(
           : promptOptions?.targetAssistant === "antigravity"
             ? " (Tailored for Antigravity)"
             : "";
+    const isClaudeCode = promptOptions?.targetAssistant === "claude-code";
+    const visualRuleEn = isClaudeCode
+      ? "Render a compact ASCII sequence/flow diagram (`──►`) or ASCII box-model diagram (avoid `mermaid` code blocks in terminal CLI)"
+      : "Use `mermaid` (`sequenceDiagram` or `flowchart LR/TD`, quoting labels with special characters) for multi-step interaction/network/state causal chains, or a compact ASCII box diagram for spatial/CSS layout deviations";
     const customDirectives = promptOptions?.customInstructions?.trim()
       ? `\n\n[Custom Directives / Team Rules]\n${promptOptions.customInstructions.trim()}`
       : "";
@@ -182,16 +194,16 @@ Metadata Summary:
 ${environmentLine}${sourceMappedErrorsText}
 
 [Workspace Setup (Do NOT extract into active project directory; overwrite singleton directory for O(1) storage)]
-- Preferred (when \`bug-lens-triage\` Skill is installed): Run the bundled \`node "<skillDir>/scripts/bug-lens-cli.mjs" open_pack ${targetZipPathEn}\`, \`get_scene\`, \`timeline\`, \`query_network\`, \`get_request\`, \`get_framework_state\`, and \`get_screenshot\` directly in memory (subsequent commands reuse the cached pack path and auto-export screenshots to temp workspace; inspect interaction step screenshots via \`get_screenshot --step N\`; do NOT redundantly call \`read_pack_file\` on \`AI_PROMPT.md\` or \`data/session-data.js\`). Skip shell extraction below and NEVER manually run \`unzip\` or write \`node -e\` / \`vm\` scripts to parse \`session-data.js\` (only run \`extract_pack\` if you need to run \`reproduce.spec.ts\`).
+- Preferred (when \`bug-lens-triage\` Skill is installed): Run the bundled \`node "<skillDir>/scripts/bug-lens-cli.mjs" open_pack ${targetZipPathEn}\` to idempotently extract the pack to an isolated workspace directory, generate plain \`data/session-data.json\` & \`data/network-details.json\` plus \`INDEX.md\`, and print the overview. Then use \`get_scene\`, \`timeline\`, \`query_network\`, \`get_request\`, \`get_framework_state\`, and \`get_screenshot\` for macro indexing, and query \`INDEX.md\` / \`data/*.json\` / \`network/body-*.txt\` directly with \`jq\` or \`JSON.parse\` for deep field inspection (never \`eval\` / \`new Function\` on \`.js\` files). Skip manual \`unzip\` below.
 - Fallback Extraction Command (only when \`bug-lens-triage\` Skill is unavailable; install via \`npx skills add Aoyia/bug-lens-skill -g -y\`):
   ${unzipCmdEn}
 - Workspace Path: \`${workspacePath}\` (Evidence files, session data, and Playwright scripts reside here)
 
 Please follow this first-principles chain of diagnosis:
-1. Scene Alignment: Prioritize reading \`data/session-data.js\` in \`${workspacePath}\` for \`issueScenes[].scene.narrative.actual\` (to capture the user's explicit problem description), combined with \`issues/\` screenshots and selected DOM element styles. Note that \`data/session-data.js\` sets \`window.__BUG_LENS_DATA__ = {...}\` — start with the \`summary\` field and \`screenshotSummaries\`. Full request headers and initiator/call stack details are stored in \`data/network-details.js\`. Each scene also carries \`issueScenes[].scene.sequenceContext\` — the interactions and console errors in the seconds before the mark moment, frozen at capture time. Treat it as raw same-time context, never as a causal assertion.
+1. Scene Alignment: Prioritize reading \`data/session-data.json\` (generated by \`open_pack\`, or \`data/session-data.js\` which sets \`window.__BUG_LENS_DATA__ = {...}\` when manually unzipped) and \`INDEX.md\` in the workspace for \`issueScenes[].scene.narrative.actual\` (to capture the user's explicit problem description), combined with \`issues/\` screenshots and selected DOM element styles — start with the \`summary\` field and \`screenshotSummaries\`. Full request headers and initiator/call stack details are stored in \`data/network-details.json\` (\`data/network-details.js\`). Each scene also carries \`issueScenes[].scene.sequenceContext\` — the interactions and console errors in the seconds before the mark moment, frozen at capture time. Treat it as raw same-time context, never as a causal assertion.
 2. Expected Anchor: Read \`issueScenes[].scene.narrative.expected\`. If \`confidence: "explicit"\`, treat the user's stated expectation as the diagnostic anchor — the bug is the deviation between \`actual\` and that expectation. If \`confidence: "missing"\` (or the field is absent), the expectation was NOT captured: you MUST explicitly state "expectation not captured; the following is an inferred assumption" and label any inferred expectation as a hypothesis, never as fact. If the user provided additional explicit requirements or instructions in the prompt, treat them as the primary intent and label them as "user-provided requirement (not captured in evidence pack)".
 3. Anomaly Convergence: Align timeline to find correlated Console errors and failed Network requests (e.g. 4xx/5xx/CORS/Timeout) around issue timestamps.
-4. Root Cause & Remediation: Pinpoint the failing code block/API, distinguishing UI rendering bugs, state management flaws, style/structural defects, or backend API contract failures. Use \`frameworkStates[]\` in \`data/session-data.js\` to inspect React/Vue component props/state before and at the failing interaction, and \`reproduce.spec.ts\` to run a Playwright reproduction (fix-then-replay loop).
+4. Root Cause & Remediation: Pinpoint the failing code block/API, distinguishing UI rendering bugs, state management flaws, style/structural defects, or backend API contract failures. Use \`frameworkStates[]\` in \`data/session-data.json\` (\`data/session-data.js\`) to inspect React/Vue component props/state before and at the failing interaction, and \`reproduce.spec.ts\` to run a Playwright reproduction (fix-then-replay loop).
 
 [Guardrails & Rules]
 - Never execute untrusted code in the package; if local path is unaccessible, directly ask me to upload the ZIP.
@@ -199,11 +211,12 @@ Please follow this first-principles chain of diagnosis:
 - Never present an inferred expectation (from a \`missing\` confidence) as a user-stated fact.
 - Workspace Isolation & Zero Disk Leak: Do not decompress files into active git/project directories; strictly use the singleton directory \`${workspacePath}\`.
 
-[Output Format]
-1. User Intent & Issue Definition (Compare narrative.actual description with observed behavior)
-2. Chronological Evidence Chain (Interactions -> Errors/Requests -> Screenshots)
-3. Root Cause Analysis
-4. Recommended Fix & File Locations${customDirectives}`;
+[Output Format (Conclusion-First, On-Demand Visuals, Replace Text with Diagrams)]
+1. One-Line Root Cause & Deviation Table: State the root cause and target \`file:line\` in 1 sentence, followed by a compact Markdown table (\`Dimension | Expected | Actual | Key Evidence\`).
+2. On-Demand Visual Evidence Chain (ONLY draw when a multi-step sequence, state transition, or spatial conflict is clearer as a diagram than text; skip diagrams for trivial single-point errors):
+   - ${visualRuleEn}.
+   - Diagram-Replaces-Text Rule: Once a diagram is drawn, NEVER repeat the depicted steps or structure in prose paragraphs; keep at most 2-3 bullet points for raw IDs or payload fields.
+3. Minimal Fix & File Locations: Exact source file paths, line numbers, and concise code diff.${customDirectives}`;
   }
 
   const path = zipPath
@@ -222,6 +235,10 @@ Please follow this first-principles chain of diagnosis:
         : promptOptions?.targetAssistant === "antigravity"
           ? "（针对 Antigravity 智能体调优）"
           : "";
+  const isClaudeCodeZh = promptOptions?.targetAssistant === "claude-code";
+  const visualRuleZh = isClaudeCodeZh
+    ? "使用紧凑的 ASCII 时序/流向图（`──►`）或 ASCII 盒模型示意图呈现链路与空间偏差（终端环境下禁用 `mermaid` 代码块）"
+    : "跨端多步时序/状态因果链（交互 -> 组件状态 -> 接口报错 -> 异常画面）优先使用 `mermaid`（`sequenceDiagram` 或 `flowchart LR/TD`，含特殊字符的节点名必须加双引号）；CSS 盒模型挤压/遮挡等空间关系使用紧凑 ASCII 几何对比图";
   const customDirectives = promptOptions?.customInstructions?.trim()
     ? `\n\n[团队定制诊断规范 / 补充指引]\n${promptOptions.customInstructions.trim()}`
     : "";
@@ -235,16 +252,16 @@ ${path}
 ${environmentLine}${sourceMappedErrorsText}
 
 【工作区准备（严禁解压在当前代码工程目录内，使用固定单例目录覆盖以实现 O(1) 存储占用）】
-- 首选方式（已安装 \`bug-lens-triage\` Skill 时）：直接使用该技能内置的 \`node "<skillDir>/scripts/bug-lens-cli.mjs" open_pack ${targetZipPathZh}\`、\`get_scene\`、\`timeline\`、\`query_network\`、\`get_request\`、\`get_framework_state\`、\`get_screenshot\` 内存直读分析（自动缓存当前包路径并将关键截图导出至临时目录，步骤截图使用 \`get_screenshot --step N\` 导出，无需再用 \`read_pack_file\` 重复读取 \`AI_PROMPT.md\` 或 \`data/session-data.js\`），跳过下方命令行解压，严禁手写 \`node -e\` / \`vm\` 脚本解析 \`session-data.js\`（仅在需运行 \`reproduce.spec.ts\` 时执行 \`extract_pack\`）。
+- 首选方式（已安装 \`bug-lens-triage\` Skill 时）：直接使用该技能内置的 \`node "<skillDir>/scripts/bug-lens-cli.mjs" open_pack ${targetZipPathZh}\` 将证据包幂等解压至隔离工作区，自动生成标准格式的 \`data/session-data.json\`、\`data/network-details.json\` 与 \`INDEX.md\`；先用 \`get_scene\`、\`timeline\`、\`query_network\`、\`get_request\`、\`get_framework_state\`、\`get_screenshot\` 宏观定位，深水区结合 \`INDEX.md\` 直接对 \`data/*.json\` 与 \`network/body-*.txt\` 使用 \`jq\` 或 \`JSON.parse\` 切片下钻（跳过下方手动 \`unzip\`，严禁对 \`.js\` 文件使用 \`eval\` / \`new Function\`）。
 - 降级解压命令（仅当未安装 \`bug-lens-triage\` Skill 时执行；可先执行 \`npx skills add Aoyia/bug-lens-skill -g -y\` 一键安装）：
   ${unzipCmdZh}
 - 工作区路径：\`${workspacePath}\`（解压与后续排查均以此目录为准）
 
 请按以下第一性链式逻辑展开排查：
-1. 现场定位：优先读取 \`data/session-data.js\` 中的 \`issueScenes[].scene.narrative.actual\`（获取用户填写的真实主观问题描述），并结合 \`issues/\` 截图与选中的 DOM 元素样式分析现场。注意：该文件设置 \`window.__BUG_LENS_DATA__ = {...}\`，请先读取 \`summary\` 字段和 \`screenshotSummaries\`。完整请求头、响应头和调用栈详情已独立保存至 \`data/network-details.js\`。每个现场还携带 \`issueScenes[].scene.sequenceContext\`——标记当下前数秒内的交互与 Console 报错，在捕获时刻冻结。请仅将其视为"同时刻原始上下文"，禁止当作已证实的因果链。
+1. 现场定位：优先读取工作区内的 \`data/session-data.json\`（由 \`open_pack\` 自动生成；手动 \`unzip\` 时读取设置 \`window.__BUG_LENS_DATA__ = {...}\` 的 \`data/session-data.js\`）与 \`INDEX.md\` 中的 \`issueScenes[].scene.narrative.actual\`（获取用户填写的真实主观问题描述），并结合 \`issues/\` 截图与选中的 DOM 元素样式分析现场。请先读取 \`summary\` 字段和 \`screenshotSummaries\`。完整请求头、响应头和调用栈详情保存在 \`data/network-details.json\`（或 \`data/network-details.js\`）。每个现场还携带 \`issueScenes[].scene.sequenceContext\`——标记当下前数秒内的交互与 Console 报错，在捕获时刻冻结。请仅将其视为"同时刻原始上下文"，禁止当作已证实的因果链。
 2. 期望锚点：读取 \`issueScenes[].scene.narrative.expected\`。若 \`confidence: "explicit"\`，以用户明示的期望作为诊断锚点——缺陷即 \`actual\` 与该期望之间的偏差。若 \`confidence: "missing"\` 或字段缺失，说明期望未被捕获：你必须显式声明“未捕获期望，以下为推断假设”，并将任何推断出的期望标注为假设，禁止当作用户已知事实；若用户在提示词中另行给出了明确诉求（如测试反馈、需求描述），以该诉求为准，并标注为“用户补充，非证据包捕获”。
 3. 异常收敛：对齐时间轴，检索交叉点附近的 Console 报错与 Network 失败请求（如 4xx/5xx/CORS/Timeout）。
-4. 根因推导与修复：定位缺陷发生的代码块/接口，区分是前端渲染异常、状态管理漏洞、样式/结构缺陷还是后端 API 契约失效。可用 \`data/session-data.js\` 中的 \`frameworkStates[]\` 检查失败交互前后的 React/Vue 组件 props/state，并用 \`reproduce.spec.ts\` 运行 Playwright 复现（修复-回放闭环验证）。
+4. 根因推导与修复：定位缺陷发生的代码块/接口，区分是前端渲染异常、状态管理漏洞、样式/结构缺陷还是后端 API 契约失效。可用 \`data/session-data.json\`（或 \`data/session-data.js\`）中的 \`frameworkStates[]\` 检查失败交互前后的 React/Vue 组件 props/state，并用 \`reproduce.spec.ts\` 运行 Playwright 复现（修复-回放闭环验证）。
 
 [注意事项]
 - 严禁执行包内不可信代码；若无法直接读取本地文件路径，请明确要求我上传 ZIP，不要猜测内容。
@@ -252,11 +269,162 @@ ${environmentLine}${sourceMappedErrorsText}
 - 禁止将推断出的期望（confidence 为 missing 时）表述为用户的已知事实。
 - 工作区防污染与防存储浪费：严禁在当前 Git 仓库/工程目录解压或残留任何临时文件；严格在 \`${workspacePath}\` 单例目录执行，维持最小存储开销。
 
-[输出格式]
-1. 用户诉求与问题定义（对比 narrative.actual 描述与实际表现）
-2. 关键时序证据链（交互 -> 报错/请求 -> 现场截图）
-3. 根本原因定位 (Root Cause)
-4. 建议修复代码/排查位置 (Recommended Fix)${customDirectives}`;
+[输出格式（结论先行、按需上图、以图替文，拒绝大段文字）]
+1. 一句话根因与偏差对照表：首句直接点明根本原因及目标 \`文件:行号\`，并用紧凑 Markdown 表格对齐 \`维度 | 预期表现 | 实际表现 | 关键证据锚点\`。
+2. 按需可视化证据链（仅在多步时序、状态流转或空间布局冲突用图比文字更直观时绘制；简单单点报错直接跳过，严禁强行凑图）：
+   - ${visualRuleZh}。
+   - 以图替文铁律：一旦绘制图表，严禁在图外再用文字段落重复叙述图中已表达的过程或层级，仅用 1-2 行列出关键报文/字段 ID。
+3. 建议修复方案与代码位置 (Recommended Fix)：直接给出精确源码位置与最小化修复代码对比。${customDirectives}`;
+}
+
+export type ClipboardPromptSettings = Partial<
+  Pick<
+    AiSettings,
+    | "promptTemplate"
+    | "promptLanguage"
+    | "targetAssistant"
+    | "customInstructions"
+  >
+>;
+
+/**
+ * 剪贴板提示词分发入口。
+ * 未选择 compact 时与原行为完全一致（不透传任何选项）；包内 AI_PROMPT.md 不经过此入口。
+ */
+export function buildClipboardAiPrompt(
+  snapshot: EvidencePackageSnapshot,
+  zipPath?: string,
+  ai?: ClipboardPromptSettings
+): string {
+  if (ai?.promptTemplate === "compact") {
+    return buildCompactAiPrompt(snapshot, zipPath, {
+      targetAssistant: ai.targetAssistant,
+      promptLanguage: ai.promptLanguage,
+      customInstructions: ai.customInstructions,
+    });
+  }
+  return buildAiPrompt(snapshot, zipPath);
+}
+
+/**
+ * 精简剪贴板提示词：仅保留本包独有信息、读取路由（Skill -> 自动安装 -> 解压兜底）、底线约束与输出格式。
+ * 完整排查流程由 bug-lens-triage Skill 或包内 AI_PROMPT.md 承载。
+ * ZIP 路径只出现一次（`文件路径：\n<path>`），以兼容静默导出后的绝对路径注入。
+ */
+export function buildCompactAiPrompt(
+  snapshot: EvidencePackageSnapshot,
+  zipPath?: string,
+  options?: {
+    targetAssistant?: AiSettings["targetAssistant"];
+    promptLanguage?: AiSettings["promptLanguage"];
+    customInstructions?: string;
+  }
+): string {
+  const en =
+    options?.promptLanguage === "en-US"
+      ? true
+      : options?.promptLanguage === "zh-CN"
+        ? false
+        : isEn();
+  const isWindows = isWindowsEnvironmentFromSnapshot(snapshot);
+  const issueSceneCount = (snapshot.issueScenes ?? []).length;
+  const sourceMappedErrorsText = formatSourceMappedErrors(
+    snapshot.consoleEntries
+  );
+  const envSummary = formatEnvironmentSummary(
+    snapshot.session.target.environment
+  );
+  const title = oneLine(
+    getSessionTitle(snapshot.session, en ? "Unknown" : "未知")
+  );
+  const url =
+    oneLine(snapshot.session.target.initialUrl) || (en ? "Unknown" : "未知");
+  const quality =
+    oneLine(snapshot.session.quality.overall) || (en ? "Unknown" : "未知");
+  const isClaudeCode = options?.targetAssistant === "claude-code";
+  const custom = options?.customInstructions?.trim() ?? "";
+
+  const workspace = isWindows
+    ? "$env:TEMP\\bug-lens-workspace"
+    : "/tmp/bug-lens-workspace";
+  const skillFile = isWindows
+    ? "%USERPROFILE%\\.agents\\skills\\bug-lens-triage\\SKILL.md"
+    : "~/.agents/skills/bug-lens-triage/SKILL.md";
+  const installCmd = "npx -y skills add Aoyia/bug-lens-skill -g -y";
+  const unzipCmd = isWindows
+    ? `powershell -Command "New-Item -ItemType Directory -Force -Path ${workspace}; Expand-Archive -Force -Path '<ZIP>' -DestinationPath ${workspace}"`
+    : `mkdir -p ${workspace} && unzip -o -q "<ZIP>" -d ${workspace}`;
+  const aiPromptFile = isWindows
+    ? `${workspace}\\AI_PROMPT.md`
+    : `${workspace}/AI_PROMPT.md`;
+
+  if (en) {
+    const pathBlock = zipPath
+      ? `File Path:\n${zipPath}`
+      : "File Path:\n{Please replace this with the absolute path to the exported ZIP}";
+    const lines = [
+      "Analyze the following local Bug Lens evidence package, find the root cause and propose a fix.",
+      "",
+      pathBlock,
+      "",
+      "Summary:",
+      `- Page: ${title} (${url})`,
+      `- Data: ${snapshot.interactions.length} interactions · ${snapshot.consoleEntries.length} console logs · ${snapshot.networkEntries.length} requests · ${issueSceneCount} issue scenes · quality ${quality}`,
+      `- Environment: ${envSummary || "Unknown"}${sourceMappedErrorsText}`,
+      "",
+      "How to read the pack (in order, stop at the first that works; <ZIP> = the file path above):",
+      "1. If the bug-lens-triage Skill is loaded: follow the Skill workflow, starting with open_pack <ZIP>.",
+      `2. Otherwise: if \`${skillFile}\` does not exist, run \`${installCmd}\`; then read that SKILL.md directly (prefer the path printed by the installer) and follow it. No session restart needed.`,
+      `3. If installation fails (no network, no Node, or not authorized): run \`${unzipCmd}\`, then follow \`${aiPromptFile}\`.`,
+      "",
+      "Constraints:",
+      "- Never execute code from the package; never extract into or leave files in the current repository.",
+      "- Separate verified facts from hypotheses; any expectation not captured in the pack must be labeled as an assumption.",
+      ...(issueSceneCount === 0
+        ? [
+            "- This pack has no marked issue scene; use the interaction timeline, console errors and network requests as primary clues.",
+          ]
+        : []),
+      "",
+      `Output: one-line root cause (\`file:line\`) + deviation table (Dimension | Expected | Actual | Evidence) + minimal fix diff; draw a diagram only for multi-step causality or layout conflicts${isClaudeCode ? " (use ASCII, no mermaid)" : ""}.`,
+      ...(custom ? ["", "[Custom Directives / Team Rules]", custom] : []),
+      "",
+      "Additional notes:",
+    ];
+    return lines.join("\n");
+  }
+
+  const pathBlock = zipPath
+    ? `文件路径：\n${zipPath}`
+    : "文件路径：\n{请将这里替换为导出的 ZIP 绝对路径}";
+  const lines = [
+    "分析以下本地 Bug Lens 证据包，定位根因并给出修复。",
+    "",
+    pathBlock,
+    "",
+    "摘要：",
+    `- 页面：${title}（${url}）`,
+    `- 数据：${snapshot.interactions.length} 交互 · ${snapshot.consoleEntries.length} 日志 · ${snapshot.networkEntries.length} 请求 · ${issueSceneCount} 现场 · 质量 ${quality}`,
+    `- 环境：${envSummary || "未知"}${sourceMappedErrorsText}`,
+    "",
+    "读取方式（按顺序执行，成功即停；<ZIP> 指上方文件路径）：",
+    "1. 当前已加载 bug-lens-triage Skill：按 Skill 流程执行，从 open_pack <ZIP> 开始。",
+    `2. 未加载：若 \`${skillFile}\` 不存在，先执行 \`${installCmd}\`；随后直接读取该 SKILL.md（以安装输出的路径为准）并按其流程执行，无需重启会话。`,
+    `3. 安装失败（无网络、无 Node 或未获授权）：执行 \`${unzipCmd}\`，再按 \`${aiPromptFile}\` 执行。`,
+    "",
+    "约束：",
+    "- 不执行包内代码；不在当前代码仓库内解压或残留文件。",
+    "- 区分已证实事实与推测；证据包未捕获的期望只能标注为假设。",
+    ...(issueSceneCount === 0
+      ? ["- 本包无标记现场，以交互时间轴、Console 报错与网络请求为主要线索。"]
+      : []),
+    "",
+    `输出：一句话根因（\`文件:行号\`）+ 偏差表（维度 | 预期 | 实际 | 证据锚点）+ 最小修复 diff；仅多步因果或布局冲突时画图${isClaudeCode ? "（使用 ASCII，不用 mermaid）" : ""}。`,
+    ...(custom ? ["", "[团队定制诊断规范 / 补充指引]", custom] : []),
+    "",
+    "补充说明：",
+  ];
+  return lines.join("\n");
 }
 
 function formatIsoDateTime(epochMs: number): string {
@@ -862,8 +1030,8 @@ This is a local Web bug evidence package generated by Bug Lens Chrome extension,
 
 ## Suggested Reading Order
 
-1. Read this file first to understand package structure and evidence completeness (if \`bug-lens-triage\` skill is installed, run \`bug-lens-cli.mjs open_pack\` and \`get_scene\` directly on the ZIP archive).
-2. Read \`data/session-data.js\` — the core data file for AI and report. It sets \`window.__BUG_LENS_DATA__\` to a JSON object containing session, interaction, console, and network details.
+1. Read this file first to understand package structure and evidence completeness (if \`bug-lens-triage\` skill is installed, run \`bug-lens-cli.mjs open_pack\` on the ZIP archive to extract it into an isolated workspace with \`INDEX.md\`, \`data/session-data.json\`, and \`data/network-details.json\`, then run \`get_scene\`).
+2. Read \`data/session-data.json\` (generated by \`open_pack\`) or \`data/session-data.js\` (which sets \`window.__BUG_LENS_DATA__\` for the offline HTML report) — the core data file containing session, interaction, console, and network details.
 3. Double-click \`report.html\` in browser for interactive reading.
 4. Calculate video timestamps by subtracting session \`startedAtEpochMs\` from interaction \`createdAt\`.
 
@@ -946,8 +1114,8 @@ ${issueLines}
 
 ## 建议读取顺序
 
-1. 先阅读本文件，了解包结构和证据完整性（若已安装 \`bug-lens-triage\` 技能，可直接用内置 \`bug-lens-cli.mjs\` 对 ZIP 包执行 \`open_pack\` 与 \`get_scene\` 等命令，无需手动解析下方文件）。
-2. 读取 \`data/session-data.js\`，这是包含完整证据与 AI 诊断摘要的核心数据文件。它设置 \`window.__BUG_LENS_DATA__\` 为 JSON 对象，包含会话、交互、Console 和 Network 上下文（较长的响应正文已独立保存至 \`network/body-*.txt\`）。如需深挖某个请求的完整头信息和调用栈，请读取 \`data/network-details.js\`（按条目 ID 索引）。
+1. 先阅读本文件，了解包结构和证据完整性（若已安装 \`bug-lens-triage\` 技能，用内置 \`bug-lens-cli.mjs open_pack\` 将 ZIP 幂等解压至隔离工作区并自动生成 \`INDEX.md\`、\`data/session-data.json\` 与 \`data/network-details.json\`，再配合 \`get_scene\` 等命令与 \`jq\` 排查）。
+2. 读取 \`data/session-data.json\`（由 \`open_pack\` 生成的标准 JSON）或 \`data/session-data.js\`（设置 \`window.__BUG_LENS_DATA__\` 供离线报告使用），这是包含完整证据与 AI 诊断摘要的核心数据文件，包含会话、交互、Console 和 Network 上下文（较长的响应正文已独立保存至 \`network/body-*.txt\`）。如需深挖某个请求的完整头信息和调用栈，请读取 \`data/network-details.json\`（或 \`data/network-details.js\`，按条目 ID 索引）。
 3. 用浏览器双击 \`report.html\`，进行人工交互式查看（同样自动加载 \`data/session-data.js\`）。
 4. 根据交互记录的 \`createdAt\` 与会话 \`startedAtEpochMs\` 计算录像时间点；两者相减即约为录像内毫秒位置。
 

@@ -71,10 +71,18 @@ export function parsePiercingSelector(expression: string): {
   };
 }
 
-export function formatPlaywrightLocator(locator: {
-  kind: string;
-  expression: string;
-}): string {
+export function formatPlaywrightLocator(
+  locator: {
+    kind: string;
+    expression: string;
+  },
+  element?: {
+    role?: string;
+    accessibleName?: string;
+    text?: string;
+  }
+): string {
+  if (locator.expression.startsWith("page.")) return locator.expression;
   const { frameSelectors, targetSelector } = parsePiercingSelector(
     locator.expression
   );
@@ -96,8 +104,13 @@ export function formatPlaywrightLocator(locator: {
     }
     case "role": {
       const match = targetSelector.match(/^role=(\S+)/);
-      if (match) {
-        return `${base}.getByRole(${JSON.stringify(match[1])}).first()`;
+      const roleName = match?.[1] ?? element?.role;
+      if (roleName) {
+        const name = element?.accessibleName || element?.text;
+        if (name && name.length < 50) {
+          return `${base}.getByRole(${JSON.stringify(roleName)}, { name: ${JSON.stringify(name)} })`;
+        }
+        return `${base}.getByRole(${JSON.stringify(roleName)}).first()`;
       }
       return `${base}.locator(${JSON.stringify(targetSelector)}).first()`;
     }
@@ -176,7 +189,7 @@ function formatStep(
     return lines;
   }
 
-  const pwLocator = formatPlaywrightLocator(loc);
+  const pwLocator = formatPlaywrightLocator(loc, interaction.element);
 
   if (interaction.kind === "contextmenu") {
     lines.push(`await ${pwLocator}.click({ button: 'right' });`);

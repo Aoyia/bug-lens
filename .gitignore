@@ -32,3 +32,4 @@ playwright-report/
 videos/
 /tools/
 site/*-prototypes.html
+openspec/

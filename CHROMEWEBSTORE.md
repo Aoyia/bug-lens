@@ -1,6 +1,6 @@
 # Chrome Web Store Listing & Submission Guide — Bug Lens
 
-> **Version Alignment**: Manifest `v0.7.40`  
+> **Version Alignment**: Manifest `v0.7.41`  
 > **Target Store**: [Chrome Developer Dashboard](https://chrome.google.com/webstore/devconsole)
 
 ---
@@ -166,7 +166,7 @@ pnpm run typecheck
 pnpm run package
 ```
 
-产物位置：根目录下生成 `dist-zip/bug-lens-v0.7.40.zip`
+产物位置：根目录下生成 `dist-zip/bug-lens-v0.7.41.zip`
 
 ### 步骤 2: 提交至 Chrome Developer Dashboard
 
@@ -184,7 +184,8 @@ pnpm run package
 
 | Version   | Date       | Changes Summary                                                                                                                                                                              | Store Status         |
 | :-------- | :--------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------- |
-| `v0.7.40` | 2026-11-06 | Enhanced Issue Scene Editor & Ticket modal workflow with design system tokens; refined privacy sanitization, decoupled content scripts, and optimized bundle size.                           | Ready for Submission |
+| `v0.7.41` | 2026-11-12 | Unified extract-first workspace with plain data/*.json & INDEX.md, two-tier triage CLI with LRU pack management, and decoupled ticket/preview architecture.                                  | Ready for Submission |
+| `v0.7.40` | 2026-11-06 | Enhanced Issue Scene Editor & Ticket modal workflow with design system tokens; refined privacy sanitization, decoupled content scripts, and optimized bundle size.                           | Submitted            |
 | `v0.7.39` | 2026-11-03 | Zero-dependency bug-lens-triage Skill with bundled in-memory CLI; single-step open_pack with auto image extraction and cross-command active pack cache; streamlined single skill entrypoint. | Submitted            |
 | `v0.7.38` | 2026-11-03 | In-memory ZIP inspection and CSS cascade queries; seamless multi-tab recording with distributed widget sync and parallel SourceMap resolution.                                               | Submitted            |
 | `v0.7.37` | 2026-10-23 | Adaptive O(1) singleton workspace prompts with Windows PowerShell & POSIX unzipping; safe auto-injected absolute paths; zero workspace pollution.                                            | Submitted            |

@@ -217,10 +217,16 @@ body {
 .zen-titlebar-right {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   flex-shrink: 0;
   margin-left: 12px;
   margin-right: clamp(160px, 22vw, 320px);
+}
+
+.titlebar-action-group {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
 }
 
 /* 顶级控制按钮 Control Buttons */
@@ -240,13 +246,18 @@ button {
   gap: 6px;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
-button#create-ticket-btn {
+button#create-ticket-btn,
+.ticket-action-group button#copy-ticket-template {
   background: linear-gradient(135deg, #165dff 0%, #0e42d2 100%);
   color: #ffffff;
 }
-button#create-ticket-btn:hover {
+button#create-ticket-btn:hover,
+.ticket-action-group button#copy-ticket-template:hover {
   background: linear-gradient(135deg, #3676ff 0%, #165dff 100%);
-  transform: translateY(-1px);
+}
+.ticket-action-group button#copy-ticket-template {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
 }
 button#export {
   background: rgba(22, 93, 255, 0.08);
@@ -255,7 +266,21 @@ button#export {
 }
 button#export:hover {
   background: rgba(22, 93, 255, 0.15);
-  transform: translateY(-1px);
+}
+.export-action-group button#export {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.export-action-group button#toggle-ai-drawer {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-left: none;
+  border-color: rgba(22, 93, 255, 0.2);
+  background: rgba(22, 93, 255, 0.03);
+}
+.export-action-group button#toggle-ai-drawer:hover {
+  background: rgba(22, 93, 255, 0.12);
+  color: var(--zen-primary);
 }
 
 button.secondary {

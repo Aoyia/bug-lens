@@ -2,70 +2,19 @@ import type {
   FrameworkComponentNode,
   FrameworkSnapshot,
 } from "../../shared/protocol";
+import { redactAndSanitizeState } from "../../domain/privacy-policy";
 
-const SENSITIVE_KEY_REGEX =
+const VUE_SENSITIVE_KEY_REGEX =
   /(password|token|secret|auth|cookie|authorization|jwt|bearer)/i;
 
-function redactAndSanitize(
-  obj: any,
-  currentDepth = 0,
-  maxDepth = 3,
-  visited = new WeakSet()
-): any {
-  if (obj === null || obj === undefined) {
-    return undefined;
-  }
-  const type = typeof obj;
-  if (type === "number" || type === "boolean" || type === "string") {
-    return obj;
-  }
-  if (type !== "object") {
-    return undefined;
-  }
-  if (obj instanceof HTMLElement || obj instanceof Node) {
-    return undefined;
-  }
-  if (visited.has(obj)) {
-    return "[CIRCULAR]";
-  }
-  if (currentDepth >= maxDepth) {
-    return "[MAX_DEPTH]";
-  }
-
-  visited.add(obj);
-
-  if (Array.isArray(obj)) {
-    return obj
-      .slice(0, 10)
-      .map((item) =>
-        redactAndSanitize(item, currentDepth + 1, maxDepth, visited)
-      );
-  }
-
-  const result: Record<string, any> = {};
-  const keys = Object.keys(obj).slice(0, 20);
-
-  for (const key of keys) {
-    if (SENSITIVE_KEY_REGEX.test(key)) {
-      result[key] = "[REDACTED:sensitive-store-key]";
-    } else {
-      try {
-        const val = redactAndSanitize(
-          obj[key],
-          currentDepth + 1,
-          maxDepth,
-          visited
-        );
-        if (val !== undefined) {
-          result[key] = val;
-        }
-      } catch {
-        result[key] = "[UNSERIALIZABLE]";
-      }
-    }
-  }
-
-  return result;
+function redactAndSanitize(obj: any): any {
+  return redactAndSanitizeState(
+    obj,
+    0,
+    3,
+    new WeakSet(),
+    VUE_SENSITIVE_KEY_REGEX
+  );
 }
 
 function extractVue3Component(

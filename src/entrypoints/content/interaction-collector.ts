@@ -7,7 +7,7 @@ import {
 import {
   copyTextToClipboard,
   copyRichTextToClipboard,
-} from "../../preview/clipboard";
+} from "../../shared/clipboard";
 import {
   incrementPromptCopyCount,
   recordTaskProfile,
@@ -370,6 +370,48 @@ if (existingController) {
       },
       onMarkIssue(anchor) {
         beginIssueSelection(anchor);
+      },
+      async onDiscard() {
+        widget.setSavingState(true, t("discarding"));
+        monitor?.stop();
+        removeIssueUi();
+        try {
+          const res = await chrome.runtime.sendMessage(
+            message("session/stop", {
+              commandId: crypto.randomUUID(),
+              discard: true,
+            })
+          );
+          if (!res?.ok) {
+            widget.setSavingState(false);
+            widget.showToast(
+              t("exportFailed", res?.error || t("stopFailed")),
+              4_000,
+              "error"
+            );
+            monitor?.start();
+            return;
+          }
+          try {
+            widget.showToast(t("recordingDiscarded"), 2_500, "normal");
+          } catch {
+            // 忽略 Toast 展示异常
+          }
+          try {
+            await widget.closeSmoothly();
+          } catch {
+            try {
+              widget.unmount();
+            } catch {
+              // 忽略卸载异常
+            }
+          }
+          refreshSession(undefined);
+        } catch (error) {
+          widget.setSavingState(false);
+          widget.showToast(t("exportFailed", String(error)), 4_000, "error");
+          monitor?.start();
+        }
       },
       isPaused() {
         return Boolean(monitor?.isIdlePaused || isRemotePaused);

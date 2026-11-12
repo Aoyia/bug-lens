@@ -1,5 +1,5 @@
 import { clampPointToRect } from "../../overlay/overlay-geometry";
-import type { ToolStrategy } from "./tool-registry";
+import type { ToolStrategy } from "../annotation-types";
 
 export const privacyTool: ToolStrategy = {
   id: "privacy",

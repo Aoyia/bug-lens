@@ -418,9 +418,9 @@ async function verifyAiHandoff(
 
   // 工单草稿图文预览弹窗：验证顶栏入口、富文本/Markdown Tab 切换与关闭闭环
   const previewTicketBtn = previewPage.locator("#preview-ticket-btn");
-  const createTicketBtn = previewPage.locator("#create-ticket-btn");
+  const copyTicketBtn = previewPage.locator("#copy-ticket-template");
   await expect(previewTicketBtn).toBeVisible();
-  await expect(createTicketBtn).toBeVisible();
+  await expect(copyTicketBtn).toBeVisible();
 
   await previewTicketBtn.click();
   const ticketModal = previewPage.locator("#ticket-modal");

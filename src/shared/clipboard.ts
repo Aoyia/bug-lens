@@ -1,4 +1,4 @@
-import { t } from "../shared/i18n.ts";
+import { t } from "./i18n.ts";
 import {
   syncVirtualClipboard,
   syncVirtualBlob,

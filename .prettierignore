@@ -3,3 +3,5 @@ node_modules
 *.zip
 .husky
 pnpm-lock.yaml
+.agents/skills/bug-lens-triage/scripts/bug-lens-cli.mjs
+

@@ -86,7 +86,7 @@ export class MagnifierRenderer {
       magTag.textContent = `${tag}${idStr}`.slice(0, 18);
     }
 
-    const ctx = magCanvas.getContext("2d");
+    const ctx = magCanvas.getContext("2d", { willReadFrequently: true });
     const viewportImage = this.getViewportImage();
     if (ctx && viewportImage) {
       ctx.imageSmoothingEnabled = false;

@@ -35,26 +35,11 @@ const PERMISSION_KEYS = [
 test("权限中转页面逻辑必须走 i18n（禁止硬编码中文）", () => {
   const source = readFileSync(PERMISSION_SOURCE, "utf8");
   // 检查源码中不含有非注释的中文硬编码字符串
-  assert.ok(
-    !source.includes('"未找到待处理的录制请求'),
-    "不得硬编码中文提示"
-  );
-  assert.ok(
-    !source.includes('"请在浏览器提示框中选择'),
-    "不得硬编码中文提示"
-  );
-  assert.ok(
-    !source.includes('"未授予全站访问权限'),
-    "不得硬编码中文提示"
-  );
-  assert.ok(
-    !source.includes('"已获授权，正在启动录制'),
-    "不得硬编码中文提示"
-  );
-  assert.ok(
-    !source.includes('"启动录制失败"'),
-    "不得硬编码中文提示"
-  );
+  assert.ok(!source.includes('"未找到待处理的录制请求'), "不得硬编码中文提示");
+  assert.ok(!source.includes('"请在浏览器提示框中选择'), "不得硬编码中文提示");
+  assert.ok(!source.includes('"未授予全站访问权限'), "不得硬编码中文提示");
+  assert.ok(!source.includes('"已获授权，正在启动录制'), "不得硬编码中文提示");
+  assert.ok(!source.includes('"启动录制失败"'), "不得硬编码中文提示");
   assert.ok(
     !source.includes('"录制已成功启动！正在关闭中转页'),
     "不得硬编码中文提示"

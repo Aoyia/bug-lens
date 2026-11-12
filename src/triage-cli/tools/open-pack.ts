@@ -1,6 +1,13 @@
+import { existsSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { applyCharBudget } from "../format/budget.ts";
 import { formatDuration, formatRelativeTime } from "../format/time.ts";
-import { openPack } from "../pack/open.ts";
+import {
+  DERIVED_JSON_FILES,
+  getPackWorkspaceDir,
+  INDEX_FILE,
+  openPack,
+} from "../pack/open.ts";
 import type { LoadedScreenshotPack } from "../pack/screenshot-pack.ts";
 import type { LoadedSessionPack } from "../pack/session-pack.ts";
 import {
@@ -27,11 +34,30 @@ function formatSessionPackOverview(
     limit: 5,
   });
   const files = pack.listFiles();
+  const workspaceDir = getPackWorkspaceDir(pack);
+  const indexPath =
+    workspaceDir && existsSync(join(workspaceDir, INDEX_FILE))
+      ? resolve(workspaceDir, INDEX_FILE)
+      : undefined;
+  const derivedJsonFiles = workspaceDir
+    ? DERIVED_JSON_FILES.map((d) =>
+        resolve(workspaceDir, ...d.target.split("/"))
+      ).filter((p) => existsSync(p))
+    : [];
+  const recordingPaths = workspaceDir
+    ? Array.from(pack.skippedMediaFiles.keys()).map((rel) =>
+        resolve(workspaceDir, ...rel.split("/"))
+      )
+    : [];
 
   if (format === "json") {
     const jsonOut = {
       kind: "session",
       packPath: pack.packPath,
+      workspaceDir,
+      indexPath,
+      derivedJsonFiles,
+      recordingPaths,
       sessionId: pack.sessionId,
       integrity: pack.integrity,
       summary,
@@ -73,6 +99,24 @@ function formatSessionPackOverview(
   }
 
   lines.push(`# Bug Lens Evidence Pack (kind: session)`);
+  if (workspaceDir) {
+    lines.push(`- **Workspace**: \`${workspaceDir}\``);
+  }
+  if (indexPath) {
+    lines.push(
+      `- **Index**: \`${indexPath}\` (read this file for full schema, request->body map, and jq recipes)`
+    );
+  }
+  if (derivedJsonFiles.length > 0) {
+    lines.push(
+      `- **Derived JSON**: ${derivedJsonFiles.map((p) => `\`${p}\``).join(", ")}`
+    );
+  }
+  if (recordingPaths.length > 0) {
+    lines.push(
+      `- **Recording**: ${recordingPaths.map((p) => `\`${p}\``).join(", ")}`
+    );
+  }
   lines.push(`- **Session ID**: \`${pack.sessionId}\``);
   lines.push(
     `- **Schema**: v${pack.integrity.schemaVersion ?? pack.data.session?.schemaVersion ?? "?"} (integrity: ${pack.integrity.valid ? "OK" : "MISMATCH"}, checked ${pack.integrity.checkedCount} files)`
@@ -164,7 +208,7 @@ function formatSessionPackOverview(
   ).length;
   for (const f of keyFiles) {
     lines.push(
-      `- \`${f.path}\` (${f.byteLength} B${f.skippedMedia ? ", skipped in-memory load" : ""})`
+      `- \`${f.path}\` (${f.byteLength} B${f.skippedMedia ? ", extracted on disk" : ""})`
     );
   }
   if (bodyFilesCount > 0) {
@@ -177,7 +221,7 @@ function formatSessionPackOverview(
   }
 
   lines.push(
-    `\n**Next steps** (active pack is cached; omit \`--pack\` in subsequent commands): Run \`get_scene\` to inspect DOM targets & annotated screenshot, \`timeline --windowMs 15000\` for chronological events around the issue, \`query_network --status failed\` / \`get_request <id> --jsonPath "..."\` for API bodies, or \`get_framework_state\` for Vue/React state.`
+    `\n**Next steps** (active pack is extracted & cached; omit \`--pack\` in subsequent commands): Run \`get_scene\` to inspect DOM targets & annotated screenshot, \`timeline --windowMs 15000\` for chronological events around the issue, \`query_network --status failed\` / \`get_request <id> --jsonPath "..."\` for API bodies, \`get_framework_state\` for Vue/React state, or read \`INDEX.md\` and query \`data/session-data.json\` / \`network/body-*.txt\` directly with \`jq\`.`
   );
 
   return applyCharBudget(lines.join("\n"), maxChars);
@@ -191,6 +235,11 @@ function formatScreenshotPackOverview(
   const dc = pack.domContext;
   const anchors = dc?.anchors ?? [];
   const files = pack.listFiles();
+  const workspaceDir = getPackWorkspaceDir(pack);
+  const indexPath =
+    workspaceDir && existsSync(join(workspaceDir, INDEX_FILE))
+      ? resolve(workspaceDir, INDEX_FILE)
+      : undefined;
 
   if (format === "json") {
     return applyCharBudget(
@@ -198,6 +247,8 @@ function formatScreenshotPackOverview(
         {
           kind: "screenshot",
           packPath: pack.packPath,
+          workspaceDir,
+          indexPath,
           screenshotPath: pack.getScreenshotImagePath(),
           environment: pack.environment,
           smallestCommonAncestorSelector: dc?.smallestCommonAncestorSelector,
@@ -231,6 +282,12 @@ function formatScreenshotPackOverview(
   const imgRel = pack.getScreenshotImagePath();
   const savedMainImg = imgRel ? exportPackImageToTemp(pack, imgRel) : undefined;
   lines.push(`# Bug Lens Screenshot Pack (kind: screenshot)`);
+  if (workspaceDir) {
+    lines.push(`- **Workspace**: \`${workspaceDir}\``);
+  }
+  if (indexPath) {
+    lines.push(`- **Index**: \`${indexPath}\``);
+  }
   lines.push(
     `- **Image**: \`${imgRel ?? "none"}\`${savedMainImg ? ` -> Saved to \`${savedMainImg}\` (call \`read_file\` on this path to inspect visually)` : ""}`
   );
@@ -345,7 +402,7 @@ function formatScreenshotPackOverview(
     lines.push(`- \`${f.path}\` (${f.byteLength} B)`);
   }
   lines.push(
-    `\n**Next steps** (active pack is cached; omit \`--pack\` in subsequent commands): Call \`read_file\` on the saved image path above to inspect \`screenshot.jpg\`; run \`get_scene --selector "..." --cssProperty "..."\` to inspect anchor \`computedStyles\`/\`layoutContext\` and matched CSS cascade rules; run \`search_pack "<keyword>"\` to search across \`cascade.json\` & \`dom-context.json\`; or run \`get_framework_state\` for component props/data.`
+    `\n**Next steps** (active pack is cached; omit \`--pack\` in subsequent commands): Call \`read_file\` on the saved image path above to inspect \`screenshot.jpg\`; run \`get_scene --selector "..." --cssProperty "..."\` to inspect anchor \`computedStyles\`/\`layoutContext\` and matched CSS cascade rules; run \`search_pack "<keyword>"\` to search across \`cascade.json\` & \`dom-context.json\`; run \`get_framework_state\` for component props/data; or check \`INDEX.md\` and query \`dom-context.json\` / \`cascade.json\` / \`environment.json\` in the workspace directly with \`jq\`.`
   );
   return applyCharBudget(lines.join("\n"), maxChars);
 }

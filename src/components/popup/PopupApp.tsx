@@ -24,10 +24,10 @@ import {
 } from "../../domain/storage-policy.ts";
 import { formatBytes } from "../../domain/byte-format.ts";
 import { useRpc } from "../../hooks/useRpc.ts";
-import { copyTextToClipboard } from "../../preview/clipboard";
+import { copyTextToClipboard } from "../../shared/clipboard";
 import { incrementPromptCopyCount } from "../../diagnostics/diagnostics-store";
 import { useSessionState } from "../../hooks/useSessionState.ts";
-import { bindConfirmDialogDismiss } from "../../popup/confirm-dialog";
+import { bindConfirmDialogDismiss } from "../../shared/confirm-dialog";
 import { resolvePopupEscape } from "../../popup/popup-escape";
 import { focusHistorySearchOnEntry } from "../../popup/history-search-focus";
 import { RecordPanel } from "./RecordPanel.tsx";

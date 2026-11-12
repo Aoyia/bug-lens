@@ -386,6 +386,21 @@
   "stopAndDiscard": {
     "message": "结束并丢弃"
   },
+  "discardRecording": {
+    "message": "丢弃"
+  },
+  "confirmDiscard": {
+    "message": "确认丢弃"
+  },
+  "widgetToolbarDiscardTooltip": {
+    "message": "放弃并删除本次录制"
+  },
+  "discarding": {
+    "message": "正在丢弃..."
+  },
+  "recordingDiscarded": {
+    "message": "已丢弃本次录制"
+  },
   "reopenPreview": {
     "message": "重新打开预览"
   },
@@ -2334,6 +2349,18 @@
   "settingCustomInstructionsDesc": {
     "message": "追加到 AI_PROMPT.md 中的团队技术栈规范或专属排查指引（最多 4000 字符）"
   },
+  "settingPromptTemplate": {
+    "message": "剪贴板提示词模板"
+  },
+  "settingPromptTemplateDesc": {
+    "message": "精简模板仅保留包路径、摘要、Skill 自动安装路由与底线约束；包内 AI_PROMPT.md 始终为完整模板"
+  },
+  "promptTemplateStandard": {
+    "message": "标准"
+  },
+  "promptTemplateCompact": {
+    "message": "精简（试用）"
+  },
   "settingCustomSensitiveKeys": {
     "message": "自定义敏感键名"
   },
@@ -2431,10 +2458,13 @@
     "message": "证据包已下载，工单模板已复制"
   },
   "copyTicketTemplate": {
-    "message": "复制工单模板"
+    "message": "复制工单"
+  },
+  "copyTicketTitle": {
+    "message": "复制图文工单到剪贴板，可直接粘贴至 TAPD、飞书、Jira"
   },
   "ticketTemplateCopied": {
-    "message": "工单模板已复制到剪贴板"
+    "message": "工单图文已复制，可直接粘贴至 TAPD、飞书、Jira"
   },
   "previewTicket": {
     "message": "预览工单"
@@ -2469,5 +2499,8 @@
   },
   "stepImageCopied": {
     "message": "步骤截图已复制，可直接在飞书聊天框按 Cmd+V 粘贴"
+  },
+  "searchSettingsPlaceholder": {
+    "message": "搜索设置项..."
   }
 }

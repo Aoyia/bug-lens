@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { bindConfirmDialogDismiss } from "../src/popup/confirm-dialog.ts";
+import { bindConfirmDialogDismiss } from "../src/shared/confirm-dialog.ts";
 
 function createFakeWin() {
   const listeners: Record<string, Function[]> = {};

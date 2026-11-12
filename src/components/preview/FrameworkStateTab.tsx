@@ -1,9 +1,9 @@
 import { memo } from "preact/compat";
 import type { FrameworkStateEvidence } from "../../shared/protocol";
 import { renderFrameworkSnapshot } from "../../preview/framework-view";
-import { formatElapsedEpochTime } from "../../domain/evidence-clock";
-import { t, getLocale } from "../../shared/i18n.ts";
-import { formatTime } from "../../shared/intl-formatter.ts";
+import { formatEvidenceTime } from "../../domain/evidence-clock";
+import { t } from "../../shared/i18n.ts";
+import { FrameBadge } from "./FrameBadge.tsx";
 
 export interface FrameworkStateTabProps {
   states: FrameworkStateEvidence[];
@@ -46,9 +46,6 @@ export const FrameworkStateTab = memo(function FrameworkStateTab({
   return (
     <div className="framework-state-list" data-testid="framework-state-list">
       {states.map((state) => {
-        const elapsed = startedAtEpochMs
-          ? formatElapsedEpochTime(state.capturedAtEpochMs, startedAtEpochMs)
-          : undefined;
         const snapshotHtml = state.snapshot
           ? renderFrameworkSnapshot(state.snapshot)
           : "";
@@ -62,23 +59,13 @@ export const FrameworkStateTab = memo(function FrameworkStateTab({
               <span className="framework-state-trigger">
                 {t(TRIGGER_LABEL_KEYS[state.trigger]) ?? state.trigger}
               </span>
-              <span
-                className={`framework-frame-badge ${state.page.frameId ? "badge-subframe" : "badge-topframe"}`}
-                title={
-                  state.page.frameId
-                    ? state.page.url
-                      ? `${state.page.url} (Frame [${state.page.frameId}])`
-                      : `Frame [${state.page.frameId}]`
-                    : "Top Frame"
-                }
-              >
-                {state.page.frameId
-                  ? `Frame [${state.page.frameId}]`
-                  : "Top Frame"}
-              </span>
+              <FrameBadge
+                classNamePrefix="framework"
+                frameId={state.page.frameId}
+                frameUrl={state.page.url}
+              />
               <time>
-                {elapsed ??
-                  formatTime(state.capturedAtEpochMs, undefined, getLocale())}
+                {formatEvidenceTime(state.capturedAtEpochMs, startedAtEpochMs)}
               </time>
               <span className="framework-state-url" title={state.page.url}>
                 {state.page.url}

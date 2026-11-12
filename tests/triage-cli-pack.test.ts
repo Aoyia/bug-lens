@@ -1,6 +1,16 @@
 import { zipSync } from "fflate";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  statSync,
+  utimesSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -8,6 +18,7 @@ import { parseWindowAssignmentJson } from "../src/triage-cli/pack/js-json.ts";
 import {
   clearPackCache,
   extractPackToDisk,
+  getPackWorkspaceDir,
   openPack,
   openPackFromBytes,
   sanitizeRelativePathForDisk,
@@ -227,4 +238,155 @@ test("sanitizeRelativePathForDisk replaces Windows reserved characters", () => {
   );
   assert.equal(res.renamed, true);
   assert.equal(res.sanitized, "network/body-d6135e69_20535.366_.txt_");
+});
+
+test("openPack extracts ZIP to workspace with media, derived JSON, and INDEX.md, and skips re-extraction on stamp hit", async () => {
+  const tempRoot = mkdtempSync(join(tmpdir(), "bug-lens-cli-extract-"));
+  const prevWs = process.env.BUG_LENS_CLI_WORKSPACE;
+  process.env.BUG_LENS_CLI_WORKSPACE = join(tempRoot, "ws");
+  try {
+    clearPackCache();
+    const sessionZipPath = join(tempRoot, "web-bug-report-d6135e69.zip");
+    writeFileSync(
+      sessionZipPath,
+      buildRealSessionZipBytes({ includeMedia: true })
+    );
+
+    const loaded = openPack(sessionZipPath);
+    const wsDir = getPackWorkspaceDir(loaded);
+    assert.ok(wsDir, "Expected openPack to load from extracted workspace dir");
+
+    // 1. 录屏文件落盘，且仍在 skippedMediaFiles 中登记
+    const mediaPath = join(wsDir!, "media/recording.webm");
+    assert.equal(existsSync(mediaPath), true);
+    assert.equal(loaded.skippedMediaFiles.has("media/recording.webm"), true);
+
+    // 2. 派生 JSON 与原始 JS 包装内容一致
+    const derivedSession = JSON.parse(
+      readFileSync(join(wsDir!, "data/session-data.json"), "utf8")
+    );
+    const rawSession = parseWindowAssignmentJson(
+      readFileSync(join(wsDir!, "data/session-data.js"), "utf8")
+    );
+    assert.deepEqual(derivedSession, rawSession);
+    assert.equal(existsSync(join(wsDir!, "data/network-details.json")), true);
+
+    // 3. INDEX.md 包含 schema 与请求映射
+    const indexMd = readFileSync(join(wsDir!, "INDEX.md"), "utf8");
+    assert.match(indexMd, /# Bug Lens Evidence Workspace Index/);
+    assert.match(indexMd, /session-data\.json Schema/);
+    assert.match(indexMd, /Request → Body Map/);
+    assert.match(indexMd, /media\/recording\.webm/);
+
+    // 4. 幂等校验：固定文件时间后清除内存缓存再 openPack，不应重写文件
+    const indexFile = join(wsDir!, "INDEX.md");
+    const fixedTime = new Date(2025, 0, 1, 0, 0, 0);
+    utimesSync(indexFile, fixedTime, fixedTime);
+    clearPackCache();
+    openPack(sessionZipPath);
+    assert.equal(statSync(indexFile).mtimeMs, fixedTime.getTime());
+
+    // 5. 两个不同名的截图包解压到各自独立的子目录，互不覆盖
+    const ss1 = join(tempRoot, "bug-lens-screenshot-1.zip");
+    const ss2 = join(tempRoot, "bug-lens-screenshot-2.zip");
+    const ssBytes = await buildRealScreenshotZipBytes();
+    writeFileSync(ss1, ssBytes);
+    writeFileSync(ss2, ssBytes);
+    const p1 = openPack(ss1);
+    const p2 = openPack(ss2);
+    assert.notEqual(getPackWorkspaceDir(p1), getPackWorkspaceDir(p2));
+
+    // 6. 目录模式：若手动解压目录缺失派生 JSON 与 INDEX.md，openPack(dir) 自动补齐
+    rmSync(join(wsDir!, "data/session-data.json"), { force: true });
+    rmSync(join(wsDir!, "INDEX.md"), { force: true });
+    clearPackCache();
+    openPack(wsDir!);
+    assert.equal(existsSync(join(wsDir!, "data/session-data.json")), true);
+    assert.equal(existsSync(join(wsDir!, "INDEX.md")), true);
+
+    // 7. 工作区短包名寻址：无需传完整路径，直接用短 ID 切回已解压工作区包
+    const byShortId = openPack("d6135e69");
+    assert.equal(
+      realpathSync(getPackWorkspaceDir(byShortId)!),
+      realpathSync(wsDir!)
+    );
+  } finally {
+    clearPackCache();
+    if (prevWs === undefined) {
+      delete process.env.BUG_LENS_CLI_WORKSPACE;
+    } else {
+      process.env.BUG_LENS_CLI_WORKSPACE = prevWs;
+    }
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("openPack enforces workspace LRU limit (MAX_WORKSPACE_PACKS) while preserving unmanaged directories", async () => {
+  const tempRoot = mkdtempSync(join(tmpdir(), "bug-lens-cli-lru-"));
+  const wsRoot = join(tempRoot, "ws");
+  const prevWs = process.env.BUG_LENS_CLI_WORKSPACE;
+  const prevMax = process.env.BUG_LENS_MAX_PACKS;
+  process.env.BUG_LENS_CLI_WORKSPACE = wsRoot;
+  process.env.BUG_LENS_MAX_PACKS = "3";
+
+  try {
+    clearPackCache();
+    // 在工作区下创建一个无 .bug-lens-extract.json 的手动目录，验证绝不会被误删
+    const unmanagedDir = join(wsRoot, "manual-user-notes");
+    mkdirSync(unmanagedDir, { recursive: true });
+    writeFileSync(join(unmanagedDir, "keep.txt"), "keep", "utf8");
+
+    const zipBytes = buildRealSessionZipBytes();
+    const paths = ["pack-a", "pack-b", "pack-c", "pack-d"].map((name) => {
+      const p = join(tempRoot, `${name}.zip`);
+      writeFileSync(p, zipBytes);
+      return p;
+    });
+
+    const dirA = getPackWorkspaceDir(openPack(paths[0]))!;
+    await new Promise((r) => setTimeout(r, 15));
+    const dirB = getPackWorkspaceDir(openPack(paths[1]))!;
+    await new Promise((r) => setTimeout(r, 15));
+    const dirC = getPackWorkspaceDir(openPack(paths[2]))!;
+    await new Promise((r) => setTimeout(r, 15));
+
+    // 重新访问 pack-a（刷新其 lastAccessedAt），此时最久未访问的应变为 pack-b
+    clearPackCache();
+    openPack(paths[0]);
+    await new Promise((r) => setTimeout(r, 15));
+
+    // 打开第 4 个包 pack-d，触发 K=3 的 LRU 清理
+    const dirD = getPackWorkspaceDir(openPack(paths[3]))!;
+
+    assert.equal(
+      existsSync(dirA),
+      true,
+      "Recently touched pack-a should be kept"
+    );
+    assert.equal(
+      existsSync(dirB),
+      false,
+      "Least recently used pack-b should be evicted"
+    );
+    assert.equal(existsSync(dirC), true, "pack-c should be kept");
+    assert.equal(existsSync(dirD), true, "Newly opened pack-d should be kept");
+    assert.equal(
+      existsSync(join(unmanagedDir, "keep.txt")),
+      true,
+      "Unmanaged directory without .bug-lens-extract.json must never be deleted"
+    );
+  } finally {
+    clearPackCache();
+    if (prevWs === undefined) {
+      delete process.env.BUG_LENS_CLI_WORKSPACE;
+    } else {
+      process.env.BUG_LENS_CLI_WORKSPACE = prevWs;
+    }
+    if (prevMax === undefined) {
+      delete process.env.BUG_LENS_MAX_PACKS;
+    } else {
+      process.env.BUG_LENS_MAX_PACKS = prevMax;
+    }
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
 });

@@ -768,3 +768,69 @@ export function sanitizeConsoleEntry(
     })),
   };
 }
+
+export const SENSITIVE_STATE_KEY_REGEX =
+  /(password|passwd|pwd|token|secret|apikey|api_key|access_key|private_key|auth|authorization|credential|session_id|cookie|creditcard|card_number|cvv|ssn|idcard|id_card|phone|mobile|jwt|bearer|private)/i;
+
+/**
+ * 统一组件状态树 / 全局 Store 脱敏与防环深拷贝（React / Vue / SSR 全局状态共用）。
+ */
+export function redactAndSanitizeState(
+  obj: any,
+  currentDepth = 0,
+  maxDepth = 3,
+  visited = new WeakSet<object>(),
+  keyPattern: RegExp = SENSITIVE_STATE_KEY_REGEX
+): any {
+  if (obj === null || obj === undefined) return undefined;
+  const type = typeof obj;
+  if (type === "number" || type === "boolean" || type === "string") return obj;
+  if (type !== "object") return undefined;
+  const objectValue = obj as object;
+  if (
+    (typeof HTMLElement !== "undefined" &&
+      objectValue instanceof HTMLElement) ||
+    (typeof Node !== "undefined" && objectValue instanceof Node)
+  ) {
+    return undefined;
+  }
+  if (visited.has(objectValue)) return "[CIRCULAR]";
+  if (currentDepth >= maxDepth) return "[MAX_DEPTH]";
+  visited.add(objectValue);
+
+  if (Array.isArray(objectValue)) {
+    return objectValue
+      .slice(0, 10)
+      .map((item) =>
+        redactAndSanitizeState(
+          item,
+          currentDepth + 1,
+          maxDepth,
+          visited,
+          keyPattern
+        )
+      );
+  }
+
+  const result: Record<string, any> = {};
+  const keys = Object.keys(objectValue).slice(0, 20);
+  for (const key of keys) {
+    if (keyPattern.test(key)) {
+      result[key] = "[REDACTED:sensitive-store-key]";
+    } else {
+      try {
+        const val = redactAndSanitizeState(
+          (objectValue as Record<string, unknown>)[key],
+          currentDepth + 1,
+          maxDepth,
+          visited,
+          keyPattern
+        );
+        if (val !== undefined) result[key] = val;
+      } catch {
+        result[key] = "[UNSERIALIZABLE]";
+      }
+    }
+  }
+  return result;
+}

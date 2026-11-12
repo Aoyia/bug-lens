@@ -55,7 +55,7 @@ test("NetworkTab 选中行通过 aria-current 暴露当前项（仅选中行）"
   assert.equal(
     currentMatches.length,
     1,
-    "仅当前选中的请求行应标记 aria-current=\"true\""
+    '仅当前选中的请求行应标记 aria-current="true"'
   );
 });
 

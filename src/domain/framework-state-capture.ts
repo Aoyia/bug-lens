@@ -5,62 +5,10 @@ import type {
 } from "../shared/protocol";
 import { captureReactTree } from "../entrypoints/content/react-detector";
 import { captureVueTree } from "../entrypoints/content/vue-detector";
-
-const SENSITIVE_KEY_REGEX =
-  /(password|token|secret|auth|creditcard|phone|mobile|idcard|jwt|bearer|private)/i;
-
-/** 与 react/vue detector 保持一致的脱敏规则（独立实现避免共享内部函数）。 */
-function redactAndSanitize(
-  obj: unknown,
-  currentDepth = 0,
-  maxDepth = 4,
-  visited = new WeakSet<object>()
-): unknown {
-  if (obj === null || obj === undefined) return undefined;
-  const type = typeof obj;
-  if (type === "number" || type === "boolean" || type === "string") return obj;
-  if (type !== "object") return undefined;
-  const objectValue = obj as object;
-  if (
-    typeof HTMLElement !== "undefined" &&
-    (objectValue instanceof HTMLElement ||
-      (typeof Node !== "undefined" && objectValue instanceof Node))
-  ) {
-    return undefined;
-  }
-  if (visited.has(objectValue)) return "[CIRCULAR]";
-  if (currentDepth >= maxDepth) return "[MAX_DEPTH]";
-  visited.add(objectValue);
-
-  if (Array.isArray(objectValue)) {
-    return (objectValue as unknown[])
-      .slice(0, 10)
-      .map((item) =>
-        redactAndSanitize(item, currentDepth + 1, maxDepth, visited)
-      );
-  }
-
-  const result: Record<string, unknown> = {};
-  const keys = Object.keys(objectValue).slice(0, 20);
-  for (const key of keys) {
-    if (SENSITIVE_KEY_REGEX.test(key)) {
-      result[key] = "[REDACTED:sensitive-store-key]";
-    } else {
-      try {
-        const val = redactAndSanitize(
-          (objectValue as Record<string, unknown>)[key],
-          currentDepth + 1,
-          maxDepth,
-          visited
-        );
-        if (val !== undefined) result[key] = val;
-      } catch {
-        result[key] = "[UNSERIALIZABLE]";
-      }
-    }
-  }
-  return result;
-}
+import {
+  redactAndSanitizeState,
+  SENSITIVE_STATE_KEY_REGEX as SENSITIVE_KEY_REGEX,
+} from "./privacy-policy";
 
 /** 常见全局状态挂载点（SSR / Redux / Nuxt / Next.js 约定命名）。 */
 const GLOBAL_STATE_KEYS = [
@@ -82,7 +30,7 @@ export function captureGlobalState(): Record<string, unknown> | undefined {
     try {
       const value = globalThisObject[key];
       if (value === undefined) continue;
-      const sanitized = redactAndSanitize(value);
+      const sanitized = redactAndSanitizeState(value, 0, 4);
       if (sanitized !== undefined) collected[key] = sanitized;
     } catch {
       collected[key] = "[UNSERIALIZABLE]";

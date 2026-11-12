@@ -3,16 +3,17 @@ import {
   clampPointToRect,
   pointToSegmentDistance,
 } from "../../overlay/overlay-geometry";
-import type { AnnotationRenderer, RendererContext } from "./renderer-registry";
+import type { AnnotationRenderer, RendererContext } from "../annotation-types";
 
 export const arrowRenderer: AnnotationRenderer<ArrowAnnotation> = {
   type: "arrow",
 
-  draw(ctx, ann) {
-    const sx = ann.startPoint.x;
-    const sy = ann.startPoint.y;
-    const ex = ann.endPoint.x;
-    const ey = ann.endPoint.y;
+  draw(ctx, ann, rc) {
+    const dpr = rc?.dpr ?? 1;
+    const sx = ann.startPoint.x * dpr;
+    const sy = ann.startPoint.y * dpr;
+    const ex = ann.endPoint.x * dpr;
+    const ey = ann.endPoint.y * dpr;
 
     ctx.beginPath();
     ctx.moveTo(sx, sy);
@@ -20,7 +21,7 @@ export const arrowRenderer: AnnotationRenderer<ArrowAnnotation> = {
     ctx.stroke();
 
     const angle = Math.atan2(ey - sy, ex - sx);
-    const headLen = 14;
+    const headLen = 14 * dpr;
     ctx.beginPath();
     ctx.moveTo(ex, ey);
     ctx.lineTo(

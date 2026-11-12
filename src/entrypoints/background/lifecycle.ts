@@ -15,6 +15,7 @@ import {
 } from "../../domain/silent-export";
 import { isEn, t } from "../../shared/i18n";
 import { ensureOffscreenDocument } from "../../shared/offscreen";
+import { loadAppSettings } from "../../shared/settings";
 import { flushStorageBatchQueue } from "../../storage/db";
 import type { BackgroundContext } from "./context";
 
@@ -472,6 +473,22 @@ export function createSessionLifecycle(
     if (["EXPORTED", "FAILED"].includes(session.status)) return session;
 
     if (session.status === "PREVIEW_READY") {
+      if (discard) {
+        recordingCoordinator.beginStopping(session.id);
+        try {
+          const finalTabIds = collectSessionTabIds(session, ctx);
+          await Promise.all(
+            finalTabIds.map((tid) =>
+              contentScripts.remove(tid).catch(() => undefined)
+            )
+          );
+          await db.deleteSession(session.id);
+          await db.clearActive(session.id);
+        } finally {
+          recordingCoordinator.finishStopping(session.id);
+        }
+        return undefined;
+      }
       if (!silentExport) return session;
       recordingCoordinator.beginStopping(session.id);
       try {
@@ -564,41 +581,51 @@ export function createSessionLifecycle(
           ])
         );
 
-      const tDrainStart = performance.now();
-      cleanupErrors.push(...(await interactionCapture.drain(1200, session.id)));
-      cleanupErrors.push(...(await issueSceneCapture.drain()));
-      cleanupErrors.push(...(await cdpCollector.drain()));
-      await flushStorageBatchQueue().catch(() => {});
-      queueDrainDurationMs = performance.now() - tDrainStart;
-
-      const tCdpStart = performance.now();
-      await cdpCollector
-        .finalizeNetworkBodies(stopping)
-        .then((stats) => {
-          if (stats) cdpFinalizeStats = stats;
-        })
-        .catch((error) =>
-          cleanupErrors.push(t("cleanupNetworkFinalizeFailed", [String(error)]))
+      if (!discard) {
+        const tDrainStart = performance.now();
+        cleanupErrors.push(
+          ...(await interactionCapture.drain(1200, session.id))
         );
-      if (cdpFinalizeStats.durationMs === 0) {
-        cdpFinalizeStats.durationMs = performance.now() - tCdpStart;
-      }
+        cleanupErrors.push(...(await issueSceneCapture.drain()));
+        cleanupErrors.push(...(await cdpCollector.drain()));
+        await flushStorageBatchQueue().catch(() => {});
+        queueDrainDurationMs = performance.now() - tDrainStart;
 
-      const tIssueStart = performance.now();
-      await issueSceneCapture
-        .finalizeUnfinished(session.id)
-        .catch((error) =>
+        const tCdpStart = performance.now();
+        await cdpCollector
+          .finalizeNetworkBodies(stopping)
+          .then((stats) => {
+            if (stats) cdpFinalizeStats = stats;
+          })
+          .catch((error) =>
+            cleanupErrors.push(
+              t("cleanupNetworkFinalizeFailed", [String(error)])
+            )
+          );
+        if (cdpFinalizeStats.durationMs === 0) {
+          cdpFinalizeStats.durationMs = performance.now() - tCdpStart;
+        }
+
+        const tIssueStart = performance.now();
+        await issueSceneCapture
+          .finalizeUnfinished(session.id)
+          .catch((error) =>
+            cleanupErrors.push(
+              t("cleanupIssueSceneFinalizeFailed", [String(error)])
+            )
+          );
+        issueSceneFinalizeDurationMs = performance.now() - tIssueStart;
+
+        const tQualityStart = performance.now();
+        await reconcileSessionQuality(session.id).catch((error) =>
           cleanupErrors.push(
-            t("cleanupIssueSceneFinalizeFailed", [String(error)])
+            t("cleanupQualityReconcileFailed", [String(error)])
           )
         );
-      issueSceneFinalizeDurationMs = performance.now() - tIssueStart;
-
-      const tQualityStart = performance.now();
-      await reconcileSessionQuality(session.id).catch((error) =>
-        cleanupErrors.push(t("cleanupQualityReconcileFailed", [String(error)]))
-      );
-      qualityReconcileDurationMs = performance.now() - tQualityStart;
+        qualityReconcileDurationMs = performance.now() - tQualityStart;
+      } else {
+        await flushStorageBatchQueue().catch(() => {});
+      }
     } finally {
       const finalTabIds = Array.from(
         new Set([...sessionTabIds, ...collectSessionTabIds(stopping, ctx)])
@@ -756,10 +783,13 @@ export function createSessionLifecycle(
     let caughtError: unknown;
     try {
       await ensureOffscreenDocument();
+      const promptSettings = await loadAppSettings()
+        .then((settings) => settings.ai)
+        .catch(() => undefined);
       packResult = (await chrome.runtime.sendMessage(
         message(
           "offscreen/export-pack",
-          { sessionId: session.id, traceContext, exportMode },
+          { sessionId: session.id, traceContext, exportMode, promptSettings },
           undefined,
           "offscreen"
         )

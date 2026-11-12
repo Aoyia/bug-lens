@@ -1,18 +1,19 @@
 import type { RectAnnotation } from "../../../domain/screenshot-payload";
 import { pointInRectEdgeBand } from "../../overlay/overlay-geometry";
-import type { AnnotationRenderer, RendererContext } from "./renderer-registry";
+import type { AnnotationRenderer, RendererContext } from "../annotation-types";
 
 export const rectRenderer: AnnotationRenderer<RectAnnotation> = {
   type: "rect",
 
-  draw(ctx, ann) {
-    const lw = 2;
-    const rx = Math.floor(ann.bounds.x);
-    const ry = Math.floor(ann.bounds.y);
-    const rw = Math.round(ann.bounds.width);
-    const rh = Math.round(ann.bounds.height);
+  draw(ctx, ann, rc) {
+    const dpr = rc?.dpr ?? 1;
+    const lw = dpr === 1 ? 2 : Math.max(2, Math.round(2 * dpr));
+    const rx = Math.floor(ann.bounds.x * dpr);
+    const ry = Math.floor(ann.bounds.y * dpr);
+    const rw = Math.round(ann.bounds.width * dpr);
+    const rh = Math.round(ann.bounds.height * dpr);
 
-    const rOuter = Math.min(6, Math.min(rw, rh) / 2);
+    const rOuter = Math.min(6 * dpr, Math.min(rw, rh) / 2);
     const rInner = Math.max(0, rOuter - lw);
 
     ctx.save();

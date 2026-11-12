@@ -1,3 +1,6 @@
+import { getLocale } from "../shared/i18n.ts";
+import { formatTime, formatTimeWithMs } from "../shared/intl-formatter.ts";
+
 export type NetworkRequestTiming = {
   wallTime?: number;
   timestamp?: number;
@@ -46,4 +49,34 @@ export function formatElapsedEpochTime(
   const seconds = String(wholeSeconds % 60).padStart(2, "0");
   const milliseconds = String(elapsedMs % 1000).padStart(3, "0");
   return `${minutes}:${seconds}.${milliseconds}`;
+}
+
+export function resolveSessionOriginEpochMs(session?: {
+  timeline?: { startedAtEpochMs?: number; createdAtEpochMs?: number };
+}): number | undefined {
+  return (
+    session?.timeline?.startedAtEpochMs ?? session?.timeline?.createdAtEpochMs
+  );
+}
+
+export function formatEvidenceTime(
+  epochMs: number,
+  originEpochMs?: number,
+  options?: { withMillisecondsFallback?: boolean; locale?: string }
+): string {
+  if (originEpochMs != null) {
+    const relative = formatElapsedEpochTime(epochMs, originEpochMs);
+    if (relative !== undefined) return relative;
+  }
+  const locale = options?.locale ?? getLocale();
+  return options?.withMillisecondsFallback
+    ? formatTimeWithMs(epochMs, locale)
+    : formatTime(epochMs, undefined, locale);
+}
+
+export function formatRecordingTimer(elapsedMs: number): string {
+  const seconds = Math.max(0, Math.floor(elapsedMs / 1000));
+  const minutes = String(Math.floor(seconds / 60)).padStart(2, "0");
+  const remainSeconds = String(seconds % 60).padStart(2, "0");
+  return `${minutes}:${remainSeconds}`;
 }

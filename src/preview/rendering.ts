@@ -1,18 +1,7 @@
 import { t } from "../shared/i18n.ts";
+import { escapeHtml } from "../shared/html-escape.ts";
 
-export function escapeHtml(value: unknown): string {
-  return String(value ?? "").replace(
-    /[&<>"']/g,
-    (char) =>
-      ({
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        '"': "&quot;",
-        "'": "&#39;",
-      })[char]!
-  );
-}
+export { escapeHtml };
 
 export function highlightJs(code: string): string {
   const escaped = code

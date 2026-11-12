@@ -20,6 +20,7 @@ export function buildRealSessionZipBytes(overrides?: {
   tamperSessionData?: boolean;
   expectedConfidence?: "explicit" | "missing";
   legacyColonBodyFilename?: boolean;
+  includeMedia?: boolean;
 }): Uint8Array {
   const t0 = 1793071570000;
   const session: RecordingSession = {
@@ -462,6 +463,15 @@ export function buildRealSessionZipBytes(overrides?: {
     integrityEntries[name] = {
       byteLength: data.byteLength,
       sha256: createHash("sha256").update(data).digest("hex"),
+    };
+  }
+
+  if (overrides?.includeMedia) {
+    const mediaBytes = new Uint8Array(256);
+    zipEntries["media/recording.webm"] = mediaBytes;
+    integrityEntries["media/recording.webm"] = {
+      byteLength: mediaBytes.byteLength,
+      sha256: createHash("sha256").update(mediaBytes).digest("hex"),
     };
   }
 

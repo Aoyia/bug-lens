@@ -386,6 +386,21 @@
   "stopAndDiscard": {
     "message": "Discard Recording"
   },
+  "discardRecording": {
+    "message": "Discard"
+  },
+  "confirmDiscard": {
+    "message": "Confirm"
+  },
+  "widgetToolbarDiscardTooltip": {
+    "message": "Discard and delete this recording"
+  },
+  "discarding": {
+    "message": "Discarding..."
+  },
+  "recordingDiscarded": {
+    "message": "Recording discarded"
+  },
   "reopenPreview": {
     "message": "Reopen Preview"
   },
@@ -2334,6 +2349,18 @@
   "settingCustomInstructionsDesc": {
     "message": "Custom directives appended to AI_PROMPT.md (up to 4000 characters)"
   },
+  "settingPromptTemplate": {
+    "message": "Clipboard Prompt Template"
+  },
+  "settingPromptTemplateDesc": {
+    "message": "Compact keeps only pack path, summary, Skill auto-install routing and core rules; AI_PROMPT.md in the ZIP always uses the full template"
+  },
+  "promptTemplateStandard": {
+    "message": "Standard"
+  },
+  "promptTemplateCompact": {
+    "message": "Compact (Beta)"
+  },
   "settingCustomSensitiveKeys": {
     "message": "Custom Sensitive Keys"
   },
@@ -2431,10 +2458,13 @@
     "message": "Evidence package downloaded, ticket template copied"
   },
   "copyTicketTemplate": {
-    "message": "Copy Ticket Template"
+    "message": "Copy Ticket"
+  },
+  "copyTicketTitle": {
+    "message": "Copy rich-text ticket with screenshots to clipboard"
   },
   "ticketTemplateCopied": {
-    "message": "Ticket template copied to clipboard"
+    "message": "Ticket copied to clipboard, ready to paste into Jira, Feishu, TAPD"
   },
   "previewTicket": {
     "message": "Preview Ticket"
@@ -2469,5 +2499,8 @@
   },
   "stepImageCopied": {
     "message": "Screenshot copied, ready to paste directly into Feishu / chat"
+  },
+  "searchSettingsPlaceholder": {
+    "message": "Search settings..."
   }
 }

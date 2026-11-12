@@ -828,7 +828,7 @@ test.describe("Bug Lens Chrome Extension E2E SCREENSHOT-004: 截图文本批注�
     await delay(200);
     expect(await probe.count(".inline-text-input")).toBe(1);
     const textVal = await probe.inputValue(".inline-text-input");
-    expect(textVal).toBe("BugLensText");
+    expect(textVal).toBe("E2E Annotation Text");
 
     // ---- 5) 修改文本并提交 ----
     await page.keyboard.type(" v2");

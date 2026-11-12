@@ -92,7 +92,7 @@ export function runMainWorldFrameworkProbe(
           continue;
         }
         if (
-          /(password|token|secret|auth|cookie|authorization|jwt|bearer|session|private|key)/i.test(
+          /(password|passwd|pwd|token|secret|apikey|api_key|access_key|private_key|auth|authorization|credential|session_id|cookie|creditcard|card_number|cvv|ssn|idcard|id_card|phone|mobile|jwt|bearer|session|private|key)/i.test(
             k
           )
         ) {

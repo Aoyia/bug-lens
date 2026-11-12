@@ -20,6 +20,7 @@ export async function deleteSessionAndEvidence(
       "exportArtifacts",
       "issueScenes",
       "evidenceAssets",
+      "frameworkStates",
       "control",
     ];
     const transaction = database.transaction(stores, "readwrite");
@@ -39,6 +40,7 @@ export async function deleteSessionAndEvidence(
       "mediaChunks",
       "issueScenes",
       "evidenceAssets",
+      "frameworkStates",
     ] as const) {
       const cursorRequest = transaction
         .objectStore(storeName)

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { PreviewExportController } from "../src/preview/preview-export-controller.ts";
+import { PreviewAiHandoff } from "../src/preview/preview-ai-handoff.ts";
 import { validateArchiveIntegrity } from "../src/export/export-pipeline.ts";
 import { sha256 } from "../src/export/sha256.ts";
 
@@ -562,4 +563,66 @@ test("PreviewExportController - 提工单按钮独立导出与复制通知路径
   assert.equal(notifiedMessage, "exportSuccessTicketCopied:");
   assert.equal(button.disabled, false);
   assert.equal(ticketButton.disabled, false);
+});
+
+test("PreviewAiHandoff.render - 过滤 USER_CANCELED 避免外露原始报错码", () => {
+  (globalThis as any).chrome = {
+    i18n: {
+      getMessage: (key: string) => key,
+    },
+  };
+
+  const statusNode = { textContent: "" };
+  const pathNode = { textContent: "" };
+  const promptNode = { textContent: "" };
+  const copyPathBtn = { hidden: false, addEventListener: () => {} };
+  const showFileBtn = { hidden: false, addEventListener: () => {} };
+
+  let currentArtifact: any = undefined;
+  const mockRoot = {
+    querySelector(selector: string) {
+      if (selector === "#ai-status") return statusNode;
+      if (selector === "#ai-path") return pathNode;
+      if (selector === "#ai-prompt") return promptNode;
+      if (selector === "#copy-ai-path") return copyPathBtn;
+      if (selector === "#show-ai-file") return showFileBtn;
+      return null;
+    },
+  };
+
+  const handoff = new PreviewAiHandoff({
+    root: mockRoot as any,
+    getArtifact: () => currentArtifact,
+    getPrompt: (p) => `prompt:${p ?? "none"}`,
+    notify: () => {},
+  });
+
+  // 1. 初始未导出状态
+  handoff.render();
+  assert.equal(statusNode.textContent, "aiStatusWaitingExport");
+  assert.equal(pathNode.textContent, "exportBeforeCopyPath");
+
+  // 2. 用户取消保存对话框（USER_CANCELED）应回退为正常等待导出引导
+  currentArtifact = {
+    sessionId: "s1",
+    downloadId: 1,
+    state: "interrupted",
+    error: "USER_CANCELED",
+    updatedAtEpochMs: 1000,
+  };
+  handoff.render();
+  assert.equal(statusNode.textContent, "aiStatusWaitingExport");
+  assert.equal(pathNode.textContent, "exportBeforeCopyPath");
+
+  // 3. 真实网络/磁盘中断应显示中断状态与具体原因
+  currentArtifact = {
+    sessionId: "s1",
+    downloadId: 1,
+    state: "interrupted",
+    error: "DISK_FULL",
+    updatedAtEpochMs: 1000,
+  };
+  handoff.render();
+  assert.equal(statusNode.textContent, "downloadInterrupted");
+  assert.equal(pathNode.textContent, "DISK_FULL");
 });

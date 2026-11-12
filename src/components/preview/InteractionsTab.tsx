@@ -9,69 +9,12 @@ import {
   resolveSemanticElementName,
   type GroupedInteractionCard,
 } from "../../domain/interaction-grouping";
-import { formatElapsedEpochTime } from "../../domain/evidence-clock";
+import { formatEvidenceTime } from "../../domain/evidence-clock";
 
-import { copyTextToClipboard } from "../../preview/clipboard";
-import { parsePiercingSelector } from "../../preview/playwright-generator.ts";
+import { copyTextToClipboard } from "../../shared/clipboard";
+import { formatPlaywrightLocator } from "../../preview/playwright-generator.ts";
 import { t, getLocale } from "../../shared/i18n.ts";
-import { formatDateTime, formatTime } from "../../shared/intl-formatter.ts";
-
-/**
- * 步骤卡片时间的统一时间语言：优先显示相对录制起点的 MM:SS.mmm
- * （与 NetworkTab / StreamTab / ConsoleTab 的证据时间线契约一致，
- *  点击卡片 seek 视频时行时间必须与视频时间轴同基准）。
- * 无起点或时间早于起点时回退到本地绝对时间，不丢信息、不抛异常。
- */
-function formatStepTime(
-  epochMs: number,
-  originEpochMs: number | undefined
-): string {
-  if (originEpochMs != null) {
-    const relative = formatElapsedEpochTime(epochMs, originEpochMs);
-    if (relative !== undefined) return relative;
-  }
-  return formatTime(epochMs, undefined, getLocale());
-}
-
-function formatPlaywrightLocator(
-  locator: { kind: string; expression: string },
-  element: ElementDescriptor
-): string {
-  const expression = locator.expression;
-  if (expression.startsWith("page.")) return expression;
-  const { frameSelectors, targetSelector } = parsePiercingSelector(expression);
-  let base = "page";
-  for (const f of frameSelectors) {
-    base += `.frameLocator("${f.replace(/"/g, '\\"')}")`;
-  }
-  if (locator.kind === "role") {
-    const roleName =
-      targetSelector.match(/^role=(.+)$/)?.[1] ?? element.role ?? "button";
-    const name = element.accessibleName || element.text;
-    if (name && name.length < 50) {
-      return `${base}.getByRole("${roleName}", { name: "${name.replace(/"/g, '\\"')}" })`;
-    }
-    return `${base}.getByRole("${roleName}")`;
-  }
-  if (locator.kind === "text") {
-    return `${base}.getByText("${targetSelector.replace(/"/g, '\\"')}")`;
-  }
-  if (locator.kind === "testId") {
-    const match = targetSelector.match(
-      /\[(?:data-testid|data-test|data-cy)=(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|([^\]\s]+))\]/
-    );
-    const rawVal = match
-      ? (match[1] ?? match[2] ?? match[3] ?? "")
-      : targetSelector;
-    const testId = rawVal.replace(/\\(.)/gs, "$1");
-    return `${base}.getByTestId(${JSON.stringify(testId)})`;
-  }
-  const cssSel =
-    locator.kind === "id" && !targetSelector.startsWith("#")
-      ? `#${targetSelector}`
-      : targetSelector;
-  return `${base}.locator("${cssSel.replace(/"/g, '\\"')}")`;
-}
+import { formatDateTime } from "../../shared/intl-formatter.ts";
 
 function formatStepForAi(
   card: GroupedInteractionCard,
@@ -371,7 +314,10 @@ export const InteractionsTab = memo(function InteractionsTab({
                   )
                 )}
               >
-                {formatStepTime(card.aggregatedMeta.startTime, originEpochMs)}
+                {formatEvidenceTime(
+                  card.aggregatedMeta.startTime,
+                  originEpochMs
+                )}
               </span>
               {card.children.length > 1 && (
                 <>
@@ -387,7 +333,10 @@ export const InteractionsTab = memo(function InteractionsTab({
                       )
                     )}
                   >
-                    {formatStepTime(card.aggregatedMeta.endTime, originEpochMs)}
+                    {formatEvidenceTime(
+                      card.aggregatedMeta.endTime,
+                      originEpochMs
+                    )}
                   </span>
                 </>
               )}
@@ -430,7 +379,7 @@ export const InteractionsTab = memo(function InteractionsTab({
                             )
                           )}
                         >
-                          {formatStepTime(child.createdAt, originEpochMs)}
+                          {formatEvidenceTime(child.createdAt, originEpochMs)}
                         </span>
                       </span>
 

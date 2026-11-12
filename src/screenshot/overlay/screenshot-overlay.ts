@@ -13,6 +13,13 @@ import { InlineTextEditor, MagnifierRenderer } from "./overlay-widgets";
 import { SelectionController } from "./selection-controller";
 import { AnnotationController } from "../annotations/annotation-controller";
 import { OverlayStateMachine } from "./overlay-state";
+import {
+  animateToastIn,
+  animateToastOutAndRemove,
+  buildToastInnerHtml,
+  FLOATING_TOAST_BASE_CSS,
+} from "../../shared/ui/toast";
+import { lockViewportScroll } from "../../shared/dom/scroll-lock";
 
 /**
  * 截图完成后的 toast 文案：根据 ZIP 是否已注入本地绝对路径区分提示。
@@ -52,7 +59,6 @@ export class ScreenshotOverlay {
 
   constructor() {
     this.handleKeyDown = this.handleKeyDown.bind(this);
-    this.handlePreventScroll = this.handlePreventScroll.bind(this);
     this.handleMouseDown = this.handleMouseDown.bind(this);
     this.handleMouseMove = this.handleMouseMove.bind(this);
     this.handleMouseUp = this.handleMouseUp.bind(this);
@@ -86,35 +92,7 @@ export class ScreenshotOverlay {
     return this.selectionController.isSelectionLocked;
   }
 
-  private handlePreventScroll(e: Event): void {
-    if (e.type === "keydown") {
-      const ke = e as KeyboardEvent;
-      const scrollKeys = [
-        " ",
-        "Space",
-        "PageUp",
-        "PageDown",
-        "ArrowUp",
-        "ArrowDown",
-        "Home",
-        "End",
-      ];
-      if (scrollKeys.includes(ke.key)) {
-        const target = ke.target as HTMLElement;
-        if (
-          target &&
-          (target.tagName === "INPUT" || target.tagName === "TEXTAREA")
-        ) {
-          return;
-        }
-        e.preventDefault();
-        e.stopPropagation();
-      }
-    } else {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-  }
+  private unlockScrollFn: (() => void) | null = null;
 
   show(options: {
     viewportDataUrl: string;
@@ -206,16 +184,10 @@ export class ScreenshotOverlay {
     window.addEventListener("keyup", this.handleKeyUp, true);
     // 截图激活期间禁用网页右键菜单，避免误触发网页交互
     window.addEventListener("contextmenu", this.handleContextMenu, true);
-    window.addEventListener("wheel", this.handlePreventScroll, {
-      passive: false,
-      capture: true,
-    });
-    window.addEventListener("touchmove", this.handlePreventScroll, {
-      passive: false,
-      capture: true,
-    });
-    window.addEventListener("keydown", this.handlePreventScroll, {
-      capture: true,
+    this.unlockScrollFn = lockViewportScroll({
+      lockOverflow: false,
+      allowEditableKeys: true,
+      shadowRoot: this.shadowRoot,
     });
     wrapper.addEventListener("mousedown", this.handleMouseDown);
     wrapper.addEventListener("mousemove", this.handleMouseMove);
@@ -667,28 +639,7 @@ export class ScreenshotOverlay {
     const toast = document.createElement("div");
     toast.id = "__wbr_screenshot_toast__";
     toast.setAttribute("data-wbr-ignore", "true");
-    toast.style.cssText = `
-      position: fixed !important;
-      top: 16px !important;
-      left: 50% !important;
-      transform: translateX(-50%) translateY(-10px) !important;
-      z-index: 2147483647 !important;
-      background: #ffffff !important;
-      -webkit-backdrop-filter: blur(16px) !important;
-      backdrop-filter: blur(16px) !important;
-      border: 1px solid rgba(0, 0, 0, 0.08) !important;
-      color: #1d2129 !important;
-      border-radius: 8px !important;
-      font-size: 13.5px !important;
-      box-shadow: 0 16px 42px -6px rgba(0, 0, 0, 0.18), 0 6px 16px -2px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04) !important;
-      display: flex !important;
-      align-items: center !important;
-      gap: 8px !important;
-      pointer-events: none !important;
-      transition: opacity 0.2s ease, transform 0.2s ease, padding 0.2s ease !important;
-      opacity: 0 !important;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-    `;
+    toast.style.cssText = `${FLOATING_TOAST_BASE_CSS} align-items: center !important; gap: 8px !important; pointer-events: none !important;`;
 
     let dismissTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -696,59 +647,19 @@ export class ScreenshotOverlay {
       msg: string,
       currentTone: "success" | "error" | "loading"
     ) => {
-      const isDualLine = msg.includes("\n");
-      toast.style.padding = isDualLine ? "10px 18px" : "6px 16px";
-
-      let contentHtml = "";
-      if (isDualLine) {
-        const [title, ...rest] = msg.split("\n");
-        const desc = rest.join("\n");
-        const kbdRegex = /(⌘V|Ctrl\+V)/g;
-        const descHtml = desc.replace(
-          kbdRegex,
-          `<kbd style="display:inline-flex!important;align-items:center!important;justify-content:center!important;padding:0 4px!important;min-width:20px!important;height:16px!important;font-size:10px!important;font-family:inherit!important;font-weight:600!important;color:#4e5969!important;background:#f2f3f5!important;border:1px solid #e5e6eb!important;border-radius:3px!important;vertical-align:baseline!important;margin:0 2px!important;">$1</kbd>`
-        );
-        contentHtml = `
-          <div style="display:flex!important;flex-direction:column!important;gap:2px!important;align-items:flex-start!important;text-align:left!important;">
-            <div style="font-size:13.5px!important;font-weight:600!important;color:#1d2129!important;line-height:1.4!important;">${title}</div>
-            <div style="font-size:12px!important;font-weight:400!important;color:#86909c!important;line-height:1.4!important;">${descHtml}</div>
-          </div>
-        `;
-      } else {
-        contentHtml = `<span style="line-height:1.4!important;">${msg}</span>`;
-      }
-
-      let iconHtml = "";
-      if (currentTone === "loading") {
-        iconHtml = `<span style="display:inline-block!important;width:13px!important;height:13px!important;border:2px solid rgba(0,122,255,0.25)!important;border-top-color:#007aff!important;border-radius:50%!important;animation:wbr-screenshot-spin 0.8s linear infinite!important;margin-right:2px!important;flex-shrink:0!important;align-self:${isDualLine ? "flex-start" : "center"};margin-top:${isDualLine ? "3px" : "0"};"></span>`;
-      } else {
-        const icon = currentTone === "error" ? "!" : "✓";
-        const iconColor = currentTone === "error" ? "#d5484c" : "#00b42a";
-        iconHtml = `<span style="color:${iconColor};font-size:16px;font-weight:700;line-height:1;margin-top:${isDualLine ? "2px" : "0"};align-self:${isDualLine ? "flex-start" : "center"};">${icon}</span>`;
-      }
-
-      toast.innerHTML = `${iconHtml} ${contentHtml}`;
+      toast.style.padding = msg.includes("\n") ? "10px 18px" : "6px 16px";
+      toast.innerHTML = buildToastInnerHtml(msg, currentTone);
     };
 
     renderContent(message, tone);
     document.body.appendChild(toast);
-
-    const rAF =
-      typeof requestAnimationFrame === "function"
-        ? requestAnimationFrame
-        : (fn: FrameRequestCallback) => setTimeout(fn, 0);
-    rAF(() => {
-      toast.style.opacity = "1";
-      toast.style.transform = "translateX(-50%) translateY(0)";
-    });
+    animateToastIn(toast);
 
     const scheduleDismiss = (ms: number) => {
       if (dismissTimer) clearTimeout(dismissTimer);
       if (ms > 0) {
         dismissTimer = setTimeout(() => {
-          toast.style.opacity = "0";
-          toast.style.transform = "translateX(-50%) translateY(-10px)";
-          setTimeout(() => toast.remove(), 200);
+          animateToastOutAndRemove(toast);
         }, ms);
       }
     };
@@ -774,9 +685,7 @@ export class ScreenshotOverlay {
       },
       dismiss: () => {
         if (dismissTimer) clearTimeout(dismissTimer);
-        toast.style.opacity = "0";
-        toast.style.transform = "translateX(-50%) translateY(-10px)";
-        setTimeout(() => toast.remove(), 200);
+        animateToastOutAndRemove(toast);
       },
     };
 
@@ -865,15 +774,10 @@ export class ScreenshotOverlay {
     window.removeEventListener("keydown", this.handleKeyDown, true);
     window.removeEventListener("keyup", this.handleKeyUp, true);
     window.removeEventListener("contextmenu", this.handleContextMenu, true);
-    window.removeEventListener("wheel", this.handlePreventScroll, {
-      capture: true,
-    } as any);
-    window.removeEventListener("touchmove", this.handlePreventScroll, {
-      capture: true,
-    } as any);
-    window.removeEventListener("keydown", this.handlePreventScroll, {
-      capture: true,
-    } as any);
+    if (this.unlockScrollFn) {
+      this.unlockScrollFn();
+      this.unlockScrollFn = null;
+    }
   }
 
   destroy(): void {

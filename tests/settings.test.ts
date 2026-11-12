@@ -30,6 +30,20 @@ describe("AppSettings Domain & Schema", () => {
 
     const res5 = mergeAppSettings(DEFAULT_APP_SETTINGS, [1, 2, 3] as any);
     assert.deepEqual(res5, DEFAULT_APP_SETTINGS);
+
+    assert.equal(DEFAULT_APP_SETTINGS.ai.promptTemplate, "standard");
+    assert.equal(
+      mergeAppSettings(DEFAULT_APP_SETTINGS, {
+        ai: { promptTemplate: "compact" },
+      }).ai.promptTemplate,
+      "compact"
+    );
+    assert.equal(
+      mergeAppSettings(DEFAULT_APP_SETTINGS, {
+        ai: { promptTemplate: "bogus" },
+      }).ai.promptTemplate,
+      "standard"
+    );
   });
 
   test("mergeAppSettings overrides partial workflow and ai settings correctly", () => {

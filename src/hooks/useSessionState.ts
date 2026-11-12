@@ -1,13 +1,9 @@
 import { useState, useRef, useCallback, useEffect } from "preact/hooks";
 import { ACTIVE_STATUSES } from "../shared/protocol.ts";
 import type { RecordingSession } from "../shared/protocol.ts";
+import { formatRecordingTimer as formatDuration } from "../domain/evidence-clock.ts";
 
 const PREVIEW_STATUSES: readonly string[] = ["PREVIEW_READY", "EXPORTED"];
-
-function formatDuration(ms: number): string {
-  const seconds = Math.max(0, Math.floor(ms / 1000));
-  return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
-}
 
 export type UseSessionStateOptions = {
   setInterval?: (handler: () => void, timeout?: number) => number;
