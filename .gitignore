@@ -6,6 +6,10 @@ dist-zip/
 docs/*
 !docs/assets/
 !docs/assets/**
+!docs/research/
+!docs/research/**
+!docs/specifications/
+!docs/specifications/**
 scripts/auto-commit.sh
 .agents/**
 !.agents/
