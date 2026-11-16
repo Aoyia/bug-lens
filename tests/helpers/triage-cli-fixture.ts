@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import type { AIScreenshotPayload } from "../../src/domain/screenshot-payload.ts";
 import { buildExportManifest } from "../../src/export/export-manifest.ts";
 import {
-  buildEvidencePackage,
+  buildEvidencePackageBundle,
   type EvidencePackageSnapshot,
   type StaticReportAssets,
 } from "../../src/preview/evidence-package.ts";
@@ -433,31 +433,63 @@ export function buildRealSessionZipBytes(overrides?: {
     icon: new Uint8Array([1, 2, 3]),
   };
 
-  const pkgFiles = buildEvidencePackage(snapshot, reportAssets);
+  // Keep buildRealSessionZipBytes as the legacy v4 JS-wrapper archive fixture for v1-v4 backwards-compatibility tests.
+  const bundle = buildEvidencePackageBundle(snapshot, reportAssets, {
+    packMode: "full-viewer",
+  });
   const zipEntries: Record<string, Uint8Array> = {};
   const integrityEntries: Record<
     string,
     { byteLength: number; sha256: string }
   > = {};
 
-  for (const f of pkgFiles) {
+  const legacyNetworkBodies: Array<{ name: string; data: Uint8Array }> = [];
+  const legacyBodyPathById = new Map<string, string>();
+  for (const entry of snapshot.networkEntries) {
+    if (entry.response?.body && entry.response.body.length > 4096) {
+      const fileId = overrides?.legacyColonBodyFilename
+        ? entry.id
+        : entry.id.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const legacyName = `network/body-${fileId}.txt`;
+      legacyBodyPathById.set(entry.id, legacyName);
+      legacyNetworkBodies.push({
+        name: legacyName,
+        data: new TextEncoder().encode(entry.response.body),
+      });
+    }
+  }
+
+  for (const f of [...bundle.files, ...legacyNetworkBodies]) {
+    if (
+      f.name === "session-data.json" ||
+      f.name === "network-details.json" ||
+      f.name.startsWith("network/blobs/") ||
+      /\/dom-(context|styles)\.json$/.test(f.name)
+    ) {
+      continue;
+    }
     if (overrides?.omitNetworkDetails && f.name === "data/network-details.js") {
       continue;
     }
-    let name = f.name;
+    const name = f.name;
     let data = f.data;
-    if (overrides?.legacyColonBodyFilename) {
-      if (name === `network/body-${session.id}_20535.366.txt`) {
-        name = `network/body-${session.id}:20535.366.txt`;
-      } else if (name === "data/session-data.js") {
-        const raw = new TextDecoder().decode(data);
-        data = new TextEncoder().encode(
-          raw.replace(
-            `network/body-${session.id}_20535.366.txt`,
-            `network/body-${session.id}:20535.366.txt`
-          )
-        );
+    if (name === "data/session-data.js" && legacyBodyPathById.size > 0) {
+      const raw = new TextDecoder().decode(data);
+      const parsed = JSON.parse(
+        raw.replace(/^window\.__BUG_LENS_DATA__ = /, "").slice(0, -1)
+      );
+      if (Array.isArray(parsed.networkEntries)) {
+        for (const ne of parsed.networkEntries) {
+          const bp = legacyBodyPathById.get(ne.id);
+          if (bp && ne.response) {
+            ne.response.bodyPath = bp;
+            delete ne.response.body;
+          }
+        }
       }
+      data = new TextEncoder().encode(
+        `window.__BUG_LENS_DATA__ = ${JSON.stringify(parsed, null, 2)};`
+      );
     }
     zipEntries[name] = data;
     integrityEntries[name] = {
@@ -488,6 +520,430 @@ export function buildRealSessionZipBytes(overrides?: {
     zipEntries["data/session-data.js"] = new TextEncoder().encode(orig + "\n");
   }
 
+  return zipSync(zipEntries);
+}
+
+export function buildRealV5SessionZipBytes(overrides?: {
+  expectedConfidence?: "explicit" | "missing";
+  includeSettledAndFinal?: boolean;
+}): Uint8Array {
+  const t0 = 1793071570000;
+  const session: RecordingSession = {
+    id: "d6135e69-d761-40d5-bb97-f725928daca6",
+    schemaVersion: 2,
+    extensionVersion: "0.8.0",
+    status: "PREVIEW_READY",
+    target: {
+      tabId: 1,
+      initialUrl: "https://example.com/bpm/portal#/list",
+      initialTitle: "Assignment Portal",
+    },
+    options: {
+      captureAudio: false,
+      captureVideo: false,
+      captureScreenshots: true,
+      captureConsole: true,
+      captureNetwork: true,
+      captureNetworkBodies: true,
+      privacyMode: "safe",
+      mediaTimesliceMs: 1000,
+      maxResponseBodyBytes: 1_000_000,
+      maxSessionBytes: 10_000_000,
+    },
+    timeline: {
+      createdAtEpochMs: t0,
+      startedAtEpochMs: t0,
+      stoppedAtEpochMs: t0 + 12000,
+      durationMs: 12000,
+    },
+    quality: {
+      overall: "complete",
+      interactionCount: 1,
+      confirmedInteractionCount: 1,
+      primaryScreenshotCount: 1,
+      fallbackScreenshotCount: 0,
+      unavailableScreenshotCount: 0,
+      issueSceneCount: 1,
+      partialIssueSceneCount: 0,
+      consoleEntryCount: 3,
+      networkEntryCount: 2,
+      issues: [],
+    },
+    nonce: "test-nonce",
+  };
+  const tinyJpeg = new Uint8Array(Buffer.from(TINY_JPEG_BASE64, "base64"));
+  const makeSyntheticJpeg = (
+    width: number,
+    height: number,
+    tag: number
+  ): Uint8Array =>
+    new Uint8Array([
+      0xff,
+      0xd8,
+      0xff,
+      0xe0,
+      0x00,
+      0x10,
+      0x4a,
+      0x46,
+      0x49,
+      0x46,
+      0x00,
+      0x01,
+      0x01,
+      0x00,
+      0x00,
+      0x01,
+      0x00,
+      0x01,
+      0x00,
+      0x00,
+      0xff,
+      0xc0,
+      0x00,
+      0x11,
+      0x08,
+      (height >> 8) & 0xff,
+      height & 0xff,
+      (width >> 8) & 0xff,
+      width & 0xff,
+      0x03,
+      0x01,
+      0x22,
+      0x00,
+      0x02,
+      0x11,
+      0x01,
+      0x03,
+      0x11,
+      0x01,
+      0xff,
+      0xda,
+      0x00,
+      0x08,
+      0x01,
+      0x01,
+      0x00,
+      0x00,
+      0x3f,
+      0x00,
+      tag & 0xff,
+      0xff,
+      0xd9,
+    ]);
+  const sharedBody = JSON.stringify({
+    code: 0,
+    data: {
+      definition: { form: { name: "bd_module_v5" } },
+      pad: "a".repeat(2500),
+    },
+  });
+  const snapshot: EvidencePackageSnapshot = {
+    session,
+    interactions: [
+      {
+        id: "int-1",
+        sessionId: session.id,
+        kind: "click",
+        status: "confirmed",
+        createdAt: t0 + 1000,
+        page: {
+          url: "https://example.com/bpm/portal#/list",
+          title: "Assignment Portal",
+          frameId: 0,
+        },
+        input: { pointerType: "mouse", button: 0, isTrusted: true },
+        coordinates: {
+          clientX: 100,
+          clientY: 200,
+          pageX: 100,
+          pageY: 200,
+          scrollX: 0,
+          scrollY: 0,
+          devicePixelRatio: 2,
+          viewport: { width: 1280, height: 800 },
+        },
+        element: {
+          tagName: "button",
+          id: "open-btn",
+          classNames: ["el-button"],
+          attributes: {},
+          boundingBox: { x: 80, y: 180, width: 80, height: 32 },
+          locators: [
+            {
+              kind: "id",
+              expression: "#open-btn",
+              matchCount: 1,
+              stabilityScore: 0.95,
+              reasons: ["unique-id"],
+            },
+          ],
+        },
+        screenshot: {
+          status: "captured",
+          source: "primary",
+          assetId: "asset-int-1",
+          ...(overrides?.includeSettledAndFinal
+            ? {
+                settledAssetId: "asset-int-1-settled",
+                settledDurationMs: 360,
+              }
+            : {}),
+        },
+      },
+    ],
+    interactionAssets: [
+      {
+        interactionId: "int-1",
+        kind: "interaction-screenshot",
+        mimeType: "image/jpeg",
+        bytes: overrides?.includeSettledAndFinal
+          ? makeSyntheticJpeg(1280, 800, 1)
+          : tinyJpeg,
+      },
+      ...(overrides?.includeSettledAndFinal
+        ? [
+            {
+              interactionId: "int-1",
+              kind: "interaction-settled" as const,
+              mimeType: "image/jpeg" as const,
+              bytes: makeSyntheticJpeg(1280, 800, 2),
+            },
+          ]
+        : []),
+    ],
+    ...(overrides?.includeSettledAndFinal
+      ? {
+          finalFrameAsset: {
+            mimeType: "image/jpeg" as const,
+            bytes: makeSyntheticJpeg(1280, 720, 3),
+            capturedAtEpochMs: t0 + 11900,
+          },
+        }
+      : {}),
+    consoleEntries: [
+      {
+        id: "c1",
+        sessionId: session.id,
+        createdAt: t0 + 2000,
+        level: "log",
+        text: "heartbeat 1793071572000 12ms",
+        source: "consoleAPI",
+      },
+      {
+        id: "c2",
+        sessionId: session.id,
+        createdAt: t0 + 3000,
+        level: "log",
+        text: "heartbeat 1793071573000 15ms",
+        source: "consoleAPI",
+      },
+      {
+        id: "c3",
+        sessionId: session.id,
+        createdAt: t0 + 4000,
+        level: "error",
+        text: "Portal target not mounted",
+        source: "consoleAPI",
+      },
+    ],
+    networkEntries: [
+      {
+        id: `${session.id}:100.1`,
+        sessionId: session.id,
+        createdAt: t0 + 2500,
+        url: "https://example.com/api/v5/form",
+        method: "GET",
+        type: "XHR",
+        status: 200,
+        statusText: "OK",
+        durationMs: 30,
+        initiator: { type: "script", url: "https://example.com/main.js" },
+        requestHeaders: { Accept: "application/json" },
+        response: {
+          mimeType: "application/json",
+          headers: { "content-type": "application/json" },
+          bodyStatus: "captured",
+          body: sharedBody,
+          byteLength: sharedBody.length,
+        },
+      },
+      {
+        id: `${session.id}:100.2`,
+        sessionId: session.id,
+        createdAt: t0 + 2800,
+        url: "https://example.com/api/v5/form?cached=1",
+        method: "GET",
+        type: "XHR",
+        status: 200,
+        statusText: "OK",
+        durationMs: 12,
+        response: {
+          mimeType: "application/json",
+          bodyStatus: "captured",
+          body: sharedBody,
+          byteLength: sharedBody.length,
+        },
+      },
+    ],
+    issueScenes: [
+      {
+        id: "scene-v5-1",
+        sessionId: session.id,
+        status: "complete",
+        observedAtEpochMs: t0 + 5000,
+        page: {
+          url: "https://example.com/bpm/portal#/list",
+          title: "Assignment Portal",
+          frameId: 0,
+          viewport: { width: 1280, height: 800 },
+          scrollX: 0,
+          scrollY: 0,
+          devicePixelRatio: 2,
+        },
+        target: {
+          capturedAtEpochMs: t0 + 5000,
+          element: {
+            tagName: "div",
+            id: "portal-box",
+            classNames: ["el-select-dropdown"],
+            attributes: {},
+            boundingBox: { x: 100, y: 220, width: 200, height: 120 },
+            locators: [],
+          },
+          ancestors: [{ tagName: "body", classNames: [] }],
+          state: {},
+          computedStyle: {
+            display: "none",
+            position: "absolute",
+            zIndex: "2001",
+            overflow: "hidden",
+          },
+          relatedOverlays: [
+            {
+              selector: "div.el-select-dropdown#portal-box",
+              id: "portal-box",
+              tagName: "div",
+              role: "listbox",
+              relationReason: "aria-controls",
+              visible: false,
+            },
+          ],
+          triggerElement: {
+            tagName: "button",
+            id: "open-btn",
+            selectorPath: "button#open-btn.el-button",
+            selector: "#open-btn",
+            classNames: ["el-button"],
+            ariaControls: "portal-box",
+          },
+          winnerRules: [
+            {
+              selector: ".el-select-dropdown",
+              source: "https://example.com/static/element-ui.css",
+              specificity: "0,1,0",
+              properties: { display: "none", "z-index": "2001" },
+            },
+            {
+              selector: "#portal-box",
+              source: "inline-style",
+              specificity: "1,0,0",
+              properties: { position: "absolute", overflow: "hidden" },
+            },
+          ],
+        },
+        narrative: {
+          actual: "下拉浮层未显示",
+          expected:
+            overrides?.expectedConfidence === "missing"
+              ? { text: "", confidence: "missing" }
+              : { text: "应当正常显示三个选项", confidence: "explicit" },
+        },
+        annotation: {
+          type: "arrow-box",
+          color: "#ef233c",
+          point: { xRatio: 0.2, yRatio: 0.3 },
+        },
+        screenshot: { status: "captured" },
+        issues: [],
+      },
+    ],
+    frameworkStates: [
+      {
+        id: "fw-1",
+        sessionId: session.id,
+        capturedAtEpochMs: t0 + 4500,
+        trigger: "issue-scene",
+        page: {
+          url: "https://example.com/bpm/portal#/list",
+          title: "Assignment Portal",
+        },
+        snapshot: {
+          targetComponent: {
+            framework: "vue",
+            version: 2,
+            componentName: "PortalDropdown",
+            componentFile: "src/components/PortalDropdown.vue",
+            componentLine: 88,
+            props: { visible: false },
+          },
+          parentChain: [],
+        },
+        webStorage: {
+          localStorage: { locale: "zh-CN" },
+          sessionStorage: {},
+          redactedValues: false,
+        },
+      },
+      {
+        id: "fw-2",
+        sessionId: session.id,
+        capturedAtEpochMs: t0 + 6000,
+        trigger: "interaction",
+        page: {
+          url: "https://example.com/bpm/portal#/list",
+          title: "Assignment Portal",
+        },
+        webStorage: {
+          localStorage: { locale: "en-US" },
+          sessionStorage: { step: "2" },
+          redactedValues: false,
+        },
+      },
+    ],
+    excluded: { interaction: 0, console: 0, network: 0 },
+    hasMedia: false,
+  };
+
+  const reportAssets: StaticReportAssets = {
+    html: "<!doctype html><title>Bug Lens</title>",
+    script: "void 0;",
+    styles: "body {}",
+    icon: new Uint8Array([1, 2, 3]),
+  };
+
+  const bundle = buildEvidencePackageBundle(snapshot, reportAssets);
+  const zipEntries: Record<string, Uint8Array> = {};
+  const integrityEntries: Record<
+    string,
+    { byteLength: number; sha256: string }
+  > = {};
+  for (const f of bundle.files) {
+    zipEntries[f.name] = f.data;
+    integrityEntries[f.name] = {
+      byteLength: f.data.byteLength,
+      sha256: createHash("sha256").update(f.data).digest("hex"),
+    };
+  }
+  const manifest = buildExportManifest(session, integrityEntries, {
+    format: "bug-lens-evidence-pack",
+    packMode: bundle.packMode,
+    extensionVersion: session.extensionVersion,
+    casStats: bundle.casStats,
+  });
+  zipEntries["manifest.json"] = new TextEncoder().encode(
+    JSON.stringify(manifest, null, 2)
+  );
   return zipSync(zipEntries);
 }
 

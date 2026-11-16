@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { PreviewExportController } from "../src/preview/preview-export-controller.ts";
 import { PreviewAiHandoff } from "../src/preview/preview-ai-handoff.ts";
+import { PreviewSessionRuntime } from "../src/preview/preview-session-runtime.ts";
+import { buildEvidencePackageBundle } from "../src/preview/evidence-package.ts";
 import { validateArchiveIntegrity } from "../src/export/export-pipeline.ts";
 import { sha256 } from "../src/export/sha256.ts";
 
@@ -625,4 +627,151 @@ test("PreviewAiHandoff.render - 过滤 USER_CANCELED 避免外露原始报错码
   handoff.render();
   assert.equal(statusNode.textContent, "downloadInterrupted");
   assert.equal(pathNode.textContent, "DISK_FULL");
+});
+
+test("PreviewSessionRuntime.load/getPackageSnapshot 透传 interaction-settled 与 session-final 资产", async () => {
+  const session: any = {
+    id: "sess-runtime-assets",
+    schemaVersion: 5,
+    extensionVersion: "0.7.41",
+    status: "PREVIEW_READY",
+    target: {
+      tabId: 1,
+      initialUrl: "https://example.test",
+      initialTitle: "App",
+    },
+    options: {
+      captureAudio: false,
+      captureVideo: false,
+      captureScreenshots: true,
+      captureConsole: true,
+      captureNetwork: true,
+      captureNetworkBodies: false,
+      privacyMode: "safe",
+      mediaTimesliceMs: 1000,
+      maxResponseBodyBytes: 1000,
+      maxSessionBytes: 1_000_000,
+    },
+    timeline: {
+      createdAtEpochMs: 1000,
+      startedAtEpochMs: 1000,
+      stoppedAtEpochMs: 2500,
+    },
+    quality: {
+      overall: "complete",
+      interactionCount: 1,
+      confirmedInteractionCount: 1,
+      primaryScreenshotCount: 1,
+      fallbackScreenshotCount: 0,
+      unavailableScreenshotCount: 0,
+      consoleEntryCount: 0,
+      networkEntryCount: 0,
+      issues: [],
+    },
+    nonce: "n1",
+  };
+  const interactions: any[] = [
+    {
+      id: "int-1",
+      sessionId: session.id,
+      kind: "click",
+      status: "confirmed",
+      createdAt: 1200,
+      page: { url: "https://example.test", title: "App", frameId: 0 },
+      input: { pointerType: "mouse", button: 0, isTrusted: true },
+      coordinates: {
+        clientX: 10,
+        clientY: 20,
+        pageX: 10,
+        pageY: 20,
+        scrollX: 0,
+        scrollY: 0,
+        devicePixelRatio: 1,
+        viewport: { width: 1280, height: 720 },
+      },
+      element: {
+        tagName: "button",
+        classNames: ["submit"],
+        attributes: {},
+        locators: [],
+      },
+      screenshot: {
+        status: "captured",
+        source: "primary",
+        assetId: "asset-instant",
+        settledAssetId: "asset-settled",
+        settledDurationMs: 360,
+      },
+    },
+  ];
+  const assets: any[] = [
+    {
+      id: "asset-instant",
+      sessionId: session.id,
+      interactionId: "int-1",
+      kind: "interaction-screenshot",
+      mimeType: "image/jpeg",
+      bytes: new TextEncoder().encode("INSTANT").buffer,
+      width: 1280,
+      height: 720,
+      createdAtEpochMs: 1205,
+    },
+    {
+      id: "asset-settled",
+      sessionId: session.id,
+      interactionId: "int-1",
+      kind: "interaction-settled",
+      mimeType: "image/jpeg",
+      bytes: new TextEncoder().encode("SETTLED").buffer,
+      width: 1280,
+      height: 720,
+      createdAtEpochMs: 1565,
+    },
+    {
+      id: "asset-final",
+      sessionId: session.id,
+      kind: "session-final",
+      mimeType: "image/jpeg",
+      bytes: new TextEncoder().encode("FINAL").buffer,
+      width: 1280,
+      height: 720,
+      createdAtEpochMs: 2490,
+    },
+  ];
+
+  const runtime = new PreviewSessionRuntime({
+    getSession: async () => session,
+    saveSession: async () => {},
+    getInteractions: async () => interactions,
+    getExportSelection: async () => undefined,
+    saveExportSelection: async () => {},
+    getConsole: async () => [],
+    getNetwork: async () => [],
+    getIssueScenes: async () => [],
+    getEvidenceAssets: async () => [],
+    getEvidenceAssetsForSession: async () => assets,
+    getMediaSummary: async () => ({
+      count: 0,
+      bytes: 0,
+      mimeType: "video/webm",
+    }),
+    getMediaChunks: async () => [],
+    getFrameworkStates: async () => [],
+    saveNetwork: async () => {},
+  });
+
+  await runtime.load(session.id, { forExport: true });
+  const snap = runtime.getPackageSnapshot();
+  assert.ok(snap);
+  assert.equal(snap.interactionAssets?.length, 2);
+  assert.equal(snap.interactionAssets?.[0].kind, "interaction-screenshot");
+  assert.equal(snap.interactionAssets?.[1].kind, "interaction-settled");
+  assert.ok(snap.finalFrameAsset);
+  assert.equal(snap.finalFrameAsset.capturedAtEpochMs, 2490);
+
+  const bundle = buildEvidencePackageBundle(snap);
+  const fileNames = new Set(bundle.files.map((f) => f.name));
+  assert.ok(fileNames.has("screenshots/step-1.jpg"));
+  assert.ok(fileNames.has("screenshots/step-1-settled.jpg"));
+  assert.ok(fileNames.has("screenshots/final-frame.jpg"));
 });

@@ -884,6 +884,35 @@ export function OptionsApp() {
                 <div className="setting-row">
                   <div className="setting-info">
                     <span className="setting-label">
+                      {t("settingIncludeHtmlViewer")}
+                    </span>
+                    <span className="setting-desc">
+                      {t("settingIncludeHtmlViewerDesc")}
+                    </span>
+                  </div>
+                  <div className="setting-control">
+                    <label className="toggle-switch">
+                      <input
+                        type="checkbox"
+                        checked={settings.workflow.includeHtmlViewer}
+                        onChange={(e) =>
+                          triggerAutoSave({
+                            ...settings,
+                            workflow: {
+                              ...settings.workflow,
+                              includeHtmlViewer: e.currentTarget.checked,
+                            },
+                          })
+                        }
+                      />
+                      <span className="slider"></span>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="setting-row">
+                  <div className="setting-info">
+                    <span className="setting-label">
                       {t("settingTargetAssistant")}
                     </span>
                     <span className="setting-desc">

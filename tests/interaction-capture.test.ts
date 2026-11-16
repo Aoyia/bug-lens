@@ -1472,3 +1472,161 @@ test("saveInteractionWithinBudget 存在 200ms 批量合并延迟时，pointerdo
     "captured"
   );
 });
+
+test("交互确认后按稳定窗口异步捕获 interaction-settled 稳定帧，且 drain 时立即清理未触发定时器", async () => {
+  const frameBytes = Buffer.from("SETTLED_FRAME_BYTES").toString("base64");
+  installChromeMock({
+    tabsQuery: async () => [{ id: 7, active: true, windowId: 1 }],
+    captureVisibleTab: async () => `data:image/jpeg;base64,${frameBytes}`,
+    sendMessage: async () => ({
+      ok: true,
+      dataUrl: `data:image/jpeg;base64,${frameBytes}`,
+    }),
+  });
+
+  const storedMap = new Map<string, InteractionRecord>();
+  const savedAssets: Array<{
+    kind: string;
+    interactionId?: string;
+    id: string;
+  }> = [];
+  const screenshotSession: RecordingSession = {
+    ...session,
+    options: { ...session.options, captureScreenshots: true },
+  };
+
+  const capture = new InteractionCapture(
+    {
+      getActiveSession: async () => screenshotSession,
+      getInteraction: async (id) => storedMap.get(id),
+      saveInteractionWithinBudget: async (next) => {
+        storedMap.set(next.id, next);
+        return { stored: true, usedBytes: 1, limitReached: false };
+      },
+      saveEvidenceAssetWithinBudget: async (asset) => {
+        savedAssets.push({
+          kind: asset.kind,
+          interactionId: asset.interactionId,
+          id: asset.id,
+        });
+        return {
+          stored: true,
+          usedBytes: asset.bytes.byteLength,
+          limitReached: false,
+        };
+      },
+    },
+    async () => screenshotSession,
+    () => false,
+    1000,
+    20
+  );
+
+  // 先到 candidate（抢拍 instant），再到 confirmed（触发 20ms 后 settled 帧）
+  await capture.handle(
+    { ...interaction, id: "int-settled-1", status: "candidate" },
+    { tab: { id: 7 }, frameId: 0 } as any
+  );
+  await capture.handle(
+    { ...interaction, id: "int-settled-1", status: "confirmed" },
+    { tab: { id: 7 }, frameId: 0 } as any
+  );
+
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  assert.deepEqual(await capture.drain(), []);
+
+  const instantAsset = savedAssets.find(
+    (a) => a.kind === "interaction-screenshot"
+  );
+  const settledAsset = savedAssets.find(
+    (a) => a.kind === "interaction-settled"
+  );
+  assert.ok(instantAsset, "应保存即时帧");
+  assert.ok(settledAsset, "应保存稳定帧");
+  assert.equal(settledAsset.interactionId, "int-settled-1");
+
+  const finalRecord = storedMap.get("int-settled-1");
+  assert.equal(finalRecord?.screenshot.status, "captured");
+  if (finalRecord?.screenshot.status === "captured") {
+    assert.equal(finalRecord.screenshot.settledAssetId, settledAsset.id);
+    assert.equal(typeof finalRecord.screenshot.settledDurationMs, "number");
+  }
+
+  // 验证未到期定时器在 drain() 时立即取消，不会阻塞 stop
+  savedAssets.length = 0;
+  capture.reset();
+  const slowCapture = new InteractionCapture(
+    {
+      getActiveSession: async () => screenshotSession,
+      getInteraction: async (id) => storedMap.get(id),
+      saveInteractionWithinBudget: async (next) => {
+        storedMap.set(next.id, next);
+        return { stored: true, usedBytes: 1, limitReached: false };
+      },
+      saveEvidenceAssetWithinBudget: async (asset) => {
+        savedAssets.push({
+          kind: asset.kind,
+          interactionId: asset.interactionId,
+          id: asset.id,
+        });
+        return { stored: true, usedBytes: 1, limitReached: false };
+      },
+    },
+    async () => screenshotSession,
+    () => false,
+    1000,
+    5000
+  );
+  await slowCapture.handle(
+    { ...interaction, id: "int-settled-cancel", status: "confirmed" },
+    { tab: { id: 7 }, frameId: 0 } as any
+  );
+  const drainT0 = Date.now();
+  assert.deepEqual(await slowCapture.drain(), []);
+  assert.ok(
+    Date.now() - drainT0 < 200,
+    "drain 不应等待未到期的 5000ms settled timer"
+  );
+  assert.equal(
+    savedAssets.some((a) => a.kind === "interaction-settled"),
+    false
+  );
+});
+
+test("captureFinalFrame 在开启截图时捕获 session-final 资产，关闭截图时跳过", async () => {
+  const finalBytes = Buffer.from("FINAL_FRAME_JPEG").toString("base64");
+  installChromeMock({
+    tabsQuery: async () => [{ id: 7, active: true, windowId: 1 }],
+    captureVisibleTab: async () => `data:image/jpeg;base64,${finalBytes}`,
+  });
+
+  const savedAssets: Array<{ kind: string; sessionId: string }> = [];
+  const capture = new InteractionCapture(
+    {
+      getActiveSession: async () => session,
+      getInteraction: async () => undefined,
+      saveInteractionWithinBudget: async () => ({
+        stored: true,
+        usedBytes: 1,
+        limitReached: false,
+      }),
+      saveEvidenceAssetWithinBudget: async (asset) => {
+        savedAssets.push({ kind: asset.kind, sessionId: asset.sessionId });
+        return { stored: true, usedBytes: 1, limitReached: false };
+      },
+    },
+    async () => session,
+    () => false
+  );
+
+  await capture.captureFinalFrame(session);
+  assert.equal(savedAssets.length, 0, "captureScreenshots:false 不应采集");
+
+  await capture.captureFinalFrame({
+    ...session,
+    options: { ...session.options, captureScreenshots: true },
+  });
+  assert.equal(savedAssets.length, 1);
+  assert.equal(savedAssets[0].kind, "session-final");
+  assert.equal(savedAssets[0].sessionId, session.id);
+});

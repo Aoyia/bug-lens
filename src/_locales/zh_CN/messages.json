@@ -2319,6 +2319,12 @@
   "settingShowGuideDesc": {
     "message": "是否在面板中展示 3 步工作流认知卡片"
   },
+  "settingIncludeHtmlViewer": {
+    "message": "附带离线 HTML 报告与录屏视频"
+  },
+  "settingIncludeHtmlViewerDesc": {
+    "message": "关闭时默认导出纯 JSON 的 AI 轻量诊断包（推荐，体积显著更小）；开启后额外打包 report.html 与录屏视频，便于人工离线回看"
+  },
   "settingTargetAssistant": {
     "message": "目标 AI 编程助手"
   },

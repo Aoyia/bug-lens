@@ -318,6 +318,8 @@ export type FrameworkComponentNode = {
   framework: "vue" | "react";
   version: number;
   componentName: string;
+  componentFile?: string;
+  componentLine?: number;
   props?: Record<string, unknown>;
   state?: Record<string, unknown>;
   children?: FrameworkComponentNode[];
@@ -328,6 +330,14 @@ export type FrameworkSnapshot = {
   rootComponent?: FrameworkComponentNode;
   targetComponent?: FrameworkComponentNode;
   parentChain: FrameworkComponentNode[];
+};
+
+export type FrameworkProbeParentEntry = {
+  componentName: string;
+  componentFile?: string;
+  componentLine?: number;
+  props?: Record<string, unknown>;
+  data?: Record<string, unknown>;
 };
 
 /**
@@ -345,6 +355,8 @@ export type FrameworkProbeEntry = {
   filePath?: string;
   props?: Record<string, unknown>;
   data?: Record<string, unknown>;
+  /** 向上穿透提取到的直属业务父组件上下文（如穿透 ElButton/AntInput 获取表单组件状态）。 */
+  parentComponents?: FrameworkProbeParentEntry[];
 };
 
 export type FrameworkStateTrigger =
@@ -485,6 +497,8 @@ export type InteractionRecord = {
     source?: "primary" | "fallback" | "video-frame";
     assetId?: string;
     dataUrl?: string;
+    settledAssetId?: string;
+    settledDurationMs?: number;
     issue?: string;
   };
 };
@@ -723,13 +737,21 @@ export type TargetDomSnapshot = {
     hidden?: boolean;
   };
   computedStyle: Record<string, string>;
+  relatedOverlays?: unknown[];
+  triggerElement?: Record<string, unknown>;
+  winnerRules?: unknown[];
 };
 export type EvidenceAsset = {
   id: string;
   sessionId: string;
   issueSceneId?: string;
   interactionId?: string;
-  kind: "issue-original" | "issue-annotated" | "interaction-screenshot";
+  kind:
+    | "issue-original"
+    | "issue-annotated"
+    | "interaction-screenshot"
+    | "interaction-settled"
+    | "session-final";
   mimeType: "image/png" | "image/jpeg" | "image/webp";
   bytes: ArrayBuffer;
   width: number;
@@ -844,11 +866,18 @@ export type ExportArtifact = {
 };
 
 export type ExportManifest = {
-  format: typeof EXPORT_FORMAT_VERSION;
+  format: typeof EXPORT_FORMAT_VERSION | "bug-lens-evidence-pack";
   schemaVersion: number;
+  packMode?: "ai-minimal" | "full-viewer";
   createdAtEpochMs: number;
   sessionId: string;
+  extensionVersion?: string;
   files: Record<string, { byteLength: number; sha256: string }>;
+  casStats?: {
+    totalBlobCount: number;
+    totalBlobBytes: number;
+    deduplicatedBytesSaved: number;
+  };
   migration: { currentSchemaVersion: number; supportedFrom: number[] };
 };
 
@@ -1074,6 +1103,8 @@ export type RuntimeMessage =
         sessionId: string;
         exportMode?: "ai" | "ticket";
         traceContext?: ExportTraceContext;
+        /** 是否在导出包中包含离线 HTML 查看器与视频（来自 workflow.includeHtmlViewer） */
+        includeHtmlViewer?: boolean;
         /** 剪贴板提示词模板设置（offscreen 无法读取 chrome.storage，由 background 透传） */
         promptSettings?: Partial<
           Pick<

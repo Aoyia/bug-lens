@@ -416,3 +416,41 @@ test("stopSession: 多标签页录制停止时，全量清理所有副标签页�
     );
   }
 });
+
+test("stopSession: 开启截图且非弃置时在 drain/detach 前捕获最终帧，discard 时跳过", async () => {
+  const { runtime, db, interactionCapture, cdpCollector } = createTestRuntime();
+  const base = makeSession({ id: "sess-final-frame", status: "RECORDING" });
+  const shotSession = {
+    ...base,
+    options: { ...base.options, captureScreenshots: true },
+  };
+  db.sessions.set(shotSession.id, shotSession);
+  db.activeSessionId = shotSession.id;
+
+  await runtime.stopSession("cmd-final-stop");
+  const finalIdx = interactionCapture.calls.indexOf("captureFinalFrame");
+  const drainIdx = interactionCapture.calls.indexOf("drain");
+  assert.ok(finalIdx >= 0, "stopSession 应调用 captureFinalFrame");
+  assert.ok(
+    drainIdx > finalIdx,
+    "captureFinalFrame 应在 interactionCapture.drain 之前执行"
+  );
+  assert.ok(
+    cdpCollector.calls.includes(`detach:${shotSession.target.tabId}`),
+    "detach 应正常执行"
+  );
+
+  // discard=true 不采集最终帧
+  const t2 = createTestRuntime();
+  const discardSession = {
+    ...makeSession({ id: "sess-discard", status: "RECORDING" }),
+    options: { ...shotSession.options, captureScreenshots: true },
+  };
+  t2.db.sessions.set(discardSession.id, discardSession);
+  t2.db.activeSessionId = discardSession.id;
+  await t2.runtime.stopSession("cmd-discard", false, true);
+  assert.equal(
+    t2.interactionCapture.calls.includes("captureFinalFrame"),
+    false
+  );
+});

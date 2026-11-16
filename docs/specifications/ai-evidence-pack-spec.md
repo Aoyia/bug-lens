@@ -1,4 +1,4 @@
-# 面向 AI 的 Bug Lens 证据包格式规范、体积瘦身与捕获机制架构方案 (v2.0)
+# 面向 AI 的 Bug Lens 证据包格式规范、体积瘦身与捕获机制架构方案 (Schema v5)
 
 ## 1. 规范概述与架构演进
 
@@ -38,7 +38,7 @@ Bug Lens 初始架构围绕“人类工程师在本地浏览器双击打开离�
 
 ---
 
-## 2. 面向 AI 的极简数据包目录结构与协议规范 (v2.0)
+## 2. 面向 AI 的极简数据包目录结构与协议规范 (Schema v5)
 
 ### 2.1 目录结构与规范文件布局
 
@@ -98,7 +98,7 @@ ai-evidence-pack-<hash>.zip
 ### 2.2 文件命名与资源类型规范
 
 1. **`manifest.json`**：
-   位于归档根目录，必须为合法的 UTF-8 编码 JSON。声明数据包格式版本（`schemaVersion: 2`）、会话 ID、创建时间戳、包导出模式（`ai-minimal` 或 `full-viewer`）以及所有归档文件的 SHA-256 校验字典。
+   位于归档根目录，必须为合法的 UTF-8 编码 JSON。声明数据包格式版本（`schemaVersion: 5`）、会话 ID、创建时间戳、包导出模式（`ai-minimal` 或 `full-viewer`）以及所有归档文件的 SHA-256 校验字典。
 2. **`session-data.json`**：
    根目录核心索引文件。承载会话元数据（`summary`）、交互时序流（`interactions`）、指纹去重后的控制台日志（`consoleSummary`）、网络请求主索引（`networkEntries`）、框架状态快照（`frameworkStates`）及问题现场元数据（`issueScenes`）。
 3. **`network-details.json`**：
@@ -116,14 +116,14 @@ ai-evidence-pack-<hash>.zip
 
 ### 2.3 规范 JSON Schema 定义
 
-#### 2.3.1 `manifest.json` Schema (v2.0)
+#### 2.3.1 `manifest.json` Schema (Schema v5)
 
 ```typescript
-export interface AiEvidencePackManifestV2 {
+export interface AiEvidencePackManifestV5 {
   /** 协议格式标识符，固定为 "bug-lens-evidence-pack" */
   format: "bug-lens-evidence-pack";
-  /** 规范主版本号，v2.0 规范固定为 2 */
-  schemaVersion: 2;
+  /** 规范主版本号，Schema v5 规范固定为 5 */
+  schemaVersion: 5;
   /** 导出类型：极简 AI 模式或包含离线查看器的人工模式 */
   packMode: "ai-minimal" | "full-viewer";
   /** 会话全局唯一标识符 */
@@ -147,12 +147,15 @@ export interface AiEvidencePackManifestV2 {
     deduplicatedBytesSaved: number;
   };
 }
+
+export type AiEvidencePackManifest = AiEvidencePackManifestV5;
+export type AiEvidencePackManifestV2 = AiEvidencePackManifestV5;
 ```
 
 ```json
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "AiEvidencePackManifestV2",
+  "title": "AiEvidencePackManifestV5",
   "type": "object",
   "required": [
     "format",
@@ -164,7 +167,7 @@ export interface AiEvidencePackManifestV2 {
   ],
   "properties": {
     "format": { "type": "string", "enum": ["bug-lens-evidence-pack"] },
-    "schemaVersion": { "type": "integer", "enum": [2] },
+    "schemaVersion": { "type": "integer", "enum": [5] },
     "packMode": { "type": "string", "enum": ["ai-minimal", "full-viewer"] },
     "sessionId": { "type": "string" },
     "createdAtEpochMs": { "type": "number" },
@@ -194,10 +197,10 @@ export interface AiEvidencePackManifestV2 {
 
 ---
 
-#### 2.3.2 `session-data.json` Schema (v2.0)
+#### 2.3.2 `session-data.json` Schema (Schema v5)
 
 ```typescript
-export interface SessionSummaryV2 {
+export interface SessionSummaryV5 {
   url: string;
   title: string;
   durationMs: number;
@@ -227,7 +230,7 @@ export interface SessionSummaryV2 {
   };
 }
 
-export interface ConsoleFoldedEntryV2 {
+export interface ConsoleFoldedEntryV5 {
   /** 签名哈希值：[level, textHash, source] */
   signature: string;
   /** 日志级别 */
@@ -259,7 +262,7 @@ export interface ConsoleFoldedEntryV2 {
   };
 }
 
-export interface NetworkEntryV2 {
+export interface NetworkEntryV5 {
   id: string;
   createdAt: number;
   elapsedMs: number;
@@ -293,7 +296,7 @@ export interface NetworkEntryV2 {
   };
 }
 
-export interface InteractionEntryV2 {
+export interface InteractionEntryV5 {
   step: number;
   id: string;
   kind: "click" | "input" | "keydown" | "change" | "submit" | "navigation";
@@ -318,13 +321,13 @@ export interface InteractionEntryV2 {
   };
 }
 
-export interface SessionDataPayloadV2 {
+export interface SessionDataPayloadV5 {
   format: "bug-lens-evidence-pack";
-  schemaVersion: 2;
-  summary: SessionSummaryV2;
-  interactions: InteractionEntryV2[];
-  consoleSummary: ConsoleFoldedEntryV2[];
-  networkEntries: NetworkEntryV2[];
+  schemaVersion: 5;
+  summary: SessionSummaryV5;
+  interactions: InteractionEntryV5[];
+  consoleSummary: ConsoleFoldedEntryV5[];
+  networkEntries: NetworkEntryV5[];
   issueScenes: Array<{
     id: string;
     observedAtEpochMs: number;
@@ -357,19 +360,32 @@ export interface SessionDataPayloadV2 {
     };
   }>;
 }
+
+export type SessionDataPayload = SessionDataPayloadV5;
+export type SessionDataPayloadV2 = SessionDataPayloadV5;
+export type SessionSummaryV2 = SessionSummaryV5;
+export type ConsoleFoldedEntryV2 = ConsoleFoldedEntryV5;
+export type NetworkEntryV2 = NetworkEntryV5;
+export type InteractionEntryV2 = InteractionEntryV5;
 ```
 
 ---
 
-#### 2.3.3 `network-details.json` Schema (v2.0)
+#### 2.3.3 `network-details.json` Schema (Schema v5)
 
 ```typescript
-export interface InitiatorTopFrameV2 {
+export interface InitiatorTopFrameV5 {
   type: "script" | "parser" | "other";
   url?: string;
   lineNumber?: number;
   columnNumber?: number;
   functionName?: string;
+  topFrame?: {
+    url?: string;
+    lineNumber?: number;
+    columnNumber?: number;
+    functionName?: string;
+  };
   /** 仅在成功映射源码时保留，否则省略，严禁保留 FETCH_FAILED 占位结构 */
   sourceMappedLocation?: {
     originalFile: string;
@@ -379,29 +395,32 @@ export interface InitiatorTopFrameV2 {
   };
 }
 
-export interface NetworkDetailItemV2 {
+export interface NetworkDetailItemV5 {
   requestHeaders: Record<string, string>;
   responseHeaders: Record<string, string>;
   /** 仅保留栈顶直接发起帧，彻底剪枝 95% 无意义的底层混淆栈 */
-  initiator?: InitiatorTopFrameV2;
+  initiator?: InitiatorTopFrameV5;
   /** CAS 响应体引用与校验 */
   bodyBlob?: {
     hash: string;
     path: string; // "network/blobs/<hash:16>.bin"
-    size: number;
+    byteLength: number;
     mimeType: string;
   };
 }
 
-export type NetworkDetailsPayloadV2 = Record<string, NetworkDetailItemV2>;
+export type NetworkDetailsPayloadV5 = Record<string, NetworkDetailItemV5>;
+export type NetworkDetailsPayload = NetworkDetailsPayloadV5;
+export type NetworkDetailItem = NetworkDetailItemV5;
+export type InitiatorTopFrame = InitiatorTopFrameV5;
 ```
 
 ---
 
-#### 2.3.4 `issues/<sceneId>/dom-context.json` 与 `dom-styles.json` Schema
+#### 2.3.4 `issues/<sceneId>/dom-context.json` 与 `dom-styles.json` Schema (Schema v5)
 
 ```typescript
-export interface RelatedPortalOverlayV2 {
+export interface RelatedPortalOverlayV5 {
   portalType: "popper" | "dialog" | "dropdown" | "tooltip" | "drawer";
   containerTag: string;
   containerClass?: string[];
@@ -414,7 +433,7 @@ export interface RelatedPortalOverlayV2 {
     | "popper-reference";
 }
 
-export interface DomContextV2 {
+export interface DomContextV5 {
   sceneId: string;
   capturedAtEpochMs: number;
   targetElement: {
@@ -431,7 +450,7 @@ export interface DomContextV2 {
     }>;
   };
   /** 若圈选的是宿主组件，关联其触发并挂载在 body 上的浮层 */
-  relatedOverlays?: RelatedPortalOverlayV2[];
+  relatedOverlays?: RelatedPortalOverlayV5[];
   /** 若圈选的是浮层本身，反向绑定的主界面触发源信息 */
   triggerElement?: {
     tagName: string;
@@ -447,7 +466,7 @@ export interface DomContextV2 {
   };
 }
 
-export interface DomStylesV2 {
+export interface DomStylesV5 {
   sceneId: string;
   targetSelector: string;
   /** 30+ 项排版布局计算样式 */
@@ -461,13 +480,20 @@ export interface DomStylesV2 {
     sourceSheetHref?: string;
   }>;
 }
+
+export type RelatedPortalOverlay = RelatedPortalOverlayV5;
+export type DomContext = DomContextV5;
+export type DomStyles = DomStylesV5;
+export type RelatedPortalOverlayV2 = RelatedPortalOverlayV5;
+export type DomContextV2 = DomContextV5;
+export type DomStylesV2 = DomStylesV5;
 ```
 
 ---
 
 ### 2.4 与 v1 数据包（`data/*.js`）的兼容与平滑迁移策略
 
-为了在升级到 v2.0 规范后保持对全量历史证据包的兼容，制定如下双向迁移适配契约：
+为了在升级到 Schema v5 规范后保持对全量历史证据包的兼容，制定如下双向迁移适配契约：
 
 1. **导出端（Bug Lens Extension）双模式控制**：
    - 默认模式：导出 `ai-evidence-pack-*.zip`，执行纯 JSON 结构与 CAS 去重，不写入 `report.html`、`assets/` 与 `data/*.js`；
@@ -477,7 +503,7 @@ export interface DomStylesV2 {
    ```
    检查归档文件列表:
    ├── 优先匹配: session-data.json
-   │    └── 命中 -> 按 v2.0 纯 JSON 协议直接解析，免除派生双写与正则剥壳
+   │    └── 命中 -> 按 Schema v5 纯 JSON 协议直接解析，免除派生双写与正则剥壳
    └── 回退匹配: data/session-data.js
         └── 命中 -> 识别为 v1.0 兼容包，自动调用 loadJsObject 进行剥壳，并在内存生成临时 JSON 映射
    ```
@@ -610,15 +636,13 @@ export interface ConsoleAggregateRecord {
      }
    }
 
-   // 改造后 (v2.0 规范): 仅保留 topFrame 顶层入口 (单项体积下降 95%+)
+   // 改造后 (Schema v5 规范): 仅保留栈顶入口 (单项体积下降 95%+)
    "initiator": {
      "type": "script",
-     "topFrame": {
-       "functionName": "fetchUserProfile",
-       "url": "https://example.com/assets/user.js",
-       "lineNumber": 142,
-       "columnNumber": 18
-     }
+     "functionName": "fetchUserProfile",
+     "url": "https://example.com/assets/user.js",
+     "lineNumber": 142,
+     "columnNumber": 18
    }
    ```
 4. **效益测算**：87 个包累计削减 **18.20MB ~ 20.00MB** 冗余堆栈文本。
@@ -1046,7 +1070,7 @@ export interface CssWinnerRule {
 
 ### 7.1 87 个真实包逐项瘦身量化对比表
 
-下表基于 `~/Downloads` 目录下 87 个真实 Bug Lens 证据包（总解压态 824.19MB，总压缩态 673.42MB）的逐文件二进制扫描与全量字段反序列化统计，测算实施 v2.0 规范各项瘦身杠杆后的实际数值：
+下表基于 `~/Downloads` 目录下 87 个真实 Bug Lens 证据包（总解压态 824.19MB，总压缩态 673.42MB）的逐文件二进制扫描与全量字段反序列化统计，测算实施 Schema v5 规范各项瘦身杠杆后的实际数值：
 
 | 优化杠杆 / 模块             | 优化前解压总体积 | 优化前占解压比 | 改造策略与技术动作                           | 优化后解压总体积 | 净削减体积     | 削减比例    | 对应解决的实测痛点                                  |
 | --------------------------- | ---------------- | -------------- | -------------------------------------------- | ---------------- | -------------- | ----------- | --------------------------------------------------- |
@@ -1059,7 +1083,7 @@ export interface CssWinnerRule {
 | **L7. 框架 Storage 增量化** | 3.61 MB          | 0.4%           | 会话首帧基线快照 + 变更 Key 增量 Diff        | 2.28 MB          | **-1.33 MB**   | **-36.8%**  | 消除跨快照机械化重复全量拷贝 localStorage           |
 | **L8. 精准 Winner Rules**   | 7.73 MB          | 0.9%           | 淘汰 8MB cascade.json，仅输出胜出 CSS 规则   | 0.15 MB          | **-7.58 MB**   | **-98.1%**  | 消除 AI 连续编写 7 个 Node 脚本反编译 CSSOM         |
 | **保留核心资产**            | 180.66 MB        | 21.9%          | 截图(105MB)、网络索引(13MB)、JSON元数据等    | 199.46 MB        | +18.80 MB*     | +10.4%      | *包含新增的稳定帧与最终帧静态图片体积               |
-| **全量汇总 (Total)**        | **824.19 MB**    | **100.0%**     | **全面实施 v2.0 极简规范架构**               | **350.00 MB**    | **-474.19 MB** | **-57.5%**  | **解压态体积缩减 57.5%，压缩态自 673MB 降至 285MB** |
+| **全量汇总 (Total)**        | **824.19 MB**    | **100.0%**     | **全面实施 Schema v5 极简规范架构**          | **350.00 MB**    | **-474.19 MB** | **-57.5%**  | **解压态体积缩减 57.5%，压缩态自 673MB 降至 285MB** |
 
 ---
 

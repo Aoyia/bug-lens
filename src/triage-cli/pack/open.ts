@@ -16,19 +16,29 @@ import { basename, dirname, join, posix, resolve, sep } from "node:path";
 import { PackLruCache, type LoadedPack } from "./cache.ts";
 import { buildIndexMarkdown } from "./index-writer.ts";
 import { parseWindowAssignmentJson } from "./js-json.ts";
+import {
+  LazyFileRegistry,
+  MAX_MEDIA_FILE_BYTES,
+  MAX_SINGLE_FILE_BYTES,
+  MAX_TOTAL_UNCOMPRESSED_BYTES,
+  MEDIA_PATH_RE,
+} from "./lazy-file-registry.ts";
 import { parseManifest, verifyPackIntegrity } from "./manifest.ts";
 import { LoadedScreenshotPack } from "./screenshot-pack.ts";
 import { LoadedSessionPack } from "./session-pack.ts";
 import type {
   CascadeIndex,
+  PackFileMap,
   ScreenshotDomContext,
   ScreenshotEnvironment,
   SessionDataPayload,
 } from "./types.ts";
 
-export const MAX_SINGLE_FILE_BYTES = 64 * 1024 * 1024; // 64 MB
-export const MAX_TOTAL_UNCOMPRESSED_BYTES = 512 * 1024 * 1024; // 512 MB
-export const MAX_MEDIA_FILE_BYTES = 1024 * 1024 * 1024; // 1 GB（录屏单独限额，不计入总量）
+export {
+  MAX_MEDIA_FILE_BYTES,
+  MAX_SINGLE_FILE_BYTES,
+  MAX_TOTAL_UNCOMPRESSED_BYTES,
+};
 export const MAX_WORKSPACE_PACKS = 10; // 工作区默认保留最近访问的 10 个解压包目录
 
 /** 解压工作区内由 CLI 生成的派生文件（不属于原始证据包，加载时排除）。 */
@@ -48,7 +58,6 @@ const WORKSPACE_ARTIFACTS = new Set<string>([
 ]);
 const EXTRACT_STAMP_VERSION = 1;
 
-const MEDIA_PATH_RE = /(?:^|\/)media\/|\.(?:mp4|webm|mkv|mov)$/i;
 const WINDOWS_RESERVED_CHARS_RE = /[:*?"<>|]/g;
 
 const defaultCache = new PackLruCache(3);
@@ -247,47 +256,12 @@ function unzipArchive(
 }
 
 function loadDirectoryArchive(rootDir: string): {
-  files: Map<string, Uint8Array>;
+  files: LazyFileRegistry;
   skippedMediaFiles: SkippedMediaMap;
 } {
-  const files = new Map<string, Uint8Array>();
-  const skippedMediaFiles: SkippedMediaMap = new Map();
-  let totalBytes = 0;
-
-  function walk(currentDir: string, relPrefix: string) {
-    for (const entry of readdirSync(currentDir, { withFileTypes: true })) {
-      const relPath = relPrefix ? `${relPrefix}/${entry.name}` : entry.name;
-      const fullPath = join(currentDir, entry.name);
-      if (entry.isDirectory()) {
-        walk(fullPath, relPath);
-      } else if (entry.isFile()) {
-        if (WORKSPACE_ARTIFACTS.has(relPath)) continue;
-        const st = statSync(fullPath);
-        if (MEDIA_PATH_RE.test(relPath)) {
-          skippedMediaFiles.set(relPath, {
-            originalSize: st.size,
-            compressedSize: st.size,
-          });
-          continue;
-        }
-        if (st.size > MAX_SINGLE_FILE_BYTES) {
-          throw new Error(
-            `ZIP_BOMB_SINGLE_FILE_EXCEEDED: File "${relPath}" (${st.size} bytes) exceeds limit`
-          );
-        }
-        totalBytes += st.size;
-        if (totalBytes > MAX_TOTAL_UNCOMPRESSED_BYTES) {
-          throw new Error(
-            `ZIP_BOMB_TOTAL_SIZE_EXCEEDED: Total size (${totalBytes} bytes) exceeds limit`
-          );
-        }
-        files.set(relPath, new Uint8Array(readFileSync(fullPath)));
-      }
-    }
-  }
-
-  walk(rootDir, "");
-  return { files, skippedMediaFiles };
+  const files = new LazyFileRegistry(rootDir);
+  files.scanDirectory(rootDir, WORKSPACE_ARTIFACTS);
+  return { files, skippedMediaFiles: files.skippedMediaFiles };
 }
 
 function readExtractStamp(dir: string): ExtractStamp | undefined {
@@ -589,7 +563,7 @@ export function openPack(
 
 function instantiatePack(
   packPath: string,
-  files: Map<string, Uint8Array>,
+  files: PackFileMap,
   skippedMediaFiles: SkippedMediaMap,
   integritySkip?: Set<string>
 ): LoadedPack {
@@ -600,6 +574,35 @@ function instantiatePack(
     ...(integritySkip ?? []),
   ]);
   const integrity = verifyPackIntegrity(manifest, files, skippedSet);
+
+  const jsonCandidateName = files.has("session-data.json")
+    ? "session-data.json"
+    : !files.has("data/session-data.js") && files.has("data/session-data.json")
+      ? "data/session-data.json"
+      : undefined;
+
+  if (jsonCandidateName) {
+    const jsonBytes = files.get(jsonCandidateName);
+    if (jsonBytes) {
+      let data: SessionDataPayload;
+      try {
+        data = JSON.parse(decoder.decode(jsonBytes)) as SessionDataPayload;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        throw new Error(
+          `INVALID_JSON_FILE: Failed to parse ${jsonCandidateName}: ${msg}`
+        );
+      }
+      return new LoadedSessionPack({
+        packPath,
+        manifest,
+        integrity,
+        data,
+        files,
+        skippedMediaFiles,
+      });
+    }
+  }
 
   const sessionDataBytes = files.get("data/session-data.js");
   if (sessionDataBytes) {
@@ -657,7 +660,7 @@ function instantiatePack(
 
   const sampleFiles = Array.from(files.keys()).slice(0, 10).join(", ");
   throw new Error(
-    `UNRECOGNIZED_BUG_LENS_PACK: Archive does not contain "data/session-data.js" or "dom-context.json". Found files: [${sampleFiles}]`
+    `UNRECOGNIZED_BUG_LENS_PACK: Archive does not contain "session-data.json", "data/session-data.js", or "dom-context.json". Found files: [${sampleFiles}]`
   );
 }
 
@@ -677,7 +680,7 @@ export function sanitizeRelativePathForDisk(relPath: string): {
 
 /** 将归档文件安全写入目录：Windows 保留字符改名，并同步改写 session-data.js 中的引用。 */
 function writeArchiveFiles(
-  files: Map<string, Uint8Array>,
+  files: PackFileMap,
   destRoot: string
 ): {
   writtenFiles: string[];
@@ -734,6 +737,10 @@ function writeDerivedJsonFiles(
   destRoot: string,
   onlyIfMissing = false
 ): string[] {
+  const sessionJsPath = join(destRoot, "data", "session-data.js");
+  if (!existsSync(sessionJsPath)) {
+    return [];
+  }
   const written: string[] = [];
   for (const { source, target } of DERIVED_JSON_FILES) {
     const sourcePath = join(destRoot, ...source.split("/"));

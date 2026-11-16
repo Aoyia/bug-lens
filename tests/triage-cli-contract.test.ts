@@ -11,7 +11,66 @@ import { runReadPackFileTool } from "../src/triage-cli/tools/read-pack-file.ts";
 import {
   buildRealScreenshotZipBytes,
   buildRealSessionZipBytes,
+  buildRealV5SessionZipBytes,
 } from "./helpers/triage-cli-fixture.ts";
+
+test("Contract: Schema v5 buildEvidencePackageBundle default ai-minimal export matches triage-cli reader expectations", () => {
+  const tempRoot = mkdtempSync(join(tmpdir(), "bug-lens-v5-contract-"));
+  try {
+    const v5Path = join(tempRoot, "v5-default.zip");
+    writeFileSync(
+      v5Path,
+      buildRealV5SessionZipBytes({
+        expectedConfidence: "explicit",
+        includeSettledAndFinal: true,
+      })
+    );
+
+    const overviewJson = JSON.parse(
+      runOpenPackTool({ pack: v5Path, format: "json" })
+    );
+    assert.equal(overviewJson.kind, "session");
+    assert.equal(overviewJson.integrity.valid, true);
+    assert.equal(overviewJson.integrity.schemaVersion, 5);
+    assert.equal(overviewJson.packMode, "ai-minimal");
+    assert.equal(overviewJson.casStats.totalBlobCount, 1);
+    assert.equal(overviewJson.issueScenes.length, 1);
+    assert.equal(overviewJson.issueScenes[0].expectedConfidence, "explicit");
+    assert.match(overviewJson.issueScenes[0].actual, /下拉浮层未显示/);
+
+    const sceneBlocks = runGetSceneTool({
+      pack: v5Path,
+      format: "json",
+      includeImage: false,
+    });
+    const sceneJson = JSON.parse(
+      (sceneBlocks[0] as { type: "text"; text: string }).text
+    );
+    assert.equal(sceneJson.narrative.confidence, "explicit");
+
+    const reqJson = JSON.parse(
+      runGetRequestTool({
+        pack: v5Path,
+        id: "100.1",
+        jsonPath: "data.definition.form.name",
+        format: "json",
+      })
+    );
+    assert.equal(reqJson.extractedJson, "bd_module_v5");
+
+    const fwJson = JSON.parse(
+      runGetFrameworkStateTool({
+        pack: v5Path,
+        index: 0,
+        format: "json",
+      })
+    );
+    assert.equal(fwJson.totalStates, 2);
+    assert.deepEqual(fwJson.overview[0].components, ["PortalDropdown"]);
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
 
 test("Contract: buildEvidencePackage export schema matches triage-cli reader expectations", () => {
   const tempRoot = mkdtempSync(join(tmpdir(), "bug-lens-contract-"));

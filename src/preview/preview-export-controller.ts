@@ -3,9 +3,10 @@ import { createTemporaryArchive } from "../export/archive-destination.ts";
 import { writeEvidenceArchive } from "../export/export-pipeline.ts";
 import { t } from "../shared/i18n.ts";
 import type { ExportArtifact } from "../shared/protocol.ts";
+import { loadAppSettings, type AppSettings } from "../shared/settings.ts";
 import type { db } from "../storage/db.ts";
 import {
-  buildEvidencePackage,
+  buildEvidencePackageBundle,
   type EvidencePackageSnapshot,
   type StaticReportAssets,
 } from "./evidence-package.ts";
@@ -38,6 +39,7 @@ export type PreviewExportOptions = {
   onExportStart?: (mode: "ai" | "ticket") => Promise<boolean>;
   onExportComplete?: (mode: "ai" | "ticket") => Promise<boolean>;
   loadAssets?: () => Promise<StaticReportAssets>;
+  loadSettings?: () => Promise<AppSettings>;
   createArchive?: typeof createTemporaryArchive;
   writeArchive?: typeof writeEvidenceArchive;
 };
@@ -135,20 +137,37 @@ export class PreviewExportController {
       }
       const snapshot = getSnapshot();
       if (!snapshot || !sessionId) throw new Error(t("loading"));
-      const reportAssets = await this.loadAssets();
+      const appSettings = await (
+        this.options.loadSettings ?? loadAppSettings
+      )().catch(() => undefined);
+      const includeHtmlViewer =
+        appSettings?.workflow.includeHtmlViewer ?? false;
+      const packMode = includeHtmlViewer ? "full-viewer" : "ai-minimal";
+      const reportAssets: StaticReportAssets | undefined = includeHtmlViewer
+        ? await this.loadAssets()
+        : undefined;
+      const bundle = buildEvidencePackageBundle(snapshot, reportAssets, {
+        packMode,
+      });
       const filename = `web-bug-report-${snapshot.session.id.slice(0, 8)}.zip`;
       temporaryArchive = await createArchive(filename);
       const totalChunks = this.options.getMediaChunkCount();
       await writeArchive({
-        files: buildEvidencePackage(snapshot, reportAssets),
+        files: bundle.files,
         sessionId,
         mediaSource: storage,
         sink: temporaryArchive.sink,
+        includeMedia: includeHtmlViewer,
         createManifest: (integrity) => ({
           name: "manifest.json",
           data: new TextEncoder().encode(
             JSON.stringify(
-              buildExportManifest(snapshot.session, integrity),
+              buildExportManifest(snapshot.session, integrity, {
+                format: "bug-lens-evidence-pack",
+                packMode: bundle.packMode,
+                extensionVersion: snapshot.session.extensionVersion,
+                casStats: bundle.casStats,
+              }),
               null,
               2
             )

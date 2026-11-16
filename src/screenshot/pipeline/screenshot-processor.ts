@@ -7,7 +7,7 @@ import {
   type RectBounds,
 } from "../../domain/screenshot-payload";
 import { loadAppSettings } from "../../shared/settings";
-import { message } from "../../shared/protocol";
+import { message, type FrameworkProbeEntry } from "../../shared/protocol";
 import { getRenderer } from "../annotations/renderers/renderer-registry";
 import { collectSpatialDomTree } from "../probes/dom-spatial-collector";
 import { collectCascadeIndex } from "../probes/cascade-snapshot-collector";
@@ -224,18 +224,67 @@ export async function processScreenshot(
   const domAndStylePromise = (async () => {
     const tDom = performance.now();
     // 1. 收集空间 DOM 结构树（经主世界探针读取 Vue/React 组件链）
+    const probedEntries: FrameworkProbeEntry[] = [];
     const spatialDom = await collectSpatialDomTree({
       cropBounds,
       annotations,
       probeFramework: probeFrameworkComponents,
       styleAdjustmentMode,
       disablePruning: options.disablePruning,
+      onProbedComponents: (entries) => {
+        probedEntries.push(...entries);
+      },
     });
 
     // 2. 收集 Vue/React 组件的状态（Props / Data / Hooks / 源码定位）
     const frameworkComponentStates: FrameworkComponentStateSnapshot[] = [];
-
     const collectedStateComponents = new Set<string>();
+    const inferComponentFramework = (
+      componentFile?: string,
+      componentLine?: number,
+      explicitFramework?: "vue" | "react"
+    ): "vue" | "react" | undefined => {
+      if (explicitFramework) return explicitFramework;
+      if (componentFile?.endsWith(".vue")) return "vue";
+      if (
+        componentFile?.endsWith(".tsx") ||
+        componentFile?.endsWith(".jsx") ||
+        componentLine !== undefined
+      ) {
+        return "react";
+      }
+      return undefined;
+    };
+    const pushStateSnapshot = (item: {
+      componentName?: string;
+      componentPath?: string[];
+      framework?: "vue" | "react";
+      componentFile?: string;
+      componentLine?: number;
+      props?: Record<string, unknown>;
+      data?: Record<string, unknown>;
+    }) => {
+      if (!item.componentName) return;
+      const key = `${item.componentName}_${item.componentPath?.join(">") ?? ""}_${item.componentFile ?? ""}`;
+      if (collectedStateComponents.has(key)) return;
+      collectedStateComponents.add(key);
+      frameworkComponentStates.push({
+        componentName: item.componentName,
+        ...(item.componentPath ? { componentPath: item.componentPath } : {}),
+        framework: inferComponentFramework(
+          item.componentFile,
+          item.componentLine,
+          item.framework
+        ),
+        ...(item.componentFile ? { componentFile: item.componentFile } : {}),
+        ...(item.componentLine !== undefined
+          ? { componentLine: item.componentLine }
+          : {}),
+        ...(item.props ? { props: item.props } : {}),
+        ...(item.data ? { data: item.data } : {}),
+      });
+    };
+
     const collectStateFromTree = (
       node: NonNullable<typeof spatialDom.tree>
     ) => {
@@ -243,28 +292,7 @@ export async function processScreenshot(
         node.componentName &&
         (node.props || node.data || node.componentFile)
       ) {
-        const key = `${node.componentName}_${node.componentPath?.join(">")}_${node.componentFile ?? ""}`;
-        if (!collectedStateComponents.has(key)) {
-          collectedStateComponents.add(key);
-          const inferredFramework: "vue" | "react" | undefined =
-            node.componentFile?.endsWith(".vue")
-              ? "vue"
-              : node.componentFile?.endsWith(".tsx") ||
-                  node.componentFile?.endsWith(".jsx") ||
-                  node.componentLine !== undefined
-                ? "react"
-                : undefined;
-
-          frameworkComponentStates.push({
-            componentName: node.componentName,
-            componentPath: node.componentPath,
-            framework: inferredFramework,
-            componentFile: node.componentFile,
-            componentLine: node.componentLine,
-            props: node.props,
-            data: node.data,
-          });
-        }
+        pushStateSnapshot(node);
       }
       if (node.children) {
         for (const child of node.children) collectStateFromTree(child);
@@ -276,26 +304,17 @@ export async function processScreenshot(
     if (spatialDom.anchors) {
       for (const anchor of spatialDom.anchors) {
         if (anchor.componentName && anchor.componentFile) {
-          const key = `${anchor.componentName}_${anchor.componentPath?.join(">")}_${anchor.componentFile}`;
-          if (!collectedStateComponents.has(key)) {
-            collectedStateComponents.add(key);
-            const inferredFramework: "vue" | "react" | undefined =
-              anchor.componentFile.endsWith(".vue")
-                ? "vue"
-                : anchor.componentFile.endsWith(".tsx") ||
-                    anchor.componentFile.endsWith(".jsx") ||
-                    anchor.componentLine !== undefined
-                  ? "react"
-                  : undefined;
-            frameworkComponentStates.push({
-              componentName: anchor.componentName,
-              componentPath: anchor.componentPath,
-              framework: inferredFramework,
-              componentFile: anchor.componentFile,
-              componentLine: anchor.componentLine,
-            });
-          }
+          pushStateSnapshot(anchor);
         }
+      }
+    }
+    for (const probed of probedEntries) {
+      if (!probed.parentComponents?.length) continue;
+      for (const parent of probed.parentComponents) {
+        pushStateSnapshot({
+          ...parent,
+          framework: probed.framework,
+        });
       }
     }
 

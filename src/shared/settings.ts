@@ -10,6 +10,8 @@ export interface WorkflowSettings {
   stopAction: "preview" | "silentExport";
   autoCopyPrompt: boolean;
   showWorkflowGuide: boolean;
+  /** 是否在导出的 ZIP 证据包中附带离线 HTML 报告与录屏视频；默认 false（AI Minimal Pack） */
+  includeHtmlViewer: boolean;
 }
 
 export interface DefaultRecordingSettings {
@@ -52,6 +54,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = Object.freeze({
     stopAction: "preview",
     autoCopyPrompt: true,
     showWorkflowGuide: true,
+    includeHtmlViewer: false,
   }),
   defaultRecording: Object.freeze({
     captureVideo: true,
@@ -123,6 +126,10 @@ export function mergeAppSettings(
         typeof srcWorkflow.showWorkflowGuide === "boolean"
           ? srcWorkflow.showWorkflowGuide
           : target.workflow.showWorkflowGuide,
+      includeHtmlViewer:
+        typeof srcWorkflow.includeHtmlViewer === "boolean"
+          ? srcWorkflow.includeHtmlViewer
+          : target.workflow.includeHtmlViewer,
     },
     defaultRecording: {
       captureVideo:

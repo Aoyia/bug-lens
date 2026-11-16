@@ -4,6 +4,8 @@ import {
   captureGlobalState,
   captureWebStorage,
   captureFrameworkState,
+  captureFrameworkStateWithMainProbe,
+  probeEntryToFrameworkSnapshot,
   isMeaningfulFrameworkState,
 } from "../src/domain/framework-state-capture.ts";
 import { captureReactTree } from "../src/entrypoints/content/react-detector.ts";
@@ -190,6 +192,156 @@ describe("Framework State Capture", () => {
         (result!.rootComponent?.props as any).password,
         "[REDACTED:sensitive-store-key]"
       );
+    });
+  });
+
+  describe("captureFrameworkStateWithMainProbe", () => {
+    test("populates FrameworkSnapshot via main-world probe when isolated detectors find nothing", async () => {
+      const btn = { tagName: "BUTTON", id: "submit-btn" } as unknown as Element;
+      mockDocument.body = { tagName: "BODY", parentElement: null };
+      mockDocument.querySelector = () => null;
+      const state = await captureFrameworkStateWithMainProbe({
+        sessionId: "s-probe",
+        trigger: "interaction",
+        privacyMode: "safe",
+        targetElement: btn,
+        probeFn: async (elements) => {
+          assert.equal(elements[0], btn);
+          return new Map([
+            [
+              btn,
+              {
+                framework: "vue",
+                version: 3,
+                componentName: "SubmitButton",
+                componentPath: ["App", "WorkStationForm", "SubmitButton"],
+                componentFile: "src/components/SubmitButton.vue",
+                componentLine: 42,
+                props: { loading: false, apiToken: "secret-123" },
+                data: { count: 2 },
+              },
+            ],
+          ]);
+        },
+      });
+
+      assert.equal(state.snapshot?.rootComponent?.componentName, "App");
+      assert.equal(
+        state.snapshot?.parentChain.map((n) => n.componentName).join(">"),
+        "WorkStationForm"
+      );
+      assert.equal(
+        state.snapshot?.targetComponent?.componentName,
+        "SubmitButton"
+      );
+      assert.equal(
+        state.snapshot?.targetComponent?.componentFile,
+        "src/components/SubmitButton.vue"
+      );
+      assert.equal(state.snapshot?.targetComponent?.componentLine, 42);
+      assert.equal(
+        state.snapshot?.targetComponent?.props?.apiToken,
+        "[REDACTED:sensitive-store-key]"
+      );
+      assert.equal(isMeaningfulFrameworkState(state), true);
+    });
+
+    test("strict privacy mode redacts string values from probed component props/data", () => {
+      const snapshot = probeEntryToFrameworkSnapshot(
+        {
+          framework: "react",
+          version: 18,
+          componentName: "OrderCard",
+          componentPath: ["OrderCard"],
+          props: { orderId: "ORD-999", total: 100 },
+          data: { note: "vip customer" },
+        },
+        "strict"
+      );
+      assert.ok(snapshot);
+      assert.equal(snapshot!.rootComponent, undefined);
+      assert.equal(snapshot!.targetComponent?.props?.orderId, "[REDACTED]");
+      assert.equal(snapshot!.targetComponent?.props?.total, 100);
+      assert.equal(snapshot!.targetComponent?.state?.note, "[REDACTED]");
+    });
+
+    test("injects penetrated business parentComponents props/state/file into parentChain & rootComponent", () => {
+      const snapshot = probeEntryToFrameworkSnapshot(
+        {
+          framework: "vue",
+          version: 2,
+          componentName: "ElButton",
+          componentPath: ["App", "EditIssueDialog", "ElFormItem", "ElButton"],
+          componentFile: "node_modules/element-ui/lib/button.js",
+          props: { type: "primary" },
+          parentComponents: [
+            {
+              componentName: "EditIssueDialog",
+              componentFile: "src/pages/work_station/edit_issue.vue",
+              props: { visible: true, authSecret: "top-secret" },
+              data: { category_key: "", isDirty: true },
+            },
+            {
+              componentName: "App",
+              componentFile: "src/App.vue",
+              data: { currentProjectId: 101935 },
+            },
+            {
+              componentName: "DeepBusinessPage",
+              componentFile: "src/pages/DeepBusinessPage.vue",
+              data: { extraFlag: "preserved" },
+            },
+          ],
+        },
+        "safe"
+      );
+
+      assert.ok(snapshot);
+      assert.equal(snapshot!.rootComponent?.componentName, "App");
+      assert.equal(snapshot!.rootComponent?.componentFile, "src/App.vue");
+      assert.deepEqual(snapshot!.rootComponent?.state, {
+        currentProjectId: 101935,
+      });
+
+      const editNode = snapshot!.parentChain.find(
+        (n) => n.componentName === "EditIssueDialog"
+      );
+      assert.ok(editNode);
+      assert.equal(
+        editNode.componentFile,
+        "src/pages/work_station/edit_issue.vue"
+      );
+      assert.equal(
+        editNode.props?.authSecret,
+        "[REDACTED:sensitive-store-key]"
+      );
+      assert.deepEqual(editNode.state, { category_key: "", isDirty: true });
+
+      // Exceeded MAX_PATH parent still preserved in parentChain
+      const extraNode = snapshot!.parentChain.find(
+        (n) => n.componentName === "DeepBusinessPage"
+      );
+      assert.ok(extraNode);
+      assert.deepEqual(extraNode.state, { extraFlag: "preserved" });
+
+      // Strict privacy mode also redacts penetrated parent strings
+      const strictSnap = probeEntryToFrameworkSnapshot(
+        {
+          framework: "vue",
+          version: 2,
+          componentName: "ElButton",
+          componentPath: ["EditIssueDialog", "ElButton"],
+          parentComponents: [
+            {
+              componentName: "EditIssueDialog",
+              data: { title: "sensitive-title", count: 3 },
+            },
+          ],
+        },
+        "strict"
+      );
+      assert.equal(strictSnap?.rootComponent?.state?.title, "[REDACTED]");
+      assert.equal(strictSnap?.rootComponent?.state?.count, 3);
     });
   });
 });

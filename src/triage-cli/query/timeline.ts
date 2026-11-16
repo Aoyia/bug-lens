@@ -1,6 +1,11 @@
 import { formatInteractionLine } from "../format/element.ts";
 import { formatDuration, formatRelativeTime } from "../format/time.ts";
 import type { LoadedSessionPack } from "../pack/session-pack.ts";
+import {
+  formatNetworkStatusTag,
+  isHttpNetworkFailure,
+  resolveNetworkBusinessError,
+} from "./network.ts";
 
 export type TimelineEventKind = "interaction" | "console" | "network" | "scene";
 
@@ -118,20 +123,32 @@ export function queryTimeline(
   if (allowedKinds.has("network")) {
     const netEntries = pack.getNetworkEntries();
     netEntries.forEach((entry) => {
+      const rel = pack.toRelativeMs(entry.createdAt) ?? 0;
+      if (fromRelMs !== undefined && rel < fromRelMs) return;
+      if (toRelMs !== undefined && rel > toRelMs) return;
+
       const status = entry.status ?? 0;
-      const isFailure =
-        status === 0 || status >= 400 || Boolean(entry.errorText);
       const type = (entry.type ?? "").toLowerCase();
       const isApiCall =
         type === "xhr" || type === "fetch" || type === "document";
+      const isHttpFailure = isHttpNetworkFailure(entry);
+      const bizInfo = resolveNetworkBusinessError(pack, entry, {
+        allowBodyScan:
+          !isHttpFailure && (!type || type === "xhr" || type === "fetch"),
+        maxScanBytes: 256 * 1024,
+      });
+      const isFailure = isHttpFailure || bizInfo.isBizError;
       if (!options.includeAllNetwork && !isFailure && !isApiCall) {
         return;
       }
-      const rel = pack.toRelativeMs(entry.createdAt) ?? 0;
       const epoch = entry.createdAt ?? pack.toEpochMs(rel);
       const method = entry.method ?? "GET";
       const dur = formatDuration(entry.durationMs);
-      const statusTag = isFailure ? `!${status || "ERR"}` : String(status);
+      const statusTag = bizInfo.isBizError
+        ? formatNetworkStatusTag(status, bizInfo)
+        : isHttpFailure
+          ? `!${status || "ERR"}`
+          : String(status);
       events.push({
         kind: "network",
         epochMs: epoch,

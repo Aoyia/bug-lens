@@ -1,7 +1,12 @@
+import {
+  listPackFileEntries,
+  normalizeRegistryPath,
+} from "./lazy-file-registry.ts";
 import type {
   CascadeIndex,
   ExportManifest,
   IntegrityReport,
+  PackFileMap,
   ScreenshotDomContext,
   ScreenshotEnvironment,
 } from "./types.ts";
@@ -15,7 +20,7 @@ export class LoadedScreenshotPack {
   readonly environment?: ScreenshotEnvironment;
   readonly cascade?: CascadeIndex;
   readonly aiPrompt?: string;
-  readonly files: Map<string, Uint8Array>;
+  readonly files: PackFileMap;
   readonly skippedMediaFiles: Map<
     string,
     { originalSize: number; compressedSize: number }
@@ -31,7 +36,7 @@ export class LoadedScreenshotPack {
     environment?: ScreenshotEnvironment;
     cascade?: CascadeIndex;
     aiPrompt?: string;
-    files: Map<string, Uint8Array>;
+    files: PackFileMap;
     skippedMediaFiles: Map<
       string,
       { originalSize: number; compressedSize: number }
@@ -61,14 +66,14 @@ export class LoadedScreenshotPack {
   }
 
   getTextFile(filePath: string): string | undefined {
-    const normalized = filePath.replace(/^\.?\//, "");
+    const normalized = normalizeRegistryPath(filePath);
     const bytes = this.files.get(normalized);
     if (!bytes) return undefined;
     return this.textDecoder.decode(bytes);
   }
 
   getBinaryFile(filePath: string): Uint8Array | undefined {
-    const normalized = filePath.replace(/^\.?\//, "");
+    const normalized = normalizeRegistryPath(filePath);
     return this.files.get(normalized);
   }
 
@@ -81,10 +86,10 @@ export class LoadedScreenshotPack {
       path: string;
       byteLength: number;
       skippedMedia?: boolean;
-    }> = [];
-    for (const [path, bytes] of this.files.entries()) {
-      list.push({ path, byteLength: bytes.byteLength });
-    }
+    }> = listPackFileEntries(this.files).map((item) => ({
+      path: item.path,
+      byteLength: item.byteLength,
+    }));
     for (const [path, info] of this.skippedMediaFiles.entries()) {
       list.push({
         path,

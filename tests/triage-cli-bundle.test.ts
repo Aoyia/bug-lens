@@ -12,6 +12,7 @@ import {
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
+import { strToU8, zipSync } from "fflate";
 // @ts-ignore
 import { buildTriageSkillCli } from "../scripts/build.mjs";
 import {
@@ -130,6 +131,103 @@ test("Bundle execution: session pack workflow with cross-process cached state", 
     });
     assert.equal(intRes.status, 0);
     assert.match(intRes.stdout, /\[click\]/);
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("Bundle execution: get_request body decoupling and query_network --bizError support", () => {
+  const tempRoot = mkdtempSync(join(tmpdir(), "bug-lens-bundle-biz-"));
+  const workspaceDir = join(tempRoot, "workspace");
+  try {
+    const sessionData = {
+      id: "bundle-biz-session",
+      schemaVersion: 5,
+      extensionVersion: "0.7.41",
+      target: { initialUrl: "https://example.com", environment: {} },
+      timeline: { startedAtEpochMs: 1700000000000, durationMs: 5000 },
+      interactions: [],
+      consoleEntries: [],
+      networkEntries: [
+        {
+          id: "req-post-alpha",
+          method: "POST",
+          url: "https://example.com/api/post-data",
+          status: 200,
+          createdAt: 1700000001000,
+          durationMs: 40,
+          type: "fetch",
+          requestBody: JSON.stringify({ action: "create_user", name: "Bob" }),
+          response: {
+            mimeType: "application/json",
+            body: JSON.stringify({
+              success: false,
+              code: 500,
+              message: "Database lock timeout",
+            }),
+            bodyStatus: "captured",
+          },
+        },
+      ],
+      issueScenes: [],
+    };
+    const sessionJs = `window.__BUG_LENS_SESSION__ = ${JSON.stringify(sessionData)};`;
+    const zipBytes = zipSync({
+      "manifest.json": strToU8(
+        JSON.stringify({
+          format: "bug-lens-evidence-pack",
+          schemaVersion: 5,
+          packMode: "ai-minimal",
+          session: { id: "bundle-biz-session" },
+        })
+      ),
+      "data/session-data.js": strToU8(sessionJs),
+    });
+    const zipPath = join(tempRoot, "pack.zip");
+    writeFileSync(zipPath, zipBytes);
+
+    // 1. open_pack
+    const openRes = runCliInSubprocess(["open_pack", zipPath], {
+      workspaceDir,
+    });
+    assert.equal(openRes.status, 0);
+
+    // 2. get_request with --include body
+    const reqRes = runCliInSubprocess(
+      ["get_request", "req-post-alpha", "--include", "body"],
+      { workspaceDir }
+    );
+    assert.equal(reqRes.status, 0);
+    assert.match(reqRes.stdout, /## Request Body/);
+    assert.match(reqRes.stdout, /"action": "create_user"/);
+    assert.doesNotMatch(reqRes.stdout, /## Request Headers/);
+
+    // 3. get_request in json format includes resolvedRequestBody
+    const reqJsonRes = runCliInSubprocess(
+      ["get_request", "req-post-alpha", "--format", "json"],
+      { workspaceDir }
+    );
+    assert.equal(reqJsonRes.status, 0);
+    const parsedReq = JSON.parse(reqJsonRes.stdout);
+    assert.ok(parsedReq.resolvedRequestBody);
+    assert.match(parsedReq.resolvedRequestBody, /create_user/);
+
+    // 4. query_network with --bizError
+    const netBizRes = runCliInSubprocess(["query_network", "--bizError"], {
+      workspaceDir,
+    });
+    assert.equal(netBizRes.status, 0);
+    assert.match(netBizRes.stdout, /req-post-alpha/);
+    assert.match(netBizRes.stdout, /200 \[BIZ_ERR: code=500\]/);
+    assert.match(netBizRes.stdout, /Database lock timeout/);
+
+    // 5. timeline displays business error status tag
+    const tlRes = runCliInSubprocess(
+      ["timeline", "--includeAllNetwork", "true"],
+      { workspaceDir }
+    );
+    assert.equal(tlRes.status, 0);
+    assert.match(tlRes.stdout, /200 \[BIZ_ERR: code=500\]/);
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
   }

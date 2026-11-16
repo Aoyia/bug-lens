@@ -658,4 +658,18 @@ describe("Storage 存储读写与历史版本兼容迁移测试", () => {
     assert.equal(updated.workflow.stopAction, "silentExport");
     assert.equal(updated.workflow.language, "zh-CN");
   });
+
+  test("workflow.includeHtmlViewer defaults to false and validates boolean values", () => {
+    assert.equal(DEFAULT_APP_SETTINGS.workflow.includeHtmlViewer, false);
+
+    const enabled = mergeAppSettings(DEFAULT_APP_SETTINGS, {
+      workflow: { includeHtmlViewer: true } as any,
+    });
+    assert.equal(enabled.workflow.includeHtmlViewer, true);
+
+    const invalid = mergeAppSettings(DEFAULT_APP_SETTINGS, {
+      workflow: { includeHtmlViewer: "yes" } as any,
+    });
+    assert.equal(invalid.workflow.includeHtmlViewer, false);
+  });
 });

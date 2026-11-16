@@ -95,7 +95,16 @@ test("buildEvidencePackage 在传入静态模板时输出完整非空的 report.
     localeMessages: { appTitle: { message: "测试报告" } },
   };
 
-  const files = buildEvidencePackage(snapshot, reportAssets);
+  const defaultFiles = buildEvidencePackage(snapshot, reportAssets);
+  const defaultMap = new Map(defaultFiles.map((f) => [f.name, f.data]));
+  assert.equal(defaultMap.has("report.html"), false);
+  assert.equal(defaultMap.has("data/session-data.js"), false);
+  assert.ok(defaultMap.has("session-data.json"));
+  assert.ok(defaultMap.has("network-details.json"));
+
+  const files = buildEvidencePackage(snapshot, reportAssets, {
+    packMode: "full-viewer",
+  });
   const fileMap = new Map(files.map((f) => [f.name, f.data]));
 
   const html = new TextDecoder().decode(fileMap.get("report.html")!);

@@ -1,4 +1,4 @@
-# Bug Lens Triage 工具链与 Skill 优化清单及多阶段落地规划路线图 (v2.0)
+# Bug Lens Triage 工具链与 Skill 优化清单及多阶段落地规划路线图 (Schema v5)
 
 ## 1. 执行摘要与工具链定位
 
@@ -306,7 +306,7 @@ export function runGetRequestTool(args: {
         const directHint = fullBodyPath
           ? ` Or query \`${fullBodyPath}\` directly with \`jq\` / \`read_file\`.`
           : workspaceDir
-            ? ` Or query \`${workspaceDir}/data/session-data.json\` directly with \`jq\`.`
+            ? ` Or query \`${workspaceDir}/${loaded.files.has("session-data.json") ? "session-data.json" : "data/session-data.json"}\` directly with \`jq\`.`
             : "";
         lines.push(
           `\n… [Response body truncated at ${args.bodyMaxChars ?? 8000} chars. Pass \`jsonPath\` (e.g. "data.definition.form.elements[id=ssd_a]") or a higher \`bodyMaxChars\` to inspect further.${directHint}]`
@@ -401,7 +401,7 @@ test("runGetRequestTool formats json request body with pretty indentation and tr
 **加载策略设计**：
 
 1. **v2 原生检测**：
-   在打开工作区或解压目录时，优先检查根目录下是否存在 `manifest.json` 且 `schemaVersion >= 2`：
+   在打开工作区或解压目录时，优先检查根目录下是否存在 `session-data.json`（或 `manifest.json` 且 `schemaVersion >= 5`）：
    - 会话数据直读 `session-data.json`；
    - 网络详情直读 `network-details.json`（按需解析）；
    - 样式与 DOM 快照读取 `issues/<sceneId>/dom-styles.json` 与 `dom-context.json`；
@@ -539,7 +539,7 @@ export class LazyFileRegistry {
    对 HTTP 200~299 的请求，执行基于局部嗅探的低开销业务错误识别算法：
 
 ```typescript
-// 业务错误识别算法实现规范：src/triage-cli/query/network-biz-error.ts
+// 业务错误识别算法实现规范：src/triage-cli/query/network.ts
 
 export interface BizErrorInfo {
   isBizError: boolean;
@@ -646,7 +646,7 @@ export function detectBusinessErrorFromText(bodySnippet: string): BizErrorInfo {
 在生产环境下，单包控制台日志普遍达到数万条，其中 76.0%~97.5% 属于高频组件轮询或样式告警。
 
 1. **聚合折叠模型**：
-   CLI 读取 v2 的 `consoleSummary`，或对 v1 日志实时执行指纹哈希计算（`signatureHash = md5(level + ":" + location + ":" + textTemplate)`）；
+   CLI 读取 v5 的 `consoleSummary`，或对 v1-v4 日志实时执行指纹哈希计算（`signatureHash = sha256(level + ":" + location + ":" + textTemplate).slice(0, 12)`）；
 2. **终端与 JSON 格式化协议**：
    默认情况下，相同指纹的连续或离散日志折叠为单行呈现：
    ```
@@ -821,12 +821,12 @@ triage-cli get_css [--selector <cssSelector>] [--sceneId <sceneUuid>] [--propert
 ---
 name: bug-lens-triage
 description: >-
-  面向 AI Agent 的全自动缺陷现场排查技能。适配 Bug Lens 极简 AI 证据包 (v2.0)
+  面向 AI Agent 的全自动缺陷现场排查技能。适配 Bug Lens 极简 AI 证据包 (Schema v5)
   与历史录制包。使用标准 CLI 工具链进行三步定界、因果收敛与代码级根因定位，
   严禁编写临时正则剥壳脚本。
 ---
 
-# Bug Lens AI Evidence Triage (v2.0)
+# Bug Lens AI Evidence Triage (Schema v5)
 
 通过内置标准化 CLI 工具链（`scripts/bug-lens-cli.mjs`）以零脚本依赖方式分析缺陷现场。遵循“宏观索引导航 -> 双通道过滤 -> 状态与视觉定序”三步排查心智模型，严禁对数据包进行无谓的手写脚本解析。
 

@@ -16,6 +16,10 @@ import { join } from "node:path";
 import test from "node:test";
 import { parseWindowAssignmentJson } from "../src/triage-cli/pack/js-json.ts";
 import {
+  MAX_SUPPORTED_SCHEMA_VERSION,
+  SUPPORTED_SCHEMA_VERSIONS,
+} from "../src/triage-cli/pack/manifest.ts";
+import {
   clearPackCache,
   extractPackToDisk,
   getPackWorkspaceDir,
@@ -74,6 +78,35 @@ test("openPackFromBytes handles session pack, missing network-details.js, unknow
     tamperedPack.integrity.mismatches.some((m) =>
       m.includes("data/session-data.js")
     )
+  );
+});
+
+test("manifest validator accepts Schema v5 and respects supported version list", () => {
+  assert.equal(MAX_SUPPORTED_SCHEMA_VERSION, 5);
+  assert.deepEqual(SUPPORTED_SCHEMA_VERSIONS, [1, 2, 3, 4, 5]);
+
+  // Schema versions 1..5 are accepted without warnings
+  for (const v of [1, 2, 3, 4, 5]) {
+    const bytes = buildRealSessionZipBytes({ schemaVersion: v });
+    const pack = openPackFromBytes(bytes);
+    assert.equal(pack.integrity.valid, true);
+    assert.equal(pack.integrity.schemaWarning, undefined);
+  }
+
+  // Schema version 6 is newer than max supported version (5)
+  const v6Bytes = buildRealSessionZipBytes({ schemaVersion: 6 });
+  const v6Pack = openPackFromBytes(v6Bytes);
+  assert.match(
+    v6Pack.integrity.schemaWarning ?? "",
+    /newer than max supported version \(5\)/
+  );
+
+  // Schema version 0 is not in standard supported list
+  const v0Bytes = buildRealSessionZipBytes({ schemaVersion: 0 });
+  const v0Pack = openPackFromBytes(v0Bytes);
+  assert.match(
+    v0Pack.integrity.schemaWarning ?? "",
+    /not in standard supported list \(1, 2, 3, 4, 5\)/
   );
 });
 

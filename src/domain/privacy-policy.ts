@@ -673,9 +673,65 @@ export function sanitizeDomSnapshot(
     })),
     computedStyle: Object.fromEntries(
       Object.entries(snapshot.computedStyle)
-        .slice(0, 20)
+        .slice(0, 48)
         .map(([key, value]) => [key, sanitizeText(value, mode, 512, false)])
     ),
+    ...(Array.isArray(snapshot.relatedOverlays)
+      ? {
+          relatedOverlays: snapshot.relatedOverlays.slice(0, 3).map((item) => {
+            if (!item || typeof item !== "object") return item;
+            const entry = item as Record<string, unknown>;
+            return {
+              ...entry,
+              ...(typeof entry.id === "string"
+                ? { id: sanitizeText(entry.id, mode, 128, false) }
+                : {}),
+              ...(typeof entry.role === "string"
+                ? { role: sanitizeText(entry.role, mode, 128, false) }
+                : {}),
+              ...(typeof entry.sanitizedHtml === "string"
+                ? {
+                    sanitizedHtml: sanitizeText(
+                      entry.sanitizedHtml,
+                      mode,
+                      4_096,
+                      false
+                    ),
+                  }
+                : {}),
+            };
+          }),
+        }
+      : {}),
+    ...(snapshot.triggerElement
+      ? {
+          triggerElement: {
+            ...snapshot.triggerElement,
+            ...(typeof snapshot.triggerElement.id === "string"
+              ? {
+                  id: sanitizeText(
+                    snapshot.triggerElement.id,
+                    mode,
+                    128,
+                    false
+                  ),
+                }
+              : {}),
+            ...(typeof snapshot.triggerElement.text === "string"
+              ? { text: sanitizeText(snapshot.triggerElement.text, mode, 256) }
+              : {}),
+            ...(typeof snapshot.triggerElement.accessibleName === "string"
+              ? {
+                  accessibleName: sanitizeText(
+                    snapshot.triggerElement.accessibleName,
+                    mode,
+                    256
+                  ),
+                }
+              : {}),
+          },
+        }
+      : {}),
   };
 }
 
@@ -714,6 +770,13 @@ export function sanitizeIssueScene(
       title: sanitizeText(scene.page.title, mode, 256),
     },
     target: sanitizeDomSnapshot(scene.target, mode),
+    ...(scene.targets
+      ? {
+          targets: scene.targets.map((entry) =>
+            sanitizeDomSnapshot(entry, mode)
+          ),
+        }
+      : {}),
     narrative: scene.narrative
       ? {
           actual: sanitizeText(scene.narrative.actual, mode, 8_192),

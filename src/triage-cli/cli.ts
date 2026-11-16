@@ -3,7 +3,9 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { SearchScope } from "./query/search.ts";
 import type { TimelineEventKind } from "./query/timeline.ts";
+import { runCompareFramesTool } from "./tools/compare-frames.ts";
 import { runExtractPackTool } from "./tools/extract-pack.ts";
+import { runGetCssTool } from "./tools/get-css.ts";
 import { runGetFrameworkStateTool } from "./tools/get-framework-state.ts";
 import { runGetInteractionsTool } from "./tools/get-interactions.ts";
 import { runGetRequestTool } from "./tools/get-request.ts";
@@ -21,6 +23,24 @@ interface ParsedCliArgs {
   flags: Record<string, string | boolean>;
   positionals: string[];
 }
+
+const KNOWN_BOOLEAN_FLAGS = new Set([
+  "unfold",
+  "bizError",
+  "biz_error",
+  "settled",
+  "final",
+  "help",
+  "version",
+  "includeImage",
+  "include_image",
+  "includeScreenshot",
+  "include_screenshot",
+  "includeAllNetwork",
+  "include_all_network",
+  "includeAllConsole",
+  "include_all_console",
+]);
 
 function parseCliArgs(rawArgs: string[]): ParsedCliArgs {
   const flags: Record<string, string | boolean> = {};
@@ -40,6 +60,23 @@ function parseCliArgs(rawArgs: string[]): ParsedCliArgs {
         flags[key] = val;
       } else {
         const key = token.slice(2);
+        if (KNOWN_BOOLEAN_FLAGS.has(key)) {
+          const next = rawArgs[i + 1]?.toLowerCase();
+          if (
+            next === "true" ||
+            next === "false" ||
+            next === "1" ||
+            next === "0" ||
+            next === "yes" ||
+            next === "no"
+          ) {
+            flags[key] = next === "true" || next === "1" || next === "yes";
+            i++;
+          } else {
+            flags[key] = true;
+          }
+          continue;
+        }
         const next = rawArgs[i + 1];
         if (next !== undefined && !next.startsWith("--")) {
           flags[key] = next;
@@ -174,11 +211,13 @@ Usage: node bug-lens-cli.mjs <command> [options]
 Commands:
   open_pack <zipOrDir>                        Extract pack to workspace (idempotent), generate derived JSON & INDEX.md, cache session path, and print overview
   get_scene [--selector S] [--cssProperty P]  Inspect issue scene (session) or DOM anchor & CSS cascade rules (screenshot)
-  get_screenshot [--kind K] [--step N]        Locate screenshot image in workspace and print path
+  get_css [--scene ID] [--property P]       Inspect winner CSS rules & computed layout styles (v5 dom-styles / cascade)
+  get_screenshot [--step N] [--settled|--final] Locate screenshot image (instant, settled, final, or issue) and print path
+  compare_frames [--step N] [--final|--to M]  Compare before/after visual frames (instant vs settled, or step vs final)
   timeline [--aroundSceneId ID] [--windowMs]  Unified chronological timeline of interactions, console errors, and network requests
-  query_console [--levels error,warning]      Filter console logs and source-mapped stack traces
-  query_network [--status failed|4xx|5xx]     Filter network requests (prioritizes failures)
-  get_request <id> [--jsonPath EXPR]          Inspect request headers, initiator stack, and response body (with JSONPath)
+  query_console [--levels error,warning]      Filter console logs (folded by fingerprint; supports --unfold and --minCount)
+  query_network [--status failed|biz_error]   Filter network requests (prioritizes failures, supports --bizError)
+  get_request <id> [--include body]           Inspect request headers, request body, initiator stack, and response body (with JSONPath)
   get_interactions [--fromIndex N] [--limit]  List recorded user interactions
   get_framework_state [--component NAME]      Inspect Vue/React component props, state, and webStorage snapshots
   search_pack <query>                         Cross-search console, network URLs/bodies, interactions, cascade rules, and state
@@ -249,13 +288,70 @@ export function runTriageCli(argv: string[]): string {
       const { pack, rest } = resolvePackAndPositionals(flags, positionals);
       const kind = (strFlag(flags, "kind") ?? rest[0]) as
         | "step"
+        | "settled"
+        | "final"
         | "issue-original"
         | "issue-annotated"
         | "screenshot"
         | undefined;
       const step = numFlag(flags, "step");
+      const settled = boolFlag(flags, "settled");
+      const final = boolFlag(flags, "final");
       const sceneId = strFlag(flags, "sceneId", "scene_id");
-      const blocks = runGetScreenshotTool({ pack, kind, step, sceneId });
+      const blocks = runGetScreenshotTool({
+        pack,
+        kind,
+        step,
+        settled,
+        final,
+        sceneId,
+      });
+      return formatBlocksOutput(blocks);
+    }
+
+    case "get_css": {
+      const { pack, rest } = resolvePackAndPositionals(flags, positionals);
+      return runGetCssTool({
+        pack,
+        scene: strFlag(flags, "scene") ?? rest[0],
+        sceneId: strFlag(flags, "sceneId", "scene_id"),
+        sceneIndex: numFlag(flags, "sceneIndex", "scene_index", "index"),
+        selector: strFlag(flags, "selector", "s"),
+        property: strFlag(
+          flags,
+          "property",
+          "cssProperty",
+          "css_property",
+          "prop"
+        ),
+        format,
+        maxChars,
+      });
+    }
+
+    case "compare_frames": {
+      const { pack } = resolvePackAndPositionals(flags, positionals);
+      const includeImage = boolFlag(
+        flags,
+        "includeImage",
+        "include_image",
+        "includeScreenshot",
+        "include_screenshot"
+      );
+      const blocks = runCompareFramesTool({
+        pack,
+        step: numFlag(flags, "step"),
+        from: numFlag(flags, "from"),
+        to: numFlag(flags, "to"),
+        against: strFlag(flags, "against"),
+        settled: boolFlag(flags, "settled"),
+        final: boolFlag(flags, "final"),
+        left: strFlag(flags, "left"),
+        right: strFlag(flags, "right"),
+        includeImage,
+        format,
+        maxChars,
+      });
       return formatBlocksOutput(blocks);
     }
 
@@ -301,6 +397,8 @@ export function runTriageCli(argv: string[]): string {
         toMs: numFlag(flags, "toMs", "to_ms"),
         offset: numFlag(flags, "offset"),
         limit: numFlag(flags, "limit"),
+        unfold: boolFlag(flags, "unfold"),
+        minCount: numFlag(flags, "minCount", "min_count"),
         format,
         maxChars,
       });
@@ -309,13 +407,27 @@ export function runTriageCli(argv: string[]): string {
     case "query_network": {
       const { pack, rest } = resolvePackAndPositionals(flags, positionals);
       const rawStatus = strFlag(flags, "status");
+      const bizError = boolFlag(flags, "bizError", "biz_error");
+      const bizCode = strFlag(flags, "bizCode", "biz_code");
       const status =
-        rawStatus && /^\d+(,\d+)*$/.test(rawStatus)
-          ? rawStatus.split(",").map(Number)
-          : (rawStatus as "all" | "failed" | "4xx" | "5xx" | "2xx" | undefined);
+        rawStatus === "biz_error" || rawStatus === "bizError"
+          ? ("biz_error" as const)
+          : rawStatus && /^\d+(,\d+)*$/.test(rawStatus)
+            ? rawStatus.split(",").map(Number)
+            : (rawStatus as
+                | "all"
+                | "failed"
+                | "biz_error"
+                | "4xx"
+                | "5xx"
+                | "2xx"
+                | "3xx"
+                | undefined);
       return runQueryNetworkTool({
         pack,
         status,
+        bizError,
+        bizCode,
         urlContains:
           strFlag(flags, "urlContains", "url_contains", "url") ?? rest[0],
         method: strFlag(flags, "method"),

@@ -3,12 +3,14 @@ import type { ArchiveEntryIntegrity } from "./export-pipeline";
 import { sha256 } from "./sha256.ts";
 
 // 当前导出清单（ExportManifest）的 schema 版本，结构变更时递增
-export const EXPORT_SCHEMA_VERSION = 4;
+export const EXPORT_SCHEMA_VERSION = 5;
 // 允许读取并迁移到当前版本的历史版本号列表
-export const SUPPORTED_EXPORT_SCHEMA_VERSIONS = [1, 2, 3, 4] as const;
+export const SUPPORTED_EXPORT_SCHEMA_VERSIONS = [1, 2, 3, 4, 5] as const;
 
-/** 将持久化的 v1 会话补全为 v2 形态，确保能在 v2 证据包中安全序列化。 */
-// v1 会话缺少 schemaVersion/storage 字段，此处补齐为 v2 形态以便统一序列化；v2 已是现版本，原样返回
+/**
+ * 将持久化的历史 RecordingSession（protocol v1）补全为当前内部会话协议（protocol v2）。
+ * 注：RecordingSession.schemaVersion（1|2）标识录制会话内部协议；ExportManifest.schemaVersion（5）标识证据包导出清单格式。
+ */
 export function migrateSessionForExport(
   session: RecordingSession
 ): RecordingSession {
@@ -20,16 +22,29 @@ export function migrateSessionForExport(
   };
 }
 
+export type BuildExportManifestOptions = {
+  format?: ExportManifest["format"];
+  packMode?: ExportManifest["packMode"];
+  extensionVersion?: string;
+  casStats?: ExportManifest["casStats"];
+};
+
 export function buildExportManifest(
   session: RecordingSession,
-  files: ArchiveEntryIntegrity
+  files: ArchiveEntryIntegrity,
+  options?: BuildExportManifestOptions
 ): ExportManifest {
   return {
-    format: "3.0",
+    format: options?.format ?? "3.0",
     schemaVersion: EXPORT_SCHEMA_VERSION,
+    ...(options?.packMode ? { packMode: options.packMode } : {}),
     createdAtEpochMs: Date.now(),
     sessionId: session.id,
+    ...(options?.extensionVersion
+      ? { extensionVersion: options.extensionVersion }
+      : {}),
     files,
+    ...(options?.casStats ? { casStats: options.casStats } : {}),
     // migration 元信息：声明清单由当前版本生成，并列出可迁移读取的历史版本
     migration: {
       currentSchemaVersion: EXPORT_SCHEMA_VERSION,

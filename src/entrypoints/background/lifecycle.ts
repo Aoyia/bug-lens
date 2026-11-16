@@ -582,6 +582,11 @@ export function createSessionLifecycle(
         );
 
       if (!discard) {
+        if (stopping.options.captureScreenshots) {
+          await interactionCapture
+            .captureFinalFrame(stopping)
+            .catch(() => undefined);
+        }
         const tDrainStart = performance.now();
         cleanupErrors.push(
           ...(await interactionCapture.drain(1200, session.id))
@@ -783,13 +788,20 @@ export function createSessionLifecycle(
     let caughtError: unknown;
     try {
       await ensureOffscreenDocument();
-      const promptSettings = await loadAppSettings()
-        .then((settings) => settings.ai)
-        .catch(() => undefined);
+      const loadedSettings = await loadAppSettings().catch(() => undefined);
+      const promptSettings = loadedSettings?.ai;
+      const includeHtmlViewer =
+        loadedSettings?.workflow.includeHtmlViewer ?? false;
       packResult = (await chrome.runtime.sendMessage(
         message(
           "offscreen/export-pack",
-          { sessionId: session.id, traceContext, exportMode, promptSettings },
+          {
+            sessionId: session.id,
+            traceContext,
+            exportMode,
+            promptSettings,
+            includeHtmlViewer,
+          },
           undefined,
           "offscreen"
         )

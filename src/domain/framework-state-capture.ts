@@ -1,10 +1,13 @@
 import type {
+  FrameworkComponentNode,
+  FrameworkProbeEntry,
   FrameworkSnapshot,
   FrameworkStateEvidence,
   FrameworkStateTrigger,
 } from "../shared/protocol";
 import { captureReactTree } from "../entrypoints/content/react-detector";
 import { captureVueTree } from "../entrypoints/content/vue-detector";
+import { probeFrameworkComponents } from "../screenshot/probes/framework-probe";
 import {
   redactAndSanitizeState,
   SENSITIVE_STATE_KEY_REGEX as SENSITIVE_KEY_REGEX,
@@ -140,8 +143,218 @@ export function isMeaningfulFrameworkState(
 ): boolean {
   return Boolean(
     state.snapshot?.rootComponent ||
+    state.snapshot?.targetComponent ||
     state.globalState ||
     state.webStorage?.localStorage ||
     state.webStorage?.sessionStorage
   );
+}
+
+function redactStrictRecord(
+  record: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
+  if (!record || typeof record !== "object") return undefined;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(record)) {
+    out[k] = typeof v === "string" ? "[REDACTED]" : v;
+  }
+  return out;
+}
+
+function sanitizePropsAndState(
+  rawProps: Record<string, unknown> | undefined,
+  rawData: Record<string, unknown> | undefined,
+  privacyMode: "safe" | "strict" | "raw"
+): {
+  props?: Record<string, unknown>;
+  state?: Record<string, unknown>;
+} {
+  const cleanProps = redactAndSanitizeState(rawProps, 0, 2) as
+    Record<string, unknown> | undefined;
+  const cleanState = redactAndSanitizeState(rawData, 0, 2) as
+    Record<string, unknown> | undefined;
+  return {
+    props:
+      privacyMode === "strict" ? redactStrictRecord(cleanProps) : cleanProps,
+    state:
+      privacyMode === "strict" ? redactStrictRecord(cleanState) : cleanState,
+  };
+}
+
+/** 将主世界探针条目转换为录屏态使用的 FrameworkSnapshot 结构（同步注入穿透提取的业务父组件状态）。 */
+export function probeEntryToFrameworkSnapshot(
+  entry: FrameworkProbeEntry,
+  privacyMode: "safe" | "strict" | "raw"
+): FrameworkSnapshot | undefined {
+  const framework =
+    entry.framework ??
+    (entry.componentFile?.endsWith(".vue")
+      ? "vue"
+      : entry.componentFile
+        ? "react"
+        : undefined);
+  if (!framework || !entry.componentName) return undefined;
+
+  const version = entry.version ?? (framework === "react" ? 18 : 3);
+  const targetClean = sanitizePropsAndState(
+    entry.props,
+    entry.data,
+    privacyMode
+  );
+
+  const targetComponent: FrameworkComponentNode = {
+    framework,
+    version,
+    componentName: entry.componentName,
+    ...(entry.componentFile ? { componentFile: entry.componentFile } : {}),
+    ...(entry.componentLine !== undefined
+      ? { componentLine: entry.componentLine }
+      : {}),
+    ...(targetClean.props ? { props: targetClean.props } : {}),
+    ...(targetClean.state ? { state: targetClean.state } : {}),
+    isTarget: true,
+  };
+
+  const fullPath = Array.isArray(entry.componentPath)
+    ? entry.componentPath.filter((name) => typeof name === "string" && name)
+    : [];
+  const ancestorNames =
+    fullPath.length > 0 && fullPath[fullPath.length - 1] === entry.componentName
+      ? fullPath.slice(0, -1)
+      : fullPath.filter((name) => name !== entry.componentName);
+
+  const remainingParents = [...(entry.parentComponents ?? [])];
+  const consumeParentMeta = (name: string): FrameworkComponentNode => {
+    const idx = remainingParents.findIndex((p) => p.componentName === name);
+    const matched = idx >= 0 ? remainingParents.splice(idx, 1)[0] : undefined;
+    if (!matched) {
+      return { framework, version, componentName: name };
+    }
+    const clean = sanitizePropsAndState(
+      matched.props,
+      matched.data,
+      privacyMode
+    );
+    return {
+      framework,
+      version,
+      componentName: name,
+      ...(matched.componentFile
+        ? { componentFile: matched.componentFile }
+        : {}),
+      ...(matched.componentLine !== undefined
+        ? { componentLine: matched.componentLine }
+        : {}),
+      ...(clean.props ? { props: clean.props } : {}),
+      ...(clean.state ? { state: clean.state } : {}),
+    };
+  };
+
+  const rootComponent: FrameworkComponentNode | undefined =
+    ancestorNames.length > 0 ? consumeParentMeta(ancestorNames[0]!) : undefined;
+
+  const parentChain: FrameworkComponentNode[] = ancestorNames
+    .slice(1)
+    .reverse()
+    .map((name) => consumeParentMeta(name));
+
+  for (const extraParent of remainingParents) {
+    const clean = sanitizePropsAndState(
+      extraParent.props,
+      extraParent.data,
+      privacyMode
+    );
+    parentChain.push({
+      framework,
+      version,
+      componentName: extraParent.componentName,
+      ...(extraParent.componentFile
+        ? { componentFile: extraParent.componentFile }
+        : {}),
+      ...(extraParent.componentLine !== undefined
+        ? { componentLine: extraParent.componentLine }
+        : {}),
+      ...(clean.props ? { props: clean.props } : {}),
+      ...(clean.state ? { state: clean.state } : {}),
+    });
+  }
+
+  return {
+    ...(rootComponent ? { rootComponent } : {}),
+    targetComponent,
+    parentChain,
+  };
+}
+
+function collectProbeCandidateElements(targetElement?: Element): Element[] {
+  const candidates: Element[] = [];
+  const seen = new Set<Element>();
+  const add = (node: unknown) => {
+    if (!node || typeof node !== "object") return;
+    if (typeof (node as Element).tagName !== "string") return;
+    const el = node as Element;
+    if (seen.has(el)) return;
+    seen.add(el);
+    candidates.push(el);
+  };
+
+  add(targetElement);
+  if (typeof document !== "undefined") {
+    add((document as { activeElement?: unknown }).activeElement);
+    if (typeof document.querySelector === "function") {
+      add(document.querySelector("#app, #root, [data-reactroot], main"));
+      add(document.querySelector("#app > *, #root > *, [data-v-app] > *"));
+      add(document.querySelector("body > div, body > main, body > section"));
+    }
+    add(document.body);
+  }
+  return candidates;
+}
+
+export type CaptureFrameworkStateWithMainProbeInput = {
+  sessionId: string;
+  trigger: FrameworkStateTrigger;
+  privacyMode: "safe" | "strict" | "raw";
+  frameId?: number;
+  targetElement?: Element;
+  probeFn?: (
+    elements: Element[]
+  ) => Promise<Map<Element, FrameworkProbeEntry | null>>;
+};
+
+/**
+ * 采集录制态框架状态，并在隔离世界探不到组件树时通过 background world:"MAIN" 探针补全。
+ */
+export async function captureFrameworkStateWithMainProbe(
+  input: CaptureFrameworkStateWithMainProbeInput
+): Promise<FrameworkStateEvidence> {
+  const base = captureFrameworkState(input);
+  if (base.snapshot?.rootComponent || base.snapshot?.targetComponent) {
+    return base;
+  }
+
+  const canRunProbe =
+    typeof input.probeFn === "function" ||
+    (typeof chrome !== "undefined" &&
+      typeof chrome.runtime?.sendMessage === "function");
+  if (!canRunProbe) return base;
+
+  const candidates = collectProbeCandidateElements(input.targetElement);
+  if (candidates.length === 0) return base;
+
+  try {
+    const probe = input.probeFn ?? probeFrameworkComponents;
+    const probed = await probe(candidates);
+    for (const el of candidates) {
+      const entry = probed.get(el);
+      if (!entry) continue;
+      const snapshot = probeEntryToFrameworkSnapshot(entry, input.privacyMode);
+      if (snapshot) {
+        return { ...base, snapshot };
+      }
+    }
+  } catch {
+    // 主世界探测失败时保留同步基线证据，不阻塞录制流程
+  }
+  return base;
 }

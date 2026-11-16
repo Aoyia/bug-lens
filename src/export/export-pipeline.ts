@@ -58,6 +58,8 @@ export async function writeEvidenceArchive(input: {
   createManifest?: (files: ArchiveEntryIntegrity) => ArchiveFile;
   precomputedMediaIntegrity?: { byteLength: number; sha256: string };
   onPerfReport?: (report: PerfReportData) => void;
+  /** 是否打包录屏视频条目；false（默认 AI Minimal Pack）时跳过 media/recording.* */
+  includeMedia?: boolean;
 }): Promise<ExportProgress> {
   // 背压队列：sink 写入速度慢于 zip 产出时按序排队，防止乱序与内存堆积
   let outputQueue: Promise<void> = Promise.resolve();
@@ -195,40 +197,42 @@ export async function writeEvidenceArchive(input: {
 
     let mediaFilename = "media/recording.webm";
 
-    await input.mediaSource.iterateMediaChunks(
-      input.sessionId,
-      async (record) => {
-        if (
-          !(record.chunk instanceof ArrayBuffer) ||
-          record.chunk.byteLength === 0
-        )
-          return;
-        if (!mediaEntry) {
-          const isMp4 =
-            record.mimeType?.includes("mp4") ||
-            (record.chunk.byteLength >= 8 &&
-              new Uint8Array(record.chunk)[4] === 0x66 && // 'f'
-              new Uint8Array(record.chunk)[5] === 0x74 && // 't'
-              new Uint8Array(record.chunk)[6] === 0x79 && // 'y'
-              new Uint8Array(record.chunk)[7] === 0x70); // 'p' ('ftyp' box)
-          mediaFilename = isMp4
-            ? "media/recording.mp4"
-            : "media/recording.webm";
-          mediaEntry = new ZipPassThrough(mediaFilename);
-          zip.add(mediaEntry);
-          progress.entriesWritten += 1;
-          mediaHash = new Sha256();
+    if (input.includeMedia !== false) {
+      await input.mediaSource.iterateMediaChunks(
+        input.sessionId,
+        async (record) => {
+          if (
+            !(record.chunk instanceof ArrayBuffer) ||
+            record.chunk.byteLength === 0
+          )
+            return;
+          if (!mediaEntry) {
+            const isMp4 =
+              record.mimeType?.includes("mp4") ||
+              (record.chunk.byteLength >= 8 &&
+                new Uint8Array(record.chunk)[4] === 0x66 && // 'f'
+                new Uint8Array(record.chunk)[5] === 0x74 && // 't'
+                new Uint8Array(record.chunk)[6] === 0x79 && // 'y'
+                new Uint8Array(record.chunk)[7] === 0x70); // 'p' ('ftyp' box)
+            mediaFilename = isMp4
+              ? "media/recording.mp4"
+              : "media/recording.webm";
+            mediaEntry = new ZipPassThrough(mediaFilename);
+            zip.add(mediaEntry);
+            progress.entriesWritten += 1;
+            mediaHash = new Sha256();
+          }
+          const bytes = new Uint8Array(record.chunk);
+          mediaEntry.push(bytes, false); // 非末片，暂不结束条目
+          mediaHash?.update(bytes);
+          mediaBytes += bytes.byteLength;
+          progress.mediaChunksWritten += 1;
+          await maybeYieldBackpressure();
         }
-        const bytes = new Uint8Array(record.chunk);
-        mediaEntry.push(bytes, false); // 非末片，暂不结束条目
-        mediaHash?.update(bytes);
-        mediaBytes += bytes.byteLength;
-        progress.mediaChunksWritten += 1;
-        await maybeYieldBackpressure();
-      }
-    );
-    mediaEntry?.push(new Uint8Array(), true); // 空块收尾，通知 fflate 结束媒体条目
-    await flushOutput();
+      );
+      mediaEntry?.push(new Uint8Array(), true); // 空块收尾，通知 fflate 结束媒体条目
+      await flushOutput();
+    }
     const mediaPackDurationMs = performance.now() - mediaStartTime;
     if (mediaEntry) {
       const isPrecomputedValid =

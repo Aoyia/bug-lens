@@ -18,6 +18,15 @@ import {
 } from "../domain/environment-capture.ts";
 import { SourceMapCoordinator } from "../sourcemap/index.js";
 import type { AiSettings } from "../shared/settings.ts";
+import {
+  buildIssueSceneDomFilesV5,
+  buildSessionSummaryV5,
+  foldConsoleEntries,
+  processNetworkForSchemaV5,
+  slimFrameworkStatesForV5,
+  type CasStatsV5,
+  type PackMode,
+} from "../export/ai-pack-slimming.ts";
 
 export type EvidencePackageSnapshot = {
   session: RecordingSession;
@@ -34,9 +43,15 @@ export type EvidencePackageSnapshot = {
   }>;
   interactionAssets?: Array<{
     interactionId: string;
+    kind?: "interaction-screenshot" | "interaction-settled";
     bytes: Uint8Array;
     mimeType: "image/png" | "image/jpeg" | "image/webp";
   }>;
+  finalFrameAsset?: {
+    bytes: Uint8Array;
+    mimeType: "image/png" | "image/jpeg" | "image/webp";
+    capturedAtEpochMs?: number;
+  };
   excluded: {
     interaction: number;
     console: number;
@@ -44,6 +59,16 @@ export type EvidencePackageSnapshot = {
     issueScene?: number;
   };
   hasMedia: boolean;
+};
+
+export type BuildEvidencePackageOptions = {
+  packMode?: PackMode;
+};
+
+export type EvidencePackageBundle = {
+  files: EvidencePackageFile[];
+  packMode: PackMode;
+  casStats: CasStatsV5;
 };
 
 export type EvidencePackageFile = { name: string; data: Uint8Array };
@@ -1232,7 +1257,10 @@ function buildSessionPayloadWithBodySplitting(
     (typeof interactionAssets)[number]
   >();
   for (const asset of interactionAssets) {
-    if (!interactionAssetById.has(asset.interactionId)) {
+    if (
+      asset.kind !== "interaction-settled" &&
+      !interactionAssetById.has(asset.interactionId)
+    ) {
       interactionAssetById.set(asset.interactionId, asset);
     }
   }
@@ -1540,16 +1568,24 @@ function splitAiAndReportPayloads(
   };
 }
 
-export function buildEvidencePackage(
-  snapshot: EvidencePackageSnapshot,
-  assets: StaticReportAssets
-): EvidencePackageFile[] {
-  const currentLocale = getLocale();
-  const { payload, networkBodyFiles } =
-    buildSessionPayloadWithBodySplitting(snapshot);
-  const { aiPayload, reportPayload, networkDetails } =
-    splitAiAndReportPayloads(payload);
+function resolveImageExt(mimeType?: string, dataUrl?: string): "jpg" | "png" {
+  if (dataUrl?.startsWith("data:image/jpeg")) return "jpg";
+  if (dataUrl?.startsWith("data:image/png")) return "png";
+  return mimeType === "image/jpeg" ? "jpg" : "png";
+}
 
+function decodeImageDataUrlBytes(dataUrl: string): Uint8Array {
+  const base64 = dataUrl.split(",")[1] ?? "";
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+function renderReportHtml(
+  assets: StaticReportAssets,
+  currentLocale: string
+): string {
   const i18nScript = assets.localeMessages
     ? `<script>window.__WEB_BUG_REPORT_I18N__ = ${JSON.stringify({ locale: currentLocale, dict: assets.localeMessages })};</script>\n`
     : "";
@@ -1563,23 +1599,251 @@ export function buildEvidencePackage(
       '<script id="__BUG_LENS_DATA__" type="application/json"></script>'
     )
   ) {
-    htmlContent = htmlContent.replace(
+    return htmlContent.replace(
       '<script id="__BUG_LENS_DATA__" type="application/json"></script>',
       reportScriptTag
     );
-  } else if (htmlContent.includes("</body>")) {
-    htmlContent = htmlContent.replace("</body>", `${reportScriptTag}\n</body>`);
-  } else {
-    htmlContent += reportScriptTag;
   }
+  if (htmlContent.includes("</body>")) {
+    return htmlContent.replace("</body>", `${reportScriptTag}\n</body>`);
+  }
+  return htmlContent + reportScriptTag;
+}
+
+/**
+ * 构建完整证据包产物集合与导出元信息（支持 `ai-minimal` 默认精简模式与 `full-viewer` 人工查看器模式）。
+ */
+export function buildEvidencePackageBundle(
+  snapshot: EvidencePackageSnapshot,
+  assets?: StaticReportAssets,
+  options?: BuildEvidencePackageOptions
+): EvidencePackageBundle {
+  const packMode: PackMode = options?.packMode ?? "ai-minimal";
+  const currentLocale = getLocale();
+  const startedAt =
+    snapshot.session.timeline.startedAtEpochMs ??
+    snapshot.session.timeline.createdAtEpochMs ??
+    0;
+
+  const interactionAssets = snapshot.interactionAssets ?? [];
+  const instantAssetById = new Map<
+    string,
+    (typeof interactionAssets)[number]
+  >();
+  const settledAssetById = new Map<
+    string,
+    (typeof interactionAssets)[number]
+  >();
+  for (const asset of interactionAssets) {
+    if (asset.kind === "interaction-settled") {
+      if (!settledAssetById.has(asset.interactionId)) {
+        settledAssetById.set(asset.interactionId, asset);
+      }
+    } else if (!instantAssetById.has(asset.interactionId)) {
+      instantAssetById.set(asset.interactionId, asset);
+    }
+  }
+
+  const screenshotFiles: EvidencePackageFile[] = [];
+  const v5Interactions = snapshot.interactions.map((interaction, index) => {
+    const step = index + 1;
+    const instantAsset = instantAssetById.get(interaction.id);
+    const rawDataUrl = interaction.screenshot?.dataUrl;
+    const settledAsset = settledAssetById.get(interaction.id);
+    const isPending = interaction.screenshot?.status === "pending";
+
+    let instantPath: string | undefined;
+    if (interaction.screenshot?.status === "captured") {
+      const ext = resolveImageExt(instantAsset?.mimeType, rawDataUrl);
+      if (instantAsset) {
+        instantPath = `screenshots/step-${step}.${ext}`;
+        screenshotFiles.push({ name: instantPath, data: instantAsset.bytes });
+      } else if (rawDataUrl && rawDataUrl.startsWith("data:image/")) {
+        instantPath = `screenshots/step-${step}.${ext}`;
+        screenshotFiles.push({
+          name: instantPath,
+          data: decodeImageDataUrlBytes(rawDataUrl),
+        });
+      }
+    }
+
+    let settledPath: string | undefined;
+    if (settledAsset) {
+      const settledExt = resolveImageExt(settledAsset.mimeType);
+      settledPath = `screenshots/step-${step}-settled.${settledExt}`;
+      screenshotFiles.push({ name: settledPath, data: settledAsset.bytes });
+    }
+
+    const resolvedStatus = isPending
+      ? "unavailable"
+      : (interaction.screenshot?.status ?? "disabled");
+    const settledDurationMs = (
+      interaction.screenshot as
+        | (typeof interaction.screenshot & { settledDurationMs?: number })
+        | undefined
+    )?.settledDurationMs;
+
+    return {
+      ...interaction,
+      step,
+      elapsedMs:
+        startedAt > 0 ? Math.max(0, interaction.createdAt - startedAt) : 0,
+      screenshot: {
+        ...interaction.screenshot,
+        status: resolvedStatus,
+        ...(isPending
+          ? {
+              issue:
+                interaction.screenshot?.issue ?? t("screenshotUnavailable"),
+            }
+          : {}),
+        dataUrl: instantPath ?? interaction.screenshot?.dataUrl,
+        ...(settledPath ? { settledPath } : {}),
+        ...(settledDurationMs !== undefined ? { settledDurationMs } : {}),
+      },
+      screenshots: {
+        ...(instantPath ? { instantPath } : {}),
+        ...(settledPath ? { settledPath } : {}),
+        ...(settledDurationMs !== undefined ? { settledDurationMs } : {}),
+      },
+    };
+  });
+
+  let finalFramePath: string | undefined;
+  if (snapshot.finalFrameAsset) {
+    const finalExt = resolveImageExt(snapshot.finalFrameAsset.mimeType);
+    finalFramePath = `screenshots/final-frame.${finalExt}`;
+    screenshotFiles.push({
+      name: finalFramePath,
+      data: snapshot.finalFrameAsset.bytes,
+    });
+  }
+
+  const issueAssetFiles: EvidencePackageFile[] = [];
+  const originalSourceBySceneId = new Map<string, string>();
+  const annotatedSourceBySceneId = new Map<string, string>();
+  for (const asset of snapshot.issueAssets ?? []) {
+    const ext = resolveImageExt(asset.mimeType);
+    const filePath = `issues/${asset.sceneId}/${asset.kind === "issue-original" ? "screenshot-original" : "screenshot-annotated"}.${ext}`;
+    issueAssetFiles.push({ name: filePath, data: asset.bytes });
+    if (asset.kind === "issue-original") {
+      if (!originalSourceBySceneId.has(asset.sceneId)) {
+        originalSourceBySceneId.set(asset.sceneId, filePath);
+      }
+    } else if (!annotatedSourceBySceneId.has(asset.sceneId)) {
+      annotatedSourceBySceneId.set(asset.sceneId, filePath);
+    }
+  }
+
+  const issueDomFiles: EvidencePackageFile[] = [];
+  const v5IssueScenes = (snapshot.issueScenes ?? []).map((scene) => {
+    const domFiles = buildIssueSceneDomFilesV5(scene);
+    issueDomFiles.push(...domFiles);
+    const primaryTarget = scene.target ?? scene.targets?.[0];
+    const el = primaryTarget?.element;
+    const preferredLocator = el?.locators?.find(
+      (loc) => loc.stabilityScore >= 0.7 && loc.expression
+    );
+    const targetSelector =
+      preferredLocator?.expression ||
+      (el ? `${el.tagName}${el.id ? `#${el.id}` : ""}` : "");
+    return {
+      id: scene.id,
+      observedAtEpochMs: scene.observedAtEpochMs,
+      ...(targetSelector ? { targetSelector } : {}),
+      ...(domFiles.length === 2
+        ? {
+            domContextPath: `issues/${scene.id}/dom-context.json`,
+            domStylesPath: `issues/${scene.id}/dom-styles.json`,
+          }
+        : {}),
+      scene,
+      ...(originalSourceBySceneId.get(scene.id)
+        ? { originalSource: originalSourceBySceneId.get(scene.id) }
+        : {}),
+      ...(annotatedSourceBySceneId.get(scene.id)
+        ? { annotatedSource: annotatedSourceBySceneId.get(scene.id) }
+        : {}),
+    };
+  });
+
+  const consoleInput = snapshot.consoleEntries.map(
+    ({ sessionId: _sessionId, ...rest }) => rest
+  );
+  const { consoleSummary, metrics: consoleMetrics } = foldConsoleEntries(
+    consoleInput,
+    startedAt
+  );
+  const networkResult = processNetworkForSchemaV5(
+    snapshot.networkEntries,
+    startedAt
+  );
+  const frameworkStatesV5 = slimFrameworkStatesForV5(
+    snapshot.frameworkStates ?? []
+  );
+
+  const screenshotCount = snapshot.interactions.filter(
+    (i) => i.screenshot?.status === "captured"
+  ).length;
+  const effectiveHasMedia =
+    packMode === "full-viewer" ? snapshot.hasMedia : false;
+  const summaryV5 = buildSessionSummaryV5({
+    session: snapshot.session,
+    interactionCount: snapshot.interactions.length,
+    screenshotCount,
+    finalFramePath,
+    consoleMetrics,
+    networkMetrics: networkResult.metrics,
+    issueSceneCount: v5IssueScenes.length,
+    frameworkStateCount: frameworkStatesV5.length,
+    hasMedia: effectiveHasMedia,
+  });
+
+  const screenshotSummaries = v5Interactions.map((interaction, index) => ({
+    step: index + 1,
+    path: interaction.screenshots?.instantPath ?? null,
+    ...(interaction.screenshots?.settledPath
+      ? { settledPath: interaction.screenshots.settledPath }
+      : {}),
+    elapsedMs: interaction.createdAt - startedAt,
+    kind: interaction.kind,
+    element: interaction.element?.text ?? interaction.element?.tagName ?? null,
+    pageUrl: interaction.page?.url ?? null,
+  }));
+
+  const compactSession = {
+    id: snapshot.session.id,
+    schemaVersion: snapshot.session.schemaVersion,
+    extensionVersion: snapshot.session.extensionVersion,
+    ...(snapshot.session.customTitle
+      ? { customTitle: snapshot.session.customTitle }
+      : {}),
+    target: snapshot.session.target,
+    options: {
+      privacyMode: snapshot.session.options.privacyMode,
+    },
+    timeline: snapshot.session.timeline,
+    quality: snapshot.session.quality,
+  };
+
+  const sessionDataV5 = {
+    format: "bug-lens-evidence-pack" as const,
+    schemaVersion: 5 as const,
+    packMode,
+    summary: summaryV5,
+    screenshotSummaries,
+    session: compactSession,
+    interactions: v5Interactions,
+    consoleSummary,
+    networkEntries: networkResult.networkEntries,
+    issueScenes: v5IssueScenes,
+    frameworkStates: frameworkStatesV5,
+    hasMedia: effectiveHasMedia,
+  };
 
   const files: EvidencePackageFile[] = [
     { name: "README.md", data: strToU8(buildPackageReadme(snapshot)) },
     { name: "AI_PROMPT.md", data: strToU8(buildAiPrompt(snapshot)) },
-    { name: "report.html", data: strToU8(htmlContent) },
-    { name: "assets/report.js", data: strToU8(assets.script) },
-    { name: "assets/report.css", data: strToU8(assets.styles) },
-    { name: "assets/icon_idle.png", data: assets.icon },
     {
       name: "reproduce.spec.ts",
       data: strToU8(
@@ -1592,58 +1856,54 @@ export function buildEvidencePackage(
       ),
     },
     {
-      name: "data/session-data.js",
-      data: strToU8(
-        `window.__BUG_LENS_DATA__ = ${JSON.stringify(aiPayload, null, 2)};`
-      ),
+      name: "session-data.json",
+      data: strToU8(JSON.stringify(sessionDataV5, null, 2)),
     },
     {
-      name: "data/network-details.js",
-      data: strToU8(
-        `window.__BUG_LENS_NETWORK_DETAILS__ = ${JSON.stringify(networkDetails, null, 2)};`
-      ),
+      name: "network-details.json",
+      data: strToU8(JSON.stringify(networkResult.networkDetails, null, 2)),
     },
-    ...networkBodyFiles,
+    ...networkResult.blobFiles,
+    ...issueAssetFiles,
+    ...issueDomFiles,
+    ...screenshotFiles,
   ];
-  for (const asset of snapshot.issueAssets ?? []) {
-    const ext = asset.mimeType === "image/jpeg" ? "jpg" : "png";
-    files.push({
-      name: `issues/${asset.sceneId}/${asset.kind === "issue-original" ? "screenshot-original" : "screenshot-annotated"}.${ext}`,
-      data: asset.bytes,
-    });
-  }
-  const interactionAssets = snapshot.interactionAssets ?? [];
-  const interactionAssetById = new Map<
-    string,
-    (typeof interactionAssets)[number]
-  >();
-  for (const asset of interactionAssets) {
-    if (!interactionAssetById.has(asset.interactionId)) {
-      interactionAssetById.set(asset.interactionId, asset);
-    }
-  }
-  snapshot.interactions.forEach((interaction, index) => {
-    if (interaction.screenshot?.status !== "captured") return;
-    const asset = interactionAssetById.get(interaction.id);
-    const dataUrl = interaction.screenshot?.dataUrl;
-    const isJpeg = dataUrl
-      ? dataUrl.startsWith("data:image/jpeg")
-      : asset?.mimeType === "image/jpeg";
-    const ext = isJpeg ? "jpg" : "png";
 
-    if (asset) {
-      files.push({
-        name: `screenshots/step-${index + 1}.${ext}`,
-        data: asset.bytes,
-      });
-    } else if (dataUrl && dataUrl.startsWith("data:image/")) {
-      const base64 = dataUrl.split(",")[1] ?? "";
-      const binary = atob(base64);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i += 1)
-        bytes[i] = binary.charCodeAt(i);
-      files.push({ name: `screenshots/step-${index + 1}.${ext}`, data: bytes });
-    }
-  });
-  return files;
+  if (packMode === "full-viewer" && assets) {
+    const { payload } = buildSessionPayloadWithBodySplitting(snapshot);
+    const { aiPayload, networkDetails } = splitAiAndReportPayloads(payload);
+    const htmlContent = renderReportHtml(assets, currentLocale);
+    files.push(
+      { name: "report.html", data: strToU8(htmlContent) },
+      { name: "assets/report.js", data: strToU8(assets.script) },
+      { name: "assets/report.css", data: strToU8(assets.styles) },
+      { name: "assets/icon_idle.png", data: assets.icon },
+      {
+        name: "data/session-data.js",
+        data: strToU8(
+          `window.__BUG_LENS_DATA__ = ${JSON.stringify(aiPayload, null, 2)};`
+        ),
+      },
+      {
+        name: "data/network-details.js",
+        data: strToU8(
+          `window.__BUG_LENS_NETWORK_DETAILS__ = ${JSON.stringify(networkDetails, null, 2)};`
+        ),
+      }
+    );
+  }
+
+  return {
+    files,
+    packMode,
+    casStats: networkResult.casStats,
+  };
+}
+
+export function buildEvidencePackage(
+  snapshot: EvidencePackageSnapshot,
+  assets?: StaticReportAssets,
+  options?: BuildEvidencePackageOptions
+): EvidencePackageFile[] {
+  return buildEvidencePackageBundle(snapshot, assets, options).files;
 }

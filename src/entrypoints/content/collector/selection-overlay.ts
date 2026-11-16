@@ -9,7 +9,10 @@ import {
   buildDomSnapshot,
   pageElementAtPoint,
   isWidgetElement,
+  resolveTriggerDomElement,
 } from "./dom-snapshot";
+import { probeFrameworkComponents } from "../../../screenshot/probes/framework-probe";
+import { probeEntryToFrameworkSnapshot } from "../../../domain/framework-state-capture";
 import { t } from "../../../shared/i18n";
 import { lockViewportScroll } from "../../../shared/dom/scroll-lock";
 
@@ -35,6 +38,8 @@ export type SelectionOverlayDeps = {
     | undefined;
   /** 速记卡确认的期望（按下"标记问题"瞬间捕获），随 capture 消息透传 */
   getPendingExpected?(): ExpectedStatement | undefined;
+  /** 最近一次页面确认点击的宿主元素（用于 Portal 浮层逆向绑定 triggerElement） */
+  getLastTriggerElement?(): Element | undefined;
   onCaptureComplete(
     scene: {
       id: string;
@@ -209,7 +214,9 @@ export class SelectionOverlay {
       const privacyMode = this.deps.getSession()?.privacyMode ?? "safe";
       const viewportWidth = Math.max(1, window.innerWidth);
       const viewportHeight = Math.max(1, window.innerHeight);
-      const target = buildDomSnapshot(el, privacyMode);
+      const target = buildDomSnapshot(el, privacyMode, {
+        fallbackTriggerElement: this.deps.getLastTriggerElement?.(),
+      });
       const rect = el.getBoundingClientRect();
       const left = Math.max(0, rect.left - padX);
       const top = Math.max(0, rect.top - padY);
@@ -425,7 +432,8 @@ export class SelectionOverlay {
       const viewport = { width: window.innerWidth, height: window.innerHeight };
       const target = buildDomSnapshot(
         fallbackCandidate.element,
-        session.privacyMode
+        session.privacyMode,
+        { fallbackTriggerElement: this.deps.getLastTriggerElement?.() }
       );
       const rect = fallbackCandidate.element.getBoundingClientRect();
       const box = {
@@ -492,9 +500,64 @@ export class SelectionOverlay {
 
     const selectionStartedAtEpochMs = this.startedAtEpochMs;
     this.startedAtEpochMs = undefined;
+    const enrichFrameworkViaMainProbe = async () => {
+      if (
+        typeof chrome === "undefined" ||
+        typeof chrome.runtime?.sendMessage !== "function"
+      ) {
+        return;
+      }
+      const triggerFallback = this.deps.getLastTriggerElement?.();
+      const triggerElByTarget = new Map<SelectedTargetItem, Element>();
+      const probeList: Element[] = [];
+      for (const item of finalItems) {
+        probeList.push(item.element);
+        const trigEl = resolveTriggerDomElement(item.element, triggerFallback);
+        if (trigEl) {
+          triggerElByTarget.set(item, trigEl);
+          probeList.push(trigEl);
+        }
+      }
+      if (probeList.length === 0) return;
+      try {
+        const probeMap = await Promise.race([
+          probeFrameworkComponents(probeList),
+          new Promise<Map<Element, null>>((resolve) =>
+            setTimeout(() => resolve(new Map()), 150)
+          ),
+        ]);
+        for (const item of finalItems) {
+          const entry = probeMap.get(item.element);
+          if (entry && !item.target.element.framework) {
+            const snapshot = probeEntryToFrameworkSnapshot(
+              entry,
+              session.privacyMode
+            );
+            if (snapshot) {
+              item.target.element.framework = snapshot;
+            }
+          }
+          const trigEl = triggerElByTarget.get(item);
+          const trigEntry = trigEl ? probeMap.get(trigEl) : undefined;
+          if (
+            trigEntry?.componentName &&
+            item.target.triggerElement &&
+            !item.target.triggerElement.componentName
+          ) {
+            item.target.triggerElement = {
+              ...item.target.triggerElement,
+              componentName: trigEntry.componentName,
+            };
+          }
+        }
+      } catch {
+        // 探针失败不阻塞 issue-scene 采集
+      }
+    };
     void new Promise<void>((resolve) =>
       requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
     )
+      .then(() => enrichFrameworkViaMainProbe())
       .then(() =>
         chrome.runtime.sendMessage(
           message(

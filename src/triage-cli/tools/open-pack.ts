@@ -59,6 +59,8 @@ function formatSessionPackOverview(
       derivedJsonFiles,
       recordingPaths,
       sessionId: pack.sessionId,
+      packMode: pack.manifest?.packMode,
+      casStats: pack.manifest?.casStats,
       integrity: pack.integrity,
       summary,
       issueScenes: scenes.map((s) => {
@@ -134,7 +136,7 @@ function formatSessionPackOverview(
     );
   }
   lines.push(
-    `- **Counts**: ${pack.getInteractions().length} interactions | ${pack.getConsoleEntries().length} console entries (${topErrors.matchedCount} errors) | ${pack.getNetworkEntries().length} network requests (${topFailedNet.matchedCount} failed) | ${scenes.length} issue scenes | ${pack.getFrameworkStates().length} framework snapshots`
+    `- **Counts**: ${pack.getInteractions().length} interactions | ${pack.getConsoleTotalCount()} console entries (${topErrors.matchedCount} unique error signatures) | ${pack.getNetworkEntries().length} network requests (${topFailedNet.matchedCount} failed) | ${scenes.length} issue scenes | ${pack.getFrameworkStates().length} framework snapshots`
   );
 
   lines.push(`\n## Issue Scenes (${scenes.length})`);
@@ -220,8 +222,11 @@ function formatSessionPackOverview(
     );
   }
 
+  const sessionDataRef = pack.files.has("session-data.json")
+    ? "session-data.json"
+    : "data/session-data.json";
   lines.push(
-    `\n**Next steps** (active pack is extracted & cached; omit \`--pack\` in subsequent commands): Run \`get_scene\` to inspect DOM targets & annotated screenshot, \`timeline --windowMs 15000\` for chronological events around the issue, \`query_network --status failed\` / \`get_request <id> --jsonPath "..."\` for API bodies, \`get_framework_state\` for Vue/React state, or read \`INDEX.md\` and query \`data/session-data.json\` / \`network/body-*.txt\` directly with \`jq\`.`
+    `\n**Next steps** (active pack is extracted & cached; omit \`--pack\` in subsequent commands): Run \`get_scene\` to inspect DOM targets & annotated screenshot, \`timeline --windowMs 15000\` for chronological events around the issue, \`query_network --status failed\` / \`get_request <id> --jsonPath "..."\` for API bodies, \`get_framework_state\` for Vue/React state, or read \`INDEX.md\` and query \`${sessionDataRef}\` / \`network/*\` directly with \`jq\`.`
   );
 
   return applyCharBudget(lines.join("\n"), maxChars);

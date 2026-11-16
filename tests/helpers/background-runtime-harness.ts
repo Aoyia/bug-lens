@@ -155,6 +155,9 @@ export class FakeInteractionCapture {
   async finalizePending(_sessionId: string) {
     this.calls.push("finalizePending");
   }
+  async captureFinalFrame(_session: RecordingSession) {
+    this.calls.push("captureFinalFrame");
+  }
 }
 
 export class FakeIssueSceneCapture {

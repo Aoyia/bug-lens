@@ -11,6 +11,8 @@ export function runQueryConsoleTool(args: {
   toMs?: number;
   offset?: number;
   limit?: number;
+  unfold?: boolean;
+  minCount?: number;
   format?: "text" | "json";
   maxChars?: number;
 }): string {
@@ -57,6 +59,8 @@ export function runQueryConsoleTool(args: {
     toMs: args.toMs,
     offset: args.offset,
     limit: args.limit,
+    unfold: args.unfold,
+    minCount: args.minCount,
   });
 
   if (args.format === "json") {
@@ -65,13 +69,13 @@ export function runQueryConsoleTool(args: {
 
   const lines: string[] = [];
   lines.push(
-    `# Console Logs (matched ${res.matchedCount} of ${res.totalEntries} total, showing offset=${res.offset}..${res.offset + res.items.length})`
+    `# Console Logs (${res.folded ? "folded" : "unfolded"}, matched ${res.matchedCount} of ${res.totalEntries} total, showing offset=${res.offset}..${res.offset + res.items.length})`
   );
   if (res.items.length === 0) {
     lines.push(`(No console entries matched the given filters)`);
   } else {
     for (const item of res.items) {
-      lines.push(formatConsoleItem(item));
+      lines.push(formatConsoleItem(item, { unfold: args.unfold }));
     }
   }
   const remaining = res.matchedCount - (res.offset + res.items.length);

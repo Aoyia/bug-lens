@@ -64,11 +64,15 @@ node "<skillDir>/scripts/bug-lens-cli.mjs" open_pack "<绝对路径.zip>"
    ```bash
    node "<skillDir>/scripts/bug-lens-cli.mjs" get_scene --selector "<目标选择器或标签子串>" --cssProperty "<目标CSS属性子串，如 word-break|overflow|flex|width>" --includeImage false
    ```
-2. 如需反查某条样式规则或关键字（如 `keep-all`、`ellipsis`、特定类名）在全局规则集中的位置：
+2. 如需聚焦目标节点的最终命中规则（`winnerRules`）、34 项核心计算样式及 Portal 触发宿主（`triggerElement` / `relatedOverlays`），运行 `get_css`（兼容 Schema v5 `issues/<id>/dom-styles.json`、v1–v4 目标节点及截图包 `cascade.json`）：
+   ```bash
+   node "<skillDir>/scripts/bug-lens-cli.mjs" get_css --scene 0 --property "<目标CSS属性子串，如 overflow|z-index|word-break>"
+   ```
+3. 如需反查某条样式规则或关键字（如 `keep-all`、`ellipsis`、特定类名）在全局规则集中的位置：
    ```bash
    node "<skillDir>/scripts/bug-lens-cli.mjs" search_pack "<关键字>"
    ```
-3. 如需批量核对锚点或父链原始字段，可直接用 `jq` 查询 `<Workspace>/dom-context.json` 或 `<Workspace>/cascade.json`。
+4. 如需批量核对锚点或父链原始字段，可直接用 `jq` 查询 `<Workspace>/issues/<id>/dom-styles.json`、`<Workspace>/issues/<id>/dom-context.json`（Schema v5）、`<Workspace>/dom-context.json` 或 `<Workspace>/cascade.json`。
 
 **Completion Criterion**：已定位胜出 CSS 规则 ID（`R*`）、所属样式表（`S*`）、选择器文本及被覆盖/继承的样式属性。
 
@@ -113,18 +117,28 @@ node "<skillDir>/scripts/bug-lens-cli.mjs" open_pack "<绝对路径.zip>"
      ```bash
      node "<skillDir>/scripts/bug-lens-cli.mjs" query_console --level error
      ```
-   - **组件状态错误**：
+   - **组件状态与 Storage 变化**：（Schema v5 同时摘要 `webStorageDiff` 与 `componentFile:componentLine` 源码定位）
      ```bash
      node "<skillDir>/scripts/bug-lens-cli.mjs" get_framework_state --component "<组件名>"
+     ```
+   - **样式层与 Portal 关联定位**（Schema v5 `issues/<id>/dom-styles.json` + `dom-context.json`，或截图包 `cascade.json`）：
+     ```bash
+     node "<skillDir>/scripts/bug-lens-cli.mjs" get_css --scene 0 --property "<目标CSS属性子串，如 overflow|display|word-break>"
+     ```
+   - **交互稳定帧、终态帧与帧对比**（Schema v5 `ai-minimal` 默认不含录屏视频，优先读取 `step-N-settled` / `final-frame` 或直接对比变化）：
+     ```bash
+     node "<skillDir>/scripts/bug-lens-cli.mjs" get_screenshot --step 1 --settled
+     node "<skillDir>/scripts/bug-lens-cli.mjs" get_screenshot --final
+     node "<skillDir>/scripts/bug-lens-cli.mjs" compare_frames --step 1 --against settled
      ```
    - **跨维度特征检索**：
      ```bash
      node "<skillDir>/scripts/bug-lens-cli.mjs" search_pack "<字段名或错误码>"
      ```
 3. **深水区原始证据直读（当 CLI 摘要不足以定案时）**：
-   - 先用 `read_file` 查看 `<Workspace>/INDEX.md` 获取精确字段名与 `network/body-*.txt` 映射；
-   - 使用 `jq` 或 `node -e` 直接检索 `<Workspace>/data/session-data.json`（如精确读取 `consoleEntries[i]`、对比前后两次接口响应 `network/body-*.txt` 的字段差异）或 `<Workspace>/data/network-details.json`（如提取完整请求头与 Cookie）；
-   - 如需检视特定交互步骤截图或录屏过渡帧，直接 `read_file` 读取 `<Workspace>/screenshots/step-N.jpg`，或用 `ffmpeg` 对 `<Workspace>/media/recording.webm` 按相对秒数抽帧。
+   - 先用 `read_file` 查看 `<Workspace>/INDEX.md` 获取精确字段名、Schema 版本（v5 `ai-minimal` 或 `full-viewer`）与载荷路径映射；
+   - Schema v5 数据包位于工作区根目录：`<Workspace>/session-data.json`、`<Workspace>/network-details.json`、`<Workspace>/network/blobs/<sha>.bin`（SHA-256 去重响应体）、`<Workspace>/issues/<id>/dom-styles.json` 与 `<Workspace>/issues/<id>/dom-context.json`；旧版 v1–v4 位于 `<Workspace>/data/session-data.json`、`<Workspace>/data/network-details.json` 与 `<Workspace>/network/body-*.txt`；
+   - 如需检视特定交互步骤截图或状态稳定后画面，优先 `read_file` 读取 `<Workspace>/screenshots/step-N.jpg`、`<Workspace>/screenshots/step-N-settled.jpg` 与 `<Workspace>/screenshots/final-frame.jpg`；仅当存在 `<Workspace>/media/recording.webm`（`full-viewer` 或旧版录屏包）时再使用 `ffmpeg` 按相对秒数抽帧。
 
 **Completion Criterion**：已获得支撑根因结论的确定性证据链（具体失败请求报文、异常状态字段或报错调用栈）。
 

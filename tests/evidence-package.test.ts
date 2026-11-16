@@ -6,6 +6,7 @@ import {
   buildClipboardAiPrompt,
   buildCompactAiPrompt,
   buildEvidencePackage,
+  buildEvidencePackageBundle,
   isWindowsEnvironmentFromSnapshot,
   type EvidencePackageSnapshot,
   type StaticReportAssets,
@@ -79,23 +80,45 @@ const reportAssets: StaticReportAssets = {
   icon: new Uint8Array([1, 2, 3]),
 };
 
-test("evidence package hides the complete offline report behind one snapshot interface", () => {
-  const files = new Map(
+test("evidence package defaults to ai-minimal pure JSON and supports full-viewer HTML mode", () => {
+  const aiFiles = new Map(
     buildEvidencePackage(snapshot, reportAssets).map((file) => [
       file.name,
       new TextDecoder().decode(file.data),
     ])
   );
   assert.deepEqual(
+    [...aiFiles.keys()],
+    [
+      "README.md",
+      "AI_PROMPT.md",
+      "reproduce.spec.ts",
+      "session-data.json",
+      "network-details.json",
+    ]
+  );
+  const aiSessionJson = JSON.parse(aiFiles.get("session-data.json")!);
+  assert.equal(aiSessionJson.schemaVersion, 5);
+  assert.equal(aiSessionJson.packMode, "ai-minimal");
+  assert.equal(aiSessionJson.session.id, session.id);
+
+  const files = new Map(
+    buildEvidencePackage(snapshot, reportAssets, {
+      packMode: "full-viewer",
+    }).map((file) => [file.name, new TextDecoder().decode(file.data)])
+  );
+  assert.deepEqual(
     [...files.keys()],
     [
       "README.md",
       "AI_PROMPT.md",
+      "reproduce.spec.ts",
+      "session-data.json",
+      "network-details.json",
       "report.html",
       "assets/report.js",
       "assets/report.css",
       "assets/icon_idle.png",
-      "reproduce.spec.ts",
       "data/session-data.js",
       "data/network-details.js",
     ]
@@ -176,10 +199,9 @@ test("evidence package exports binary interaction screenshots into screenshots/ 
   const files = buildEvidencePackage(snapshotWithScreenshots, reportAssets);
   const fileNames = files.map((f) => f.name);
   assert.ok(fileNames.includes("screenshots/step-1.png"));
-  const sessionJsFile = files.find((f) => f.name === "data/session-data.js")!;
-  const sessionJsRaw = new TextDecoder().decode(sessionJsFile.data);
+  const sessionJsonFile = files.find((f) => f.name === "session-data.json")!;
   const sessionData = JSON.parse(
-    sessionJsRaw.replace(/^window\.__BUG_LENS_DATA__ = /, "").slice(0, -1)
+    new TextDecoder().decode(sessionJsonFile.data)
   );
   assert.equal(
     sessionData.interactions[0].screenshot.dataUrl,
@@ -236,15 +258,14 @@ test("evidence package exports JPEG interaction screenshots with consistent .jpg
     fileNames.includes("screenshots/step-1.jpg"),
     "ZIP 包中应当包含 step-1.jpg"
   );
-  const sessionJsFile = files.find((f) => f.name === "data/session-data.js")!;
-  const sessionJsRaw = new TextDecoder().decode(sessionJsFile.data);
+  const sessionJsonFile = files.find((f) => f.name === "session-data.json")!;
   const sessionData = JSON.parse(
-    sessionJsRaw.replace(/^window\.__BUG_LENS_DATA__ = /, "").slice(0, -1)
+    new TextDecoder().decode(sessionJsonFile.data)
   );
   assert.equal(
     sessionData.interactions[0].screenshot.dataUrl,
     "screenshots/step-1.jpg",
-    "session-data.js 中的截图路径必须与 ZIP 文件名拓展名严格一致 (.jpg)"
+    "session-data.json 中的截图路径必须与 ZIP 文件名拓展名严格一致 (.jpg)"
   );
 });
 
@@ -278,17 +299,16 @@ test("evidence package includes framework state snapshots and mentions the repro
     ],
   };
   const files = buildEvidencePackage(snapshotWithFramework, reportAssets);
-  const sessionJsFile = files.find((f) => f.name === "data/session-data.js")!;
-  const sessionJsRaw = new TextDecoder().decode(sessionJsFile.data);
+  const sessionJsonFile = files.find((f) => f.name === "session-data.json")!;
   const sessionData = JSON.parse(
-    sessionJsRaw.replace(/^window\.__BUG_LENS_DATA__ = /, "").slice(0, -1)
+    new TextDecoder().decode(sessionJsonFile.data)
   );
   assert.equal(sessionData.frameworkStates.length, 1);
   assert.equal(
     sessionData.frameworkStates[0].snapshot.rootComponent.componentName,
     "App"
   );
-  assert.equal(sessionData.summary.frameworkStates, 1);
+  assert.equal(sessionData.summary.metrics.frameworkStateCount, 1);
   const readme = new TextDecoder().decode(
     files.find((f) => f.name === "README.md")!.data
   );
@@ -331,14 +351,18 @@ test("evidence package includes automatically captured environment info", () => 
   const prompt = buildAiPrompt(snapshotWithEnvironment, "/tmp/bug-lens.zip");
   assert.match(prompt, /macOS 10\.15\.7/);
 
-  const sessionJsFile = files.find((f) => f.name === "data/session-data.js")!;
-  const sessionJsRaw = new TextDecoder().decode(sessionJsFile.data);
+  const sessionJsonFile = files.find((f) => f.name === "session-data.json")!;
   const sessionData = JSON.parse(
-    sessionJsRaw.replace(/^window\.__BUG_LENS_DATA__ = /, "").slice(0, -1)
+    new TextDecoder().decode(sessionJsonFile.data)
   );
   assert.equal(sessionData.summary.environment.os, "macOS 10.15.7");
   assert.equal(sessionData.summary.environment.browser, "Chrome 126");
   assert.equal(sessionData.summary.environment.screen, "2880x1800@2x");
+  assert.deepEqual(sessionData.summary.environment.viewport, {
+    width: 1440,
+    height: 900,
+    dpr: 2,
+  });
 });
 
 test("evidence package does not export orphaned screenshot files into zip when screenshot status is unavailable or disabled", () => {
@@ -384,15 +408,14 @@ test("evidence package does not export orphaned screenshot files into zip when s
     false,
     "status 为 unavailable 的截图绝不允许在 ZIP 中生成 step-N 截图文件"
   );
-  const sessionJsFile = files.find((f) => f.name === "data/session-data.js")!;
-  const sessionJsRaw = new TextDecoder().decode(sessionJsFile.data);
+  const sessionJsonFile = files.find((f) => f.name === "session-data.json")!;
   const sessionData = JSON.parse(
-    sessionJsRaw.replace(/^window\.__BUG_LENS_DATA__ = /, "").slice(0, -1)
+    new TextDecoder().decode(sessionJsonFile.data)
   );
   assert.equal(
     sessionData.interactions[0].screenshot.status,
     "unavailable",
-    "session-data.js 中的截图状态应维持 unavailable"
+    "session-data.json 中的截图状态应维持 unavailable"
   );
 });
 
@@ -547,11 +570,62 @@ test("buildAiPrompt generates singleton workspace extraction commands for POSIX 
   await setUserLanguagePreference("auto");
 });
 
-test("buildEvidencePackage sanitizes ':' in split network body filenames for Windows compatibility while preserving entry.id", () => {
+test("buildEvidencePackage stores response bodies in CAS blobs without ':' while preserving entry.id and emits settled/final frames", () => {
   const colonNetId = `${session.id}:20535.366`;
   const largeBody = "x".repeat(5000);
   const snapshotWithColonNetId: EvidencePackageSnapshot = {
     ...snapshot,
+    interactions: [
+      {
+        id: "int-with-settled",
+        sessionId: session.id,
+        kind: "click" as const,
+        status: "confirmed" as const,
+        createdAt: 10,
+        page: { url: "https://example.com", title: "Test", frameId: 0 },
+        input: { pointerType: "mouse" as const, button: 0, isTrusted: true },
+        coordinates: {
+          clientX: 10,
+          clientY: 20,
+          pageX: 10,
+          pageY: 20,
+          scrollX: 0,
+          scrollY: 0,
+          devicePixelRatio: 1,
+          viewport: { width: 800, height: 600 },
+        },
+        element: {
+          tagName: "button",
+          classNames: [],
+          attributes: {},
+          boundingBox: { x: 0, y: 0, width: 50, height: 20 },
+          locators: [],
+        },
+        screenshot: {
+          status: "captured" as const,
+          source: "primary" as const,
+          assetId: "asset-instant",
+        },
+      },
+    ],
+    interactionAssets: [
+      {
+        interactionId: "int-with-settled",
+        kind: "interaction-screenshot",
+        bytes: new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1]),
+        mimeType: "image/jpeg",
+      },
+      {
+        interactionId: "int-with-settled",
+        kind: "interaction-settled",
+        bytes: new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 2]),
+        mimeType: "image/jpeg",
+      },
+    ],
+    finalFrameAsset: {
+      bytes: new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 3]),
+      mimeType: "image/jpeg",
+    },
     networkEntries: [
       {
         id: colonNetId,
@@ -578,37 +652,47 @@ test("buildEvidencePackage sanitizes ':' in split network body filenames for Win
   };
 
   const files = buildEvidencePackage(snapshotWithColonNetId, reportAssets);
-  const expectedSafeBodyPath = `network/body-${session.id}_20535.366.txt`;
   assert.ok(
-    files.some((f) => f.name === expectedSafeBodyPath),
-    "Split network body file must replace ':' with '_' for Windows compatibility"
+    files.some((f) => /^network\/blobs\/[a-f0-9]{16}\.bin$/.test(f.name)),
+    "Network response body must be stored under CAS network/blobs/<sha256:16>.bin"
   );
   assert.ok(
     files.every((f) => !f.name.includes(":")),
     "No file in the evidence package ZIP may contain ':' in its path"
   );
+  assert.ok(files.some((f) => f.name === "screenshots/step-1.jpg"));
+  assert.ok(files.some((f) => f.name === "screenshots/step-1-settled.jpg"));
+  assert.ok(files.some((f) => f.name === "screenshots/final-frame.jpg"));
 
-  const sessionJsRaw = new TextDecoder().decode(
-    files.find((f) => f.name === "data/session-data.js")!.data
-  );
   const sessionData = JSON.parse(
-    sessionJsRaw.replace(/^window\.__BUG_LENS_DATA__ = /, "").slice(0, -1)
+    new TextDecoder().decode(
+      files.find((f) => f.name === "session-data.json")!.data
+    )
   );
   assert.equal(sessionData.networkEntries[0].id, colonNetId);
+  assert.match(
+    sessionData.networkEntries[0].response.bodyHash,
+    /^[a-f0-9]{16}$/
+  );
   assert.equal(
-    sessionData.networkEntries[0].response.bodyPath,
-    expectedSafeBodyPath
+    sessionData.summary.finalFramePath,
+    "screenshots/final-frame.jpg"
+  );
+  assert.equal(
+    sessionData.interactions[0].screenshots.settledPath,
+    "screenshots/step-1-settled.jpg"
   );
 
-  const detailsJsRaw = new TextDecoder().decode(
-    files.find((f) => f.name === "data/network-details.js")!.data
-  );
   const detailsData = JSON.parse(
-    detailsJsRaw
-      .replace(/^window\.__BUG_LENS_NETWORK_DETAILS__ = /, "")
-      .slice(0, -1)
+    new TextDecoder().decode(
+      files.find((f) => f.name === "network-details.json")!.data
+    )
   );
   assert.ok(colonNetId in detailsData);
+  assert.equal(
+    detailsData[colonNetId].bodyBlob.path,
+    `network/blobs/${sessionData.networkEntries[0].response.bodyHash}.bin`
+  );
 });
 
 test("buildClipboardAiPrompt keeps standard output identical unless compact is selected", () => {

@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
-import type { ExportManifest, IntegrityReport } from "./types.ts";
+import type { ExportManifest, IntegrityReport, PackFileMap } from "./types.ts";
 
-export const SUPPORTED_SCHEMA_VERSIONS = [1, 2, 3, 4] as const;
-export const MAX_SUPPORTED_SCHEMA_VERSION = 4;
+export const SUPPORTED_SCHEMA_VERSIONS = [1, 2, 3, 4, 5] as const;
+export const MAX_SUPPORTED_SCHEMA_VERSION = 5;
 
 export function parseManifest(
   rawBytes?: Uint8Array
@@ -18,7 +18,7 @@ export function parseManifest(
 
 export function verifyPackIntegrity(
   manifest: ExportManifest | undefined,
-  files: Map<string, Uint8Array>,
+  files: PackFileMap,
   skippedFiles: Set<string>
 ): IntegrityReport {
   if (!manifest) {
@@ -56,22 +56,39 @@ export function verifyPackIntegrity(
       skippedCount += 1;
       continue;
     }
-    const actualBytes = files.get(filePath);
-    if (!actualBytes) {
+    const meta =
+      "getMetadata" in files && typeof files.getMetadata === "function"
+        ? files.getMetadata(filePath)
+        : undefined;
+
+    if (!files.has(filePath)) {
       mismatches.push(`${filePath}: missing in archive`);
       continue;
     }
     checkedCount += 1;
+
+    const actualByteLength =
+      meta?.byteLength ?? files.get(filePath)?.byteLength;
     if (
       typeof expected.byteLength === "number" &&
-      actualBytes.byteLength !== expected.byteLength
+      actualByteLength !== expected.byteLength
     ) {
       mismatches.push(
-        `${filePath}: byteLength mismatch (expected ${expected.byteLength}, got ${actualBytes.byteLength})`
+        `${filePath}: byteLength mismatch (expected ${expected.byteLength}, got ${actualByteLength})`
       );
       continue;
     }
+
     if (typeof expected.sha256 === "string" && expected.sha256.length > 0) {
+      const actualBytes =
+        "readBytesUncached" in files &&
+        typeof files.readBytesUncached === "function"
+          ? files.readBytesUncached(filePath)
+          : files.get(filePath);
+      if (!actualBytes) {
+        mismatches.push(`${filePath}: missing in archive`);
+        continue;
+      }
       const actualHash = createHash("sha256").update(actualBytes).digest("hex");
       if (actualHash.toLowerCase() !== expected.sha256.toLowerCase()) {
         mismatches.push(`${filePath}: sha256 mismatch`);

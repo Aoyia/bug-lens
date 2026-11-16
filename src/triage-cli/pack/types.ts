@@ -1,3 +1,22 @@
+export interface PackFileEntryMeta {
+  path: string;
+  byteLength: number;
+}
+
+export type PackFileMap =
+  | Map<string, Uint8Array>
+  | {
+      has(relPath: string): boolean;
+      get(relPath: string): Uint8Array | undefined;
+      delete?(relPath: string): boolean;
+      readonly size: number;
+      keys(): IterableIterator<string>;
+      entries(): IterableIterator<[string, Uint8Array]>;
+      listEntries?(): PackFileEntryMeta[];
+      getMetadata?(relPath: string): { byteLength: number } | undefined;
+      readBytesUncached?(relPath: string): Uint8Array | undefined;
+    };
+
 export interface ExportManifestFileEntry {
   byteLength: number;
   sha256: string;
@@ -6,9 +25,20 @@ export interface ExportManifestFileEntry {
 export interface ExportManifest {
   format?: string;
   schemaVersion?: number;
+  packMode?: "ai-minimal" | "full-viewer" | string;
   createdAtEpochMs?: number;
   sessionId?: string;
+  extensionVersion?: string;
   files?: Record<string, ExportManifestFileEntry>;
+  casStats?: {
+    totalBlobCount?: number;
+    totalBlobBytes?: number;
+    deduplicatedBytesSaved?: number;
+  };
+  migration?: {
+    currentSchemaVersion?: number;
+    supportedFrom?: number[];
+  };
 }
 
 export interface IntegrityReport {
@@ -53,7 +83,26 @@ export interface SessionSummary {
   };
   issueScenes?: number;
   frameworkStates?: number;
+  finalFramePath?: string;
   hasMedia?: boolean;
+  metrics?: {
+    interactionCount?: number;
+    screenshotCount?: number;
+    consoleSummary?: {
+      totalOriginalEntries?: number;
+      uniqueSignatureCount?: number;
+      errorCount?: number;
+      warningCount?: number;
+    };
+    networkSummary?: {
+      totalRequests?: number;
+      failedRequests?: number;
+      totalNetworkBytes?: number;
+      casDeduplicatedCount?: number;
+    };
+    issueSceneCount?: number;
+    frameworkStateCount?: number;
+  };
 }
 
 export interface ScreenshotSummaryItem {
@@ -141,7 +190,14 @@ export interface InteractionEntry {
     status?: string;
     source?: string;
     assetId?: string;
+    settledAssetId?: string;
+    settledDurationMs?: number;
     dataUrl?: string;
+  };
+  screenshots?: {
+    instantPath?: string;
+    settledPath?: string;
+    settledDurationMs?: number;
   };
 }
 
@@ -179,11 +235,38 @@ export interface ConsoleEntry {
     originalName?: string;
     failureReason?: string;
   };
+  /** Schema v5 consoleSummary 预折叠元数据（内部/查询保留，避免展开大数组） */
+  repeatCount?: number;
+  lastCreatedAt?: number;
+  timeRangeMs?: [number, number];
+  summarySignature?: string;
+  summaryTimestamps?: number[];
+}
+
+export interface ConsoleFoldedEntryV5 {
+  signature?: string;
+  level: string;
+  text: string;
+  source?: string;
+  count: number;
+  firstCreatedAt?: number;
+  lastCreatedAt?: number;
+  timeRangeMs?: [number, number];
+  timestamps?: number[];
+  location?:
+    | string
+    | {
+        url?: string;
+        lineNumber?: number;
+        columnNumber?: number;
+      };
+  sourceMappedLocation?: ConsoleEntry["sourceMappedLocation"];
 }
 
 export interface NetworkEntry {
   id: string;
   createdAt?: number;
+  elapsedMs?: number;
   url: string;
   method?: string;
   type?: string;
@@ -192,10 +275,17 @@ export interface NetworkEntry {
   durationMs?: number;
   initiatorType?: string;
   errorText?: string;
+  businessError?: {
+    code?: string | number;
+    message?: string;
+  };
   request?: {
     headers?: Record<string, string>;
     postData?: string;
     body?: string;
+    bodyHash?: string;
+    byteLength?: number;
+    contentType?: string;
   };
   response?: {
     mimeType?: string;
@@ -203,7 +293,10 @@ export interface NetworkEntry {
     byteLength?: number;
     truncated?: boolean;
     bodyPath?: string;
+    bodyHash?: string;
     body?: string;
+    fromCache?: boolean;
+    isBinary?: boolean;
     headers?: Record<string, string>;
     cache?: Record<string, unknown>;
   };
@@ -214,12 +307,33 @@ export interface NetworkDetailEntry {
   responseHeaders?: Record<string, string>;
   requestBody?: string;
   postData?: string;
+  bodyBlob?: {
+    path?: string;
+    hash?: string;
+    byteLength?: number;
+    size?: number;
+    mimeType?: string;
+  };
+  requestBodyBlob?: {
+    path?: string;
+    hash?: string;
+    byteLength?: number;
+    size?: number;
+  };
   initiator?: {
     type?: string;
     url?: string;
     lineNumber?: number;
     columnNumber?: number;
     stack?: unknown;
+    topFrame?: {
+      type?: string;
+      url?: string;
+      lineNumber?: number;
+      columnNumber?: number;
+      functionName?: string;
+      sourceMappedLocation?: ConsoleEntry["sourceMappedLocation"];
+    };
   };
 }
 
@@ -234,6 +348,52 @@ export interface IssueSceneTarget {
   }>;
   state?: Record<string, unknown>;
   computedStyle?: Record<string, string>;
+  relatedOverlays?: Array<{
+    tagName?: string;
+    id?: string;
+    classNames?: string[];
+    role?: string;
+    boundingBox?: { x?: number; y?: number; width?: number; height?: number };
+    relationReason?: string;
+    sanitizedHtml?: string;
+  }>;
+  triggerElement?: {
+    tagName?: string;
+    id?: string;
+    classNames?: string[];
+    role?: string;
+    accessibleName?: string;
+    text?: string;
+    selectorPath?: string;
+    componentName?: string;
+    ancestors?: Array<{ tagName?: string; id?: string; classNames?: string[] }>;
+  };
+  winnerRules?: Array<{
+    selector: string;
+    source: string;
+    specificity?: string;
+    properties: Record<string, string>;
+  }>;
+}
+
+export interface IssueSceneDomContextV5 {
+  sceneId?: string;
+  targetSelector?: string;
+  targetElement?: Record<string, unknown>;
+  relatedOverlays?: IssueSceneTarget["relatedOverlays"];
+  triggerElement?: IssueSceneTarget["triggerElement"];
+}
+
+export interface IssueSceneDomStylesV5 {
+  sceneId?: string;
+  targetSelector?: string;
+  computedLayoutStyles?: Record<string, string>;
+  winnerRules?: Array<{
+    selector: string;
+    source: string;
+    specificity?: string;
+    properties: Record<string, string>;
+  }>;
 }
 
 export interface IssueSceneObject {
@@ -299,6 +459,10 @@ export interface IssueSceneObject {
 export interface IssueSceneEnvelope {
   scene?: IssueSceneObject;
   id?: string;
+  observedAtEpochMs?: number;
+  targetSelector?: string;
+  domContextPath?: string;
+  domStylesPath?: string;
   originalSource?: string;
   annotatedSource?: string;
   // 兼容直接扁平 scene 结构
@@ -329,9 +493,18 @@ export interface FrameworkStateEntry {
     sessionStorage?: Record<string, unknown>;
     redactedValues?: boolean;
   };
+  webStorageDiff?: {
+    localStorageChanged?: Record<string, unknown>;
+    sessionStorageChanged?: Record<string, unknown>;
+    localStorage?: Record<string, unknown>;
+    sessionStorage?: Record<string, unknown>;
+    redactedValues?: boolean;
+  };
 }
 
 export interface SessionDataPayload {
+  format?: string;
+  schemaVersion?: number;
   summary?: SessionSummary;
   screenshotSummaries?: ScreenshotSummaryItem[];
   protocolVersion?: number;
@@ -357,6 +530,7 @@ export interface SessionDataPayload {
   interactions?: InteractionEntry[];
   consoleEntries?: ConsoleEntry[];
   consoleLogs?: ConsoleEntry[];
+  consoleSummary?: ConsoleFoldedEntryV5[];
   networkEntries?: NetworkEntry[];
   issueScenes?: IssueSceneEnvelope[];
   frameworkStates?: FrameworkStateEntry[];

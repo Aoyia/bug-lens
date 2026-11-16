@@ -50,6 +50,8 @@ export interface DomSpatialCollectOptions {
   styleAdjustmentMode?: boolean;
   /** 关闭剪枝逻辑：收集全页 DOM 元素而不是仅收集与选区相交的元素 */
   disablePruning?: boolean;
+  /** 可选：回传主世界探针完整结果（含穿透提取的业务父组件状态），供 environment.json 汇总而不膨胀 dom-context */
+  onProbedComponents?: (entries: FrameworkProbeEntry[]) => void;
 }
 
 /** 红框/马赛克标注覆盖元素面积 ≥ 该比例才算"命中"（避免祖先级误标） */
@@ -1282,6 +1284,9 @@ export async function collectSpatialDomTree(
   const componentMap = probeFramework
     ? await probeFramework([...anchorSet.keys(), ...leafEls, ...ancestorSet])
     : null;
+  if (componentMap && options.onProbedComponents) {
+    options.onProbedComponents(Array.from(componentMap.values()));
+  }
   const componentOf = (el: Element): FrameworkProbeEntry | undefined => {
     const probed = componentMap?.get(el);
     if (probed) return probed;

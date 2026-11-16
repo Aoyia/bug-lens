@@ -1,4 +1,8 @@
 import { parseWindowAssignmentJson } from "./js-json.ts";
+import {
+  listPackFileEntries,
+  normalizeRegistryPath,
+} from "./lazy-file-registry.ts";
 import type {
   ConsoleEntry,
   ExportManifest,
@@ -9,6 +13,7 @@ import type {
   IssueSceneObject,
   NetworkDetailEntry,
   NetworkEntry,
+  PackFileMap,
   SessionDataPayload,
 } from "./types.ts";
 
@@ -18,6 +23,32 @@ export interface NormalizedIssueScene {
   scene: IssueSceneObject;
   originalSource?: string;
   annotatedSource?: string;
+  domContextPath?: string;
+  domStylesPath?: string;
+  targetSelector?: string;
+}
+
+function parseConsoleSummaryLocation(
+  location?:
+    string | { url?: string; lineNumber?: number; columnNumber?: number }
+): { url?: string; lineNumber?: number; columnNumber?: number } {
+  if (!location) return {};
+  if (typeof location === "object") {
+    return {
+      url: location.url,
+      lineNumber: location.lineNumber,
+      columnNumber: location.columnNumber,
+    };
+  }
+  const match = /^(.*):(\d+)(?::(\d+))?$/.exec(location);
+  if (match) {
+    return {
+      url: match[1],
+      lineNumber: Number(match[2]),
+      columnNumber: match[3] ? Number(match[3]) : undefined,
+    };
+  }
+  return { url: location };
 }
 
 export class LoadedSessionPack {
@@ -27,13 +58,14 @@ export class LoadedSessionPack {
   readonly integrity: IntegrityReport;
   readonly data: SessionDataPayload;
   readonly t0EpochMs: number;
-  readonly files: Map<string, Uint8Array>;
+  readonly files: PackFileMap;
   readonly skippedMediaFiles: Map<
     string,
     { originalSize: number; compressedSize: number }
   >;
 
   private networkDetailsCache?: Record<string, NetworkDetailEntry>;
+  private consoleEntriesCache?: ConsoleEntry[];
   private textDecoder = new TextDecoder();
 
   constructor(params: {
@@ -41,7 +73,7 @@ export class LoadedSessionPack {
     manifest?: ExportManifest;
     integrity: IntegrityReport;
     data: SessionDataPayload;
-    files: Map<string, Uint8Array>;
+    files: PackFileMap;
     skippedMediaFiles: Map<
       string,
       { originalSize: number; compressedSize: number }
@@ -60,6 +92,11 @@ export class LoadedSessionPack {
       timeline?.startedAtEpochMs ??
       timeline?.createdAtEpochMs ??
       firstInteractionTime ??
+      params.data.networkEntries?.[0]?.createdAt ??
+      params.data.consoleEntries?.[0]?.createdAt ??
+      params.data.consoleLogs?.[0]?.createdAt ??
+      params.data.consoleSummary?.[0]?.firstCreatedAt ??
+      params.manifest?.createdAtEpochMs ??
       0;
   }
 
@@ -85,7 +122,47 @@ export class LoadedSessionPack {
   }
 
   getConsoleEntries(): ConsoleEntry[] {
-    return this.data.consoleEntries ?? this.data.consoleLogs ?? [];
+    if (this.data.consoleEntries) return this.data.consoleEntries;
+    if (this.data.consoleLogs) return this.data.consoleLogs;
+    if (this.consoleEntriesCache) return this.consoleEntriesCache;
+    const summary = this.data.consoleSummary;
+    if (!summary || summary.length === 0) return [];
+    this.consoleEntriesCache = summary.map((item, idx) => {
+      const loc = parseConsoleSummaryLocation(item.location);
+      return {
+        id: item.signature
+          ? `summary-${item.signature}-${idx}`
+          : `summary-${idx}`,
+        level: item.level,
+        text: item.text,
+        source: item.source,
+        createdAt:
+          item.firstCreatedAt ?? item.lastCreatedAt ?? item.timestamps?.[0],
+        url: loc.url,
+        lineNumber: loc.lineNumber,
+        columnNumber: loc.columnNumber,
+        sourceMappedLocation: item.sourceMappedLocation,
+        repeatCount: item.count,
+        lastCreatedAt: item.lastCreatedAt,
+        timeRangeMs: item.timeRangeMs,
+        summarySignature: item.signature,
+        summaryTimestamps: item.timestamps,
+      };
+    });
+    return this.consoleEntriesCache;
+  }
+
+  getConsoleTotalCount(): number {
+    const metricTotal =
+      this.data.summary?.metrics?.consoleSummary?.totalOriginalEntries;
+    if (typeof metricTotal === "number" && Number.isFinite(metricTotal)) {
+      return metricTotal;
+    }
+    const entries = this.getConsoleEntries();
+    return entries.reduce(
+      (sum, entry) => sum + Math.max(1, entry.repeatCount ?? 1),
+      0
+    );
   }
 
   getInteractions(): InteractionEntry[] {
@@ -105,6 +182,7 @@ export class LoadedSessionPack {
     return rawList.map((item, index) => {
       const scene: IssueSceneObject = item.scene ?? {
         id: item.id,
+        observedAtEpochMs: item.observedAtEpochMs,
         narrative: item.narrative,
         sequenceContext: item.sequenceContext,
         target: item.target,
@@ -121,6 +199,9 @@ export class LoadedSessionPack {
         scene,
         originalSource,
         annotatedSource,
+        domContextPath: item.domContextPath,
+        domStylesPath: item.domStylesPath,
+        targetSelector: item.targetSelector,
       };
     });
   }
@@ -138,6 +219,31 @@ export class LoadedSessionPack {
 
   getNetworkDetails(): Record<string, NetworkDetailEntry> {
     if (this.networkDetailsCache) return this.networkDetailsCache;
+
+    const pureJsonCandidate = this.files.has("network-details.json")
+      ? "network-details.json"
+      : !this.files.has("data/network-details.js") &&
+          this.files.has("data/network-details.json")
+        ? "data/network-details.json"
+        : undefined;
+
+    if (pureJsonCandidate) {
+      const pureJsonBytes = this.files.get(pureJsonCandidate);
+      if (pureJsonBytes) {
+        try {
+          this.networkDetailsCache = JSON.parse(
+            this.textDecoder.decode(pureJsonBytes)
+          ) as Record<string, NetworkDetailEntry>;
+          return this.networkDetailsCache;
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          throw new Error(
+            `INVALID_JSON_FILE: Failed to parse ${pureJsonCandidate}: ${msg}`
+          );
+        }
+      }
+    }
+
     const raw = this.files.get("data/network-details.js");
     if (!raw) {
       this.networkDetailsCache = {};
@@ -148,10 +254,42 @@ export class LoadedSessionPack {
       this.networkDetailsCache = parseWindowAssignmentJson<
         Record<string, NetworkDetailEntry>
       >(text, "data/network-details.js");
-    } catch {
-      this.networkDetailsCache = {};
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new Error(
+        `INVALID_JSON_FILE: Failed to parse data/network-details.js: ${msg}`
+      );
     }
     return this.networkDetailsCache;
+  }
+
+  /** 根据 CAS 哈希（支持 sha256: 前缀）或显式路径按需读取网络正文。 */
+  resolveBlobTextByHash(
+    hash?: string,
+    explicitPath?: string
+  ): string | undefined {
+    if (explicitPath) {
+      const byPath = this.getTextFile(explicitPath);
+      if (byPath !== undefined) return byPath;
+    }
+    if (!hash) return undefined;
+    const cleanHash = hash.replace(/^sha256:/i, "").trim();
+    if (!cleanHash) return undefined;
+    const shortHash = cleanHash.slice(0, 16);
+    return (
+      this.getTextFile(`network/blobs/${shortHash}.bin`) ??
+      this.getTextFile(`network/blobs/${cleanHash}.bin`)
+    );
+  }
+
+  getNetworkRequestBody(
+    entry: NetworkEntry,
+    details?: NetworkDetailEntry
+  ): string | undefined {
+    return this.resolveBlobTextByHash(
+      entry.request?.bodyHash ?? details?.requestBodyBlob?.hash,
+      details?.requestBodyBlob?.path
+    );
   }
 
   getNetworkBody(entry: NetworkEntry): string | undefined {
@@ -163,6 +301,18 @@ export class LoadedSessionPack {
       const text = this.getTextFile(bodyPath);
       if (text !== undefined) return text;
     }
+
+    const fromEntryHash = this.resolveBlobTextByHash(entry.response?.bodyHash);
+    if (fromEntryHash !== undefined) return fromEntryHash;
+
+    const details = this.getNetworkDetails();
+    const detailBlob = details[entry.id]?.bodyBlob;
+    const fromDetailBlob = this.resolveBlobTextByHash(
+      detailBlob?.hash,
+      detailBlob?.path
+    );
+    if (fromDetailBlob !== undefined) return fromDetailBlob;
+
     const safeFileId = entry.id.replace(/[^a-zA-Z0-9._-]/g, "_");
     return (
       this.getTextFile(`network/body-${safeFileId}.txt`) ??
@@ -171,14 +321,14 @@ export class LoadedSessionPack {
   }
 
   getTextFile(filePath: string): string | undefined {
-    const normalized = filePath.replace(/^\.?\//, "");
+    const normalized = normalizeRegistryPath(filePath);
     const bytes = this.files.get(normalized);
     if (!bytes) return undefined;
     return this.textDecoder.decode(bytes);
   }
 
   getBinaryFile(filePath: string): Uint8Array | undefined {
-    const normalized = filePath.replace(/^\.?\//, "");
+    const normalized = normalizeRegistryPath(filePath);
     return this.files.get(normalized);
   }
 
@@ -191,10 +341,10 @@ export class LoadedSessionPack {
       path: string;
       byteLength: number;
       skippedMedia?: boolean;
-    }> = [];
-    for (const [path, bytes] of this.files.entries()) {
-      list.push({ path, byteLength: bytes.byteLength });
-    }
+    }> = listPackFileEntries(this.files).map((item) => ({
+      path: item.path,
+      byteLength: item.byteLength,
+    }));
     for (const [path, info] of this.skippedMediaFiles.entries()) {
       list.push({
         path,

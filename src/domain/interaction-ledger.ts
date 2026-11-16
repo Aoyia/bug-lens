@@ -10,6 +10,11 @@ export type InteractionEvent =
       dataUrl?: string;
       source: "primary" | "fallback" | "video-frame";
     }
+  | {
+      type: "settled-captured";
+      settledAssetId: string;
+      settledDurationMs: number;
+    }
   | { type: "screenshot-unavailable"; issue: string };
 
 export function applyInteractionEvent(
@@ -45,6 +50,24 @@ export function applyInteractionEvent(
           source: event.source,
           ...(event.assetId ? { assetId: event.assetId } : {}),
           ...(event.dataUrl ? { dataUrl: event.dataUrl } : {}),
+          ...(current.screenshot?.settledAssetId
+            ? { settledAssetId: current.screenshot.settledAssetId }
+            : {}),
+          ...(current.screenshot?.settledDurationMs !== undefined
+            ? { settledDurationMs: current.screenshot.settledDurationMs }
+            : {}),
+        },
+      };
+
+    case "settled-captured":
+      if (!current || current.status === "cancelled") return current;
+      if (current.screenshot?.status !== "captured") return current;
+      return {
+        ...current,
+        screenshot: {
+          ...current.screenshot,
+          settledAssetId: event.settledAssetId,
+          settledDurationMs: event.settledDurationMs,
         },
       };
 

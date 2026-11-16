@@ -13,7 +13,7 @@ import {
   recordTaskProfile,
 } from "../../diagnostics/diagnostics-store";
 import {
-  captureFrameworkState,
+  captureFrameworkStateWithMainProbe,
   isMeaningfulFrameworkState,
 } from "../../domain/framework-state-capture";
 import { captureEnvironment } from "../../domain/environment-capture";
@@ -118,6 +118,15 @@ if (existingController) {
   let cachedStartedAtEpochMs: number | undefined;
   /** 速记卡确认的期望，随 issue-scene/capture 透传，编辑器打开后清空。 */
   let pendingExpected: ExpectedStatement | undefined;
+  let lastInteractedElementRef: WeakRef<Element> | Element | undefined;
+  function resolveLastInteractedElement(): Element | undefined {
+    const raw =
+      typeof WeakRef !== "undefined" &&
+      lastInteractedElementRef instanceof WeakRef
+        ? lastInteractedElementRef.deref()
+        : (lastInteractedElementRef as Element | undefined);
+    return raw && raw.isConnected !== false ? raw : undefined;
+  }
 
   const isMac =
     typeof navigator !== "undefined" &&
@@ -459,6 +468,7 @@ if (existingController) {
     overlay = new SelectionOverlay({
       getSession: () => session,
       getPendingExpected: () => pendingExpected,
+      getLastTriggerElement: () => resolveLastInteractedElement(),
       onCaptureComplete(scene, dataUrl) {
         pendingExpected = undefined;
         widget.unmount();
@@ -573,7 +583,7 @@ if (existingController) {
     isIssueActive: () => (overlay?.isActive || editor?.isOpen) ?? false,
     beginIssueSelection,
     removeIssueUi,
-    onEvidenceTick: () => captureFrameworkTick("interaction"),
+    onEvidenceTick: (element) => captureFrameworkTick("interaction", element),
   });
 
   // ─── Coordination ───
@@ -582,27 +592,43 @@ if (existingController) {
   const FRAMEWORK_TICK_MIN_INTERVAL_MS = 3_000;
 
   // 框架状态采集节流：普通触发 3s 内只上报一次，start 触发不受限；
-  // 且仅会话开启 captureFrameworkState 时才采集（性能/隐私开关）
-  function captureFrameworkTick(trigger: FrameworkStateTrigger): void {
+  // 异步通过 world:"MAIN" 探针补充隔离世界不可见的 Vue/React 组件树
+  function captureFrameworkTick(
+    trigger: FrameworkStateTrigger,
+    targetElement?: Element
+  ): void {
+    if (targetElement) {
+      lastInteractedElementRef =
+        typeof WeakRef !== "undefined"
+          ? new WeakRef(targetElement)
+          : targetElement;
+    }
     if (!session?.sessionId) return;
     if (!session.captureFrameworkState) return;
+    const activeSessionId = session.sessionId;
+    const privacyMode = session.privacyMode;
+    const resolvedTarget = targetElement ?? resolveLastInteractedElement();
     const now = Date.now();
     if (
       trigger !== "start" &&
+      trigger !== "issue-scene" &&
       now - lastFrameworkTickAt < FRAMEWORK_TICK_MIN_INTERVAL_MS
     )
       return;
     lastFrameworkTickAt = now;
-    const state = captureFrameworkState({
-      sessionId: session.sessionId,
+    void captureFrameworkStateWithMainProbe({
+      sessionId: activeSessionId,
       trigger,
-      privacyMode: session.privacyMode,
-    });
-    if (!isMeaningfulFrameworkState(state)) return;
-    void chrome.runtime
-      .sendMessage(
-        message("framework/state", { state }, session.sessionId, "background")
-      )
+      privacyMode,
+      targetElement: resolvedTarget,
+    })
+      .then((state) => {
+        if (!session || session.sessionId !== activeSessionId) return;
+        if (!isMeaningfulFrameworkState(state)) return;
+        return chrome.runtime.sendMessage(
+          message("framework/state", { state }, activeSessionId, "background")
+        );
+      })
       .catch(() => undefined);
   }
 

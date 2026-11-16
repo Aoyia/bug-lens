@@ -48,6 +48,7 @@ export class PreviewSessionRuntime {
   private frameworkStates: FrameworkStateEvidence[] = [];
   private issueAssets: EvidenceAsset[] = [];
   private interactionAssets: EvidenceAsset[] = [];
+  private finalFrameAsset?: EvidenceAsset;
   private issueScenePreviews: IssueScenePreview[] = [];
   private mediaUrl?: string;
   private mediaChunkCount = 0;
@@ -121,8 +122,10 @@ export class PreviewSessionRuntime {
       (a) => a.kind === "issue-original" || a.kind === "issue-annotated"
     );
     this.interactionAssets = allAssets.filter(
-      (a) => a.kind === "interaction-screenshot"
+      (a) =>
+        a.kind === "interaction-screenshot" || a.kind === "interaction-settled"
     );
+    this.finalFrameAsset = allAssets.find((a) => a.kind === "session-final");
 
     const assetById = new Map<string, EvidenceAsset>();
     const assetByInteractionId = new Map<string, EvidenceAsset>();
@@ -421,9 +424,22 @@ export class PreviewSessionRuntime {
         )
         .map((asset) => ({
           interactionId: asset.interactionId!,
+          kind:
+            asset.kind === "interaction-settled"
+              ? ("interaction-settled" as const)
+              : ("interaction-screenshot" as const),
           bytes: new Uint8Array(asset.bytes),
           mimeType: asset.mimeType,
         })),
+      ...(this.finalFrameAsset
+        ? {
+            finalFrameAsset: {
+              bytes: new Uint8Array(this.finalFrameAsset.bytes),
+              mimeType: this.finalFrameAsset.mimeType,
+              capturedAtEpochMs: this.finalFrameAsset.createdAtEpochMs,
+            },
+          }
+        : {}),
       excluded: {
         interaction: this.selection.excludedCount("interaction"),
         console: this.selection.excludedCount("console"),

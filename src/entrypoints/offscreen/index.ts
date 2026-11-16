@@ -8,11 +8,12 @@ import { db, type MediaChunkRecord } from "../../storage/db";
 import { evaluateOffscreenStorageWrite } from "../../storage/storage-health-coordinator";
 import { PreviewSessionRuntime } from "../../preview/preview-session-runtime";
 import {
-  buildEvidencePackage,
+  buildEvidencePackageBundle,
   buildClipboardAiPrompt,
   buildTicketTemplate,
   buildTicketBundle,
   type ClipboardPromptSettings,
+  type StaticReportAssets,
 } from "../../preview/evidence-package";
 import { loadStaticReportAssets } from "../../preview/static-report-assets";
 import { buildExportManifest } from "../../export/export-manifest";
@@ -570,6 +571,7 @@ async function exportPack(payload: {
   sessionId: string;
   traceContext?: ExportTraceContext;
   promptSettings?: ClipboardPromptSettings;
+  includeHtmlViewer?: boolean;
 }): Promise<{
   prompt: string;
   ticketTemplate?: string;
@@ -599,14 +601,22 @@ async function exportPack(payload: {
 
     const filename = `web-bug-report-${payload.sessionId.slice(0, 8)}.zip`;
 
-    // 2. 静态报告模版加载耗时
+    const includeHtmlViewer = payload.includeHtmlViewer === true;
+    const packMode = includeHtmlViewer ? "full-viewer" : "ai-minimal";
+
+    // 2. 静态报告模版加载耗时（仅 full-viewer 模式下加载）
     const tTemplateStart = performance.now();
-    const reportAssets = await loadStaticReportAssets();
+    const reportAssets: StaticReportAssets | undefined = includeHtmlViewer
+      ? await loadStaticReportAssets()
+      : undefined;
     const templateLoadDurationMs = performance.now() - tTemplateStart;
 
     // 3. 离线 HTML/JSON 组装耗时
     const tAssembleStart = performance.now();
-    const packageFiles = buildEvidencePackage(snapshot, reportAssets);
+    const bundle = buildEvidencePackageBundle(snapshot, reportAssets, {
+      packMode,
+    });
+    const packageFiles = bundle.files;
     const assembleDurationMs = performance.now() - tAssembleStart;
 
     // 4. AI Prompt 提示词与工单模板渲染耗时与字符规模
@@ -659,7 +669,10 @@ async function exportPack(payload: {
       sessionId: payload.sessionId,
       mediaSource: db,
       sink,
-      precomputedMediaIntegrity,
+      includeMedia: includeHtmlViewer,
+      precomputedMediaIntegrity: includeHtmlViewer
+        ? precomputedMediaIntegrity
+        : undefined,
       onPerfReport: (report) => {
         collectedPerfReport = report;
       },
@@ -667,7 +680,12 @@ async function exportPack(payload: {
         name: "manifest.json",
         data: new TextEncoder().encode(
           JSON.stringify(
-            buildExportManifest(snapshot.session, integrity),
+            buildExportManifest(snapshot.session, integrity, {
+              format: "bug-lens-evidence-pack",
+              packMode: bundle.packMode,
+              extensionVersion: snapshot.session.extensionVersion,
+              casStats: bundle.casStats,
+            }),
             null,
             2
           )

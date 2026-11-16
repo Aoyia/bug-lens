@@ -16,10 +16,32 @@ function collectComponentNodes(
   if (Array.isArray(st.snapshot?.parentChain)) {
     nodes.push(...st.snapshot.parentChain);
   }
-  if (Array.isArray(st.components)) {
+  if (nodes.length === 0 && Array.isArray(st.components)) {
     nodes.push(...st.components);
   }
   return nodes;
+}
+
+function resolveStateStorage(st: FrameworkStateEntry): {
+  isDiff: boolean;
+  local?: Record<string, unknown>;
+  session?: Record<string, unknown>;
+} {
+  if (st.webStorageDiff) {
+    return {
+      isDiff: true,
+      local:
+        st.webStorageDiff.localStorageChanged ?? st.webStorageDiff.localStorage,
+      session:
+        st.webStorageDiff.sessionStorageChanged ??
+        st.webStorageDiff.sessionStorage,
+    };
+  }
+  return {
+    isDiff: false,
+    local: st.webStorage?.localStorage,
+    session: st.webStorage?.sessionStorage,
+  };
 }
 
 export function runGetFrameworkStateTool(args: {
@@ -90,6 +112,17 @@ export function runGetFrameworkStateTool(args: {
       }
     });
     selectedIndex = bestIdx;
+  } else if (selectedIndex === undefined && args.component) {
+    const needle = args.component.toLowerCase();
+    for (let i = states.length - 1; i >= 0; i -= 1) {
+      const match = collectComponentNodes(states[i]!).some((c) =>
+        (c.componentName ?? "").toLowerCase().includes(needle)
+      );
+      if (match) {
+        selectedIndex = i;
+        break;
+      }
+    }
   }
 
   // 如果指定了 path 或 index，则针对单个快照深度输出
@@ -125,16 +158,20 @@ export function runGetFrameworkStateTool(args: {
       JSON.stringify(
         {
           totalStates: states.length,
-          overview: states.map((s, idx) => ({
-            index: idx,
-            relativeMs: loaded.toRelativeMs(s.capturedAtEpochMs),
-            trigger: s.trigger,
-            components: collectComponentNodes(s)
-              .map((c) => c.componentName)
-              .filter(Boolean),
-            localStorageKeys: Object.keys(s.webStorage?.localStorage ?? {}),
-            sessionStorageKeys: Object.keys(s.webStorage?.sessionStorage ?? {}),
-          })),
+          overview: states.map((s, idx) => {
+            const storage = resolveStateStorage(s);
+            return {
+              index: idx,
+              relativeMs: loaded.toRelativeMs(s.capturedAtEpochMs),
+              trigger: s.trigger,
+              components: collectComponentNodes(s)
+                .map((c) => c.componentName)
+                .filter(Boolean),
+              localStorageKeys: Object.keys(storage.local ?? {}),
+              sessionStorageKeys: Object.keys(storage.session ?? {}),
+              hasWebStorageDiff: storage.isDiff,
+            };
+          }),
           selectedIndex: targetIdx,
           selectedState: targetState,
         },
@@ -153,11 +190,13 @@ export function runGetFrameworkStateTool(args: {
     const comps = collectComponentNodes(st)
       .map((c) => c.componentName)
       .filter(Boolean);
-    const lsKeys = Object.keys(st.webStorage?.localStorage ?? {});
-    const ssKeys = Object.keys(st.webStorage?.sessionStorage ?? {});
+    const storage = resolveStateStorage(st);
+    const lsKeys = Object.keys(storage.local ?? {});
+    const ssKeys = Object.keys(storage.session ?? {});
+    const storageKind = storage.isDiff ? "diff" : "keys";
     const marker = idx === targetIdx ? " <-- [SELECTED]" : "";
     lines.push(
-      `- **[${idx}]** ${formatRelativeTime(rel)} trigger=\`${st.trigger ?? "?"}\` | components=[${comps.slice(0, 5).join(", ") || "none"}] | localStorageKeys=${lsKeys.length} | sessionStorageKeys=${ssKeys.length}${marker}`
+      `- **[${idx}]** ${formatRelativeTime(rel)} trigger=\`${st.trigger ?? "?"}\` | components=[${comps.slice(0, 5).join(", ") || "none"}] | localStorage(${storageKind})=${lsKeys.length} | sessionStorage(${storageKind})=${ssKeys.length}${marker}`
     );
   });
 
@@ -175,8 +214,11 @@ export function runGetFrameworkStateTool(args: {
   if (compNodes.length > 0) {
     lines.push(`\n### Component Tree / Chain (${compNodes.length})`);
     for (const c of compNodes) {
+      const fileLoc = c.componentFile
+        ? ` @ ${c.componentFile}${c.componentLine !== undefined ? `:${c.componentLine}` : ""}`
+        : "";
       lines.push(
-        `- **${c.componentName ?? "Anonymous"}** (${c.framework ?? "framework"} v${c.version ?? "?"})`
+        `- **${c.componentName ?? "Anonymous"}** (${c.framework ?? "framework"} v${c.version ?? "?"})${fileLoc}`
       );
       if (c.props && Object.keys(c.props).length > 0) {
         lines.push(`  - props: ${JSON.stringify(c.props)}`);
@@ -212,6 +254,19 @@ export function runGetFrameworkStateTool(args: {
     if (ws.sessionStorage && Object.keys(ws.sessionStorage).length > 0) {
       lines.push(`#### sessionStorage`);
       lines.push(JSON.stringify(ws.sessionStorage, null, 2));
+    }
+  }
+
+  if (targetState.webStorageDiff) {
+    const storage = resolveStateStorage(targetState);
+    lines.push(`\n### Web Storage Diff (delta vs previous state)`);
+    if (storage.local && Object.keys(storage.local).length > 0) {
+      lines.push(`#### localStorage diff`);
+      lines.push(JSON.stringify(storage.local, null, 2));
+    }
+    if (storage.session && Object.keys(storage.session).length > 0) {
+      lines.push(`#### sessionStorage diff`);
+      lines.push(JSON.stringify(storage.session, null, 2));
     }
   }
 

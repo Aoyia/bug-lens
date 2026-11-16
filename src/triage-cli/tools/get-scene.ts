@@ -214,6 +214,21 @@ export function runGetSceneTool(args: {
       if (t.state && Object.keys(t.state).length > 0) {
         lines.push(`  - **state**: ${JSON.stringify(t.state)}`);
       }
+      if (t.triggerElement) {
+        lines.push(
+          `  - **triggerElement (Portal Host)**: \`${t.triggerElement.selectorPath ?? t.triggerElement.tagName ?? "?"}\`${t.triggerElement.componentName ? ` (component: \`${t.triggerElement.componentName}\`)` : ""}`
+        );
+      }
+      if (t.relatedOverlays && t.relatedOverlays.length > 0) {
+        lines.push(
+          `  - **relatedOverlays**: ${t.relatedOverlays.map((o) => `${o.tagName ?? "div"}${o.id ? `#${o.id}` : ""} (${o.relationReason ?? "linked"})`).join(", ")}`
+        );
+      }
+    }
+    if (target.domStylesPath || target.domContextPath) {
+      lines.push(
+        `\n- **Schema v5 Artifacts**: ${target.domContextPath ? `\`${target.domContextPath}\`` : ""}${target.domStylesPath ? ` \`${target.domStylesPath}\` (inspect winner CSS via \`get_css --scene ${target.index}\`)` : ""}`
+      );
     }
 
     const seq = scene.sequenceContext;

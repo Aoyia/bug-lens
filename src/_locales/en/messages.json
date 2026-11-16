@@ -2319,6 +2319,12 @@
   "settingShowGuideDesc": {
     "message": "Display the 3-step workflow guide in the popup panel"
   },
+  "settingIncludeHtmlViewer": {
+    "message": "Include Offline HTML Viewer & Video"
+  },
+  "settingIncludeHtmlViewerDesc": {
+    "message": "When off (recommended), exports a lightweight JSON-only AI pack. Turn on to also bundle report.html and video recording for human review"
+  },
   "settingTargetAssistant": {
     "message": "Target AI Assistant"
   },

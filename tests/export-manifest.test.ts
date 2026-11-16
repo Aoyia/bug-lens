@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  EXPORT_SCHEMA_VERSION,
+  SUPPORTED_EXPORT_SCHEMA_VERSIONS,
   buildExportManifest,
   migrateExportPayload,
   verifyExportIntegrity,
@@ -66,4 +68,31 @@ test("export manifest verifies bytes and migrates v1 sessions to the current sch
   const migrated = migrateExportPayload({ session });
   assert.equal(migrated.session.schemaVersion, 2);
   assert.deepEqual(migrated.session.storage, { usedBytes: 0 });
+});
+
+test("export schema constants and baseline v5 manifest", () => {
+  assert.equal(EXPORT_SCHEMA_VERSION, 5);
+  assert.deepEqual(SUPPORTED_EXPORT_SCHEMA_VERSIONS, [1, 2, 3, 4, 5]);
+
+  const manifest = buildExportManifest(session, {});
+  assert.equal(manifest.schemaVersion, 5);
+  assert.equal(manifest.migration.currentSchemaVersion, 5);
+  assert.deepEqual(manifest.migration.supportedFrom, [1, 2, 3, 4, 5]);
+
+  // migrateExportPayload supports all versions in SUPPORTED_EXPORT_SCHEMA_VERSIONS
+  for (const v of [1, 2, 3, 4, 5]) {
+    const migrated = migrateExportPayload({
+      session: { ...session, schemaVersion: v as 1 | 2 },
+    });
+    assert.equal(migrated.session.schemaVersion, 2);
+  }
+
+  // Unsupported schema versions throw error
+  assert.throws(
+    () =>
+      migrateExportPayload({
+        session: { ...session, schemaVersion: 6 as any },
+      }),
+    /UNSUPPORTED_EXPORT_SCHEMA:6/
+  );
 });

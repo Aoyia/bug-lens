@@ -110,10 +110,16 @@ export class InteractionCapture {
   private readonly writeSessionEvent: SessionEventWriter;
   private readonly isStopping: (sessionId: string) => boolean;
   private readonly channelTimeoutMs: number;
+  private readonly settledDelayMs: number;
   private aborted = false;
   private abortedSessionId?: string;
   private abortController = new AbortController();
   private readonly sessionInteractions = new Map<string, Set<string>>();
+  private pendingSettled?: {
+    sessionId: string;
+    interactionId: string;
+    timer: ReturnType<typeof setTimeout>;
+  };
   /**
    * CDP 截图熔断：按 tabId 记录熔断截止时间。
    * 单次超时只熔断对应标签页并在冷却后自动恢复，避免一次瞬时卡顿把整场录制永久降级到
@@ -126,12 +132,14 @@ export class InteractionCapture {
     repository: InteractionRepository,
     writeSessionEvent: SessionEventWriter,
     isStopping: (sessionId: string) => boolean,
-    channelTimeoutMs = 1000
+    channelTimeoutMs = 1000,
+    settledDelayMs = 350
   ) {
     this.repository = repository;
     this.writeSessionEvent = writeSessionEvent;
     this.isStopping = isStopping;
     this.channelTimeoutMs = channelTimeoutMs;
+    this.settledDelayMs = settledDelayMs;
   }
 
   handle(
@@ -167,7 +175,15 @@ export class InteractionCapture {
     });
   }
 
+  private clearPendingSettledTimer(): void {
+    if (this.pendingSettled) {
+      clearTimeout(this.pendingSettled.timer);
+      this.pendingSettled = undefined;
+    }
+  }
+
   reset(): void {
+    this.clearPendingSettledTimer();
     this.aborted = false;
     this.abortedSessionId = undefined;
     this.abortController = new AbortController();
@@ -182,6 +198,7 @@ export class InteractionCapture {
 
   /** 停止时调用：立即熔断取消在途未截取的队列，并在超时保护下等待当前执行完成 */
   abortPending(sessionId?: string): void {
+    this.clearPendingSettledTimer();
     this.aborted = true;
     if (sessionId) {
       this.abortedSessionId = sessionId;
@@ -238,6 +255,8 @@ export class InteractionCapture {
 
   async drain(timeoutMs = 1200, sessionId?: string): Promise<string[]> {
     const errors: string[] = [];
+    // 停止录制时，尚未触发的稳定帧定时器不再等待（终态画面由 captureFinalFrame 捕获）
+    this.clearPendingSettledTimer();
     await flushStorageBatchQueue().catch(() => {});
     if (this.pending.size) {
       // 1. 给予优雅排空窗口：短超时（单测 <=500ms）设为 150ms 保证挂起时快速熔断；正常停止（>=1000ms）给予充裕窗口排空真实在途交互
@@ -551,6 +570,145 @@ export class InteractionCapture {
         type: "screenshot-unavailable",
         issue: t("screenshotUnavailable"),
       });
+    }
+
+    // 交互确认且开启截图时，在稳定窗口后异步采集视觉稳定帧 (step-N-settled.jpg)
+    if (
+      session.options.captureScreenshots &&
+      !this.aborted &&
+      !this.isStopping(session.id) &&
+      next.status === "confirmed" &&
+      ["click", "dblclick", "change", "submit"].includes(next.kind) &&
+      this.settledDelayMs >= 0
+    ) {
+      this.scheduleSettledFrame(session, next, sender);
+    }
+  }
+
+  private scheduleSettledFrame(
+    session: RecordingSession,
+    interaction: InteractionRecord,
+    sender: chrome.runtime.MessageSender
+  ): void {
+    this.clearPendingSettledTimer();
+    const scheduledAt = Date.now();
+    const timer = setTimeout(() => {
+      if (this.pendingSettled?.timer === timer) {
+        this.pendingSettled = undefined;
+      }
+      if (this.aborted || this.isStopping(session.id)) return;
+      void this.track(
+        this.captureSettledFrame(session, interaction, sender, scheduledAt)
+      );
+    }, this.settledDelayMs);
+    this.pendingSettled = {
+      sessionId: session.id,
+      interactionId: interaction.id,
+      timer,
+    };
+  }
+
+  private async captureSettledFrame(
+    session: RecordingSession,
+    interaction: InteractionRecord,
+    sender: chrome.runtime.MessageSender,
+    scheduledAt: number
+  ): Promise<void> {
+    if (this.aborted || this.isStopping(session.id)) return;
+    if (!this.repository.saveEvidenceAssetWithinBudget) return;
+    try {
+      const currentSession = await this.repository.getActiveSession();
+      if (
+        !currentSession ||
+        currentSession.id !== session.id ||
+        this.aborted ||
+        this.isStopping(session.id)
+      ) {
+        return;
+      }
+      const latest = await this.repository.getInteraction(interaction.id);
+      if (
+        !latest ||
+        latest.status === "cancelled" ||
+        latest.screenshot?.status !== "captured" ||
+        latest.screenshot?.settledAssetId
+      ) {
+        return;
+      }
+      await this.assertTargetTabIsActive(currentSession, sender.tab?.id);
+      const rawDataUrl = await this.executeCaptureScreenshot(
+        currentSession,
+        sender.tab?.id,
+        sender.tab?.windowId
+      );
+      if (this.aborted || this.isStopping(session.id)) return;
+      const bytes = dataUrlToArrayBuffer(rawDataUrl);
+      const vp = this.resolveTopViewport(
+        currentSession,
+        latest,
+        latest.page.frameId
+      );
+      const settledAssetId = crypto.randomUUID();
+      const assetResult = await this.repository.saveEvidenceAssetWithinBudget({
+        id: settledAssetId,
+        sessionId: session.id,
+        interactionId: latest.id,
+        kind: "interaction-settled",
+        mimeType: "image/jpeg",
+        bytes,
+        width: vp.width,
+        height: vp.height,
+        createdAtEpochMs: Date.now(),
+      });
+      if (assetResult.stored) {
+        await this.persist(session.id, latest.id, {
+          type: "settled-captured",
+          settledAssetId,
+          settledDurationMs: Math.max(0, Date.now() - scheduledAt),
+        });
+      }
+    } catch {
+      // 稳定帧为非关键视觉增强：切页/停止/配额受限时不阻塞也不记错误 issue
+    }
+  }
+
+  /**
+   * 录制停止时（detach / abort 前）捕获最终全屏视口帧 (screenshots/final-frame.jpg)，
+   * 固定保存为 `kind: "session-final"`，避免末步弹窗校验错误未被静态截图留存。
+   */
+  async captureFinalFrame(session: RecordingSession): Promise<void> {
+    if (!session.options.captureScreenshots) return;
+    if (this.aborted || !this.repository.saveEvidenceAssetWithinBudget) return;
+    try {
+      const activeTabs = await chrome.tabs.query({ active: true });
+      const trackedIds = new Set<number>([
+        session.target.tabId,
+        ...(session.targets?.map((entry) => entry.tabId) ?? []),
+      ]);
+      const activeTargetTab = activeTabs.find(
+        (tab) => tab.id !== undefined && trackedIds.has(tab.id)
+      );
+      if (!activeTargetTab?.id) return;
+
+      const rawDataUrl = await this.executeCaptureScreenshot(
+        session,
+        activeTargetTab.id,
+        activeTargetTab.windowId ?? session.target.windowId
+      );
+      const bytes = dataUrlToArrayBuffer(rawDataUrl);
+      const env = session.target.environment;
+      await this.repository.saveEvidenceAssetWithinBudget({
+        id: crypto.randomUUID(),
+        sessionId: session.id,
+        kind: "session-final",
+        mimeType: "image/jpeg",
+        bytes,
+        width: env?.viewportWidth ?? 1280,
+        height: env?.viewportHeight ?? 720,
+        createdAtEpochMs: Date.now(),
+      });
+    } catch {
+      // 最终帧采集失败不阻塞停录流程
     }
   }
 

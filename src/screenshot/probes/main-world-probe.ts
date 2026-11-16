@@ -1,4 +1,7 @@
-import type { FrameworkProbeEntry } from "../../shared/protocol";
+import type {
+  FrameworkProbeEntry,
+  FrameworkProbeParentEntry,
+} from "../../shared/protocol";
 
 /**
  * 在页面主世界运行的框架组件探针。
@@ -98,7 +101,11 @@ export function runMainWorldFrameworkProbe(
         ) {
           res[k] = "[REDACTED_SENSITIVE_KEY]";
         } else {
-          res[k] = sanitizeValue(val[k], depth + 1, seen);
+          try {
+            res[k] = sanitizeValue(val[k], depth + 1, seen);
+          } catch {
+            res[k] = "[Unreadable]";
+          }
         }
       }
       return res;
@@ -110,6 +117,151 @@ export function runMainWorldFrameworkProbe(
       return "[REDACTED_SENSITIVE_KEY]";
     }
     return str;
+  };
+
+  const MAX_PARENT_STATES = 2;
+  const WRAPPER_NAME_RE =
+    /^(?:Transition|TransitionGroup|BaseTransition|KeepAlive|KeepAliveImpl|Suspense|Fragment|RouterView|RouterLink|Anonymous|AnonymousComponent|(?:El|Van|Ant|Nz)[A-Z].*)$/;
+
+  const isLibraryFile = (filePath?: string): boolean =>
+    typeof filePath === "string" &&
+    (filePath.indexOf("node_modules/") === 0 ||
+      filePath.indexOf("/node_modules/") !== -1);
+
+  const isWrapperName = (name?: string): boolean =>
+    !name || WRAPPER_NAME_RE.test(name);
+
+  type AncestorCandidate = {
+    name: string;
+    file?: string;
+    line?: number;
+    hasRawState: boolean;
+    node: any;
+  };
+
+  const selectAndExtractParents = (
+    candidates: AncestorCandidate[],
+    primaryName: string | undefined,
+    primaryFile: string | undefined,
+    primaryHasData: boolean,
+    extractParent: (
+      candidate: AncestorCandidate
+    ) => FrameworkProbeParentEntry | null
+  ): FrameworkProbeParentEntry[] | undefined => {
+    if (candidates.length === 0) return undefined;
+
+    const primaryIsWrapperOrThirdParty =
+      isLibraryFile(primaryFile) ||
+      (!primaryFile && isWrapperName(primaryName)) ||
+      !primaryHasData;
+
+    const tier1: AncestorCandidate[] = [];
+    const tier2: AncestorCandidate[] = [];
+    const tier3: AncestorCandidate[] = [];
+
+    for (let i = 0; i < candidates.length; i++) {
+      const c = candidates[i];
+      if (!c.name || isWrapperName(c.name) || isLibraryFile(c.file)) continue;
+      if (c.file && c.hasRawState) {
+        tier1.push(c);
+      } else if (!c.file && c.hasRawState) {
+        tier2.push(c);
+      } else if (c.file && primaryIsWrapperOrThirdParty) {
+        tier3.push(c);
+      }
+    }
+
+    const ordered = [...tier1, ...tier2, ...tier3];
+    if (ordered.length === 0) return undefined;
+
+    const out: FrameworkProbeParentEntry[] = [];
+    for (let i = 0; i < ordered.length && out.length < MAX_PARENT_STATES; i++) {
+      const entry = extractParent(ordered[i]);
+      if (
+        entry &&
+        (entry.props !== undefined ||
+          entry.data !== undefined ||
+          entry.componentFile !== undefined ||
+          entry.componentLine !== undefined)
+      ) {
+        out.push(entry);
+      }
+    }
+    return out.length > 0 ? out : undefined;
+  };
+
+  const resolveVueMeta = (vnodeOrVm: any): { name?: string; file?: string } => {
+    if (!vnodeOrVm) return {};
+    try {
+      const type = vnodeOrVm.type;
+      const opts = vnodeOrVm.$options;
+      const name =
+        type?.name ||
+        type?.__name ||
+        opts?.name ||
+        opts?._componentTag ||
+        opts?.__name ||
+        vnodeOrVm.$vnode?.componentOptions?.tag;
+      const rawFile =
+        type?.__file ||
+        type?.__file_name ||
+        opts?.__file ||
+        vnodeOrVm.constructor?.options?.__file ||
+        vnodeOrVm.constructor?.extendOptions?.__file ||
+        vnodeOrVm.$vnode?.componentOptions?.Ctor?.options?.__file;
+      return {
+        name: typeof name === "string" ? name : undefined,
+        file: normalizeFilePath(rawFile),
+      };
+    } catch {
+      return {};
+    }
+  };
+
+  const hasRawVueState = (vnodeOrVm: any): boolean => {
+    if (!vnodeOrVm || typeof vnodeOrVm !== "object") return false;
+    try {
+      if (vnodeOrVm.setupState && typeof vnodeOrVm.setupState === "object") {
+        const keys = Object.keys(vnodeOrVm.setupState);
+        for (let i = 0; i < keys.length; i++) {
+          const k = keys[i];
+          if (!k.startsWith("__") && !k.startsWith("$")) return true;
+        }
+      }
+      if (
+        vnodeOrVm.data &&
+        typeof vnodeOrVm.data === "object" &&
+        Object.keys(vnodeOrVm.data).length > 0
+      ) {
+        return true;
+      }
+      if (
+        vnodeOrVm.props &&
+        typeof vnodeOrVm.props === "object" &&
+        Object.keys(vnodeOrVm.props).length > 0
+      ) {
+        return true;
+      }
+      const v2Data = vnodeOrVm.$data || vnodeOrVm._data;
+      if (
+        v2Data &&
+        typeof v2Data === "object" &&
+        Object.keys(v2Data).length > 0
+      ) {
+        return true;
+      }
+      const v2Props = vnodeOrVm.$props || vnodeOrVm._props;
+      if (
+        v2Props &&
+        typeof v2Props === "object" &&
+        Object.keys(v2Props).length > 0
+      ) {
+        return true;
+      }
+    } catch {
+      return false;
+    }
+    return false;
   };
 
   const extractVueState = (vnodeOrVm: any) => {
@@ -160,17 +312,13 @@ export function runMainWorldFrameworkProbe(
       }
       // 2. Vue 2 (VueComponent)
       else if (vnodeOrVm._isVue || vnodeOrVm.$options) {
-        filePath =
-          vnodeOrVm.$options?.__file || vnodeOrVm.constructor?.options?.__file;
-        rawProps = vnodeOrVm.$props;
+        filePath = resolveVueMeta(vnodeOrVm).file;
+        rawProps = vnodeOrVm.$props || vnodeOrVm._props;
         rawData = vnodeOrVm.$data || vnodeOrVm._data;
       }
       // 3. 兜底
       else {
-        filePath =
-          vnodeOrVm.type?.__file ||
-          vnodeOrVm.type?.__file_name ||
-          vnodeOrVm.$options?.__file;
+        filePath = resolveVueMeta(vnodeOrVm).file;
         if (vnodeOrVm.setupState && typeof vnodeOrVm.setupState === "object") {
           const setupKeys = Object.keys(vnodeOrVm.setupState).filter(
             (k) => !k.startsWith("__") && !k.startsWith("$")
@@ -186,7 +334,7 @@ export function runMainWorldFrameworkProbe(
         } else if (!rawData && (vnodeOrVm.$data || vnodeOrVm._data)) {
           rawData = vnodeOrVm.$data || vnodeOrVm._data;
         }
-        rawProps = vnodeOrVm.props || vnodeOrVm.$props;
+        rawProps = vnodeOrVm.props || vnodeOrVm.$props || vnodeOrVm._props;
       }
     }
 
@@ -212,452 +360,483 @@ export function runMainWorldFrameworkProbe(
     if (normalized && !path.includes(normalized)) path.push(normalized);
   };
 
-  const detect = (el: Element): FrameworkProbeEntry | null => {
-    const rawPath: string[] = [];
-    let stateInfo:
-      { props?: any; data?: any; componentFile?: string } | undefined;
-
-    try {
-      // React Fiber：__reactFiber$ / __reactInternalInstance$ 挂在 DOM 元素自身
-      let fiberKey: string | undefined;
-      for (const k of Object.getOwnPropertyNames(el)) {
+  const extractReactComponentState = (compFiber: any) => {
+    let cleanProps: Record<string, unknown> | undefined;
+    const rawProps = compFiber?.memoizedProps || compFiber?.pendingProps;
+    if (rawProps && typeof rawProps === "object" && !Array.isArray(rawProps)) {
+      const filtered: Record<string, unknown> = {};
+      let filteredCount = 0;
+      for (const k of Object.keys(rawProps)) {
         if (
-          k.startsWith("__reactFiber$") ||
-          k.startsWith("__reactInternalInstance$")
+          k === "children" ||
+          k === "key" ||
+          k === "ref" ||
+          k.startsWith("$$typeof") ||
+          k.startsWith("__") ||
+          k.startsWith("_owner") ||
+          k.startsWith("_store") ||
+          k.startsWith("_self") ||
+          k.startsWith("_source")
         ) {
-          fiberKey = k;
-          break;
+          continue;
         }
+        filtered[k] = rawProps[k];
+        filteredCount += 1;
+        if (filteredCount >= 20) break;
       }
-      if (fiberKey) {
-        const hostFiber = (el as any)[fiberKey];
-        let debugSource:
-          { fileName?: string; lineNumber?: number } | undefined =
-          hostFiber?._debugSource;
+      const sanitized = sanitizeValue(filtered);
+      if (sanitized && Object.keys(sanitized).length > 0) {
+        cleanProps = sanitized;
+      }
+    }
 
-        let compFiber: any = null;
-        let fiber = hostFiber;
-        let hops = 0;
-
-        while (fiber && hops < MAX_HOPS) {
-          if (!debugSource && fiber._debugSource) {
-            debugSource = fiber._debugSource;
-          }
-
-          const type = fiber.type;
-          const isHost = fiber.tag === 5 || typeof type === "string";
-
-          if (!isHost) {
-            if (!compFiber) {
-              compFiber = fiber;
-            }
-
-            let name: string | undefined;
-            if (typeof type === "function") {
-              name = type.displayName || type.name;
-            } else if (typeof type === "object" && type !== null) {
-              name =
-                type.displayName ||
-                type.name ||
-                type.render?.displayName ||
-                type.render?.name ||
-                type.type?.displayName ||
-                type.type?.name;
-            }
-
-            if (name) {
-              push(rawPath, name);
-            }
-          }
-
-          fiber = fiber.return;
-          hops += 1;
-          if (rawPath.length >= MAX_PATH) break;
+    let cleanData: Record<string, unknown> | undefined;
+    if (compFiber) {
+      const extractedData: Record<string, any> = {};
+      if (compFiber.tag === 1) {
+        const rawState = compFiber.stateNode?.state || compFiber.memoizedState;
+        if (rawState && typeof rawState === "object") {
+          Object.assign(extractedData, rawState);
         }
+      } else if (
+        compFiber.memoizedState &&
+        typeof compFiber.memoizedState === "object" &&
+        !("queue" in compFiber.memoizedState) &&
+        !("next" in compFiber.memoizedState) &&
+        !("memoizedState" in compFiber.memoizedState)
+      ) {
+        Object.assign(extractedData, compFiber.memoizedState);
+      } else {
+        let hook = compFiber.memoizedState;
+        let hookHops = 0;
+        let stateIdx = 0;
+        let refIdx = 0;
+        let memoIdx = 0;
 
-        // 解包 React memoizedProps
-        let cleanProps: Record<string, unknown> | undefined;
-        if (compFiber) {
-          const rawProps = compFiber.memoizedProps || compFiber.pendingProps;
-          if (
-            rawProps &&
-            typeof rawProps === "object" &&
-            !Array.isArray(rawProps)
-          ) {
-            const filtered: Record<string, unknown> = {};
-            let filteredCount = 0;
-            for (const k of Object.keys(rawProps)) {
+        while (hook && typeof hook === "object" && hookHops < 30) {
+          hookHops++;
+          const mState = hook.memoizedState;
+          const isEffect =
+            mState &&
+            typeof mState === "object" &&
+            (typeof mState.create === "function" ||
+              typeof mState.destroy === "function" ||
+              ("tag" in mState && "create" in mState));
+
+          if (!isEffect) {
+            if (hook.queue && typeof hook.queue === "object") {
+              extractedData[`useState_${stateIdx}`] = mState;
+              stateIdx++;
+            } else if (
+              mState &&
+              typeof mState === "object" &&
+              "current" in mState &&
+              hook.queue === null
+            ) {
+              const cur = mState.current;
               if (
-                k === "children" ||
-                k === "key" ||
-                k === "ref" ||
-                k.startsWith("$$typeof") ||
-                k.startsWith("__") ||
-                k.startsWith("_owner") ||
-                k.startsWith("_store") ||
-                k.startsWith("_self") ||
-                k.startsWith("_source")
+                cur &&
+                typeof cur === "object" &&
+                (cur.nodeType !== undefined ||
+                  (typeof Element !== "undefined" && cur instanceof Element))
               ) {
-                continue;
+                extractedData[`useRef_${refIdx}`] = "[DOM Element]";
+              } else {
+                extractedData[`useRef_${refIdx}`] = cur;
               }
-              filtered[k] = rawProps[k];
-              filteredCount += 1;
-              if (filteredCount >= 20) break;
-            }
-            const sanitized = sanitizeValue(filtered);
-            if (sanitized && Object.keys(sanitized).length > 0) {
-              cleanProps = sanitized;
-            }
-          }
-        }
-
-        // 解包 React memoizedState（Hooks 链表或 Class 状态）
-        let cleanData: Record<string, unknown> | undefined;
-        if (compFiber) {
-          const extractedData: Record<string, any> = {};
-
-          if (compFiber.tag === 1) {
-            // Class Component
-            const rawState =
-              compFiber.stateNode?.state || compFiber.memoizedState;
-            if (rawState && typeof rawState === "object") {
-              Object.assign(extractedData, rawState);
-            }
-          } else if (
-            compFiber.memoizedState &&
-            typeof compFiber.memoizedState === "object" &&
-            !("queue" in compFiber.memoizedState) &&
-            !("next" in compFiber.memoizedState) &&
-            !("memoizedState" in compFiber.memoizedState)
-          ) {
-            // Mock 或直接挂载的 State 对象
-            Object.assign(extractedData, compFiber.memoizedState);
-          } else {
-            // Function Component: 遍历 Hooks 链表
-            let hook = compFiber.memoizedState;
-            let hookHops = 0;
-            let stateIdx = 0;
-            let refIdx = 0;
-            let memoIdx = 0;
-
-            while (hook && typeof hook === "object" && hookHops < 30) {
-              hookHops++;
-              const mState = hook.memoizedState;
-
-              // 跳过副作用 Hooks（useEffect / useLayoutEffect / useInsertionEffect）
-              const isEffect =
-                mState &&
-                typeof mState === "object" &&
-                (typeof mState.create === "function" ||
-                  typeof mState.destroy === "function" ||
-                  ("tag" in mState && "create" in mState));
-
-              if (!isEffect) {
-                if (hook.queue && typeof hook.queue === "object") {
-                  // useState 或 useReducer
-                  extractedData[`useState_${stateIdx}`] = mState;
-                  stateIdx++;
-                } else if (
-                  mState &&
-                  typeof mState === "object" &&
-                  "current" in mState &&
-                  hook.queue === null
-                ) {
-                  // useRef
-                  const cur = mState.current;
-                  if (
-                    cur &&
-                    typeof cur === "object" &&
-                    (cur.nodeType !== undefined ||
-                      (typeof Element !== "undefined" &&
-                        cur instanceof Element))
-                  ) {
-                    extractedData[`useRef_${refIdx}`] = "[DOM Element]";
-                  } else {
-                    extractedData[`useRef_${refIdx}`] = cur;
-                  }
-                  refIdx++;
-                } else if (
-                  Array.isArray(mState) &&
-                  mState.length === 2 &&
-                  Array.isArray(mState[1]) &&
-                  hook.queue === null
-                ) {
-                  // useMemo [value, deps]
-                  if (typeof mState[0] !== "function") {
-                    extractedData[`useMemo_${memoIdx}`] = mState[0];
-                    memoIdx++;
-                  }
-                } else if (mState !== undefined && hook.queue !== undefined) {
-                  extractedData[`state_${stateIdx}`] = mState;
-                  stateIdx++;
-                }
+              refIdx++;
+            } else if (
+              Array.isArray(mState) &&
+              mState.length === 2 &&
+              Array.isArray(mState[1]) &&
+              hook.queue === null
+            ) {
+              if (typeof mState[0] !== "function") {
+                extractedData[`useMemo_${memoIdx}`] = mState[0];
+                memoIdx++;
               }
-
-              hook = hook.next;
+            } else if (mState !== undefined && hook.queue !== undefined) {
+              extractedData[`state_${stateIdx}`] = mState;
+              stateIdx++;
             }
           }
-
-          const sanitized = sanitizeValue(extractedData);
-          if (sanitized && Object.keys(sanitized).length > 0) {
-            cleanData = sanitized;
-          }
+          hook = hook.next;
         }
-
-        let componentFile: string | undefined;
-        let componentLine: number | undefined;
-        if (debugSource) {
-          componentFile = normalizeFilePath(debugSource.fileName);
-          if (
-            typeof debugSource.lineNumber === "number" &&
-            debugSource.lineNumber > 0
-          ) {
-            componentLine = debugSource.lineNumber;
-          }
-        }
-
-        const fullPath = [...rawPath].reverse();
-        if (fullPath.length > 0 || compFiber) {
-          const compName =
-            fullPath.length > 0
-              ? fullPath[fullPath.length - 1]
-              : typeof compFiber?.type === "function"
-                ? compFiber.type.displayName || compFiber.type.name
-                : undefined;
-
-          const result: FrameworkProbeEntry = {
-            componentName: compName,
-            componentPath:
-              fullPath.length > 0
-                ? fullPath
-                : compName
-                  ? [compName]
-                  : undefined,
-            framework: "react",
-            version: 18,
-          };
-
-          if (componentFile) {
-            result.componentFile = componentFile;
-            result.filePath = componentFile;
-          }
-          if (componentLine !== undefined) {
-            result.componentLine = componentLine;
-          }
-          if (cleanProps !== undefined) {
-            result.props = cleanProps;
-          }
-          if (cleanData !== undefined) {
-            result.data = cleanData;
-          }
-          return result;
-        }
-        return null;
       }
 
-      // Vue：__vueParentComponent$ / __vueParentComponent / __vnode / __vue__
+      const sanitized = sanitizeValue(extractedData);
+      if (sanitized && Object.keys(sanitized).length > 0) {
+        cleanData = sanitized;
+      }
+    }
+
+    return { cleanProps, cleanData };
+  };
+
+  const resolveReactFiberMeta = (
+    fiber: any
+  ): { name?: string; file?: string; line?: number } => {
+    if (!fiber) return {};
+    const type = fiber.type;
+    let name: string | undefined;
+    if (typeof type === "function") {
+      name = type.displayName || type.name;
+    } else if (typeof type === "object" && type !== null) {
+      name =
+        type.displayName ||
+        type.name ||
+        type.render?.displayName ||
+        type.render?.name ||
+        type.type?.displayName ||
+        type.type?.name;
+    }
+    const ds = fiber._debugSource;
+    return {
+      name,
+      file: ds?.fileName ? normalizeFilePath(ds.fileName) : undefined,
+      line:
+        typeof ds?.lineNumber === "number" && ds.lineNumber > 0
+          ? ds.lineNumber
+          : undefined,
+    };
+  };
+
+  const hasRawReactFiberState = (fiber: any): boolean => {
+    if (!fiber) return false;
+    try {
+      if (fiber.memoizedState) return true;
+      const p = fiber.memoizedProps || fiber.pendingProps;
+      if (p && typeof p === "object" && !Array.isArray(p)) {
+        const keys = Object.keys(p);
+        for (let i = 0; i < keys.length; i++) {
+          const k = keys[i];
+          if (
+            k !== "children" &&
+            k !== "key" &&
+            k !== "ref" &&
+            !k.startsWith("$$typeof") &&
+            !k.startsWith("__") &&
+            !k.startsWith("_owner") &&
+            !k.startsWith("_store") &&
+            !k.startsWith("_self") &&
+            !k.startsWith("_source")
+          ) {
+            return true;
+          }
+        }
+      }
+    } catch {
+      return false;
+    }
+    return false;
+  };
+
+  const collectReactChain = (hostFiber: any): FrameworkProbeEntry | null => {
+    const rawPath: string[] = [];
+    let debugSource: { fileName?: string; lineNumber?: number } | undefined =
+      hostFiber?._debugSource;
+    let compFiber: any = null;
+    const ancestorCandidates: AncestorCandidate[] = [];
+    let fiber = hostFiber;
+    let hops = 0;
+
+    while (fiber && hops < MAX_HOPS) {
+      if (!debugSource && fiber._debugSource) {
+        debugSource = fiber._debugSource;
+      }
+
+      const type = fiber.type;
+      const isHost = fiber.tag === 5 || typeof type === "string";
+      if (!isHost) {
+        const meta = resolveReactFiberMeta(fiber);
+        if (!compFiber) {
+          compFiber = fiber;
+        } else if (meta.name) {
+          ancestorCandidates.push({
+            name: meta.name,
+            file: meta.file,
+            line: meta.line,
+            hasRawState: hasRawReactFiberState(fiber),
+            node: fiber,
+          });
+        }
+        if (meta.name) {
+          push(rawPath, meta.name);
+        }
+      }
+
+      fiber = fiber.return;
+      hops += 1;
+      if (rawPath.length >= MAX_PATH) break;
+    }
+
+    const { cleanProps, cleanData } = compFiber
+      ? extractReactComponentState(compFiber)
+      : { cleanProps: undefined, cleanData: undefined };
+
+    let componentFile: string | undefined;
+    let componentLine: number | undefined;
+    if (debugSource) {
+      componentFile = normalizeFilePath(debugSource.fileName);
+      if (
+        typeof debugSource.lineNumber === "number" &&
+        debugSource.lineNumber > 0
+      ) {
+        componentLine = debugSource.lineNumber;
+      }
+    }
+
+    const fullPath = [...rawPath].reverse();
+    if (fullPath.length > 0 || compFiber) {
+      const compName =
+        fullPath.length > 0
+          ? fullPath[fullPath.length - 1]
+          : typeof compFiber?.type === "function"
+            ? compFiber.type.displayName || compFiber.type.name
+            : undefined;
+
+      const result: FrameworkProbeEntry = {
+        componentName: compName,
+        componentPath:
+          fullPath.length > 0 ? fullPath : compName ? [compName] : undefined,
+        framework: "react",
+        version: 18,
+      };
+
+      if (componentFile) {
+        result.componentFile = componentFile;
+        result.filePath = componentFile;
+      }
+      if (componentLine !== undefined) {
+        result.componentLine = componentLine;
+      }
+      if (cleanProps !== undefined) {
+        result.props = cleanProps;
+      }
+      if (cleanData !== undefined) {
+        result.data = cleanData;
+      }
+
+      const parents = selectAndExtractParents(
+        ancestorCandidates,
+        compName,
+        componentFile,
+        cleanData !== undefined,
+        (candidate) => {
+          const st = extractReactComponentState(candidate.node);
+          return {
+            componentName: candidate.name,
+            ...(candidate.file ? { componentFile: candidate.file } : {}),
+            ...(candidate.line !== undefined
+              ? { componentLine: candidate.line }
+              : {}),
+            ...(st.cleanProps !== undefined ? { props: st.cleanProps } : {}),
+            ...(st.cleanData !== undefined ? { data: st.cleanData } : {}),
+          };
+        }
+      );
+      if (parents) {
+        result.parentComponents = parents;
+      }
+      return result;
+    }
+    return null;
+  };
+
+  const collectVueChain = (
+    startNode: any,
+    isVue3: boolean,
+    fromHookApp = false
+  ): FrameworkProbeEntry | null => {
+    if (!startNode) return null;
+    const rawPath: string[] = [];
+    const visited: any[] = [];
+    const ancestorCandidates: AncestorCandidate[] = [];
+    const stateInfo = extractVueState(startNode);
+    let curr = startNode;
+    let hops = 0;
+
+    while (curr && hops < MAX_HOPS) {
+      if (visited.indexOf(curr) !== -1) break;
+      visited.push(curr);
+
+      const meta = resolveVueMeta(curr);
+      if (!stateInfo.componentFile && meta.file) {
+        stateInfo.componentFile = meta.file;
+      }
+      if (meta.name) {
+        push(rawPath, meta.name);
+        if (hops > 0) {
+          ancestorCandidates.push({
+            name: meta.name,
+            file: meta.file,
+            hasRawState: hasRawVueState(curr),
+            node: curr,
+          });
+        }
+      }
+
+      if (isVue3) {
+        curr = fromHookApp
+          ? curr.subTree?.component || curr.parent
+          : curr.parent;
+      } else {
+        curr = curr.$parent || curr.$vnode?.context || null;
+      }
+      hops += 1;
+      if (rawPath.length >= MAX_PATH) break;
+    }
+
+    const fullPath = [...rawPath].reverse();
+    if (fullPath.length === 0) return null;
+
+    const compName = fullPath[fullPath.length - 1];
+    const res: FrameworkProbeEntry = {
+      componentName: compName,
+      componentPath: fullPath,
+      framework: "vue",
+      version: isVue3 ? 3 : 2,
+      props: stateInfo?.props,
+      data: stateInfo?.data,
+    };
+    if (stateInfo?.componentFile) {
+      res.componentFile = stateInfo.componentFile;
+      res.filePath = stateInfo.componentFile;
+    }
+
+    const parents = selectAndExtractParents(
+      ancestorCandidates,
+      compName,
+      res.componentFile,
+      stateInfo?.data !== undefined,
+      (candidate) => {
+        const st = extractVueState(candidate.node);
+        const f = st.componentFile ?? candidate.file;
+        return {
+          componentName: candidate.name,
+          ...(f ? { componentFile: f } : {}),
+          ...(st.props !== undefined ? { props: st.props } : {}),
+          ...(st.data !== undefined ? { data: st.data } : {}),
+        };
+      }
+    );
+    if (parents) {
+      res.parentComponents = parents;
+    }
+    return res;
+  };
+
+  const detectOnHost = (anyHost: any): FrameworkProbeEntry | null => {
+    for (const k of Object.getOwnPropertyNames(anyHost)) {
+      if (
+        k.startsWith("__reactFiber$") ||
+        k.startsWith("__reactInternalInstance$")
+      ) {
+        const res = collectReactChain(anyHost[k]);
+        if (res) return res;
+        break;
+      }
+    }
+
+    const vnode3 =
+      anyHost.__vueParentComponent$ || anyHost.__vueParentComponent;
+    if (vnode3) return collectVueChain(vnode3, true);
+
+    const vnodeFromEl = anyHost.__vnode;
+    if (vnodeFromEl && vnodeFromEl.component) {
+      return collectVueChain(vnodeFromEl.component, true);
+    }
+
+    const vue2 = anyHost.__vue__;
+    if (vue2) return collectVueChain(vue2, false);
+
+    const vueApp = anyHost.__vue_app__;
+    if (vueApp && vueApp._instance) {
+      return collectVueChain(vueApp._instance, true);
+    }
+
+    return null;
+  };
+
+  const detect = (el: Element): FrameworkProbeEntry | null => {
+    try {
+      // 1. 沿目标元素及 DOM 祖先链上溯探测（React Fiber / Vue 3 / Vue 2）
       let host: Element | null = el;
       while (host) {
-        const anyHost = host as any;
-        const vnode3 =
-          anyHost.__vueParentComponent$ || anyHost.__vueParentComponent;
-        if (vnode3) {
-          let vnode = vnode3;
-          let hops = 0;
-          stateInfo = extractVueState(vnode);
-          while (vnode && hops < MAX_HOPS) {
-            const type = vnode.type;
-            if (
-              !stateInfo.componentFile &&
-              (type?.__file || type?.__file_name)
-            ) {
-              stateInfo.componentFile = normalizeFilePath(
-                type.__file || type.__file_name
-              );
-            }
-            push(rawPath, type?.name || type?.__name);
-            vnode = vnode.parent;
-            hops += 1;
-            if (rawPath.length >= MAX_PATH) break;
-          }
-          const fullPath = [...rawPath].reverse();
-          if (fullPath.length > 0) {
-            const res: FrameworkProbeEntry = {
-              componentName: fullPath[fullPath.length - 1],
-              componentPath: fullPath,
-              framework: "vue",
-              version: 3,
-              props: stateInfo?.props,
-              data: stateInfo?.data,
-            };
-            if (stateInfo?.componentFile) {
-              res.componentFile = stateInfo.componentFile;
-              res.filePath = stateInfo.componentFile;
-            }
-            return res;
-          }
-          return null;
-        }
-
-        const vnodeFromEl = anyHost.__vnode;
-        if (vnodeFromEl && vnodeFromEl.component) {
-          let vnode = vnodeFromEl.component;
-          let hops = 0;
-          stateInfo = extractVueState(vnode);
-          while (vnode && hops < MAX_HOPS) {
-            const type = vnode.type;
-            if (
-              !stateInfo.componentFile &&
-              (type?.__file || type?.__file_name)
-            ) {
-              stateInfo.componentFile = normalizeFilePath(
-                type.__file || type.__file_name
-              );
-            }
-            push(rawPath, type?.name || type?.__name);
-            vnode = vnode.parent;
-            hops += 1;
-            if (rawPath.length >= MAX_PATH) break;
-          }
-          const fullPath = [...rawPath].reverse();
-          if (fullPath.length > 0) {
-            const res: FrameworkProbeEntry = {
-              componentName: fullPath[fullPath.length - 1],
-              componentPath: fullPath,
-              framework: "vue",
-              version: 3,
-              props: stateInfo?.props,
-              data: stateInfo?.data,
-            };
-            if (stateInfo?.componentFile) {
-              res.componentFile = stateInfo.componentFile;
-              res.filePath = stateInfo.componentFile;
-            }
-            return res;
-          }
-          return null;
-        }
-
-        const vue2 = anyHost.__vue__;
-        if (vue2) {
-          let vm = vue2;
-          let hops = 0;
-          stateInfo = extractVueState(vm);
-          while (vm && hops < MAX_HOPS) {
-            const options = vm.$options;
-            if (!stateInfo.componentFile && options?.__file) {
-              stateInfo.componentFile = normalizeFilePath(options.__file);
-            }
-            push(rawPath, options?.name || options?._componentTag);
-            vm = vm.$parent;
-            hops += 1;
-            if (rawPath.length >= MAX_PATH) break;
-          }
-          const fullPath = [...rawPath].reverse();
-          if (fullPath.length > 0) {
-            const res: FrameworkProbeEntry = {
-              componentName: fullPath[fullPath.length - 1],
-              componentPath: fullPath,
-              framework: "vue",
-              version: 2,
-              props: stateInfo?.props,
-              data: stateInfo?.data,
-            };
-            if (stateInfo?.componentFile) {
-              res.componentFile = stateInfo.componentFile;
-              res.filePath = stateInfo.componentFile;
-            }
-            return res;
-          }
-          return null;
-        }
-
-        // 检查 Vue 3 根挂载点特征 __vue_app__
-        const vueApp = anyHost.__vue_app__;
-        if (vueApp && vueApp._instance) {
-          let vnode = vueApp._instance;
-          let hops = 0;
-          stateInfo = extractVueState(vnode);
-          while (vnode && hops < MAX_HOPS) {
-            const type = vnode.type;
-            if (
-              !stateInfo.componentFile &&
-              (type?.__file || type?.__file_name)
-            ) {
-              stateInfo.componentFile = normalizeFilePath(
-                type.__file || type.__file_name
-              );
-            }
-            push(rawPath, type?.name || type?.__name);
-            vnode = vnode.parent;
-            hops += 1;
-            if (rawPath.length >= MAX_PATH) break;
-          }
-          const fullPath = [...rawPath].reverse();
-          if (fullPath.length > 0) {
-            const res: FrameworkProbeEntry = {
-              componentName: fullPath[fullPath.length - 1],
-              componentPath: fullPath,
-              framework: "vue",
-              version: 3,
-              props: stateInfo?.props,
-              data: stateInfo?.data,
-            };
-            if (stateInfo?.componentFile) {
-              res.componentFile = stateInfo.componentFile;
-              res.filePath = stateInfo.componentFile;
-            }
-            return res;
-          }
-          return null;
-        }
-
+        const hit = detectOnHost(host as any);
+        if (hit) return hit;
         host = host.parentElement;
       }
 
-      // 如果通过 DOM 上溯没找到组件关联，尝试检查通过 DevTools Hook 注入注册的 Vue 实例
-      const hook = (window as any).__VUE_DEVTOOLS_GLOBAL_HOOK__;
-      if (hook && hook.apps && hook.apps.length > 0) {
-        for (let a = 0; a < hook.apps.length; a++) {
-          const appInstance = hook.apps[a]._instance;
-          if (appInstance) {
-            let vnode = appInstance;
-            let hops = 0;
-            stateInfo = extractVueState(vnode);
-            while (vnode && hops < MAX_HOPS) {
-              const type = vnode.type;
-              if (
-                !stateInfo.componentFile &&
-                (type?.__file || type?.__file_name)
-              ) {
-                stateInfo.componentFile = normalizeFilePath(
-                  type.__file || type.__file_name
-                );
-              }
-              push(rawPath, type?.name || type?.__name);
-              vnode = vnode.subTree?.component || vnode.parent;
-              hops += 1;
-              if (rawPath.length >= MAX_PATH) break;
+      // 2. 通过 DevTools Global Hook 兜底（同时兼容 Vue 3 apps._instance 与 Vue 2 _isVue/$options 实例）
+      const globalHost: any =
+        typeof window !== "undefined" ? window : globalThis;
+      const hook = globalHost?.__VUE_DEVTOOLS_GLOBAL_HOOK__;
+      if (hook) {
+        if (hook.apps && hook.apps.length > 0) {
+          for (let a = 0; a < hook.apps.length; a++) {
+            const app = hook.apps[a];
+            if (!app) continue;
+            if (app._instance) {
+              const hit3 = collectVueChain(app._instance, true, true);
+              if (hit3) return hit3;
             }
-            const fullPath = [...rawPath].reverse();
-            if (fullPath.length > 0) {
-              const res: FrameworkProbeEntry = {
-                componentName: fullPath[fullPath.length - 1],
-                componentPath: fullPath,
-                framework: "vue",
-                version: 3,
-                props: stateInfo?.props,
-                data: stateInfo?.data,
-              };
-              if (stateInfo?.componentFile) {
-                res.componentFile = stateInfo.componentFile;
-                res.filePath = stateInfo.componentFile;
+            if (app._isVue || app.$options) {
+              const hit2 = collectVueChain(app, false, true);
+              if (hit2) return hit2;
+            }
+          }
+        }
+        if (
+          hook.store?._vm &&
+          (hook.store._vm._isVue || hook.store._vm.$options)
+        ) {
+          const storeRoot = hook.store._vm.$root || hook.store._vm;
+          const hitStore = collectVueChain(storeRoot, false, true);
+          if (hitStore) return hitStore;
+        }
+      }
+
+      // 3. 候选节点为 body/documentElement 且上述未命中时，执行受限广度扫描定位非标准挂载根
+      if (typeof document !== "undefined") {
+        const isRootLike =
+          el === (document as any).body ||
+          el === (document as any).documentElement ||
+          !el.parentElement;
+        if (isRootLike) {
+          const queue: Element[] = [];
+          const queued = new Set<Element>();
+          const enqueue = (node: any) => {
+            if (!node || typeof node !== "object" || !node.tagName) return;
+            if (queued.has(node)) return;
+            queued.add(node);
+            queue.push(node as Element);
+          };
+          if (typeof document.querySelector === "function") {
+            enqueue(document.querySelector("#app, #root, [data-v-app]"));
+          }
+          const bodyChildren = (document as any).body?.children;
+          if (bodyChildren && typeof bodyChildren.length === "number") {
+            for (let i = 0; i < Math.min(8, bodyChildren.length); i++) {
+              enqueue(bodyChildren[i]);
+            }
+          }
+          let scanned = 0;
+          while (queue.length > 0 && scanned < 24) {
+            const cur = queue.shift()!;
+            scanned += 1;
+            const hit = detectOnHost(cur as any);
+            if (hit) return hit;
+            const children = (cur as any).children;
+            if (children && typeof children.length === "number") {
+              for (let c = 0; c < Math.min(4, children.length); c++) {
+                enqueue(children[c]);
               }
-              return res;
             }
           }
         }
       }
+
       return null;
     } catch {
       return null;

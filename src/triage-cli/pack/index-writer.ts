@@ -59,11 +59,13 @@ function buildFileSection(pack: LoadedPack): string[] {
   for (const f of files) {
     const group = f.path.startsWith("network/body-")
       ? "network/body-*.txt"
-      : f.path.startsWith("screenshots/")
-        ? "screenshots/*"
-        : f.path.startsWith("issues/")
-          ? "issues/*"
-          : undefined;
+      : f.path.startsWith("network/blobs/")
+        ? "network/blobs/*"
+        : f.path.startsWith("screenshots/")
+          ? "screenshots/*"
+          : f.path.startsWith("issues/")
+            ? "issues/*"
+            : undefined;
     if (group) {
       const g = grouped.get(group) ?? { count: 0, bytes: 0 };
       g.count += 1;
@@ -99,8 +101,17 @@ function buildSessionIndex(
 ): string[] {
   const lines: string[] = [];
   const data = pack.data;
-  const sessionJson = joinWs(workspaceDir, "data/session-data.json");
-  const detailsJson = joinWs(workspaceDir, "data/network-details.json");
+  const isV5PureJson = pack.files.has("session-data.json");
+  const sessionJson = joinWs(
+    workspaceDir,
+    isV5PureJson ? "session-data.json" : "data/session-data.json"
+  );
+  const detailsJson = joinWs(
+    workspaceDir,
+    pack.files.has("network-details.json")
+      ? "network-details.json"
+      : "data/network-details.json"
+  );
 
   lines.push(`- **Kind**: session`);
   lines.push(`- **Session ID**: \`${pack.sessionId}\``);
@@ -112,21 +123,30 @@ function buildSessionIndex(
   );
   lines.push("");
 
-  lines.push(`## Derived JSON (plain JSON, safe for jq / JSON.parse)`);
   lines.push(
-    `- \`data/session-data.json\` ← \`data/session-data.js\` (window.__BUG_LENS_DATA__)`
+    `## ${isV5PureJson ? "JSON Data Files" : "Derived JSON (plain JSON, safe for jq / JSON.parse)"}`
   );
-  if (pack.files.has("data/network-details.js")) {
+  lines.push(
+    isV5PureJson
+      ? `- \`session-data.json\` (Schema v5 pure JSON)`
+      : `- \`data/session-data.json\` ← \`data/session-data.js\` (window.__BUG_LENS_DATA__)`
+  );
+  if (pack.files.has("network-details.json")) {
+    lines.push(`- \`network-details.json\` (keyed by request id)`);
+  } else if (pack.files.has("data/network-details.js")) {
     lines.push(
       `- \`data/network-details.json\` ← \`data/network-details.js\` (keyed by request id)`
     );
   }
   lines.push("");
 
-  lines.push(`## session-data.json Schema`);
+  lines.push(
+    `## ${isV5PureJson ? "session-data.json Schema" : "data/session-data.json Schema"}`
+  );
   lines.push(`- **Top-level keys**: ${topLevelKeys(data)}`);
   const arrays: Array<[string, unknown[] | undefined]> = [
     ["interactions", data.interactions],
+    ["consoleSummary", data.consoleSummary],
     ["consoleEntries", data.consoleEntries ?? data.consoleLogs],
     ["networkEntries", data.networkEntries],
     ["issueScenes", data.issueScenes],
@@ -170,8 +190,11 @@ function buildSessionIndex(
         body = `inline: networkEntries[${i}].response.body`;
       } else {
         const safeId = e.id.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const hash = e.response?.bodyHash?.replace(/^sha256:/i, "");
         const candidates = [
           e.response?.bodyPath,
+          hash ? `network/blobs/${hash.slice(0, 16)}.bin` : undefined,
+          hash ? `network/blobs/${hash}.bin` : undefined,
           `network/body-${safeId}.txt`,
           `network/body-${e.id}.txt`,
         ].filter((c): c is string => typeof c === "string");
@@ -229,10 +252,13 @@ function buildSessionIndex(
 
   lines.push(`## Query Recipes`);
   lines.push("```bash");
-  lines.push(`jq '.consoleEntries | length' ${shellQuote(sessionJson)}`);
-  lines.push(`jq '.consoleEntries[100]' ${shellQuote(sessionJson)}`);
+  const consoleField = data.consoleSummary
+    ? "consoleSummary"
+    : "consoleEntries";
+  lines.push(`jq '.${consoleField} | length' ${shellQuote(sessionJson)}`);
+  lines.push(`jq '.${consoleField}[0]' ${shellQuote(sessionJson)}`);
   lines.push(
-    `jq -c '.consoleEntries | to_entries[] | select(.value.text | test("keyword")) | {i: .key, createdAt: .value.createdAt, level: .value.level, text: .value.text}' ${shellQuote(sessionJson)}`
+    `jq -c '.${consoleField} | to_entries[] | select(.value.text | test("keyword")) | {i: .key, level: .value.level, text: .value.text}' ${shellQuote(sessionJson)}`
   );
   lines.push(
     `jq -c '.networkEntries[] | {id, method, status, url}' ${shellQuote(sessionJson)}`

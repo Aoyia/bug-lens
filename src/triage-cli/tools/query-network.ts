@@ -9,6 +9,8 @@ import {
 export function runQueryNetworkTool(args: {
   pack?: string;
   status?: NetworkStatusFilter;
+  bizError?: boolean;
+  bizCode?: string;
   urlContains?: string;
   method?: string;
   type?: string;
@@ -57,6 +59,8 @@ export function runQueryNetworkTool(args: {
 
   const res = queryNetwork(loaded, {
     status: args.status,
+    bizError: args.bizError,
+    bizCode: args.bizCode,
     urlContains: args.urlContains,
     method: args.method,
     type: args.type,
