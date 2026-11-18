@@ -895,7 +895,7 @@ export function OptionsApp() {
                     </span>
                   </div>
                   <div className="setting-control">
-                    <label className="toggle-switch">
+                    <label className="switch">
                       <input
                         type="checkbox"
                         checked={settings.workflow.aiMinimalPack}

@@ -229,6 +229,36 @@ describe("OptionsApp 导航结构与核心容器静态防退化测试", () => {
         `OptionsApp 缺少布局容器或控件关键类名: "${cls}"`
       );
     }
+
+    // 开关 label 的类名必须真实存在于 options 样式表：
+    // 若类名写错（如历史遗留的 "toggle-switch" 无对应规则），label 会退化成
+    // position: static，内部绝对定位的 .slider 将以视口为包含块覆盖整页。
+    const optionsCssCode = [
+      resolve(process.cwd(), "src/shared/styles/tokens.css"),
+      resolve(process.cwd(), "src/entrypoints/options/styles/options.css"),
+    ]
+      .filter((p) => existsSync(p))
+      .map((p) => readFileSync(p, "utf8"))
+      .join("\n");
+
+    const labelClassRegex = /<label\s+className="([^"]+)"/g;
+    const labelClasses = new Set<string>();
+    let labelMatch: RegExpExecArray | null;
+    while ((labelMatch = labelClassRegex.exec(optionsAppCode)) !== null) {
+      for (const token of labelMatch[1].split(/\s+/).filter(Boolean)) {
+        labelClasses.add(token);
+      }
+    }
+    assert.ok(
+      labelClasses.size > 0,
+      "OptionsApp 应当至少包含一个带类名的 <label> 控件"
+    );
+    for (const cls of labelClasses) {
+      assert.ok(
+        new RegExp(`\\.${cls}[\\s,{:.>]`).test(optionsCssCode),
+        `开关 label 使用的类名 ".${cls}" 在 options.css 中不存在，会导致 .slider 绝对定位逃逸并遮挡整页`
+      );
+    }
   });
 
   test("OptionsApp 组件初始 SSR 渲染冒烟防护", () => {
