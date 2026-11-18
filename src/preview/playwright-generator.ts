@@ -3,16 +3,120 @@ import {
   type RecordingSession,
   type InteractionRecord,
   type ConsoleEntry,
+  type ExpectedStatement,
   type NetworkEntry,
 } from "../shared/protocol";
 import { MAX_IDLE_GAP_THRESHOLD_MS } from "../recording/idle-monitor.ts";
+import {
+  deriveAssertions,
+  type DerivedAssertion,
+} from "./expectation-assertion.ts";
+
+/**
+ * 生成器需要的最小现场结构（`IssueScene` 可直接赋值）：
+ * 只读取 `narrative`（预期）、`target.element`（定位器）与 `page.url`（说明用）。
+ */
+export type GeneratorIssueScene = {
+  narrative?: {
+    expected?: ExpectedStatement;
+    note?: string;
+  };
+  target?: {
+    element?: {
+      tagName?: string;
+      id?: string;
+      locators?: Array<{
+        kind?: string;
+        expression?: string;
+        matchCount?: number;
+        stabilityScore?: number;
+      }>;
+    };
+  };
+  page?: { url?: string };
+};
 
 type GeneratorInput = {
   session: RecordingSession;
   interactions: InteractionRecord[];
   consoleEntries: ConsoleEntry[];
   networkEntries: NetworkEntry[];
+  /** 出口 B：异常现场（可选）。其 `narrative.expected` 会派生成可判定断言。 */
+  issueScene?: GeneratorIssueScene;
 };
+
+/**
+ * 解析现场预期陈述。
+ *
+ * 与 `triage-cli` 的 `resolveSceneExpectation` 保持同一语义：
+ * 1. `expected.text` 存在 → 原样使用；
+ * 2. 文本缺失但 `narrative.note` 非空 → 以 note 兜底（note 为用户手写，视为显式预期）；
+ * 3. 其余（仅标签 / 缺失）原样交给 `deriveAssertions` 判定。
+ */
+function resolveExpectedStatement(
+  scene?: GeneratorIssueScene
+): ExpectedStatement | undefined {
+  const expected = scene?.narrative?.expected;
+  const text = expected?.text?.trim();
+  if (expected && text) return { ...expected, text };
+
+  const note = scene?.narrative?.note?.trim();
+  if (note) return { text: note, confidence: "explicit" };
+
+  return expected;
+}
+
+function escapeCssAttribute(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+/**
+ * 从现场主目标推导一个可直接用于 `page.locator()` 的 CSS 选择器。
+ * 优先 testId → id → css 定位器 → 标签名，避免把 Playwright 表达式塞进 locator()。
+ */
+function sceneTargetSelector(scene?: GeneratorIssueScene): string | undefined {
+  const element = scene?.target?.element;
+  if (!element) return undefined;
+
+  const locators = (element.locators ?? [])
+    .filter((locator) => locator.expression)
+    .sort((a, b) => (b.stabilityScore ?? 0) - (a.stabilityScore ?? 0));
+
+  const testId = locators.find(
+    (locator) => locator.kind === "testId" && locator.matchCount === 1
+  );
+  if (testId?.expression) {
+    const match = testId.expression.match(
+      /\[(?:data-testid|data-test|data-cy)=(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|([^\]\s]+))\]/
+    );
+    const rawVal = match ? (match[1] ?? match[2] ?? match[3] ?? "") : "";
+    const testIdValue = rawVal.replace(/\\(.)/gs, "$1");
+    if (testIdValue) {
+      return `[data-testid="${escapeCssAttribute(testIdValue)}"]`;
+    }
+  }
+
+  const id = element.id?.trim();
+  if (id) {
+    return /^[A-Za-z_][\w-]*$/.test(id)
+      ? `#${id}`
+      : `[id="${escapeCssAttribute(id)}"]`;
+  }
+
+  const css = locators.find(
+    (locator) => locator.kind === "css" && locator.expression
+  );
+  if (css?.expression) {
+    return parsePiercingSelector(css.expression).targetSelector;
+  }
+
+  return element.tagName?.trim() || undefined;
+}
+
+/** 行注释安全化：去掉换行，避免注释吞掉后续代码 */
+function sanitizeComment(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
 
 function escapeStr(value: string): string {
   return value
@@ -375,6 +479,18 @@ export function generatePlaywrightScript(input: GeneratorInput): string {
   l(``);
   l(`  // Assertions`);
 
+  const expectedStatement = resolveExpectedStatement(input.issueScene);
+  const derivedAssertions = deriveAssertions(expectedStatement, {
+    targetSelector: sceneTargetSelector(input.issueScene),
+    pageUrl: input.issueScene?.page?.url ?? session.target.initialUrl,
+  });
+  const usableAssertions: DerivedAssertion[] = derivedAssertions.filter(
+    (assertion) => assertion.code
+  );
+  const expectationHints = derivedAssertions.filter(
+    (assertion) => !assertion.code
+  );
+
   if (recordedErrors > 0) {
     l(
       `  // During recording: ${recordedErrors} console error(s) were observed`
@@ -400,14 +516,37 @@ export function generatePlaywrightScript(input: GeneratorInput): string {
     );
   }
 
+  if (usableAssertions.length > 0) {
+    const expectedText = expectedStatement?.text?.trim() ?? "";
+    if (expectedText) {
+      l(
+        `  // 预期（来源：issueScenes[].scene.narrative.expected）：${sanitizeComment(expectedText)}`
+      );
+    }
+    for (const assertion of usableAssertions) {
+      const level = assertion.confidence === "high" ? "高置信度" : "低置信度";
+      l(`  // ${level}：${sanitizeComment(assertion.rationale)}`);
+      l(`  ${assertion.code}`);
+    }
+  }
+
   if (
     recordedErrors === 0 &&
     recordedWarnings === 0 &&
     recordedNetworkFailures === 0
   ) {
     l(`  // No console errors or network failures were recorded`);
-    l(`  // Add assertions here to verify the expected page state`);
-    l(`  // await expect(page.locator('...')).toBeVisible();`);
+    if (usableAssertions.length === 0) {
+      l(`  // Add assertions here to verify the expected page state`);
+      l(`  // await expect(page.locator('...')).toBeVisible();`);
+    }
+  }
+
+  if (usableAssertions.length === 0) {
+    for (const hint of expectationHints) {
+      l(`  // ${sanitizeComment(hint.rationale)}`);
+    }
+    l(`  // TODO: 缺少可判定的预期结果，请人工补充断言`);
   }
 
   l(``);

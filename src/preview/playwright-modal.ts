@@ -71,6 +71,7 @@ export function bindPlaywrightScriptModal(
       interactions: snapshot.interactions.included,
       consoleEntries: snapshot.consoleEntries.included,
       networkEntries: snapshot.networkEntries.included,
+      issueScene: snapshot.issueScenes?.included[0]?.scene,
     });
     playwrightOutput!.innerHTML = highlightJs(script);
     playwrightModal!.hidden = false;

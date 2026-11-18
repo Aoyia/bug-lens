@@ -1983,6 +1983,7 @@ export function buildEvidencePackageBundle(
           interactions: snapshot.interactions,
           consoleEntries: snapshot.consoleEntries,
           networkEntries: snapshot.networkEntries,
+          issueScene: snapshot.issueScenes?.[0],
         })
       ),
     },
