@@ -2562,6 +2562,24 @@
   "copyTicketContent": {
     "message": "复制工单内容"
   },
+  "ticketMdTitle": {
+    "message": "工单"
+  },
+  "ticketMdIntro": {
+    "message": "本文件由 Bug Lens 自动生成。研发版保留完整技术细节供内部排查，客户版已做脱敏处理，可直接转发给客户。"
+  },
+  "ticketMdInternalHeading": {
+    "message": "研发版（内部）"
+  },
+  "ticketMdCustomerHeading": {
+    "message": "客户版（可直接转发）"
+  },
+  "ticketMdCustomerWarning": {
+    "message": "已自动隐藏内部技术信息，转发前请人工确认客户名称与业务细节。"
+  },
+  "ticketCustomerConfirmHint": {
+    "message": "已自动隐藏内部技术信息，请人工确认客户名称与业务细节后再转发"
+  },
   "createTicketAndDownload": {
     "message": "立即提工单并下载"
   },

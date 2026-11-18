@@ -183,7 +183,7 @@ test("triage-cli handles edge cases: missing scene, out-of-range framework state
       runTriageCli(["open_pack", sessionZipPath, "--format", "json"])
     );
     assert.equal(jsonOut.kind, "session");
-    assert.equal(jsonOut.filesCount, 14);
+    assert.equal(jsonOut.filesCount, 15);
     assert.ok(jsonOut.issueScenes.length >= 1);
 
     const sceneJson = JSON.parse(

@@ -2562,6 +2562,24 @@
   "copyTicketContent": {
     "message": "Copy Ticket Content"
   },
+  "ticketMdTitle": {
+    "message": "Ticket"
+  },
+  "ticketMdIntro": {
+    "message": "This file is generated automatically by Bug Lens. The engineering version keeps full technical details for internal triage, while the customer version is sanitized and can be forwarded directly."
+  },
+  "ticketMdInternalHeading": {
+    "message": "Engineering Version (Internal)"
+  },
+  "ticketMdCustomerHeading": {
+    "message": "Customer Version (Ready to Forward)"
+  },
+  "ticketMdCustomerWarning": {
+    "message": "Internal technical information has been hidden automatically. Please confirm the customer name and business details manually before forwarding."
+  },
+  "ticketCustomerConfirmHint": {
+    "message": "Internal technical information is hidden automatically. Please confirm the customer name and business details before forwarding."
+  },
   "createTicketAndDownload": {
     "message": "Create Ticket & Download"
   },

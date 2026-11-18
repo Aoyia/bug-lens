@@ -29,6 +29,7 @@ import {
 } from "../export/ai-pack-slimming.ts";
 import {
   buildTicketQuestions,
+  renderTicketMarkdown,
   renderTicketQuestionsSection,
   type TicketQuestionOverrides,
 } from "./ticket-compose.ts";
@@ -1165,6 +1166,7 @@ ${environmentLine}
 - \`screenshots/step-N.jpg\`, \`screenshots/step-N-settled.jpg\`, \`screenshots/final-frame.jpg\`: Step-instant, post-mutation settled, and final session frames.
 - \`issues/{sceneId}/dom-context.json\`, \`dom-styles.json\`, \`screenshot-*.jpg\`: Target DOM hierarchy, Portal trigger/overlay links, 34 computed styles, CSS winner rules, and annotated screenshots.
 - \`AI_PROMPT.md\`: AI analysis prompt template.
+- \`TICKET.md\`: Five-question ticket draft — engineering version (internal) plus a sanitized customer version ready to forward.
 - \`reproduce.spec.ts\`: Playwright reproduction script generated from the recorded interactions.
 ${fullViewerLinesEn ? `${fullViewerLinesEn}\n` : ""}${mediaDescription}
 
@@ -1250,6 +1252,7 @@ ${environmentLine}
 - \`screenshots/step-N.jpg\`、\`screenshots/step-N-settled.jpg\`、\`screenshots/final-frame.jpg\`：操作即时截图、DOM 静默稳定帧与会话结束终态帧。
 - \`issues/{sceneId}/dom-context.json\`、\`dom-styles.json\`、\`screenshot-*.jpg\`：异常现场 DOM 树、Portal 触发/浮层关联、34 项核心计算样式、CSS 胜出规则及批注截图。
 - \`AI_PROMPT.md\`：通用 AI 分析提示词模板。
+- \`TICKET.md\`：五问工单草稿，含研发版（内部技术细节）与脱敏后的客户版（可直接转发）。
 - \`reproduce.spec.ts\`：由录制交互自动生成的 Playwright 复现脚本（运行 \`npx playwright test --headed reproduce.spec.ts\`）。
 ${fullViewerLinesZh ? `${fullViewerLinesZh}\n` : ""}${mediaDescription}
 
@@ -1685,6 +1688,37 @@ function renderReportHtml(
 }
 
 /**
+ * 包内 TICKET.md：研发版与客户版并置，避免 ZIP 流转到他人手上后工单丢失。
+ * 纯文本、不占体积，`full-viewer` 与 `ai-minimal` 均产出；
+ * 无 issueScene 或老包无 `ticketDraft` 时退化为自动草稿，不抛错。
+ */
+function buildTicketMarkdownFile(snapshot: EvidencePackageSnapshot): string {
+  const scene = snapshot.issueScenes?.[0];
+  const questions = buildTicketQuestions(scene);
+  const internal = renderTicketMarkdown(questions, scene, "internal").trim();
+  const customer = renderTicketMarkdown(questions, scene, "customer").trim();
+
+  return [
+    `# ${t("ticketMdTitle")}`,
+    "",
+    `> ${t("ticketMdIntro")}`,
+    "",
+    `## ${t("ticketMdInternalHeading")}`,
+    "",
+    internal,
+    "",
+    "---",
+    "",
+    `## ${t("ticketMdCustomerHeading")}`,
+    "",
+    `> ⚠️ ${t("ticketMdCustomerWarning")}`,
+    "",
+    customer,
+    "",
+  ].join("\n");
+}
+
+/**
  * 构建完整证据包产物集合与导出元信息（默认 `full-viewer` 人类完整报告；显式传 `packMode: "ai-minimal"` 时输出 AI 精简包）。
  */
 export function buildEvidencePackageBundle(
@@ -1936,6 +1970,10 @@ export function buildEvidencePackageBundle(
     {
       name: "AI_PROMPT.md",
       data: strToU8(buildAiPrompt(snapshot, undefined, { packMode })),
+    },
+    {
+      name: "TICKET.md",
+      data: strToU8(buildTicketMarkdownFile(snapshot)),
     },
     {
       name: "reproduce.spec.ts",

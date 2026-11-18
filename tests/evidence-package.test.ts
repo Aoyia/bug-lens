@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 import test from "node:test";
+
+import { unzipSync } from "fflate";
 
 import {
   buildAiPrompt,
@@ -11,8 +15,10 @@ import {
   type EvidencePackageSnapshot,
   type StaticReportAssets,
 } from "../src/preview/evidence-package.ts";
+import { writeEvidenceArchive } from "../src/export/export-pipeline.ts";
+import { buildExportManifest } from "../src/export/export-manifest.ts";
 import { injectAbsolutePathToPrompt } from "../src/domain/silent-export.ts";
-import type { RecordingSession } from "../src/shared/protocol.ts";
+import type { IssueScene, RecordingSession } from "../src/shared/protocol.ts";
 
 const session: RecordingSession = {
   id: "session-12345678",
@@ -107,6 +113,7 @@ test("evidence package defaults to full-viewer human report and supports explici
     [
       "README.md",
       "AI_PROMPT.md",
+      "TICKET.md",
       "reproduce.spec.ts",
       "session-data.json",
       "network-details.json",
@@ -128,6 +135,7 @@ test("evidence package defaults to full-viewer human report and supports explici
     [
       "README.md",
       "AI_PROMPT.md",
+      "TICKET.md",
       "reproduce.spec.ts",
       "session-data.json",
       "network-details.json",
@@ -817,4 +825,296 @@ test("buildCompactAiPrompt routes Skill -> auto install -> unzip fallback and st
     promptLanguage: "zh-CN",
   });
   assert.match(forcedZh, /文件路径：\n\/Users\/tester\/Downloads\/report\.zip/);
+});
+
+// ---------------------------------------------------------------------------
+// TICKET.md：包内工单（研发版 + 客户版）
+// ---------------------------------------------------------------------------
+
+type ZhDict = Record<
+  string,
+  { message: string; placeholders?: Record<string, { content: string }> }
+>;
+
+function readLocaleDict(locale: "zh_CN" | "en"): ZhDict {
+  return JSON.parse(
+    fs.readFileSync(
+      path.resolve(process.cwd(), `src/_locales/${locale}/messages.json`),
+      "utf8"
+    )
+  ) as ZhDict;
+}
+
+/**
+ * 用真实 zh_CN messages.json 装扮 chrome.i18n，
+ * 让 t() 走正常词条解析（而不是 Node 下的裸 key 兜底），
+ * 从而验证 TICKET.md 的脚手架文案确实来自 i18n。
+ */
+function installZhI18n(): () => void {
+  const dict = readLocaleDict("zh_CN");
+  const previousChrome = (globalThis as { chrome?: unknown }).chrome;
+  (globalThis as { chrome?: unknown }).chrome = {
+    i18n: {
+      getUILanguage: () => "zh-CN",
+      getMessage: (key: string) => dict[key]?.message ?? "",
+    },
+  };
+  return () => {
+    if (previousChrome === undefined) {
+      delete (globalThis as { chrome?: unknown }).chrome;
+    } else {
+      (globalThis as { chrome?: unknown }).chrome = previousChrome;
+    }
+  };
+}
+
+function makeIssueScene(overrides?: Partial<IssueScene>): IssueScene {
+  return {
+    id: "scene-1",
+    sessionId: session.id,
+    status: "committed",
+    observedAtEpochMs: 3,
+    page: {
+      url: "https://example.com/orders",
+      title: "Orders",
+      frameId: 0,
+      viewport: { width: 1280, height: 800 },
+      scrollX: 0,
+      scrollY: 0,
+      devicePixelRatio: 2,
+    },
+    target: {
+      capturedAtEpochMs: 3,
+      element: {
+        tagName: "button",
+        id: "save-btn",
+        classNames: ["btn-primary"],
+        attributes: {},
+        text: "Save",
+        boundingBox: { x: 0, y: 0, width: 80, height: 32 },
+        locators: [
+          {
+            kind: "css",
+            expression: "#save-btn",
+            matchCount: 1,
+            stabilityScore: 0.9,
+            reasons: [],
+          },
+        ],
+        framework: {
+          rootComponent: {
+            framework: "react",
+            version: 18,
+            componentName: "OrderForm",
+            componentFile: "src/components/Foo.tsx",
+          },
+          targetComponent: {
+            framework: "react",
+            version: 18,
+            componentName: "Foo",
+            componentFile: "src/components/Foo.tsx",
+          },
+          parentChain: [],
+        },
+      },
+      ancestors: [],
+      state: {},
+      computedStyle: {},
+    },
+    narrative: {
+      actual: "点击保存后页面崩溃，报错来自 src/components/Foo.tsx 的渲染异常",
+      expected: {
+        text: "点击保存后应弹出成功提示",
+        confidence: "explicit",
+      },
+    },
+    annotation: {
+      type: "arrow-box",
+      color: "#ef233c",
+      point: { xRatio: 0.5, yRatio: 0.5 },
+    },
+    screenshot: { status: "captured", annotatedAssetId: "asset-1" },
+    issues: [],
+    ...overrides,
+  };
+}
+
+test("TICKET.md is generated in both packModes with internal and customer sections", () => {
+  const restoreI18n = installZhI18n();
+  try {
+    const zh = readLocaleDict("zh_CN");
+    const scene = makeIssueScene();
+    const sceneSnapshot: EvidencePackageSnapshot = {
+      ...snapshot,
+      issueScenes: [scene],
+    };
+    const sceneAssets: StaticReportAssets = reportAssets;
+
+    for (const packMode of ["full-viewer", "ai-minimal"] as const) {
+      const files = new Map(
+        buildEvidencePackage(sceneSnapshot, sceneAssets, { packMode }).map(
+          (file) => [file.name, new TextDecoder().decode(file.data)]
+        )
+      );
+      assert.ok(files.has("TICKET.md"), `${packMode} 必须包含 TICKET.md`);
+
+      const ticket = files.get("TICKET.md")!;
+      assert.match(ticket, new RegExp(`^# ${zh.ticketMdTitle.message}`));
+      assert.ok(
+        ticket.includes(zh.ticketMdInternalHeading.message),
+        "TICKET.md 必须含研发版段"
+      );
+      assert.ok(
+        ticket.includes(zh.ticketMdCustomerHeading.message),
+        "TICKET.md 必须含客户版段"
+      );
+      assert.ok(
+        ticket.includes(zh.ticketMdCustomerWarning.message),
+        "客户版段必须带人工确认提示"
+      );
+
+      const customerHeading = `## ${zh.ticketMdCustomerHeading.message}`;
+      const parts = ticket.split(customerHeading);
+      assert.equal(parts.length, 2, "客户版标题只应出现一次");
+      const [internalPart, customerPart] = parts;
+
+      // 研发版保留技术细节（含源码路径），客户版必须脱敏
+      assert.ok(
+        internalPart.includes("src/components/Foo.tsx"),
+        "研发版应保留组件源码路径"
+      );
+      assert.ok(
+        !customerPart.includes("src/components/Foo.tsx"),
+        "客户版不得带出组件源码路径"
+      );
+      assert.ok(
+        !customerPart.includes("https://example.com"),
+        "客户版不得带出页面 URL"
+      );
+    }
+  } finally {
+    restoreI18n();
+  }
+});
+
+test("TICKET.md falls back to the auto draft when the scene has no ticketDraft or no scene at all", () => {
+  const restoreI18n = installZhI18n();
+  try {
+    const zh = readLocaleDict("zh_CN");
+
+    // 老包：scenario 没有 ticketDraft
+    const legacyScene = makeIssueScene();
+    assert.equal(legacyScene.ticketDraft, undefined);
+    const files = new Map(
+      buildEvidencePackage({ ...snapshot, issueScenes: [legacyScene] }).map(
+        (file) => [file.name, new TextDecoder().decode(file.data)]
+      )
+    );
+    const legacyTicket = files.get("TICKET.md")!;
+    assert.ok(legacyTicket.includes(zh.ticketMdCustomerHeading.message));
+    assert.ok(legacyTicket.includes("点击保存后页面崩溃"));
+
+    // 连问题现场都没有时也不能抛错
+    assert.doesNotThrow(() =>
+      buildEvidencePackage({ ...snapshot, issueScenes: [] })
+    );
+    const emptyFiles = new Map(
+      buildEvidencePackage({ ...snapshot, issueScenes: undefined }).map(
+        (file) => [file.name, new TextDecoder().decode(file.data)]
+      )
+    );
+    assert.ok(emptyFiles.has("TICKET.md"));
+    assert.ok(
+      emptyFiles.get("TICKET.md")!.includes(zh.ticketMdInternalHeading.message)
+    );
+  } finally {
+    restoreI18n();
+  }
+});
+
+test("manifest.files covers TICKET.md with a 64-char sha256 and matching byteLength", async () => {
+  const chunks: Uint8Array[] = [];
+  const packageFiles = buildEvidencePackage(
+    { ...snapshot, issueScenes: [makeIssueScene()] },
+    reportAssets,
+    { packMode: "ai-minimal" }
+  );
+  await writeEvidenceArchive({
+    files: packageFiles,
+    sessionId: snapshot.session.id,
+    mediaSource: {
+      async iterateMediaChunks() {
+        return 0;
+      },
+    },
+    includeMedia: false,
+    sink: {
+      async write(chunk) {
+        chunks.push(chunk);
+      },
+      async close() {},
+      async abort() {
+        assert.fail("archive should not abort");
+      },
+    },
+    createManifest: (integrity) => ({
+      name: "manifest.json",
+      data: new TextEncoder().encode(
+        JSON.stringify(
+          buildExportManifest(snapshot.session, integrity, {
+            format: "bug-lens-evidence-pack",
+            packMode: "ai-minimal",
+            extensionVersion: snapshot.session.extensionVersion,
+          }),
+          null,
+          2
+        )
+      ),
+    }),
+  });
+
+  const total = chunks.reduce((acc, chunk) => acc + chunk.byteLength, 0);
+  const archive = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    archive.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  const unzipped = unzipSync(archive);
+  const manifest = JSON.parse(
+    new TextDecoder().decode(unzipped["manifest.json"])
+  );
+  const entry = manifest.files["TICKET.md"];
+  assert.ok(entry, "manifest.files 必须包含 TICKET.md");
+  assert.match(entry.sha256, /^[a-f0-9]{64}$/);
+  assert.equal(entry.byteLength, unzipped["TICKET.md"]!.byteLength);
+});
+
+test("customer preview confirm hint is wired through i18n in both locales", () => {
+  for (const locale of ["zh_CN", "en"] as const) {
+    const dict = readLocaleDict(locale);
+    assert.ok(
+      dict.ticketCustomerConfirmHint?.message,
+      `${locale}/messages.json 缺少 ticketCustomerConfirmHint`
+    );
+    for (const key of [
+      "ticketMdTitle",
+      "ticketMdIntro",
+      "ticketMdInternalHeading",
+      "ticketMdCustomerHeading",
+      "ticketMdCustomerWarning",
+    ]) {
+      assert.ok(dict[key]?.message, `${locale}/messages.json 缺少 ${key}`);
+    }
+  }
+
+  const html = fs.readFileSync(
+    path.resolve(process.cwd(), "src/entrypoints/preview/index.html"),
+    "utf8"
+  );
+  assert.match(
+    html,
+    /id="ticket-customer-confirm"[^>]*data-i18n="ticketCustomerConfirmHint"/s,
+    "客户版提示节点必须走 data-i18n 词条"
+  );
 });

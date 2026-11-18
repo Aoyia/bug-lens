@@ -155,6 +155,9 @@ export function bindTicketPreviewModal(deps: TicketPreviewModalDeps): void {
   const questionsEditor = root.getElementById(
     "ticket-questions-editor"
   ) as HTMLElement | null;
+  const customerConfirmHint = root.getElementById(
+    "ticket-customer-confirm"
+  ) as HTMLElement | null;
 
   let currentTicketBundle: { markdown: string; html: string } | undefined;
   let activeHeightTransitionTimeout: number | undefined;
@@ -370,6 +373,9 @@ export function bindTicketPreviewModal(deps: TicketPreviewModalDeps): void {
     activeAudience = audience;
     audienceInternalBtn?.classList.toggle("active", audience === "internal");
     audienceCustomerBtn?.classList.toggle("active", audience === "customer");
+    if (customerConfirmHint) {
+      customerConfirmHint.hidden = audience !== "customer";
+    }
     renderPreview();
   }
 
@@ -406,6 +412,7 @@ export function bindTicketPreviewModal(deps: TicketPreviewModalDeps): void {
     activeAudience = "internal";
     audienceInternalBtn?.classList.add("active");
     audienceCustomerBtn?.classList.remove("active");
+    if (customerConfirmHint) customerConfirmHint.hidden = true;
 
     const stepCount = snapshot.interactions?.length ?? 0;
     const imageCount = snapshot.interactionAssets?.length ?? 0;

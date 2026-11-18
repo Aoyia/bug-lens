@@ -138,6 +138,10 @@ test.describe("Bug Lens Recording Matrix E2E: Vue 2/3 & React 18/19 真实录制
       expect(unzipped["README.md"]).toBeDefined();
       expect(unzipped["AI_PROMPT.md"]).toBeDefined();
       expect(
+        unzipped["TICKET.md"],
+        "证据包必须内置工单 TICKET.md（研发版 + 客户版）"
+      ).toBeDefined();
+      expect(
         unzipped["report.html"],
         "默认导出必须包含人类可读离线报告 report.html"
       ).toBeDefined();
