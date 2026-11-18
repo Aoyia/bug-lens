@@ -1,8 +1,16 @@
 import { strToU8 } from "fflate";
 import {
+  classifyConsoleNoise,
+  type ConsoleNoiseCategory,
+} from "../domain/console-noise.ts";
+import {
   describeBrowserFromUserAgent,
   describeOsFromUserAgent,
 } from "../domain/environment-capture.ts";
+import {
+  isBenignStaticNoBodyRequest,
+  isStaticAssetCandidate,
+} from "../domain/network-filter.ts";
 import {
   getSessionTitle,
   type ConsoleEntry,
@@ -80,6 +88,8 @@ export interface ConsoleFoldedEntryV5 {
   text: string;
   source: string;
   count: number;
+  isNoise?: boolean;
+  noiseCategory?: ConsoleNoiseCategory;
   firstCreatedAt: number;
   lastCreatedAt: number;
   timeRangeMs: [number, number];
@@ -182,7 +192,7 @@ function sampleTimestamps(all: number[]): number[] {
   ];
 }
 
-/** 将原始控制台日志按特征指纹折叠去重，消除高频轮询日志膨胀。 */
+/** 将原始控制台日志按特征指纹折叠去重，消除高频轮询日志膨胀，同时识别良性插件/内部噪音。 */
 export function foldConsoleEntries(
   entries: readonly Omit<ConsoleEntry, "sessionId">[],
   startedAtEpochMs: number
@@ -193,6 +203,8 @@ export function foldConsoleEntries(
     uniqueSignatureCount: number;
     errorCount: number;
     warningCount: number;
+    noiseEntryCount: number;
+    noiseSignatureCount: number;
   };
 } {
   interface Accumulator {
@@ -203,11 +215,23 @@ export function foldConsoleEntries(
   const ordered: Accumulator[] = [];
   let errorCount = 0;
   let warningCount = 0;
+  let noiseEntryCount = 0;
 
   for (const entry of entries) {
     const level = entry.level || "log";
-    if (level === "error") errorCount += 1;
-    else if (level === "warning" || level === "warn") warningCount += 1;
+    const noiseCls = classifyConsoleNoise({
+      text: entry.text,
+      level,
+      url: entry.url,
+      source: entry.source,
+    });
+    if (noiseCls.isNoise) {
+      noiseEntryCount += 1;
+    } else if (level === "error") {
+      errorCount += 1;
+    } else if (level === "warning" || level === "warn") {
+      warningCount += 1;
+    }
 
     const sig = computeConsoleSignatureV5(entry);
     const ts = typeof entry.createdAt === "number" ? entry.createdAt : 0;
@@ -245,6 +269,9 @@ export function foldConsoleEntries(
         text: entry.text,
         source: entry.source || "consoleAPI",
         count: 1,
+        ...(noiseCls.isNoise
+          ? { isNoise: true, noiseCategory: noiseCls.category }
+          : {}),
         firstCreatedAt: ts,
         lastCreatedAt: ts,
         timeRangeMs: [0, 0],
@@ -262,12 +289,14 @@ export function foldConsoleEntries(
     startedAtEpochMs > 0
       ? startedAtEpochMs
       : (ordered[0]?.item.firstCreatedAt ?? 0);
+  let noiseSignatureCount = 0;
   const consoleSummary = ordered.map(({ item, timestamps }) => {
     item.timeRangeMs = [
       item.firstCreatedAt - anchor,
       item.lastCreatedAt - anchor,
     ];
     item.timestamps = sampleTimestamps(timestamps);
+    if (item.isNoise) noiseSignatureCount += 1;
     return item;
   });
 
@@ -278,6 +307,8 @@ export function foldConsoleEntries(
       uniqueSignatureCount: consoleSummary.length,
       errorCount,
       warningCount,
+      noiseEntryCount,
+      noiseSignatureCount,
     },
   };
 }
@@ -373,6 +404,7 @@ export function processNetworkForSchemaV5(
     failedRequests: number;
     totalNetworkBytes: number;
     casDeduplicatedCount: number;
+    staticNoBodyCount: number;
   };
 } {
   const casRegistry = new Map<string, Uint8Array>();
@@ -380,6 +412,7 @@ export function processNetworkForSchemaV5(
   let totalBlobRefs = 0;
   let totalNetworkBytes = 0;
   let failedRequests = 0;
+  let staticNoBodyCount = 0;
 
   const storeInCas = (text: string, mimeType: string): CasBlobRefV5 => {
     const bytes = strToU8(text);
@@ -406,13 +439,13 @@ export function processNetworkForSchemaV5(
         ? Math.max(0, entry.createdAt - startedAtEpochMs)
         : 0;
     const status = entry.status;
-    if (
+    const isFailedEntry =
       Boolean(entry.error) ||
       Boolean(entry.canceled) ||
       Boolean(entry.blockedReason) ||
       Boolean(entry.corsErrorStatus) ||
-      (typeof status === "number" && status >= 400)
-    ) {
+      (typeof status === "number" && status >= 400);
+    if (isFailedEntry) {
       failedRequests += 1;
     }
 
@@ -500,6 +533,25 @@ export function processNetworkForSchemaV5(
       networkDetails[entry.id] = detailItem;
     }
 
+    const isStaticAsset = isStaticAssetCandidate({
+      url: entry.url,
+      type: entry.type,
+      mimeType: respMime,
+    });
+    const isBenignStatic = isBenignStaticNoBodyRequest({
+      url: entry.url,
+      type: entry.type,
+      mimeType: respMime,
+      status,
+      byteLength: responseByteLength,
+      bodyStatus: entry.response?.bodyStatus,
+      hasBody: Boolean(bodyBlob),
+      isFailure: isFailedEntry,
+    });
+    if (isBenignStatic) {
+      staticNoBodyCount += 1;
+    }
+
     return {
       id: entry.id,
       createdAt: entry.createdAt,
@@ -519,6 +571,8 @@ export function processNetworkForSchemaV5(
         ? { corsErrorStatus: entry.corsErrorStatus }
         : {}),
       ...(entry.initiator?.type ? { initiatorType: entry.initiator.type } : {}),
+      ...(isStaticAsset ? { isStaticAsset: true } : {}),
+      ...(isBenignStatic ? { isBenignStatic: true } : {}),
       ...(requestObj ? { request: requestObj } : {}),
       ...(responseObj ? { response: responseObj } : {}),
     };
@@ -545,6 +599,7 @@ export function processNetworkForSchemaV5(
       failedRequests,
       totalNetworkBytes,
       casDeduplicatedCount: Math.max(0, totalBlobRefs - blobFiles.length),
+      staticNoBodyCount,
     },
   };
 }
@@ -759,12 +814,15 @@ export function buildSessionSummaryV5(input: {
     uniqueSignatureCount: number;
     errorCount: number;
     warningCount: number;
+    noiseEntryCount?: number;
+    noiseSignatureCount?: number;
   };
   networkMetrics: {
     totalRequests: number;
     failedRequests: number;
     totalNetworkBytes: number;
     casDeduplicatedCount: number;
+    staticNoBodyCount?: number;
   };
   issueSceneCount: number;
   frameworkStateCount: number;

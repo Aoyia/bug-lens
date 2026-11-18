@@ -87,6 +87,65 @@ const oneLine = (value: unknown) =>
     .replace(/[\r\n]+/g, " ")
     .trim();
 
+function resolvePromptNarrative(snapshot: EvidencePackageSnapshot): {
+  actualDesc: string;
+  expectedDesc: string;
+  symptomTags: string[];
+} {
+  const firstScene = snapshot.issueScenes?.[0];
+  const sceneActual = firstScene?.narrative?.actual?.trim() ?? "";
+  const userActual = snapshot.session.userNarrative?.actual?.trim() ?? "";
+  const actualDesc = sceneActual || userActual;
+
+  const sceneExp = firstScene?.narrative?.expected;
+  const explicitText =
+    sceneExp?.text?.trim() && sceneExp.confidence === "explicit"
+      ? sceneExp.text.trim()
+      : "";
+  const noteFallback = firstScene?.narrative?.note?.trim() ?? "";
+  const userExpected = snapshot.session.userNarrative?.expected?.trim() ?? "";
+  const expectedDesc = explicitText || noteFallback || userExpected;
+
+  const symptomTags = (sceneExp?.tags ?? []).filter(Boolean);
+  return { actualDesc, expectedDesc, symptomTags };
+}
+
+function formatUserNarrativeSummary(
+  snapshot: EvidencePackageSnapshot,
+  en: boolean
+): string {
+  const { actualDesc, expectedDesc, symptomTags } =
+    resolvePromptNarrative(snapshot);
+  const parts: string[] = [];
+  if (
+    snapshot.session.userNarrative?.actual?.trim() ||
+    snapshot.session.userNarrative?.expected?.trim()
+  ) {
+    const u = snapshot.session.userNarrative!;
+    if (u.actual?.trim()) {
+      parts.push(
+        en
+          ? `- User-Reported Actual: ${oneLine(u.actual)}`
+          : `- 用户补充实际现象：${oneLine(u.actual)}`
+      );
+    }
+    if (u.expected?.trim()) {
+      parts.push(
+        en
+          ? `- User-Reported Expected: ${oneLine(u.expected)}`
+          : `- 用户补充预期行为：${oneLine(u.expected)}`
+      );
+    }
+  } else if (!actualDesc && !expectedDesc && symptomTags.length > 0) {
+    parts.push(
+      en
+        ? `- Marked Symptom Tags Only: ${symptomTags.join(", ")}`
+        : `- 仅勾选症状标签：${symptomTags.join("、")}`
+    );
+  }
+  return parts.length > 0 ? `\n${parts.join("\n")}` : "";
+}
+
 function formatSourceMappedErrors(consoleEntries: ConsoleEntry[]): string {
   const mappedErrors = consoleEntries.filter(
     (e) => e.level === "error" && e.sourceMappedLocation?.resolved
@@ -148,6 +207,7 @@ export function buildAiPrompt(
     targetAssistant?: "generic" | "cursor" | "claude-code" | "antigravity";
     promptLanguage?: AiSettings["promptLanguage"];
     customInstructions?: string;
+    packMode?: PackMode;
   }
 ): string {
   const en =
@@ -156,6 +216,8 @@ export function buildAiPrompt(
       : promptOptions?.promptLanguage === "zh-CN"
         ? false
         : isEn();
+  const packMode: PackMode = promptOptions?.packMode ?? "ai-minimal";
+  const isFullViewer = packMode === "full-viewer";
   const issueScenes = snapshot.issueScenes ?? [];
   const sourceMappedErrorsText = formatSourceMappedErrors(
     snapshot.consoleEntries
@@ -194,6 +256,10 @@ export function buildAiPrompt(
     )
       ? `- Environment: ${formatEnvironmentSummary(snapshot.session.target.environment)}`
       : "- Environment: Unknown";
+    const sourceMappedErrorsText = formatSourceMappedErrors(
+      snapshot.consoleEntries
+    );
+    const userNarrativeLineEn = formatUserNarrativeSummary(snapshot, true);
     const assistantTitle =
       promptOptions?.targetAssistant === "cursor"
         ? " (Tailored for Cursor Composer & Chat)"
@@ -216,19 +282,19 @@ ${path}
 Metadata Summary:
 - Page & URL: ${oneLine(getSessionTitle(snapshot.session, "Unknown"))} (${oneLine(snapshot.session.target.initialUrl) || "Unknown"})
 - Evidence Data: ${snapshot.interactions.length} interactions | ${snapshot.consoleEntries.length} console logs | ${snapshot.networkEntries.length} network requests | ${issueScenes.length} issue scenes | Quality: ${oneLine(snapshot.session.quality.overall) || "Unknown"}
-${environmentLine}${sourceMappedErrorsText}
+${environmentLine}${userNarrativeLineEn}${sourceMappedErrorsText}
 
 [Workspace Setup (Do NOT extract into active project directory; overwrite singleton directory for O(1) storage)]
-- Preferred (when \`bug-lens-triage\` Skill is installed): Run the bundled \`node "<skillDir>/scripts/bug-lens-cli.mjs" open_pack ${targetZipPathEn}\` to idempotently extract the pack to an isolated workspace directory, generate plain \`data/session-data.json\` & \`data/network-details.json\` plus \`INDEX.md\`, and print the overview. Then use \`get_scene\`, \`timeline\`, \`query_network\`, \`get_request\`, \`get_framework_state\`, and \`get_screenshot\` for macro indexing, and query \`INDEX.md\` / \`data/*.json\` / \`network/body-*.txt\` directly with \`jq\` or \`JSON.parse\` for deep field inspection (never \`eval\` / \`new Function\` on \`.js\` files). Skip manual \`unzip\` below.
+- Preferred (when \`bug-lens-triage\` Skill is installed): Run the bundled \`node "<skillDir>/scripts/bug-lens-cli.mjs" open_pack ${targetZipPathEn}\` to idempotently extract the Schema v5 (${packMode}) pack to an isolated workspace directory and print the overview + \`INDEX.md\`. Then use \`get_scene\`, \`get_css\`, \`timeline\`, \`query_network\` (\`--apiOnly\`), \`get_request\` (\`--outline\` / \`--jsonPath\`), \`compare_requests\`, \`query_console\` (\`--includeNoise\`), \`get_framework_state\` (\`--diff\`), \`get_screenshot\` (\`--settled\` / \`--final\`), and \`compare_frames\` for macro indexing, and query \`INDEX.md\` / \`session-data.json\` / \`network-details.json\` / \`network/blobs/*.bin\` / \`issues/*/dom-*.json\` directly with \`jq\` or \`JSON.parse\` (never \`eval\` / \`new Function\` on \`.js\` files). Skip manual \`unzip\` below.
 - Fallback Extraction Command (only when \`bug-lens-triage\` Skill is unavailable; install via \`npx skills add Aoyia/bug-lens-skill -g -y\`):
   ${unzipCmdEn}
 - Workspace Path: \`${workspacePath}\` (Evidence files, session data, and Playwright scripts reside here)
 
 Please follow this first-principles chain of diagnosis:
-1. Scene Alignment: Prioritize reading \`data/session-data.json\` (generated by \`open_pack\`, or \`data/session-data.js\` which sets \`window.__BUG_LENS_DATA__ = {...}\` when manually unzipped) and \`INDEX.md\` in the workspace for \`issueScenes[].scene.narrative.actual\` (to capture the user's explicit problem description), combined with \`issues/\` screenshots and selected DOM element styles — start with the \`summary\` field and \`screenshotSummaries\`. Full request headers and initiator/call stack details are stored in \`data/network-details.json\` (\`data/network-details.js\`). Each scene also carries \`issueScenes[].scene.sequenceContext\` — the interactions and console errors in the seconds before the mark moment, frozen at capture time. Treat it as raw same-time context, never as a causal assertion.
-2. Expected Anchor: Read \`issueScenes[].scene.narrative.expected\`. If \`confidence: "explicit"\`, treat the user's stated expectation as the diagnostic anchor — the bug is the deviation between \`actual\` and that expectation. If \`confidence: "missing"\` (or the field is absent), the expectation was NOT captured: you MUST explicitly state "expectation not captured; the following is an inferred assumption" and label any inferred expectation as a hypothesis, never as fact. If the user provided additional explicit requirements or instructions in the prompt, treat them as the primary intent and label them as "user-provided requirement (not captured in evidence pack)".
-3. Anomaly Convergence: Align timeline to find correlated Console errors and failed Network requests (e.g. 4xx/5xx/CORS/Timeout) around issue timestamps.
-4. Root Cause & Remediation: Pinpoint the failing code block/API, distinguishing UI rendering bugs, state management flaws, style/structural defects, or backend API contract failures. Use \`frameworkStates[]\` in \`data/session-data.json\` (\`data/session-data.js\`) to inspect React/Vue component props/state before and at the failing interaction, and \`reproduce.spec.ts\` to run a Playwright reproduction (fix-then-replay loop).
+1. Scene Alignment: Prioritize reading root \`session-data.json\`${isFullViewer ? " (plus `data/session-data.js` / `report.html` / `media/recording.*` included in `full-viewer` mode)" : " (`ai-minimal` mode: inspect `screenshots/step-N-settled.jpg` & `final-frame.jpg` directly; `report.html` and raw video are omitted to stay compact)"} and \`INDEX.md\` in the workspace for \`issueScenes[].scene.narrative\` (and session-level \`userNarrative\`), combined with \`issues/<sceneId>/screenshot-*.jpg\`, \`dom-context.json\`, and \`dom-styles.json\` — start with \`summary\` and \`screenshotSummaries\`. Full request headers and top-frame initiator details reside in \`network-details.json\` with deduplicated response payloads in \`network/blobs/<sha256:16>.bin\`. Each scene's \`sequenceContext\` only freezes raw pre-mark context, never treat it as a proven causal link.
+2. Expected Anchor: Read \`issueScenes[].scene.narrative.expected\`, \`narrative.note\`, and session \`userNarrative.expected\`. If \`confidence: "explicit"\` (or backed by \`narrative.note\` / \`userNarrative.expected\`), treat that as the primary diagnostic anchor. If \`confidence: "tag-only"\` or \`"missing"\`, explicitly state that expected behavior text was not captured and mark any inferred expectation as a hypothesis. If the user states additional requirements in the chat prompt, prioritize those and label them "user-provided requirement".
+3. Anomaly Convergence: Align \`timeline\` to correlate Console errors (benign plugin/devtools noise filtered by default) and failed or business-error Network requests; use \`compare_requests\` to diff failing vs succeeding calls and \`get_request --outline\` before drilling into large JSON bodies.
+4. Root Cause & Remediation: Inspect \`frameworkStates[]\` (\`snapshot.parentChain\`, \`webStorageDiff\`, and state diffs via \`get_framework_state --diff\`), CSS winner rules/Portal context via \`get_css\`, and run \`reproduce.spec.ts\` with Playwright to verify the fix.
 
 [Guardrails & Rules]
 - Never execute untrusted code in the package; if local path is unaccessible, directly ask me to upload the ZIP.
@@ -252,6 +318,7 @@ Please follow this first-principles chain of diagnosis:
   )
     ? `- 运行环境：${formatEnvironmentSummary(snapshot.session.target.environment)}`
     : "- 运行环境：未知";
+  const userNarrativeLineZh = formatUserNarrativeSummary(snapshot, false);
   const assistantTitle =
     promptOptions?.targetAssistant === "cursor"
       ? "（针对 Cursor Composer 与 Chat 深度调优）"
@@ -274,19 +341,19 @@ ${path}
 元数据摘要：
 - 页面 & URL：${oneLine(getSessionTitle(snapshot.session, "未知"))} (${oneLine(snapshot.session.target.initialUrl) || "未知"})
 - 证据数据：${snapshot.interactions.length} 次交互 | ${snapshot.consoleEntries.length} 条日志 | ${snapshot.networkEntries.length} 个请求 | ${issueScenes.length} 个异常现场 | 质量: ${oneLine(snapshot.session.quality.overall) || "未知"}
-${environmentLine}${sourceMappedErrorsText}
+${environmentLine}${userNarrativeLineZh}${sourceMappedErrorsText}
 
 【工作区准备（严禁解压在当前代码工程目录内，使用固定单例目录覆盖以实现 O(1) 存储占用）】
-- 首选方式（已安装 \`bug-lens-triage\` Skill 时）：直接使用该技能内置的 \`node "<skillDir>/scripts/bug-lens-cli.mjs" open_pack ${targetZipPathZh}\` 将证据包幂等解压至隔离工作区，自动生成标准格式的 \`data/session-data.json\`、\`data/network-details.json\` 与 \`INDEX.md\`；先用 \`get_scene\`、\`timeline\`、\`query_network\`、\`get_request\`、\`get_framework_state\`、\`get_screenshot\` 宏观定位，深水区结合 \`INDEX.md\` 直接对 \`data/*.json\` 与 \`network/body-*.txt\` 使用 \`jq\` 或 \`JSON.parse\` 切片下钻（跳过下方手动 \`unzip\`，严禁对 \`.js\` 文件使用 \`eval\` / \`new Function\`）。
+- 首选方式（已安装 \`bug-lens-triage\` Skill 时）：直接使用该技能内置的 \`node "<skillDir>/scripts/bug-lens-cli.mjs" open_pack ${targetZipPathZh}\` 将 Schema v5（${packMode}）证据包幂等解压至隔离工作区并生成 \`INDEX.md\`；先用 \`get_scene\`、\`get_css\`、\`timeline\`、\`query_network\`（\`--apiOnly\`）、\`get_request\`（\`--outline\` / \`--jsonPath\`）、\`compare_requests\`、\`query_console\`（\`--includeNoise\`）、\`get_framework_state\`（\`--diff\`）、\`get_screenshot\`（\`--settled\` / \`--final\`）与 \`compare_frames\` 宏观定位，深水区结合 \`INDEX.md\` 直接对 \`session-data.json\`、\`network-details.json\`、\`network/blobs/*.bin\` 与 \`issues/*/dom-*.json\` 使用 \`jq\` 或 \`JSON.parse\` 切片下钻（跳过下方手动 \`unzip\`，严禁对 \`.js\` 文件使用 \`eval\` / \`new Function\`）。
 - 降级解压命令（仅当未安装 \`bug-lens-triage\` Skill 时执行；可先执行 \`npx skills add Aoyia/bug-lens-skill -g -y\` 一键安装）：
   ${unzipCmdZh}
 - 工作区路径：\`${workspacePath}\`（解压与后续排查均以此目录为准）
 
 请按以下第一性链式逻辑展开排查：
-1. 现场定位：优先读取工作区内的 \`data/session-data.json\`（由 \`open_pack\` 自动生成；手动 \`unzip\` 时读取设置 \`window.__BUG_LENS_DATA__ = {...}\` 的 \`data/session-data.js\`）与 \`INDEX.md\` 中的 \`issueScenes[].scene.narrative.actual\`（获取用户填写的真实主观问题描述），并结合 \`issues/\` 截图与选中的 DOM 元素样式分析现场。请先读取 \`summary\` 字段和 \`screenshotSummaries\`。完整请求头、响应头和调用栈详情保存在 \`data/network-details.json\`（或 \`data/network-details.js\`）。每个现场还携带 \`issueScenes[].scene.sequenceContext\`——标记当下前数秒内的交互与 Console 报错，在捕获时刻冻结。请仅将其视为"同时刻原始上下文"，禁止当作已证实的因果链。
-2. 期望锚点：读取 \`issueScenes[].scene.narrative.expected\`。若 \`confidence: "explicit"\`，以用户明示的期望作为诊断锚点——缺陷即 \`actual\` 与该期望之间的偏差。若 \`confidence: "missing"\` 或字段缺失，说明期望未被捕获：你必须显式声明“未捕获期望，以下为推断假设”，并将任何推断出的期望标注为假设，禁止当作用户已知事实；若用户在提示词中另行给出了明确诉求（如测试反馈、需求描述），以该诉求为准，并标注为“用户补充，非证据包捕获”。
-3. 异常收敛：对齐时间轴，检索交叉点附近的 Console 报错与 Network 失败请求（如 4xx/5xx/CORS/Timeout）。
-4. 根因推导与修复：定位缺陷发生的代码块/接口，区分是前端渲染异常、状态管理漏洞、样式/结构缺陷还是后端 API 契约失效。可用 \`data/session-data.json\`（或 \`data/session-data.js\`）中的 \`frameworkStates[]\` 检查失败交互前后的 React/Vue 组件 props/state，并用 \`reproduce.spec.ts\` 运行 Playwright 复现（修复-回放闭环验证）。
+1. 现场定位：优先读取工作区根目录 \`session-data.json\`${isFullViewer ? "（`full-viewer` 模式同时携带 `report.html`、`media/recording.*` 与兼容 `data/session-data.js`）" : "（当前为 `ai-minimal` 精简包：默认不含 `report.html` 与录屏视频，请直接读取 `screenshots/step-N-settled.jpg` 与 `screenshots/final-frame.jpg`）"}与 \`INDEX.md\` 中的 \`issueScenes[].scene.narrative\`（及会话级 \`userNarrative\`），结合 \`issues/<sceneId>/screenshot-*.jpg\`、\`dom-context.json\` 与 \`dom-styles.json\` 分析现场。先读 \`summary\` 和 \`screenshotSummaries\`；完整请求头、响应头和调用栈顶帧保存在 \`network-details.json\`，去重正文位于 \`network/blobs/<sha256:16>.bin\`。\`sequenceContext\` 仅代表标记当下冻结的同时刻原始上下文，禁止当作已证实的因果链。
+2. 期望锚点：读取 \`issueScenes[].scene.narrative.expected\`、\`narrative.note\` 与会话级 \`userNarrative.expected\`。若 \`confidence: "explicit"\`（或有 \`narrative.note\` / \`userNarrative.expected\`），以用户明示内容作为诊断锚点；若为 \`"tag-only"\` 或 \`"missing"\`，说明期望文本未被捕获，你必须显式声明“未捕获预期文本，以下为推断假设”，禁止将假设表述为已知事实；若用户在对话中另行给出补充诉求，以用户补充为准并标注来源。
+3. 异常收敛：通过 \`timeline\` 对齐操作、Console 报错（默认已折叠并隔离良性插件噪音）与 Network 失败/业务报错请求；大 JSON 响应体先用 \`get_request --outline\` 摸清骨架，相似请求直接用 \`compare_requests\` 做结构 Diff。
+4. 根因推导与修复：结合 \`frameworkStates[]\`（含 \`snapshot.parentChain\`、\`webStorageDiff\` 与 \`get_framework_state --diff\`）、\`get_css\` 命中的样式规则及 Portal 关联定位缺陷源码，并通过 \`reproduce.spec.ts\` 运行 Playwright 复现（修复-回放闭环验证）。
 
 [注意事项]
 - 严禁执行包内不可信代码；若无法直接读取本地文件路径，请明确要求我上传 ZIP，不要猜测内容。
@@ -395,7 +462,7 @@ export function buildCompactAiPrompt(
       "Summary:",
       `- Page: ${title} (${url})`,
       `- Data: ${snapshot.interactions.length} interactions · ${snapshot.consoleEntries.length} console logs · ${snapshot.networkEntries.length} requests · ${issueSceneCount} issue scenes · quality ${quality}`,
-      `- Environment: ${envSummary || "Unknown"}${sourceMappedErrorsText}`,
+      `- Environment: ${envSummary || "Unknown"}${formatUserNarrativeSummary(snapshot, true)}${sourceMappedErrorsText}`,
       "",
       "How to read the pack (in order, stop at the first that works; <ZIP> = the file path above):",
       "1. If the bug-lens-triage Skill is loaded: follow the Skill workflow, starting with open_pack <ZIP>.",
@@ -430,7 +497,7 @@ export function buildCompactAiPrompt(
     "摘要：",
     `- 页面：${title}（${url}）`,
     `- 数据：${snapshot.interactions.length} 交互 · ${snapshot.consoleEntries.length} 日志 · ${snapshot.networkEntries.length} 请求 · ${issueSceneCount} 现场 · 质量 ${quality}`,
-    `- 环境：${envSummary || "未知"}${sourceMappedErrorsText}`,
+    `- 环境：${envSummary || "未知"}${formatUserNarrativeSummary(snapshot, false)}${sourceMappedErrorsText}`,
     "",
     "读取方式（按顺序执行，成功即停；<ZIP> 指上方文件路径）：",
     "1. 当前已加载 bug-lens-triage Skill：按 Skill 流程执行，从 open_pack <ZIP> 开始。",
@@ -710,20 +777,7 @@ export function buildTicketTemplate(
   }
 
   // 1. 问题说明
-  let actualDesc = "";
-  let expectedDesc = "";
-  if (snapshot.issueScenes && snapshot.issueScenes.length > 0) {
-    const scene = snapshot.issueScenes[0];
-    if (scene.narrative?.actual?.trim()) {
-      actualDesc = scene.narrative.actual.trim();
-    }
-    if (
-      scene.narrative?.expected?.text?.trim() &&
-      scene.narrative.expected.confidence === "explicit"
-    ) {
-      expectedDesc = scene.narrative.expected.text.trim();
-    }
-  }
+  const { actualDesc, expectedDesc } = resolvePromptNarrative(snapshot);
 
   // 2. 关键操作步骤（全量已生效步骤）
   const interactions = snapshot.interactions ?? [];
@@ -875,20 +929,7 @@ export function buildTicketHtml(
   }
 
   // 1. 问题说明
-  let actualDesc = "";
-  let expectedDesc = "";
-  if (snapshot.issueScenes && snapshot.issueScenes.length > 0) {
-    const scene = snapshot.issueScenes[0];
-    if (scene.narrative?.actual?.trim()) {
-      actualDesc = scene.narrative.actual.trim();
-    }
-    if (
-      scene.narrative?.expected?.text?.trim() &&
-      scene.narrative.expected.confidence === "explicit"
-    ) {
-      expectedDesc = scene.narrative.expected.text.trim();
-    }
-  }
+  const { actualDesc, expectedDesc } = resolvePromptNarrative(snapshot);
 
   // 建立步骤截图查找映射
   const assetByInteractionId = new Map<
@@ -1012,7 +1053,7 @@ export function buildTicketHtml(
   ${stepItemsHtml.join("\n  ")}
 
   <h3 style="margin: 14px 0 6px 0; font-size: 15px; font-weight: 600; color: #1f2329;">${isEnglish ? "【Evidence Package】" : "【证据包附件】"}</h3>
-  <p style="margin: 3px 0; line-height: 1.5;">• <strong>${isEnglish ? "Attachment:" : "附件文件名："}</strong><code>${targetZipName}</code> (${isEnglish ? "Includes recording video, network traffic, DOM snapshots, and AI_PROMPT.md" : "含完整录屏、网络报文、DOM 快照与 AI_PROMPT.md"})</p>
+  <p style="margin: 3px 0; line-height: 1.5;">• <strong>${isEnglish ? "Attachment:" : "附件文件名："}</strong><code>${targetZipName}</code> (${isEnglish ? (snapshot.hasMedia ? "Includes recording video, network payloads, DOM/state snapshots, and AI_PROMPT.md" : "Includes step/settled screenshots, network payloads, DOM/state snapshots, and AI_PROMPT.md") : snapshot.hasMedia ? "含录屏、网络报文、DOM/状态快照与 AI_PROMPT.md" : "含关键帧截图、网络报文、DOM/状态快照与 AI_PROMPT.md"})</p>
   <p style="margin: 3px 0; line-height: 1.5;">• <strong>${isEnglish ? "AI Diagnostics:" : "研发 AI 排障："}</strong><code>${isEnglish ? `Please analyze ~/Downloads/${targetZipName} using bug-lens-triage skill or according to AI_PROMPT.md` : `请使用 bug-lens-triage 技能或按包内 AI_PROMPT.md 分析 ~/Downloads/${targetZipName}`}</code></p>
 </div>`;
 }
@@ -1027,16 +1068,25 @@ export function buildTicketBundle(
   };
 }
 
-function buildPackageReadme(snapshot: EvidencePackageSnapshot): string {
+function buildPackageReadme(
+  snapshot: EvidencePackageSnapshot,
+  packMode: PackMode = "ai-minimal"
+): string {
   const issueScenes = snapshot.issueScenes ?? [];
   const issues = snapshot.session.quality.issues;
   const { session, interactions, consoleEntries, networkEntries, excluded } =
     snapshot;
+  const isFullViewer = packMode === "full-viewer";
 
   if (isEn()) {
-    const mediaDescription = snapshot.hasMedia
-      ? "- `media/recording.webm`: Target tab recording. Time zero corresponds to session `startedAtEpochMs`."
-      : "- No video recording in this package. Please check quality summary for media absence reasons.";
+    const mediaDescription =
+      isFullViewer && snapshot.hasMedia
+        ? "- `media/recording.webm`: Target tab recording. Time zero corresponds to session `startedAtEpochMs`."
+        : "- No video recording in `ai-minimal` mode (use `screenshots/step-N-settled.jpg` and `screenshots/final-frame.jpg` to inspect final/settled states).";
+    const fullViewerLinesEn = isFullViewer
+      ? `- \`report.html\` / \`assets/report.*\`: Read-only offline report viewer for humans.
+- \`data/session-data.js\` & \`data/network-details.js\`: Legacy viewer JS wrappers.`
+      : "";
     const issueLines = issues.length
       ? issues
           .map(
@@ -1049,20 +1099,19 @@ function buildPackageReadme(snapshot: EvidencePackageSnapshot): string {
       ? `- Environment: ${formatEnvironmentSummary(session.target.environment)}`
       : "- Environment: Unknown (not reported by the page)";
 
-    return `# Bug Lens Evidence Package
+    return `# Bug Lens Evidence Package (Schema v5 · ${packMode})
 
-This is a local Web bug evidence package generated by Bug Lens Chrome extension, designed to help developers or AI quickly understand page state, user actions, video recordings, Console, and Network context when issues occur.
+This is a local Web bug evidence package generated by Bug Lens Chrome extension, designed to help developers or AI quickly understand page state, user actions, key frames, Console, Network, and DOM/CSS context when issues occur.
 
 ## Suggested Reading Order
 
-1. Read this file first to understand package structure and evidence completeness (if \`bug-lens-triage\` skill is installed, run \`bug-lens-cli.mjs open_pack\` on the ZIP archive to extract it into an isolated workspace with \`INDEX.md\`, \`data/session-data.json\`, and \`data/network-details.json\`, then run \`get_scene\`).
-2. Read \`data/session-data.json\` (generated by \`open_pack\`) or \`data/session-data.js\` (which sets \`window.__BUG_LENS_DATA__\` for the offline HTML report) — the core data file containing session, interaction, console, and network details.
-3. Double-click \`report.html\` in browser for interactive reading.
-4. Calculate video timestamps by subtracting session \`startedAtEpochMs\` from interaction \`createdAt\`.
-
+1. Read this file first to understand package structure and evidence completeness (if \`bug-lens-triage\` skill is installed, run \`bug-lens-cli.mjs open_pack\` on the ZIP archive to extract it into an isolated workspace with \`INDEX.md\`, then run \`get_scene\`).
+2. Read \`session-data.json\` — the Schema v5 core data file containing summary, interactions, folded \`consoleSummary\`, \`networkEntries\`, \`issueScenes\`, and incremental \`frameworkStates\`. Inspect full headers/initiator in \`network-details.json\` and deduplicated payloads in \`network/blobs/<sha256:16>.bin\`.
+${isFullViewer ? "3. Optionally double-click `report.html` in a browser for interactive offline viewing.\n" : ""}
 ## Session Summary
 
 - Session ID: \`${oneLine(session.id)}\`
+- Pack Mode: \`${packMode}\` (Schema v5)
 - Page Title: ${oneLine(getSessionTitle(session, "Unknown"))}
 - Initial URL: ${oneLine(session.target.initialUrl) || "Unknown"}
 ${environmentLine}
@@ -1082,29 +1131,25 @@ ${environmentLine}
 ## File Descriptions
 
 - \`README.md\`: Current instruction file.
-- \`data/session-data.js\`: AI and report core data file (JS file setting \`window.__BUG_LENS_DATA__\`). Contains session, interaction, console, and network details in structured JSON, as well as a top-level \`summary\` digest.
- - \`data/network-details.js\`: Full request headers, response headers, and initiator (call stack) for each network request, keyed by entry ID. Only read when deep-diving into a specific request.
-- \`network/body-*.txt\`: Split network response bodies exceeding threshold.
-- \`report.html\`: Read-only offline report entry for humans.
-- \`assets/report.js\`: Offline report rendering logic.
-- \`assets/report.css\`: Offline report stylesheet.
+- \`session-data.json\`: Schema v5 core evidence JSON (contains \`summary\`, \`screenshotSummaries\`, \`session\`, \`userNarrative\`, \`interactions\`, \`consoleSummary\`, \`networkEntries\`, \`issueScenes\`, \`frameworkStates\`).
+- \`network-details.json\`: Request/response headers and pruned top-frame initiator details keyed by entry ID.
+- \`network/blobs/<sha256:16>.bin\`: Content-addressed SHA-256 deduplicated request/response payloads.
+- \`screenshots/step-N.jpg\`, \`screenshots/step-N-settled.jpg\`, \`screenshots/final-frame.jpg\`: Step-instant, post-mutation settled, and final session frames.
+- \`issues/{sceneId}/dom-context.json\`, \`dom-styles.json\`, \`screenshot-*.jpg\`: Target DOM hierarchy, Portal trigger/overlay links, 34 computed styles, CSS winner rules, and annotated screenshots.
 - \`AI_PROMPT.md\`: AI analysis prompt template.
-- \`reproduce.spec.ts\`: Playwright reproduction script generated from the recorded interactions. Run \`npx playwright test --headed reproduce.spec.ts\` to verify the bug (or its fix) — the script asserts fewer console errors / network failures than recorded.
-- \`issues/{sceneId}/\`: Issue scene JSON, raw screenshots, and annotated screenshots.
-${mediaDescription}
+- \`reproduce.spec.ts\`: Playwright reproduction script generated from the recorded interactions.
+${fullViewerLinesEn ? `${fullViewerLinesEn}\n` : ""}${mediaDescription}
 
-Click screenshots are saved as Data URLs in \`interactions[].screenshot.dataUrl\`. Element locators are in \`interactions[].element.locators\`.
+## Key Fields in session-data.json
 
-## Key Fields in data/session-data.js
-
-- \`summary\`: Top-level digest (first field). Contains URL, title, duration, interaction/console/network/issue scene counts, error counts, and failure lists — AI should read this first.
-- \`screenshotSummaries[]\`: Quick index of all screenshots with step number, file path, elapsed time, click kind, element text, and page URL.
-- \`session\`: Target page, recording options, timeline, and quality summary.
-- \`interactions[]\`: Chronological valid click steps with coordinates, semantics, locators, and screenshots.
-- \`consoleEntries[]\`: Captured Console logs, exceptions, and browser logs during recording.
-- \`networkEntries[]\`: Captured raw request URLs, methods, status, response headers, and bodies (large bodies stored in \`bodyPath\`). Network headers are trimmed to essentials; full headers, request headers, and initiator/call stack details are stored separately in \`data/network-details.js\`; each entry only has \`initiatorType\` (e.g. "script", "parser").
-- \`issueScenes[]\`: User-marked issue screenshots, annotations, DOM, description, timestamps, and a frozen sequence context (interactions and console errors before the mark moment).
-- \`frameworkStates[]\`: Captured React/Vue component tree snapshots (with global state and web storage where available) at key moments — session start, confirmed interactions, and issue-scene marking. Use them to reconstruct component props/state before the bug occurred.
+- \`summary\`: Top-level digest with metrics (console folding, static asset stats, CAS stats) — inspect first.
+- \`screenshotSummaries[]\`: Quick index of step/settled screenshots with elapsed time, click kind, element text, and page URL.
+- \`session\`: Target page, recording options, timeline, quality summary, and optional \`userNarrative\`.
+- \`interactions[]\`: Chronological valid steps with coordinates, locators, and screenshot references (\`screenshots.instantPath\` / \`settledPath\`).
+- \`consoleSummary[]\`: Deduplicated & fingerprinted console entries with timestamps and benign plugin/internal noise markers (\`isNoise\`).
+- \`networkEntries[]\`: Requests trimmed to essentials with CAS \`bodyHash\` references; full headers & initiator top-frame reside in \`network-details.json\`.
+- \`issueScenes[]\`: User-marked screenshots, DOM/style file paths, description (\`narrative\`), and frozen \`sequenceContext\`.
+- \`frameworkStates[]\`: Captured React/Vue component tree snapshots (\`snapshot.parentChain\`, \`webStorageDiff\`) at key moments.
 
 ## Quality Issues
 
@@ -1118,9 +1163,14 @@ ${issueLines}
 `;
   }
 
-  const mediaDescription = snapshot.hasMedia
-    ? "- `media/recording.mp4` / `media/recording.webm`：目标标签页录像，时间零点对应会话 `startedAtEpochMs`。"
-    : "- 本包没有录像文件；请结合质量摘要判断媒体缺失原因。";
+  const mediaDescription =
+    isFullViewer && snapshot.hasMedia
+      ? "- `media/recording.mp4` / `media/recording.webm`：目标标签页录像，时间零点对应会话 `startedAtEpochMs`。"
+      : "- 当前为 `ai-minimal` 精简包（不含 `report.html` 与录屏视频），请使用 `screenshots/step-N-settled.jpg` 与 `screenshots/final-frame.jpg` 核查交互稳定后及结束画面。";
+  const fullViewerLinesZh = isFullViewer
+    ? `- \`report.html\` / \`assets/report.*\`：供人工查阅的离线只读报告入口。
+- \`data/session-data.js\` 与 \`data/network-details.js\`：兼容离线 HTML 报告的 JS 包装文件。`
+    : "";
   const issueLines = issues.length
     ? issues
         .map(
@@ -1133,20 +1183,19 @@ ${issueLines}
     ? `- 运行环境：${formatEnvironmentSummary(session.target.environment)}`
     : "- 运行环境：未知（页面未上报）";
 
-  return `# Bug Lens 证据包
+  return `# Bug Lens 证据包（Schema v5 · ${packMode}）
 
-这是由 Bug Lens Chrome 扩展生成的本地 Web 缺陷证据包，用于帮助开发人员或 AI 快速理解问题发生时的页面、操作步骤、录像、Console 和 Network 上下文。
+这是由 Bug Lens Chrome 扩展生成的本地 Web 缺陷证据包，用于帮助开发人员或 AI 快速理解问题发生时的页面、操作步骤、关键帧截图、Console、Network 与 DOM/CSS 上下文。
 
 ## 建议读取顺序
 
-1. 先阅读本文件，了解包结构和证据完整性（若已安装 \`bug-lens-triage\` 技能，用内置 \`bug-lens-cli.mjs open_pack\` 将 ZIP 幂等解压至隔离工作区并自动生成 \`INDEX.md\`、\`data/session-data.json\` 与 \`data/network-details.json\`，再配合 \`get_scene\` 等命令与 \`jq\` 排查）。
-2. 读取 \`data/session-data.json\`（由 \`open_pack\` 生成的标准 JSON）或 \`data/session-data.js\`（设置 \`window.__BUG_LENS_DATA__\` 供离线报告使用），这是包含完整证据与 AI 诊断摘要的核心数据文件，包含会话、交互、Console 和 Network 上下文（较长的响应正文已独立保存至 \`network/body-*.txt\`）。如需深挖某个请求的完整头信息和调用栈，请读取 \`data/network-details.json\`（或 \`data/network-details.js\`，按条目 ID 索引）。
-3. 用浏览器双击 \`report.html\`，进行人工交互式查看（同样自动加载 \`data/session-data.js\`）。
-4. 根据交互记录的 \`createdAt\` 与会话 \`startedAtEpochMs\` 计算录像时间点；两者相减即约为录像内毫秒位置。
-
+1. 先阅读本文件了解包结构（若已安装 \`bug-lens-triage\` 技能，用内置 \`bug-lens-cli.mjs open_pack\` 将 ZIP 幂等解压至隔离工作区并生成 \`INDEX.md\`，再配合 \`get_scene\` 等命令下钻）。
+2. 直接读取根目录 \`session-data.json\`（Schema v5 标准 JSON），包含 \`summary\`、交互、折叠后 \`consoleSummary\`、\`networkEntries\`、\`issueScenes\` 与增量 \`frameworkStates\`。完整请求头和调用栈顶帧位于 \`network-details.json\`，去重正文位于 \`network/blobs/<sha256:16>.bin\`。
+${isFullViewer ? "3. 可选双击 `report.html` 在浏览器中进行人工交互查看。\n" : ""}
 ## 会话摘要
 
 - 会话 ID：\`${oneLine(session.id)}\`
+- 打包模式：\`${packMode}\` (Schema v5)
 - 页面标题：${oneLine(getSessionTitle(session, "未知"))}
 - 初始 URL：${oneLine(session.target.initialUrl) || "未知"}
 ${environmentLine}
@@ -1166,29 +1215,25 @@ ${environmentLine}
 ## 文件说明
 
 - \`README.md\`：当前说明文件，建议 AI 首先读取。
-- \`data/session-data.js\`：核心数据文件（JS 文件，设置 \`window.__BUG_LENS_DATA__\`），包含会话、交互、Console 和 Network 上下文及 \`summary\` 诊断摘要。Network 头信息已精简为关键字段；完整头信息和调用栈详情见 \`data/network-details.js\`。
-- \`data/network-details.js\`：每条 Network 请求的完整请求头、响应头和发起方（调用栈）详情，按条目 ID 索引。仅需深挖某个请求时读取。
-- \`network/body-*.txt\`：独立拆分保存的大响应正文文件。
-- \`report.html\`：供人阅读的只读离线报告入口；复用预览页展示能力，无需服务端，解压后双击直接打开。
-- \`assets/report.js\`：离线报告展示逻辑。
-- \`assets/report.css\`：离线报告样式。
-- \`AI_PROMPT.md\`：不含本机绝对路径的通用 AI 分析提示词；复制后将 ZIP 路径替换为实际位置。
-- \`reproduce.spec.ts\`：由录制交互自动生成的 Playwright 复现脚本。运行 \`npx playwright test --headed reproduce.spec.ts\` 可验证 Bug（或修复后验证已修复）——脚本会断言 Console 报错 / Network 失败数量少于录制时。
-- \`issues/{sceneId}/\`：问题现场 JSON、原始截图和批注截图；问题现场只保存自己的时间点，不自动生成 Network/Console 关联。
-${mediaDescription}
+- \`session-data.json\`：Schema v5 核心数据 JSON，包含 \`summary\`、\`screenshotSummaries\`、\`session\`、\`userNarrative\`、\`interactions\`、\`consoleSummary\`、\`networkEntries\`、\`issueScenes\` 与 \`frameworkStates\`。
+- \`network-details.json\`：每条 Network 请求的完整请求头、响应头与精简顶帧 Initiator，按条目 ID 索引。
+- \`network/blobs/<sha256:16>.bin\`：基于 SHA-256 去重的请求/响应正文 CAS 文件。
+- \`screenshots/step-N.jpg\`、\`screenshots/step-N-settled.jpg\`、\`screenshots/final-frame.jpg\`：操作即时截图、DOM 静默稳定帧与会话结束终态帧。
+- \`issues/{sceneId}/dom-context.json\`、\`dom-styles.json\`、\`screenshot-*.jpg\`：异常现场 DOM 树、Portal 触发/浮层关联、34 项核心计算样式、CSS 胜出规则及批注截图。
+- \`AI_PROMPT.md\`：通用 AI 分析提示词模板。
+- \`reproduce.spec.ts\`：由录制交互自动生成的 Playwright 复现脚本（运行 \`npx playwright test --headed reproduce.spec.ts\`）。
+${fullViewerLinesZh ? `${fullViewerLinesZh}\n` : ""}${mediaDescription}
 
-点击截图以 Data URL 形式保存在每个 \`interactions[].screenshot.dataUrl\` 中。元素定位建议位于 \`interactions[].element.locators\`。
+## session-data.json 关键字段
 
-## data/session-data.js 关键字段
-
-- \`summary\`：顶层摘要（第一个字段），包含 URL、标题、时长、交互/Console/Network/问题现场计数、错误计数和失败列表 — AI 应优先读取此字段。
-- \`screenshotSummaries[]\`：截图快速索引，包含步骤编号、文件路径、经过时间、交互类型、元素文本和页面 URL。
-- \`session\`：目标页面、录制选项、时间线和质量摘要。
-- \`interactions[]\`：按时间排序的有效点击步骤，包含坐标、元素语义、定位器和截图。
-- \`consoleEntries[]\`：录制期间捕获的 Console、异常及浏览器日志摘要。
-- \`networkEntries[]\`：录制期间捕获的原始请求 URL、方法、状态、响应头和响应正文。正文状态位于 \`response.bodyStatus\`；较大的正文通过 \`response.bodyPath\` 引用独立文件。Network 头信息已精简为关键字段；完整请求头、响应头和调用栈详情已独立保存至 \`data/network-details.js\`，每条记录仅保留 \`initiatorType\`（如 "script"、"parser"）。
-- \`issueScenes[]\`：用户主动标记的问题截图、批注、DOM、描述、\`observedAtEpochMs\`，以及标记当下冻结的时序上下文（前 60 秒内的交互与 Console 报错）。
-- \`frameworkStates[]\`：在会话开始、交互确认与标记问题等关键节点捕获的 React/Vue 组件树快照（含可用的全局状态与 web storage）。可用于还原 Bug 发生前的组件 props/state。
+- \`summary\`：顶层摘要（含 Console 折叠统计、静态资源统计与 CAS 统计），AI 应优先读取。
+- \`screenshotSummaries[]\`：步骤即时帧/稳定帧快速索引。
+- \`session\`：目标页面、录制选项、时间线、质量摘要与可选 \`userNarrative\`。
+- \`interactions[]\`：按时间排序的有效交互步骤，包含定位器与截图引用（\`screenshots.instantPath\` / \`settledPath\`）。
+- \`consoleSummary[]\`：按特征指纹折叠的 Console 摘要，含时间戳样本及良性插件/内部噪音标注（\`isNoise\`）。
+- \`networkEntries[]\`：精简请求列表，通过 \`bodyHash\` 指向 CAS 正文；完整请求头与调用栈位于 \`network-details.json\`。
+- \`issueScenes[]\`：用户标记的问题截图、DOM/样式文件引用、描述（\`narrative\`）与冻结的 \`sequenceContext\`。
+- \`frameworkStates[]\`：关键节点捕获的 React/Vue 组件树快照（含业务父链 \`snapshot.parentChain\` 与 \`webStorageDiff\`）。
 
 交互和 Network 之间只表示时间相关性，不能仅凭时间接近断言某个请求必然由某次点击触发。
 
@@ -1682,6 +1727,11 @@ export function buildEvidencePackageBundle(
         | (typeof interaction.screenshot & { settledDurationMs?: number })
         | undefined
     )?.settledDurationMs;
+    const settledSkippedReason = (
+      interaction.screenshot as
+        | (typeof interaction.screenshot & { settledSkippedReason?: string })
+        | undefined
+    )?.settledSkippedReason;
 
     return {
       ...interaction,
@@ -1700,11 +1750,13 @@ export function buildEvidencePackageBundle(
         dataUrl: instantPath ?? interaction.screenshot?.dataUrl,
         ...(settledPath ? { settledPath } : {}),
         ...(settledDurationMs !== undefined ? { settledDurationMs } : {}),
+        ...(settledSkippedReason ? { settledSkippedReason } : {}),
       },
       screenshots: {
         ...(instantPath ? { instantPath } : {}),
         ...(settledPath ? { settledPath } : {}),
         ...(settledDurationMs !== undefined ? { settledDurationMs } : {}),
+        ...(settledSkippedReason ? { settledSkippedReason } : {}),
       },
     };
   });
@@ -1818,6 +1870,9 @@ export function buildEvidencePackageBundle(
     ...(snapshot.session.customTitle
       ? { customTitle: snapshot.session.customTitle }
       : {}),
+    ...(snapshot.session.userNarrative
+      ? { userNarrative: snapshot.session.userNarrative }
+      : {}),
     target: snapshot.session.target,
     options: {
       privacyMode: snapshot.session.options.privacyMode,
@@ -1833,6 +1888,9 @@ export function buildEvidencePackageBundle(
     summary: summaryV5,
     screenshotSummaries,
     session: compactSession,
+    ...(snapshot.session.userNarrative
+      ? { userNarrative: snapshot.session.userNarrative }
+      : {}),
     interactions: v5Interactions,
     consoleSummary,
     networkEntries: networkResult.networkEntries,
@@ -1842,8 +1900,14 @@ export function buildEvidencePackageBundle(
   };
 
   const files: EvidencePackageFile[] = [
-    { name: "README.md", data: strToU8(buildPackageReadme(snapshot)) },
-    { name: "AI_PROMPT.md", data: strToU8(buildAiPrompt(snapshot)) },
+    {
+      name: "README.md",
+      data: strToU8(buildPackageReadme(snapshot, packMode)),
+    },
+    {
+      name: "AI_PROMPT.md",
+      data: strToU8(buildAiPrompt(snapshot, undefined, { packMode })),
+    },
     {
       name: "reproduce.spec.ts",
       data: strToU8(
