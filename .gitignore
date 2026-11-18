@@ -10,6 +10,8 @@ docs/*
 !docs/research/**
 !docs/specifications/
 !docs/specifications/**
+!docs/product/
+!docs/product/**
 scripts/auto-commit.sh
 .agents/**
 !.agents/
