@@ -27,6 +27,11 @@ import {
   type CasStatsV5,
   type PackMode,
 } from "../export/ai-pack-slimming.ts";
+import {
+  buildTicketQuestions,
+  renderTicketQuestionsSection,
+  type TicketQuestionOverrides,
+} from "./ticket-compose.ts";
 
 export type EvidencePackageSnapshot = {
   session: RecordingSession;
@@ -749,10 +754,23 @@ export function formatTicketInteractions(
 
 export function buildTicketTemplate(
   snapshot: EvidencePackageSnapshot,
-  zipPathOrFilename?: string
+  zipPathOrFilename?: string,
+  questionOverrides?: TicketQuestionOverrides
 ): string {
   const isEnglish = isEn();
   const session = snapshot.session;
+  const scene = snapshot.issueScenes?.[0];
+  const effectiveOverrides: TicketQuestionOverrides = {
+    ...(questionOverrides ?? {}),
+  };
+  if (!scene && effectiveOverrides.symptom === undefined) {
+    effectiveOverrides.symptom =
+      snapshot.session.userNarrative?.actual?.trim() ?? "";
+  }
+  const questionBlock = renderTicketQuestionsSection(
+    buildTicketQuestions(scene, effectiveOverrides),
+    "internal"
+  );
   const startedAt =
     session.timeline?.startedAtEpochMs ??
     session.timeline?.createdAtEpochMs ??
@@ -861,7 +879,9 @@ export function buildTicketTemplate(
       anomalyLines.length > 0
         ? `\n\n## [Captured Anomalies]\n${anomalyLines.join("\n")}`
         : "";
-    return `## [Problem Description]
+    return `${questionBlock}
+
+## [Problem Description]
 ${actualLine}${expectedLine}
 
 ## [Environment]
@@ -883,7 +903,9 @@ ${stepLines.join("\n")}${anomalySection}
     anomalyLines.length > 0
       ? `\n\n## 【自动捕获异常】\n${anomalyLines.join("\n")}`
       : "";
-  return `## 【问题说明】
+  return `${questionBlock}
+
+## 【问题说明】
 ${actualLine}${expectedLine}
 
 ## 【复现环境】
@@ -1060,10 +1082,15 @@ export function buildTicketHtml(
 
 export function buildTicketBundle(
   snapshot: EvidencePackageSnapshot,
-  zipPathOrFilename?: string
+  zipPathOrFilename?: string,
+  questionOverrides?: TicketQuestionOverrides
 ): { markdown: string; html: string } {
   return {
-    markdown: buildTicketTemplate(snapshot, zipPathOrFilename),
+    markdown: buildTicketTemplate(
+      snapshot,
+      zipPathOrFilename,
+      questionOverrides
+    ),
     html: buildTicketHtml(snapshot, zipPathOrFilename),
   };
 }

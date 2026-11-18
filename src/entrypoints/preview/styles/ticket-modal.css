@@ -423,6 +423,102 @@
   color: var(--zen-text-main, #1d2129);
 }
 
+/* 受众切换（研发版 / 客户版） */
+.ticket-modal-audience {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  margin-bottom: 12px;
+  border-radius: var(--zen-radius-btn, 4px);
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.ticket-audience-btn {
+  border: none;
+  background: transparent;
+  padding: 4px 14px;
+  height: 26px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--zen-text-sub, #4e5969);
+  border-radius: 3px;
+  cursor: pointer;
+  line-height: 1;
+  transition: all 0.15s ease;
+}
+
+.ticket-audience-btn:hover {
+  color: var(--zen-text-main, #1d2129);
+}
+
+.ticket-audience-btn.active {
+  background: #ffffff;
+  color: var(--zen-primary, #165dff);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* 五问编辑区 */
+.ticket-questions-editor {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 18px;
+  padding: 12px 14px;
+  border: 1px solid var(--zen-border, rgba(0, 0, 0, 0.06));
+  border-radius: var(--bl-radius-md, 8px);
+  background: var(--bl-bg-surface, #f8f9fb);
+}
+
+.ticket-question-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ticket-question-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--zen-text-main, #1d2129);
+}
+
+.ticket-question-source {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--zen-text-muted, #86909c);
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 3px;
+  padding: 1px 6px;
+}
+
+.ticket-question-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--zen-text-main, #1d2129);
+  background: #ffffff;
+  border: 1px solid var(--zen-border, rgba(0, 0, 0, 0.1));
+  border-radius: 4px;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.ticket-question-input:focus {
+  outline: none;
+  border-color: var(--zen-primary, #165dff);
+  box-shadow: 0 0 0 2px rgba(22, 93, 255, 0.12);
+}
+
+.ticket-question-hint {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--zen-text-muted, #86909c);
+}
+
 /* 顶栏预览工单按钮 */
 button.preview-ticket-btn {
   background: rgba(22, 93, 255, 0.06);
