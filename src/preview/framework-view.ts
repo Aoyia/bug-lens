@@ -15,7 +15,8 @@ function componentBg(framework: "vue" | "react"): string {
 
 function frameworkLabel(framework: "vue" | "react", version: number): string {
   const label = framework === "vue" ? "Vue" : "React";
-  return `${label} ${version}`;
+  // version === 0 表示探针未能探测到具体版本，只显示框架名，不伪造版本号
+  return version > 0 ? `${label} ${version}` : label;
 }
 
 function renderTreeNode(node: FrameworkComponentNode, depth: number): string {
@@ -91,7 +92,7 @@ export function renderFrameworkSnapshot(framework?: FrameworkSnapshot): string {
   if (!target && !root && chain.length === 0) return "";
 
   const fw = target?.framework || root?.framework || "vue";
-  const ver = target?.version || root?.version || 3;
+  const ver = target?.version ?? root?.version ?? 3;
   const color = componentColor(fw);
   const bg = componentBg(fw);
   const label = frameworkLabel(fw, ver);

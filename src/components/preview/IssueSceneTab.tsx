@@ -305,7 +305,26 @@ export const IssueSceneTab = memo(function IssueSceneTab({
                           {t("inferredMark")}
                         </span>
                       )}
+                      {description?.expected?.confidence === "tag-only" && (
+                        <span
+                          className="scene-expected-missing"
+                          title={t("expectedTagOnlyTitle")}
+                        >
+                          {" "}
+                          {t("tagOnlyMark")}
+                        </span>
+                      )}
                     </p>
+                    {description?.expected?.tags &&
+                      description.expected.tags.length > 0 && (
+                        <div className="scene-expected-tags">
+                          {description.expected.tags.map((tag) => (
+                            <span className="scene-expected-tag" key={tag}>
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                   </div>
                 </div>
                 {description?.note && (

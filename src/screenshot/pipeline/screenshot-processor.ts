@@ -237,14 +237,32 @@ export async function processScreenshot(
     });
 
     // 2. 收集 Vue/React 组件的状态（Props / Data / Hooks / 源码定位）
+    const probedFrameworkByName = new Map<string, "vue" | "react">();
+    for (const probed of probedEntries) {
+      if (probed.framework && probed.componentName) {
+        probedFrameworkByName.set(probed.componentName, probed.framework);
+      }
+      if (probed.framework && probed.parentComponents) {
+        for (const p of probed.parentComponents) {
+          if (p.componentName) {
+            probedFrameworkByName.set(p.componentName, probed.framework);
+          }
+        }
+      }
+    }
+
     const frameworkComponentStates: FrameworkComponentStateSnapshot[] = [];
     const collectedStateComponents = new Set<string>();
     const inferComponentFramework = (
+      componentName?: string,
       componentFile?: string,
       componentLine?: number,
       explicitFramework?: "vue" | "react"
     ): "vue" | "react" | undefined => {
       if (explicitFramework) return explicitFramework;
+      if (componentName && probedFrameworkByName.has(componentName)) {
+        return probedFrameworkByName.get(componentName);
+      }
       if (componentFile?.endsWith(".vue")) return "vue";
       if (
         componentFile?.endsWith(".tsx") ||
@@ -272,6 +290,7 @@ export async function processScreenshot(
         componentName: item.componentName,
         ...(item.componentPath ? { componentPath: item.componentPath } : {}),
         framework: inferComponentFramework(
+          item.componentName,
           item.componentFile,
           item.componentLine,
           item.framework
@@ -309,6 +328,12 @@ export async function processScreenshot(
       }
     }
     for (const probed of probedEntries) {
+      if (
+        probed.componentName &&
+        (probed.props || probed.data || probed.componentFile)
+      ) {
+        pushStateSnapshot(probed);
+      }
       if (!probed.parentComponents?.length) continue;
       for (const parent of probed.parentComponents) {
         pushStateSnapshot({

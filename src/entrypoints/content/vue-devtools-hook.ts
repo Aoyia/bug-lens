@@ -25,21 +25,77 @@ declare global {
 }
 
 export function injectVueDevtoolsHook(): void {
-  // 如果主世界中 Hook 已经存在或已被插件初始化，则直接确保 enabled 为 true
-  if (window.__VUE_DEVTOOLS_GLOBAL_HOOK__) {
-    window.__VUE_DEVTOOLS_GLOBAL_HOOK__.enabled = true;
+  const listeners: Record<string, Function[]> = {};
+  const syncAppList = (targetApps: unknown[], sourceApps: unknown[]): void => {
+    for (const app of sourceApps) {
+      if (app && !targetApps.includes(app)) {
+        targetApps.push(app);
+      }
+    }
+  };
+
+  const attachBugLensTap = (target: VueDevtoolsHook): void => {
+    const anyTarget = target as unknown as Record<string, unknown>;
+    if (anyTarget.__bugLensTapped) {
+      target.enabled = true;
+      return;
+    }
+    anyTarget.__bugLensTapped = true;
+    target.enabled = true;
+    if (!Array.isArray(target.apps)) {
+      target.apps = [];
+    }
+    const origEmit =
+      typeof target.emit === "function" ? target.emit.bind(target) : undefined;
+    target.emit = (event: string, ...args: any[]) => {
+      if (event === "app:init") {
+        const app = args[0];
+        if (app && !target.apps.includes(app)) {
+          target.apps.push(app);
+        }
+      } else if (event === "init") {
+        const Vue = args[0];
+        if (Vue && Vue.config) {
+          Vue.config.devtools = true;
+        }
+        target.Vue = Vue;
+      }
+      if (listeners[event]) {
+        listeners[event].forEach((fn) => {
+          try {
+            fn(...args);
+          } catch {}
+        });
+      }
+      if (origEmit) {
+        try {
+          origEmit(event, ...args);
+        } catch {}
+      }
+    };
+  };
+
+  // 若主世界中官方 Vue Devtools 或宿主已先注入 Hook，则透明协同挂接，不破坏外部扩展
+  const existingHook = window.__VUE_DEVTOOLS_GLOBAL_HOOK__;
+  if (existingHook) {
+    attachBugLensTap(existingHook);
     return;
   }
 
   const apps: any[] = [];
-  const listeners: Record<string, Function[]> = {};
+  let externalHook: VueDevtoolsHook | undefined;
 
-  const hook: VueDevtoolsHook = {
+  const internalHook: VueDevtoolsHook = {
     enabled: true,
     apps,
     on(event: string, fn: Function) {
       if (!listeners[event]) listeners[event] = [];
       listeners[event].push(fn);
+      if (externalHook && typeof externalHook.on === "function") {
+        try {
+          externalHook.on(event, fn);
+        } catch {}
+      }
     },
     once(event: string, fn: Function) {
       const self = this;
@@ -50,9 +106,15 @@ export function injectVueDevtoolsHook(): void {
       this.on(event, on);
     },
     off(event: string, fn: Function) {
-      if (!listeners[event]) return;
-      const index = listeners[event].indexOf(fn);
-      if (index !== -1) listeners[event].splice(index, 1);
+      if (listeners[event]) {
+        const index = listeners[event].indexOf(fn);
+        if (index !== -1) listeners[event].splice(index, 1);
+      }
+      if (externalHook && typeof externalHook.off === "function") {
+        try {
+          externalHook.off(event, fn);
+        } catch {}
+      }
     },
     emit(event: string, ...args: any[]) {
       if (event === "app:init") {
@@ -60,12 +122,23 @@ export function injectVueDevtoolsHook(): void {
         if (app && !apps.includes(app)) {
           apps.push(app);
         }
+        if (
+          externalHook &&
+          Array.isArray(externalHook.apps) &&
+          app &&
+          !externalHook.apps.includes(app)
+        ) {
+          externalHook.apps.push(app);
+        }
       } else if (event === "init") {
         const Vue = args[0];
         if (Vue && Vue.config) {
           Vue.config.devtools = true;
         }
-        hook.Vue = Vue;
+        internalHook.Vue = Vue;
+        if (externalHook) {
+          externalHook.Vue = Vue;
+        }
       }
       if (listeners[event]) {
         listeners[event].forEach((fn) => {
@@ -74,23 +147,49 @@ export function injectVueDevtoolsHook(): void {
           } catch {}
         });
       }
+      if (externalHook && typeof externalHook.emit === "function") {
+        try {
+          externalHook.emit(event, ...args);
+        } catch {}
+      }
     },
   };
 
-  Object.defineProperty(window, "__VUE_DEVTOOLS_GLOBAL_HOOK__", {
-    get: () => hook,
-    set: (val) => {
-      // 防止页面代码或其它扩展覆盖已创建的 hook
-      if (val && val !== hook) {
-        val.enabled = true;
-        if (Array.isArray(val.apps)) {
-          for (const app of val.apps) {
-            if (!apps.includes(app)) apps.push(app);
+  try {
+    Object.defineProperty(window, "__VUE_DEVTOOLS_GLOBAL_HOOK__", {
+      get: () => externalHook ?? internalHook,
+      set: (val: VueDevtoolsHook | undefined) => {
+        // 协同让位给官方 Vue Devtools，同时双向同步 apps / Vue / emit 监听
+        if (val && val !== internalHook) {
+          externalHook = val;
+          attachBugLensTap(val);
+          syncAppList(val.apps, apps);
+          syncAppList(apps, val.apps);
+          if (internalHook.Vue && !val.Vue) {
+            val.Vue = internalHook.Vue;
+          } else if (val.Vue && !internalHook.Vue) {
+            internalHook.Vue = val.Vue;
+          }
+          for (const [evt, fns] of Object.entries(listeners)) {
+            if (typeof val.on === "function") {
+              for (const fn of fns) {
+                try {
+                  val.on(evt, fn);
+                } catch {}
+              }
+            }
           }
         }
-      }
-    },
-    configurable: true,
-    enumerable: true,
-  });
+      },
+      configurable: true,
+      enumerable: true,
+    });
+  } catch {
+    // 某些极严格页面可能预先 defineProperty 不可配置
+    if (!window.__VUE_DEVTOOLS_GLOBAL_HOOK__) {
+      (
+        window as unknown as Record<string, unknown>
+      ).__VUE_DEVTOOLS_GLOBAL_HOOK__ = internalHook;
+    }
+  }
 }

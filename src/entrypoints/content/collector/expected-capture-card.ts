@@ -1,4 +1,4 @@
-import { isEn, t } from "../../../shared/i18n";
+import { t } from "../../../shared/i18n";
 import type { ExpectedStatement } from "../../../shared/protocol";
 import {
   attachContainerEventShield,
@@ -146,12 +146,7 @@ export class ExpectedCaptureCard {
     });
     input.addEventListener("input", (e) => {
       e.stopPropagation?.();
-      // 用户手动编辑后，清除 chips 选中态（文本以输入框为准）
-      if (this.selectedChips.size > 0) {
-        this.selectedChips.clear();
-        this.chipButtons.forEach((chip) => this.applyChipStyle(chip, false));
-      }
-      // 输入即视为活跃操作，重新武装超时，避免组织语言时卡片静默收起
+      // 输入即视为活跃操作，重新武装超时，避免组织语言时卡片静默收起；不清除已勾选症状标签
       this.resetAutoSkipTimer();
     });
     attachFieldEventShield(input, {
@@ -296,19 +291,23 @@ export class ExpectedCaptureCard {
       this.selectedChips.add(label);
       this.applyChipStyle(chip, true);
     }
-    if (this.inputElement) {
-      const separator = isEn() ? "; " : "；";
-      this.inputElement.value = [...this.selectedChips].join(separator);
-    }
     this.resetAutoSkipTimer();
   }
 
   private buildExpected(): ExpectedStatement | undefined {
     const text = this.inputElement?.value?.trim() ?? "";
-    if (!text) return undefined;
+    const tags = [...this.selectedChips];
+    if (!text && tags.length === 0) return undefined;
+    if (!text) {
+      return {
+        text: "",
+        tags,
+        confidence: "tag-only",
+      };
+    }
     return {
       text,
-      ...(this.selectedChips.size > 0 ? { tags: [...this.selectedChips] } : {}),
+      ...(tags.length > 0 ? { tags } : {}),
       confidence: "explicit",
     };
   }

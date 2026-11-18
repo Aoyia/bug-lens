@@ -746,15 +746,27 @@ export function sanitizeExpectedStatement(
   const normalized = normalizeExpected(expected);
   if (!normalized) return undefined;
   const text = sanitizeText(normalized.text, mode, 8_192).trim();
-  if (!text) return undefined;
   const tags = normalized.tags
     ?.map((tag) => sanitizeText(tag, mode, 256).trim())
     .filter((tag) => tag.length > 0)
     .slice(0, 8);
+  if (!text) {
+    if (!tags || tags.length === 0) return undefined;
+    return {
+      text: "",
+      tags,
+      confidence: normalized.confidence === "missing" ? "missing" : "tag-only",
+    };
+  }
   return {
     text,
     ...(tags && tags.length > 0 ? { tags } : {}),
-    confidence: normalized.confidence === "explicit" ? "explicit" : "missing",
+    confidence:
+      normalized.confidence === "explicit"
+        ? "explicit"
+        : normalized.confidence === "tag-only"
+          ? "tag-only"
+          : "missing",
   };
 }
 

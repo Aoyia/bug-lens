@@ -97,9 +97,9 @@ export function normalizeAnnotation(
 
 /**
  * 归一化用户的"期望"陈述，兼容历史数据形态。
- * - `undefined` / 空串 → `undefined`
+ * - `undefined` / 空串且无标签 → `undefined`
  * - 旧版 `string` → `{ text, confidence: "missing" }`（历史形态无法判定是否显式表达，保守标 missing）
- * - `ExpectedStatement` → 裁剪 text 与 tags；text 为空则视为缺失
+ * - `ExpectedStatement` → 裁剪 text 与 tags；仅有 tags 无 text 时标 `tag-only`（不升格为 explicit）
  */
 export function normalizeExpected(
   raw: string | ExpectedStatement | undefined
@@ -110,15 +110,33 @@ export function normalizeExpected(
   }
   if (!raw) return undefined;
   const text = raw.text?.trim() ?? "";
-  if (!text) return undefined;
   const tags = raw.tags
-    ?.map((tag) => tag.trim())
-    .filter((tag) => tag.length > 0)
-    .slice(0, 8);
+    ? Array.from(
+        new Set(
+          raw.tags.map((tag) => tag.trim()).filter((tag) => tag.length > 0)
+        )
+      ).slice(0, 8)
+    : undefined;
+  if (!text) {
+    if (!tags || tags.length === 0) return undefined;
+    return {
+      text: "",
+      tags,
+      confidence:
+        raw.confidence === "missing" || raw.confidence === "tag-only"
+          ? raw.confidence
+          : "tag-only",
+    };
+  }
   return {
     text,
     ...(tags && tags.length > 0 ? { tags } : {}),
-    confidence: raw.confidence === "explicit" ? "explicit" : "missing",
+    confidence:
+      raw.confidence === "explicit"
+        ? "explicit"
+        : raw.confidence === "tag-only"
+          ? "tag-only"
+          : "missing",
   };
 }
 

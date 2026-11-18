@@ -1441,6 +1441,9 @@
   "fwTriggerInteraction": {
     "message": "Interaction"
   },
+  "fwTriggerSettled": {
+    "message": "Settled state"
+  },
   "fwTriggerIssueScene": {
     "message": "Issue marked"
   },
@@ -2508,5 +2511,29 @@
   },
   "searchSettingsPlaceholder": {
     "message": "Search settings..."
+  },
+  "tagOnlyMark": {
+    "message": "(symptom tags only)"
+  },
+  "expectedTagOnlyTitle": {
+    "message": "Only symptom category tags were selected without an explicit expected outcome"
+  },
+  "issueExpectedPillTagsPrefix": {
+    "message": "Tags: "
+  },
+  "issueExpectedEditTitle": {
+    "message": "Click to edit expected behavior"
+  },
+  "userNarrativeTitle": {
+    "message": "Session Issue & Expectation (Optional for AI)"
+  },
+  "userNarrativeHint": {
+    "message": "When no issue scene was marked during recording, describe actual vs. expected here before export."
+  },
+  "userNarrativeActualPh": {
+    "message": "Actual: e.g. Clicking Save leaves the dialog open with no toast"
+  },
+  "userNarrativeExpectedPh": {
+    "message": "Expected: e.g. Should persist changes and close the dialog"
   }
 }

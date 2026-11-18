@@ -142,6 +142,27 @@ export class CdpEvidenceCollector {
   >();
   private readonly requestSessionMap = new Map<string, string>();
   private readonly requestTabMap = new Map<string, number>();
+  private readonly inflightRequests = new Map<
+    string,
+    { tabId: number; startedAt: number }
+  >();
+  private static readonly INFLIGHT_STALE_MS = 12_000;
+
+  /** 获取指定标签页当前仍在途（未完成/未失败）的非持久网络请求数。 */
+  getInflightRequestCount(tabId: number): number {
+    const now = Date.now();
+    let count = 0;
+    for (const [key, item] of this.inflightRequests.entries()) {
+      if (now - item.startedAt > CdpEvidenceCollector.INFLIGHT_STALE_MS) {
+        this.inflightRequests.delete(key);
+        continue;
+      }
+      if (item.tabId === tabId) {
+        count += 1;
+      }
+    }
+    return count;
+  }
 
   private readonly repository: EvidenceRepository;
   private readonly writeSessionEvent: SessionEventWriter;
@@ -362,6 +383,11 @@ export class CdpEvidenceCollector {
         this.childSessions.delete(sessionId);
       }
     }
+    for (const [key, item] of this.inflightRequests.entries()) {
+      if (item.tabId === tabId) {
+        this.inflightRequests.delete(key);
+      }
+    }
     if (this.attachedTabs.size === 0) {
       for (const timer of this.consoleDeltaTimers.values()) {
         clearTimeout(timer);
@@ -370,6 +396,7 @@ export class CdpEvidenceCollector {
       this.executionContexts.clear();
       this.requestSessionMap.clear();
       this.requestTabMap.clear();
+      this.inflightRequests.clear();
       this.reportedStorageLimits.clear();
     }
     await flushStorageBatchQueue();
@@ -1128,6 +1155,16 @@ export class CdpEvidenceCollector {
 
       const entryId = `${session.id}:${requestId}`;
       this.requestTabMap.set(entryId, tabId);
+      const reqTypeLower = (value.type ?? "").toLowerCase();
+      if (reqTypeLower !== "websocket" && reqTypeLower !== "eventsource") {
+        this.inflightRequests.set(
+          `${tabId}:${source.sessionId ?? ""}:${requestId}`,
+          {
+            tabId,
+            startedAt: Date.now(),
+          }
+        );
+      }
       if (childSessionId) {
         this.requestSessionMap.set(entryId, childSessionId);
       }
@@ -1258,6 +1295,9 @@ export class CdpEvidenceCollector {
         timestamp?: number;
         encodedDataLength?: number;
       };
+      this.inflightRequests.delete(
+        `${tabId}:${source.sessionId ?? ""}:${requestId}`
+      );
       this.memoryCacheRequests.delete(
         `${tabId}:${source.sessionId ?? ""}:${requestId}`
       );
@@ -1304,6 +1344,9 @@ export class CdpEvidenceCollector {
       );
     } else if (method === "Network.loadingFailed") {
       const value = params as { errorText?: string; timestamp?: number };
+      this.inflightRequests.delete(
+        `${tabId}:${source.sessionId ?? ""}:${requestId}`
+      );
       this.memoryCacheRequests.delete(
         `${tabId}:${source.sessionId ?? ""}:${requestId}`
       );

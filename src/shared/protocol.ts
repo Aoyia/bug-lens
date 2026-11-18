@@ -27,7 +27,7 @@ export interface CascadeRuleSource {
   sheetId: string;
   selectorText: string;
   cssText: string;
-  styleProps: Record<string, string>;
+  styleProps?: Record<string, string>;
 }
 
 export interface CascadeInheritedRuleRef {
@@ -63,6 +63,9 @@ export interface CascadeIndex {
     sheetCount: number;
     ruleCount: number;
     elementCount: number;
+    totalSheetCount?: number;
+    totalRuleCount?: number;
+    pruned?: boolean;
     capturedAtEpochMs: number;
   };
 }
@@ -266,6 +269,12 @@ export type RecordingSession = {
   status: SessionStatus;
   /** 用户自定义的会话标题（若未设置则回退至 target.initialTitle） */
   customTitle?: string;
+  /** 无异常现场或导出前在预览页补充的会话级故障现象与预期结果 */
+  userNarrative?: {
+    actual?: string;
+    expected?: string;
+    updatedAtEpochMs?: number;
+  };
   target: {
     tabId: number;
     windowId?: number;
@@ -316,6 +325,7 @@ export type RecordingSession = {
 
 export type FrameworkComponentNode = {
   framework: "vue" | "react";
+  /** 框架主版本号；0 表示运行时未能探测到（不伪造具体版本）。 */
   version: number;
   componentName: string;
   componentFile?: string;
@@ -347,6 +357,7 @@ export type FrameworkProbeParentEntry = {
  */
 export type FrameworkProbeEntry = {
   framework?: "vue" | "react";
+  /** 运行时探测到的框架主版本号；0 = 未知（无法从 DevTools hook 或 fiber 结构判定）。 */
   version?: number;
   componentName?: string;
   componentPath?: string[];
@@ -360,7 +371,7 @@ export type FrameworkProbeEntry = {
 };
 
 export type FrameworkStateTrigger =
-  "start" | "interaction" | "issue-scene" | "resume";
+  "start" | "interaction" | "settled" | "issue-scene" | "resume";
 
 /**
  * 录制时的运行环境快照（由页面主帧在握手时上报，无需用户手动填写）。
@@ -499,6 +510,7 @@ export type InteractionRecord = {
     dataUrl?: string;
     settledAssetId?: string;
     settledDurationMs?: number;
+    settledSkippedReason?: string;
     issue?: string;
   };
 };
@@ -760,16 +772,16 @@ export type EvidenceAsset = {
 };
 /**
  * 用户对问题现场的"期望"陈述（结构化）。
- * confidence 区分"用户显式表达"与"未捕获/缺失"，供 AI 诊断时如实使用，
- * 禁止在缺失时脑补为已知事实。
+ * confidence 区分"用户显式表达"、"仅症状标签（未述明期望）"与"未捕获/缺失"，供 AI 诊断时如实使用，
+ * 禁止在缺失或仅标签时脑补为已知事实。
  */
 export type ExpectedStatement = {
-  /** 用户语言描述（速记卡输入或编辑器填写；chips 文案并入） */
+  /** 用户语言描述（速记卡或编辑器手填预期结果） */
   text: string;
-  /** 快速标签（速记卡 chips 选择结果，可空） */
+  /** 快速症状标签（速记卡 chips 选择结果，可空） */
   tags?: string[];
-  /** 期望是否被用户显式表达 */
-  confidence: "explicit" | "missing";
+  /** 期望可信度级别 */
+  confidence: "explicit" | "tag-only" | "missing";
 };
 
 /**
@@ -1002,6 +1014,11 @@ export type RuntimeMessage =
   | Envelope<"content/screenshot-overlay-state", { open: boolean }>
   | Envelope<"content/activity-ping", { timestamp?: number }>
   | Envelope<
+      "content/wait-settled",
+      { interactionId: string; quietWindowMs: number; maxWaitMs: number }
+    >
+  | Envelope<"content/capture-framework-settled", { interactionId: string }>
+  | Envelope<
       "recording/pause-state",
       {
         sessionId: string;
@@ -1185,6 +1202,13 @@ export type RuntimeMessageResponseMap = {
   "content/health-update": { ok: true };
   "content/screenshot-overlay-state": { ok: true };
   "content/activity-ping": { ok: true };
+  "content/wait-settled": {
+    ok: true;
+    reason: "dom-quiet" | "idle-window" | "timeout" | "no-dom";
+    mutationCount: number;
+    elapsedMs: number;
+  };
+  "content/capture-framework-settled": { ok: true };
   "recording/pause-state": { ok: true };
   "framework/state": { ok: true; stored: boolean };
   "session/add-tab": { ok: true; tabId: number; targets: TargetTabInfo[] };

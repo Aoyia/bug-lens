@@ -108,6 +108,60 @@ if (typeof chrome !== "undefined" && chrome.storage?.onChanged) {
   });
 }
 
+let pendingUserNarrativeSave: Promise<void> | undefined;
+let userNarrativeSaveTimer: ReturnType<typeof setTimeout> | undefined;
+
+const flushUserNarrative = async (): Promise<void> => {
+  if (userNarrativeSaveTimer) {
+    clearTimeout(userNarrativeSaveTimer);
+    userNarrativeSaveTimer = undefined;
+  }
+  const actualEl = document.querySelector<HTMLInputElement>(
+    "#session-narrative-actual"
+  );
+  const expectedEl = document.querySelector<HTMLInputElement>(
+    "#session-narrative-expected"
+  );
+  if (!actualEl || !expectedEl || !runtime.currentSession) return;
+  const savePromise = runtime
+    .setUserNarrative({
+      actual: actualEl.value,
+      expected: expectedEl.value,
+    })
+    .then(() => {
+      aiHandoff.render();
+    });
+  pendingUserNarrativeSave = savePromise;
+  await savePromise;
+};
+
+const bindUserNarrativeBar = (): void => {
+  const bar = document.querySelector<HTMLElement>("#session-narrative-bar");
+  const actualEl = document.querySelector<HTMLInputElement>(
+    "#session-narrative-actual"
+  );
+  const expectedEl = document.querySelector<HTMLInputElement>(
+    "#session-narrative-expected"
+  );
+  if (!bar || !actualEl || !expectedEl || !runtime.currentSession) return;
+
+  bar.hidden = false;
+  actualEl.value = runtime.currentSession.userNarrative?.actual ?? "";
+  expectedEl.value = runtime.currentSession.userNarrative?.expected ?? "";
+
+  const scheduleSave = () => {
+    if (userNarrativeSaveTimer) clearTimeout(userNarrativeSaveTimer);
+    userNarrativeSaveTimer = setTimeout(() => {
+      void flushUserNarrative();
+    }, 250);
+  };
+
+  actualEl.addEventListener("input", scheduleSave);
+  expectedEl.addEventListener("input", scheduleSave);
+  actualEl.addEventListener("blur", () => void flushUserNarrative());
+  expectedEl.addEventListener("blur", () => void flushUserNarrative());
+};
+
 exportController = new PreviewExportController({
   root: document,
   sessionId,
@@ -116,7 +170,11 @@ exportController = new PreviewExportController({
   getMediaChunkCount: () => runtime.mediaChunks,
   notify: (message) => reportView.notify(message),
   onArtifactChanged: () => aiHandoff.render(),
-  beforeExport: () => runtime.waitForSourceMaps(),
+  beforeExport: async () => {
+    await flushUserNarrative();
+    if (pendingUserNarrativeSave) await pendingUserNarrativeSave;
+    return runtime.waitForSourceMaps();
+  },
   onExportStart: async (mode) => {
     if (mode === "ticket") {
       return await aiHandoff.autoCopyTicketTemplate(true);
@@ -198,6 +256,7 @@ async function load(): Promise<void> {
     return;
   }
   applyPrivacyBadge(document, runtime.currentSession);
+  bindUserNarrativeBar();
   window.addEventListener("beforeunload", () => runtime.dispose(), {
     once: true,
   });

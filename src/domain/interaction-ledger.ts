@@ -15,6 +15,10 @@ export type InteractionEvent =
       settledAssetId: string;
       settledDurationMs: number;
     }
+  | {
+      type: "settled-skipped";
+      reason: string;
+    }
   | { type: "screenshot-unavailable"; issue: string };
 
 export function applyInteractionEvent(
@@ -56,6 +60,9 @@ export function applyInteractionEvent(
           ...(current.screenshot?.settledDurationMs !== undefined
             ? { settledDurationMs: current.screenshot.settledDurationMs }
             : {}),
+          ...(current.screenshot?.settledSkippedReason
+            ? { settledSkippedReason: current.screenshot.settledSkippedReason }
+            : {}),
         },
       };
 
@@ -68,6 +75,18 @@ export function applyInteractionEvent(
           ...current.screenshot,
           settledAssetId: event.settledAssetId,
           settledDurationMs: event.settledDurationMs,
+          settledSkippedReason: undefined,
+        },
+      };
+
+    case "settled-skipped":
+      if (!current || current.status === "cancelled") return current;
+      if (current.screenshot?.settledAssetId) return current;
+      return {
+        ...current,
+        screenshot: {
+          ...current.screenshot,
+          settledSkippedReason: event.reason,
         },
       };
 

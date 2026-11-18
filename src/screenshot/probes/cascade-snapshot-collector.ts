@@ -73,7 +73,7 @@ function buildRuleBucket(rules: CascadeRuleSource[]): RuleIndexBucket {
 
   for (const rule of rules) {
     let hasInheritable = false;
-    for (const propName of Object.keys(rule.styleProps)) {
+    for (const propName of Object.keys(rule.styleProps ?? {})) {
       if (INHERITABLE_PROPERTIES.has(propName.toLowerCase())) {
         hasInheritable = true;
         break;
@@ -162,6 +162,80 @@ export interface CollectCascadeOptions {
   domTree?: DomContextTreeV2;
   elements?: Element[];
   bounds?: { x: number; y: number; width: number; height: number };
+}
+
+/**
+ * 裁剪级联样式索引：仅保留被目标选区元素（及其继承链）引用的 CSS 规则与样式表，
+ * 剔除全页数万条未命中样式规则，并在已有 cssText 时省去重复的 styleProps 键值对，
+ * 使独立截图包内的 cascade.json 从数 MB 降至百 KB 以内。
+ */
+export function pruneCascadeIndex(cascade: CascadeIndex): CascadeIndex {
+  const referencedRuleIds = new Set<string>();
+  for (const el of cascade.elements) {
+    for (const rid of el.matchedRuleIds) {
+      referencedRuleIds.add(rid);
+    }
+    if (el.inheritedRules) {
+      for (const inh of el.inheritedRules) {
+        referencedRuleIds.add(inh.ruleId);
+      }
+    }
+  }
+
+  const prunedRules: CascadeRuleSource[] = [];
+  const referencedSheetIds = new Set<string>();
+  for (const rule of cascade.rules) {
+    if (!referencedRuleIds.has(rule.id)) continue;
+    referencedSheetIds.add(rule.sheetId);
+    const hasCssText = Boolean(rule.cssText && rule.cssText.trim().length > 0);
+    if (hasCssText && rule.styleProps) {
+      const { styleProps: _ignored, ...rest } = rule;
+      prunedRules.push(rest);
+    } else {
+      prunedRules.push(rule);
+    }
+  }
+
+  const prunedSheets = cascade.sheets.filter((s) =>
+    referencedSheetIds.has(s.id)
+  );
+
+  const prunedPerProperty: Record<string, CascadePropertySource[]> = {};
+  for (const [prop, items] of Object.entries(cascade.perProperty ?? {})) {
+    const seen = new Set<string>();
+    const kept: CascadePropertySource[] = [];
+    for (const ps of items) {
+      if (
+        !ps.isInline &&
+        (!ps.sourceRuleId || !referencedRuleIds.has(ps.sourceRuleId))
+      ) {
+        continue;
+      }
+      const sig = `${ps.value}|${ps.sourceRuleId ?? ""}|${ps.isInline ? "1" : "0"}|${ps.inheritedFromSelector ?? ""}`;
+      if (seen.has(sig)) continue;
+      seen.add(sig);
+      kept.push(ps);
+    }
+    if (kept.length > 0) {
+      prunedPerProperty[prop] = kept;
+    }
+  }
+
+  return {
+    sheets: prunedSheets,
+    rules: prunedRules,
+    elements: cascade.elements,
+    perProperty: prunedPerProperty,
+    meta: {
+      ...cascade.meta,
+      sheetCount: prunedSheets.length,
+      ruleCount: prunedRules.length,
+      elementCount: cascade.elements.length,
+      totalSheetCount: cascade.meta.totalSheetCount ?? cascade.sheets.length,
+      totalRuleCount: cascade.meta.totalRuleCount ?? cascade.rules.length,
+      pruned: true,
+    },
+  };
 }
 
 export function collectCascadeIndex(
@@ -288,7 +362,7 @@ export function collectCascadeIndex(
           matchedRuleIds.push(r.id);
 
           // 收集按属性归纳来源
-          for (const [prop, val] of Object.entries(r.styleProps)) {
+          for (const [prop, val] of Object.entries(r.styleProps ?? {})) {
             if (!perPropertyMap[prop]) {
               perPropertyMap[prop] = [];
             }
@@ -351,7 +425,7 @@ export function collectCascadeIndex(
         try {
           if (currParent.matches && currParent.matches(r.selectorText)) {
             const inheritedProps: Record<string, string> = {};
-            for (const [prop, val] of Object.entries(r.styleProps)) {
+            for (const [prop, val] of Object.entries(r.styleProps ?? {})) {
               if (INHERITABLE_PROPERTIES.has(prop.toLowerCase())) {
                 inheritedProps[prop] = val;
 
@@ -424,7 +498,7 @@ export function collectCascadeIndex(
     });
   }
 
-  return {
+  return pruneCascadeIndex({
     sheets,
     rules,
     elements,
@@ -435,5 +509,5 @@ export function collectCascadeIndex(
       elementCount: elements.length,
       capturedAtEpochMs: Date.now(),
     },
-  };
+  });
 }

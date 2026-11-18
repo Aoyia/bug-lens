@@ -195,7 +195,9 @@ export function probeEntryToFrameworkSnapshot(
         : undefined);
   if (!framework || !entry.componentName) return undefined;
 
-  const version = entry.version ?? (framework === "react" ? 18 : 3);
+  // 版本号只能来自主世界探针的运行时探测结果；缺失时用 0 表示"未知"，
+  // 不再按框架猜一个具体版本（此前 React 一律猜 18，会把 React 19 标错）。
+  const version = entry.version ?? 0;
   const targetClean = sanitizePropsAndState(
     entry.props,
     entry.data,
@@ -323,13 +325,41 @@ export type CaptureFrameworkStateWithMainProbeInput = {
 };
 
 /**
- * 采集录制态框架状态，并在隔离世界探不到组件树时通过 background world:"MAIN" 探针补全。
+ * 快照里是否存在"框架已知但版本未知（version=0）"的 React 节点。
+ *
+ * 隔离世界读不到页面主世界的 __REACT_DEVTOOLS_GLOBAL_HOOK__ 与 fiber expando，
+ * 因此 react-detector 只能把版本标成 0。这类快照不能让主世界探针短路，
+ * 否则 React 19 会永远停留在"未知"，也可能被下游按 18 处理。
+ */
+function snapshotHasUnknownReactVersion(
+  snapshot: FrameworkSnapshot | undefined
+): boolean {
+  if (!snapshot) return false;
+  const nodes = [
+    snapshot.targetComponent,
+    snapshot.rootComponent,
+    ...(snapshot.parentChain ?? []),
+  ].filter((node): node is FrameworkComponentNode => Boolean(node));
+  return nodes.some(
+    (node) => node.framework === "react" && !(node.version > 0)
+  );
+}
+
+/**
+ * 采集录制态框架状态，并在隔离世界探不到组件树、或探到的 React 版本未知时，
+ * 通过 background world:"MAIN" 探针补全（主世界能读取 DevTools hook 与 fiber 结构，
+ * 给出的 19/18 是运行时证据）。
  */
 export async function captureFrameworkStateWithMainProbe(
   input: CaptureFrameworkStateWithMainProbeInput
 ): Promise<FrameworkStateEvidence> {
   const base = captureFrameworkState(input);
-  if (base.snapshot?.rootComponent || base.snapshot?.targetComponent) {
+  const baseSnapshot = base.snapshot;
+  const needsVersionRescue = snapshotHasUnknownReactVersion(baseSnapshot);
+  if (
+    !needsVersionRescue &&
+    (baseSnapshot?.rootComponent || baseSnapshot?.targetComponent)
+  ) {
     return base;
   }
 

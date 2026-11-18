@@ -130,7 +130,13 @@ export class IssueEditor {
     const session = this.deps.getSession();
     if (!session) return;
     const shortcutKeyText = this.deps.isMac ? "Option+S" : "Alt+S";
-    const backfillExpected = scene.narrative?.expected?.text?.trim();
+    const backfillExpected = scene.narrative?.expected?.text?.trim() ?? "";
+    const backfillTags = scene.narrative?.expected?.tags ?? [];
+    const hasInitialExpectedPill =
+      backfillExpected.length > 0 || backfillTags.length > 0;
+    const pillDisplayText = backfillExpected
+      ? `${t("issueExpectedPillPrefix")}${backfillExpected}${backfillTags.length > 0 ? ` [${backfillTags.join(", ")}]` : ""}`
+      : `${t("issueExpectedPillTagsPrefix")}${backfillTags.join(", ")}`;
     let currentExpected = scene.narrative?.expected;
 
     const root = document.createElement("div");
@@ -243,9 +249,10 @@ export class IssueEditor {
     </div>
     <div data-issue-control-card style="position:fixed;z-index:30;width:min(calc(100vw - 32px),680px);background:rgba(255,255,255,0.96);backdrop-filter:blur(20px);border:1px solid #e5e6eb;border-radius:4px;box-shadow:0 8px 30px rgba(0,0,0,0.18);padding:8px 12px;display:flex;flex-direction:column;gap:6px;transition:top 0.15s ease-out, left 0.15s ease-out">
       ${
-        backfillExpected
+        hasInitialExpectedPill
           ? `<div data-issue-expected-pill style="display:inline-flex;align-items:center;gap:6px;background:#e8f3ff;color:#165dff;border:1px solid #bedaff;border-radius:12px;padding:2px 8px 2px 10px;font-size:11px;font-weight:500;width:fit-content;max-width:100%;box-sizing:border-box">
-        <span data-issue-expected-text style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t("issueExpectedPillPrefix")}${escapeHtml(backfillExpected)}</span>
+        <span data-issue-expected-text title="${escapeHtml(t("issueExpectedEditTitle"))}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer">${escapeHtml(pillDisplayText)}</span>
+        <button data-issue-expected-edit type="button" style="background:none;border:none;color:#165dff;cursor:pointer;padding:0 2px;font-size:11px;line-height:1;display:flex;align-items:center;opacity:0.75" title="${escapeHtml(t("issueExpectedEditTitle"))}">✎</button>
         <button data-issue-expected-remove type="button" style="background:none;border:none;color:#165dff;cursor:pointer;padding:0 2px;font-size:13px;line-height:1;display:flex;align-items:center;opacity:0.75" title="${t("issueRemoveExpected")}">✕</button>
       </div>`
           : ""
@@ -369,31 +376,125 @@ export class IssueEditor {
     }
 
     const pill = root.querySelector<HTMLElement>("[data-issue-expected-pill]");
+    const expectedTextEl = root.querySelector<HTMLElement>(
+      "[data-issue-expected-text]"
+    );
+    const editExpectedBtn = root.querySelector<HTMLButtonElement>(
+      "[data-issue-expected-edit]"
+    );
     const removeExpectedBtn = root.querySelector<HTMLButtonElement>(
       "[data-issue-expected-remove]"
     );
-    removeExpectedBtn?.addEventListener("click", (e) => {
-      e.stopPropagation?.();
-      currentExpected = undefined;
-      pill?.remove();
-      positionControlCard();
-      actualInput?.focus();
-    });
-
-    // ─── 焦点隔离与防劫持屏障（反向焦点陷阱）───
+    let inlineExpectedInput: HTMLInputElement | undefined;
     let activeField: HTMLElement | null = actualInput;
     const updateActiveField = (target: EventTarget | null) => {
       if (
         target === actualInput ||
+        target === inlineExpectedInput ||
         (textInputOverlay && target === textInputOverlay)
       ) {
         activeField = target as HTMLElement;
       }
     };
-
     const attachFieldEventShield = (field: HTMLElement | null) => {
       bindFieldEventShield(field, { onFocusOrPointer: updateActiveField });
     };
+
+    const syncPillLabel = () => {
+      if (!expectedTextEl) return;
+      const tags = currentExpected?.tags ?? [];
+      const txt = currentExpected?.text?.trim() ?? "";
+      expectedTextEl.textContent = txt
+        ? `${t("issueExpectedPillPrefix")}${txt}${tags.length > 0 ? ` [${tags.join(", ")}]` : ""}`
+        : `${t("issueExpectedPillTagsPrefix")}${tags.join(", ")}`;
+    };
+
+    const closeInlineExpected = (saveChange: boolean) => {
+      if (!inlineExpectedInput) return;
+      const nextVal = inlineExpectedInput.value.trim();
+      inlineExpectedInput.remove();
+      inlineExpectedInput = undefined;
+      if (saveChange) {
+        const existingTags = currentExpected?.tags;
+        if (nextVal.length > 0) {
+          currentExpected = {
+            text: nextVal,
+            ...(existingTags && existingTags.length > 0
+              ? { tags: existingTags }
+              : {}),
+            confidence: "explicit",
+          };
+        } else if (existingTags && existingTags.length > 0) {
+          currentExpected = {
+            text: "",
+            tags: existingTags,
+            confidence: "tag-only",
+          };
+        } else {
+          currentExpected = undefined;
+          pill?.remove();
+        }
+        syncPillLabel();
+      }
+      if (expectedTextEl) expectedTextEl.style.display = "";
+      if (editExpectedBtn) editExpectedBtn.style.display = "";
+      activeField = actualInput;
+      actualInput?.focus();
+    };
+
+    const openInlineExpected = (e?: Event) => {
+      e?.stopPropagation?.();
+      if (!pill || inlineExpectedInput) return;
+      const input = document.createElement("input");
+      input.type = "text";
+      input.setAttribute("data-issue-expected-inline", "true");
+      input.placeholder = t("expectedPlaceholder");
+      input.value = currentExpected?.text ?? "";
+      Object.assign(input.style, {
+        minWidth: "220px",
+        maxWidth: "420px",
+        height: "24px",
+        padding: "0 6px",
+        fontSize: "11px",
+        borderRadius: "2px",
+        outline: "none",
+      });
+      if (expectedTextEl) expectedTextEl.style.display = "none";
+      if (editExpectedBtn) editExpectedBtn.style.display = "none";
+      pill.appendChild(input);
+      inlineExpectedInput = input;
+      attachFieldEventShield(input);
+      updateActiveField(input);
+      input.addEventListener("keydown", (ev) => {
+        ev.stopPropagation?.();
+        if (isEnterCommitKey(ev)) {
+          ev.preventDefault?.();
+          closeInlineExpected(true);
+        } else if (ev.key === "Escape") {
+          ev.preventDefault?.();
+          closeInlineExpected(false);
+        }
+      });
+      input.addEventListener("blur", () => {
+        closeInlineExpected(true);
+      });
+      input.focus();
+    };
+    expectedTextEl?.addEventListener("click", openInlineExpected);
+    editExpectedBtn?.addEventListener("click", openInlineExpected);
+
+    removeExpectedBtn?.addEventListener("click", (e) => {
+      e.stopPropagation?.();
+      inlineExpectedInput?.remove();
+      inlineExpectedInput = undefined;
+      currentExpected = undefined;
+      pill?.remove();
+      positionControlCard();
+      activeField = actualInput;
+      actualInput?.focus();
+    });
+
+    // ─── 焦点隔离与防劫持屏障（反向焦点陷阱）───
 
     attachFieldEventShield(actualInput);
     attachContainerEventShield(controlCard);
@@ -780,6 +881,7 @@ export class IssueEditor {
     // P1 完整性兜底：实际表现为空时首次点击提示并聚焦，再次点击确认按空记录保存。
     let emptyActualWarned = false;
     const commit = (stopAfterCommit: boolean) => {
+      closeInlineExpected(true);
       const actual = (actualInput?.value ?? "").trim();
       if (shouldWarnEmptyActual(actual, emptyActualWarned)) {
         emptyActualWarned = true;

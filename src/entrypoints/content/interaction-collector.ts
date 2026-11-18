@@ -39,6 +39,7 @@ import {
 import { ensureErrorsTrackerStarted } from "./content-bridge";
 import { IframeActivityReporter } from "./collector/iframe-activity-reporter";
 import { initFrameGeometryBridge } from "./collector/frame-geometry";
+import { waitForDomSettled } from "./collector/settled-watcher";
 
 type ContentSession = {
   sessionId: string;
@@ -589,10 +590,11 @@ if (existingController) {
   // ─── Coordination ───
 
   let lastFrameworkTickAt = 0;
+  let lastFrameworkStateSig: string | undefined;
   const FRAMEWORK_TICK_MIN_INTERVAL_MS = 3_000;
 
-  // 框架状态采集节流：普通触发 3s 内只上报一次，start 触发不受限；
-  // 异步通过 world:"MAIN" 探针补充隔离世界不可见的 Vue/React 组件树
+  // 框架状态采集节流：普通触发 3s 内只上报一次，start / issue-scene / settled 触发不受限；
+  // 异步通过 world:"MAIN" 探针补充隔离世界不可见的 Vue/React 组件树，并在 settled 阶段自动去重
   function captureFrameworkTick(
     trigger: FrameworkStateTrigger,
     targetElement?: Element
@@ -612,6 +614,7 @@ if (existingController) {
     if (
       trigger !== "start" &&
       trigger !== "issue-scene" &&
+      trigger !== "settled" &&
       now - lastFrameworkTickAt < FRAMEWORK_TICK_MIN_INTERVAL_MS
     )
       return;
@@ -625,6 +628,17 @@ if (existingController) {
       .then((state) => {
         if (!session || session.sessionId !== activeSessionId) return;
         if (!isMeaningfulFrameworkState(state)) return;
+        const sig = JSON.stringify({
+          target: state.snapshot?.targetComponent,
+          root: state.snapshot?.rootComponent,
+          parents: state.snapshot?.parentChain,
+          globalState: state.globalState,
+          webStorage: state.webStorage,
+        });
+        if (trigger === "settled" && sig === lastFrameworkStateSig) {
+          return;
+        }
+        lastFrameworkStateSig = sig;
         return chrome.runtime.sendMessage(
           message("framework/state", { state }, activeSessionId, "background")
         );
@@ -677,6 +691,8 @@ if (existingController) {
     } else {
       cachedStartedAtEpochMs = undefined;
       isRemotePaused = false;
+      lastFrameworkStateSig = undefined;
+      lastInteractedElementRef = undefined;
     }
     session = next;
     // 同步到 window 挂载符号，供调试与重复注入时读取
@@ -750,59 +766,88 @@ if (existingController) {
   }
 
   window.__WEB_BUG_RECORDER_CONTROLLER__ = { refresh: refreshSession };
-  chrome.runtime.onMessage.addListener((raw: unknown) => {
-    if (!isEnvelope(raw)) return;
-    if (raw.target && raw.target !== "content") return;
-    if (raw.type === "content/reset") {
-      if (mountedWidget?.isSaving || mountedWidget?.isClosing) {
-        // 静默导出中，由 onStop 负责生命周期与平滑关闭，忽略外部提前到达的 reset
+  chrome.runtime.onMessage.addListener(
+    (raw: unknown, _sender, sendResponse) => {
+      if (!isEnvelope(raw)) return;
+      if (raw.target && raw.target !== "content") return;
+      if (raw.type === "content/wait-settled") {
+        const quietWindowMs = raw.payload?.quietWindowMs ?? 150;
+        const maxWaitMs = raw.payload?.maxWaitMs ?? 1000;
+        void waitForDomSettled({ quietWindowMs, maxWaitMs })
+          .then((res) => {
+            sendResponse({
+              ok: true,
+              reason: res.reason,
+              mutationCount: res.mutationCount,
+              elapsedMs: res.elapsedMs,
+            });
+          })
+          .catch(() => {
+            sendResponse({
+              ok: true,
+              reason: "no-dom",
+              mutationCount: 0,
+              elapsedMs: 0,
+            });
+          });
+        return true;
+      }
+      if (raw.type === "content/capture-framework-settled") {
+        captureFrameworkTick("settled");
+        sendResponse({ ok: true });
         return;
       }
-      refreshSession(undefined);
-    }
-    if (raw.type === "content/health-update" && raw.payload?.health) {
-      if (session && raw.sessionId === session.sessionId && mountedWidget) {
-        mountedWidget.updateHealth(raw.payload.health);
+      if (raw.type === "content/reset") {
+        if (mountedWidget?.isSaving || mountedWidget?.isClosing) {
+          // 静默导出中，由 onStop 负责生命周期与平滑关闭，忽略外部提前到达的 reset
+          return;
+        }
+        refreshSession(undefined);
       }
-    }
-    if (raw.type === "content/activity-ping" && isTopFrame) {
-      monitor?.recordActivity();
-    }
-    if (raw.type === "tab/state-sync") {
-      if (!session && raw.payload?.sessionId) {
-        // 多 Tab 录制副标签页同步：主动握手挂载挂件
-        void chrome.runtime
-          .sendMessage(
-            message("content/hello", {
-              url: location.href,
-              title: document.title,
-              environment: captureEnvironment(),
+      if (raw.type === "content/health-update" && raw.payload?.health) {
+        if (session && raw.sessionId === session.sessionId && mountedWidget) {
+          mountedWidget.updateHealth(raw.payload.health);
+        }
+      }
+      if (raw.type === "content/activity-ping" && isTopFrame) {
+        monitor?.recordActivity();
+      }
+      if (raw.type === "tab/state-sync") {
+        if (!session && raw.payload?.sessionId) {
+          // 多 Tab 录制副标签页同步：主动握手挂载挂件
+          void chrome.runtime
+            .sendMessage(
+              message("content/hello", {
+                url: location.href,
+                title: document.title,
+                environment: captureEnvironment(),
+              })
+            )
+            .then((response) => {
+              if (response?.active && response.sessionId) {
+                refreshSession(
+                  {
+                    sessionId: response.sessionId,
+                    nonce: response.nonce!,
+                    frameId: response.frameId ?? (isTopFrame ? 0 : -1),
+                    startedAtEpochMs: response.startedAtEpochMs,
+                    privacyMode: normalizePrivacyMode(response.privacyMode),
+                    captureFrameworkState: Boolean(
+                      response.captureFrameworkState
+                    ),
+                  },
+                  response.health
+                );
+              }
             })
-          )
-          .then((response) => {
-            if (response?.active && response.sessionId) {
-              refreshSession(
-                {
-                  sessionId: response.sessionId,
-                  nonce: response.nonce!,
-                  frameId: response.frameId ?? (isTopFrame ? 0 : -1),
-                  startedAtEpochMs: response.startedAtEpochMs,
-                  privacyMode: normalizePrivacyMode(response.privacyMode),
-                  captureFrameworkState: Boolean(
-                    response.captureFrameworkState
-                  ),
-                },
-                response.health
-              );
-            }
-          })
-          .catch(() => undefined);
-      } else if (mountedWidget && raw.payload) {
-        isRemotePaused = Boolean(raw.payload.isPaused);
-        mountedWidget.updatePauseState(raw.payload.isPaused);
+            .catch(() => undefined);
+        } else if (mountedWidget && raw.payload) {
+          isRemotePaused = Boolean(raw.payload.isPaused);
+          mountedWidget.updatePauseState(raw.payload.isPaused);
+        }
       }
     }
-  });
+  );
   chrome.runtime
     .sendMessage(
       // 与 background 握手：上报页面环境，换取当前激活会话并恢复 UI

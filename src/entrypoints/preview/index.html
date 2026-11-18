@@ -429,6 +429,41 @@
               aria-labelledby="tab-btn-issues"
             >
               <div class="integrated-card-panel">
+                <section
+                  id="session-narrative-bar"
+                  class="session-narrative-bar"
+                  hidden
+                >
+                  <div class="session-narrative-head">
+                    <span
+                      class="session-narrative-title"
+                      data-i18n="userNarrativeTitle"
+                      >会话现象与预期（可选补充给 AI）</span
+                    >
+                    <span
+                      class="session-narrative-hint"
+                      data-i18n="userNarrativeHint"
+                      >未标记问题现场时，也可在此一句话说明问题现象与预期行为，导出时自动写入
+                      AI 证据包。</span
+                    >
+                  </div>
+                  <div class="session-narrative-fields">
+                    <input
+                      id="session-narrative-actual"
+                      type="text"
+                      class="session-narrative-input"
+                      data-i18n-ph="userNarrativeActualPh"
+                      placeholder="实际现象：例如 点击保存后下拉框未收起或报错"
+                    />
+                    <input
+                      id="session-narrative-expected"
+                      type="text"
+                      class="session-narrative-input"
+                      data-i18n-ph="userNarrativeExpectedPh"
+                      placeholder="预期行为：例如 应保存成功并关闭弹窗"
+                    />
+                  </div>
+                </section>
                 <div id="issue-scenes" class="issue-scenes-list"></div>
               </div>
             </div>

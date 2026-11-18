@@ -1441,6 +1441,9 @@
   "fwTriggerInteraction": {
     "message": "交互确认"
   },
+  "fwTriggerSettled": {
+    "message": "异步稳定态"
+  },
   "fwTriggerIssueScene": {
     "message": "标记问题"
   },
@@ -2508,5 +2511,29 @@
   },
   "searchSettingsPlaceholder": {
     "message": "搜索设置项..."
+  },
+  "tagOnlyMark": {
+    "message": "(仅症状标签)"
+  },
+  "expectedTagOnlyTitle": {
+    "message": "仅选择了症状分类标签，尚未填写具体预期结果"
+  },
+  "issueExpectedPillTagsPrefix": {
+    "message": "症状标签："
+  },
+  "issueExpectedEditTitle": {
+    "message": "点击修改期望描述"
+  },
+  "userNarrativeTitle": {
+    "message": "会话现象与预期（可选补充给 AI）"
+  },
+  "userNarrativeHint": {
+    "message": "未标记问题现场时，也可在此一句话说明问题现象与预期行为，导出时自动写入 AI 证据包。"
+  },
+  "userNarrativeActualPh": {
+    "message": "实际现象：例如 点击保存后下拉框未收起或报错"
+  },
+  "userNarrativeExpectedPh": {
+    "message": "预期行为：例如 应保存成功并关闭弹窗"
   }
 }

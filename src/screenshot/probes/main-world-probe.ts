@@ -20,13 +20,20 @@ export function runMainWorldFrameworkProbe(
   const MAX_PATH = 8;
   const MAX_HOPS = 15;
 
-  /** 路径标准化：将绝对路径、Vite/@fs、Webpack 虚拟路径归一化为相对路径 */
+  /** 路径标准化：将绝对路径、URL、Vite/@fs、Webpack 虚拟路径归一化为相对路径 */
   const normalizeFilePath = (filePath: any): string | undefined => {
     if (!filePath || typeof filePath !== "string") return undefined;
     let p = filePath.replace(/\\/g, "/").trim();
+    if (!p) return undefined;
+
+    // 构建工具虚拟协议：webpack:///./src/x.jsx、webpack-internal:///、vite://
+    // 协议后的 host 段（webpack://app/... 里的 app）随路径锚定一起被丢弃。
+    p = p.replace(/^(?:webpack|webpack-internal|vite):\/\/+/, "");
+    // 真实 URL origin：http(s)://host[:port]、file:// → 只保留 origin 之后的路径
+    p = p.replace(/^(?:https?|file):\/\/[^/]*/i, "");
+
     p = p.split("?")[0].split("#")[0];
     p = p.replace(/^\/@fs\//, "/");
-    p = p.replace(/^webpack:\/\/\/?(?:\.\/)?/, "");
 
     // 关键目录锚定匹配：src/, app/, components/, views/, pages/, lib/, e2e/
     const anchorMatch = p.match(
@@ -130,6 +137,205 @@ export function runMainWorldFrameworkProbe(
 
   const isWrapperName = (name?: string): boolean =>
     !name || WRAPPER_NAME_RE.test(name);
+
+  /** 解析 "19.2.8" / "18.3.1" 这类版本号的主版本；非法值返回 undefined。 */
+  const parseReactMajorVersion = (value: any): number | undefined => {
+    if (typeof value !== "string") return undefined;
+    const matched = value.match(/^(\d{1,2})\./);
+    if (!matched) return undefined;
+    const major = parseInt(matched[1], 10);
+    return major >= 15 && major <= 30 ? major : undefined;
+  };
+
+  /**
+   * 首选版本来源：React DevTools 全局 hook 的 renderer 描述。
+   * react-dom 启动时会以 injectInternals({ version: ReactVersion, ... }) 把自己的
+   * 真实版本号注册进 hook，renderers 里因此带有权威的 version 字段。
+   */
+  const readReactMajorFromDevTools = (): number | undefined => {
+    try {
+      const globalHost: any =
+        typeof window !== "undefined" ? window : globalThis;
+      const hook: any = globalHost?.__REACT_DEVTOOLS_GLOBAL_HOOK__;
+      const container = hook?.renderers;
+      if (!container) return undefined;
+      const renderers: any[] = [];
+      if (typeof container.forEach === "function") {
+        container.forEach((renderer: any) => {
+          renderers.push(renderer);
+        });
+      } else if (typeof container === "object") {
+        const keys = Object.keys(container);
+        for (let i = 0; i < keys.length; i++) {
+          renderers.push(container[keys[i]]);
+        }
+      }
+      let fallback: number | undefined;
+      for (let i = 0; i < renderers.length; i++) {
+        const renderer = renderers[i];
+        if (!renderer || typeof renderer !== "object") continue;
+        const major =
+          parseReactMajorVersion(renderer.version) ??
+          parseReactMajorVersion(renderer.reconcilerVersion);
+        if (major === undefined) continue;
+        if (renderer.rendererPackageName === "react-dom") return major;
+        if (fallback === undefined) fallback = major;
+      }
+      return fallback;
+    } catch {
+      return undefined;
+    }
+  };
+
+  /**
+   * 无 hook 时的结构启发式（只有 dev 构建可判别）：
+   * React 19 的 FiberNode 自带 _debugInfo/_debugTask/_debugStack 且已删除 _debugSource；
+   * React 18 相反（有 _debugSource，无上述三者）。生产构建三者都被剥离，
+   * 无法判别时返回 0（未知），绝不猜成 18/19。
+   */
+  const inferReactMajorFromFiber = (hostFiber: any): number => {
+    let fiber = hostFiber;
+    let hops = 0;
+    let sawReact18DebugSource = false;
+    while (fiber && hops < MAX_HOPS) {
+      try {
+        if (
+          "_debugInfo" in fiber ||
+          "_debugTask" in fiber ||
+          "_debugStack" in fiber
+        ) {
+          return 19;
+        }
+        if (fiber._debugSource) sawReact18DebugSource = true;
+      } catch {
+        // 不可读的 fiber 跳过
+      }
+      fiber = fiber.return;
+      hops += 1;
+    }
+    return sawReact18DebugSource ? 18 : 0;
+  };
+
+  let cachedReactMajor: number | undefined;
+  const getReactMajorVersion = (hostFiber: any): number => {
+    if (cachedReactMajor !== undefined) return cachedReactMajor;
+    const fromHook = readReactMajorFromDevTools();
+    if (fromHook !== undefined) {
+      cachedReactMajor = fromHook;
+      return fromHook;
+    }
+    const inferred = inferReactMajorFromFiber(hostFiber);
+    if (inferred !== 0) {
+      cachedReactMajor = inferred;
+      return inferred;
+    }
+    return 0;
+  };
+
+  /** React 内部/打包器运行时帧：其行号不是业务源码位置。 */
+  const isReactStackInternalFile = (filePath: string): boolean =>
+    /node_modules[\/\\]/.test(filePath) ||
+    /react[_-]?jsx(?:-dev)?-runtime/i.test(filePath) ||
+    /react[_-]?stack[_-]?bottom[_-]?frame/i.test(filePath);
+
+  /**
+   * 从 Error/stack 字符串解析业务源码位置（React 19 的 fiber._debugStack 与
+   * _debugInfo[].debugLocation 都是这种 V8 风格栈）。
+   * 栈可能为空、被 minify 或不含源码目录；解析不到时返回空对象，不编造行号。
+   */
+  const parseReactStackLocation = (
+    stackLike: any
+  ): { file?: string; line?: number } => {
+    let text: string | undefined;
+    if (typeof stackLike === "string") {
+      text = stackLike;
+    } else if (stackLike && typeof stackLike.stack === "string") {
+      text = stackLike.stack;
+    }
+    if (!text) return {};
+
+    // React 在栈底插入 react_stack_bottom_frame，其下方全部是框架内部调用
+    const bottomIdx = text.indexOf("react_stack_bottom_frame");
+    if (bottomIdx !== -1) {
+      const lineStart = text.lastIndexOf("\n", bottomIdx);
+      if (lineStart > 0) text = text.slice(0, lineStart);
+    }
+
+    const lines = text.split("\n");
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (!line || line.indexOf(":") === -1) continue;
+      const matched =
+        line.match(/\((.*?):(\d+):(\d+)\)\s*$/) ||
+        line.match(/(?:@|\bat\s+)(.*?):(\d+):(\d+)\s*$/);
+      if (!matched) continue;
+      const rawFile = (matched[1] || "").trim();
+      const lineNumber = parseInt(matched[2], 10);
+      if (!rawFile || !(lineNumber > 0)) continue;
+      if (isReactStackInternalFile(rawFile)) continue;
+      const bareFile = rawFile.split("?")[0].split("#")[0];
+      if (!/\.(?:[cm]?[jt]sx?|vue)$/i.test(bareFile)) continue;
+      const normalized = normalizeFilePath(rawFile);
+      if (!normalized || normalized.indexOf("/") === -1) continue;
+      return { file: normalized, line: lineNumber };
+    }
+    return {};
+  };
+
+  /** React 19 的 _debugInfo 条目（{name, env, debugLocation}）里可能带调用点栈。 */
+  const readReactDebugInfoLocation = (
+    fiber: any
+  ): { file?: string; line?: number } => {
+    try {
+      const info = fiber?._debugInfo;
+      if (!Array.isArray(info)) return {};
+      for (let i = info.length - 1; i >= 0; i--) {
+        const entry = info[i];
+        if (!entry || typeof entry !== "object") continue;
+        const candidates = [entry.debugLocation, entry.debugStack, entry.stack];
+        for (let c = 0; c < candidates.length; c++) {
+          const located = parseReactStackLocation(candidates[c]);
+          if (located.file) return located;
+        }
+      }
+    } catch {
+      return {};
+    }
+    return {};
+  };
+
+  /** 单个 fiber 的源码位置，3 级回退：_debugSource → _debugStack → _debugInfo。 */
+  const resolveReactFiberLocation = (
+    fiber: any
+  ): { file?: string; line?: number } => {
+    if (!fiber) return {};
+    try {
+      const ds = fiber._debugSource;
+      if (ds && ds.fileName) {
+        const file = normalizeFilePath(ds.fileName);
+        if (file) {
+          return {
+            file,
+            line:
+              typeof ds.lineNumber === "number" && ds.lineNumber > 0
+                ? ds.lineNumber
+                : undefined,
+          };
+        }
+      }
+      if (fiber._debugStack) {
+        const fromStack = parseReactStackLocation(fiber._debugStack);
+        if (fromStack.file) return fromStack;
+      }
+      if (fiber._debugInfo) {
+        const fromInfo = readReactDebugInfoLocation(fiber);
+        if (fromInfo.file) return fromInfo;
+      }
+    } catch {
+      return {};
+    }
+    return {};
+  };
 
   type AncestorCandidate = {
     name: string;
@@ -490,14 +696,11 @@ export function runMainWorldFrameworkProbe(
         type.type?.displayName ||
         type.type?.name;
     }
-    const ds = fiber._debugSource;
+    const location = resolveReactFiberLocation(fiber);
     return {
       name,
-      file: ds?.fileName ? normalizeFilePath(ds.fileName) : undefined,
-      line:
-        typeof ds?.lineNumber === "number" && ds.lineNumber > 0
-          ? ds.lineNumber
-          : undefined,
+      file: location.file,
+      line: location.line,
     };
   };
 
@@ -533,21 +736,47 @@ export function runMainWorldFrameworkProbe(
 
   const collectReactChain = (hostFiber: any): FrameworkProbeEntry | null => {
     const rawPath: string[] = [];
-    let debugSource: { fileName?: string; lineNumber?: number } | undefined =
-      hostFiber?._debugSource;
+    // 3 级源码定位回退，分别收集后再按优先级取用
+    let debugSourceLocation: { file?: string; line?: number } | undefined;
+    let debugStackLocation: { file?: string; line?: number } | undefined;
+    let debugInfoLocation: { file?: string; line?: number } | undefined;
     let compFiber: any = null;
     const ancestorCandidates: AncestorCandidate[] = [];
     let fiber = hostFiber;
     let hops = 0;
 
     while (fiber && hops < MAX_HOPS) {
-      if (!debugSource && fiber._debugSource) {
-        debugSource = fiber._debugSource;
+      try {
+        if (!debugSourceLocation && fiber._debugSource?.fileName) {
+          const ds = fiber._debugSource;
+          const file = normalizeFilePath(ds.fileName);
+          if (file) {
+            debugSourceLocation = {
+              file,
+              line:
+                typeof ds.lineNumber === "number" && ds.lineNumber > 0
+                  ? ds.lineNumber
+                  : undefined,
+            };
+          }
+        }
+        if (!debugStackLocation && fiber._debugStack) {
+          const fromStack = parseReactStackLocation(fiber._debugStack);
+          if (fromStack.file) debugStackLocation = fromStack;
+        }
+        if (!debugInfoLocation && fiber._debugInfo) {
+          const fromInfo = readReactDebugInfoLocation(fiber);
+          if (fromInfo.file) debugInfoLocation = fromInfo;
+        }
+      } catch {
+        // 调试字段不可读时继续沿父链上溯
       }
 
       const type = fiber.type;
       const isHost = fiber.tag === 5 || typeof type === "string";
-      if (!isHost) {
+      // HostRoot(3)/LegacyRoot(17) 不是业务组件，跳过以免污染组件名
+      const isRootFiber = fiber.tag === 3 || fiber.tag === 17;
+      if (!isHost && !isRootFiber) {
         const meta = resolveReactFiberMeta(fiber);
         if (!compFiber) {
           compFiber = fiber;
@@ -574,15 +803,17 @@ export function runMainWorldFrameworkProbe(
       ? extractReactComponentState(compFiber)
       : { cleanProps: undefined, cleanData: undefined };
 
+    const location = debugSourceLocation
+      ? debugSourceLocation
+      : debugStackLocation
+        ? debugStackLocation
+        : debugInfoLocation;
     let componentFile: string | undefined;
     let componentLine: number | undefined;
-    if (debugSource) {
-      componentFile = normalizeFilePath(debugSource.fileName);
-      if (
-        typeof debugSource.lineNumber === "number" &&
-        debugSource.lineNumber > 0
-      ) {
-        componentLine = debugSource.lineNumber;
+    if (location?.file) {
+      componentFile = location.file;
+      if (typeof location.line === "number" && location.line > 0) {
+        componentLine = location.line;
       }
     }
 
@@ -600,7 +831,7 @@ export function runMainWorldFrameworkProbe(
         componentPath:
           fullPath.length > 0 ? fullPath : compName ? [compName] : undefined,
         framework: "react",
-        version: 18,
+        version: getReactMajorVersion(hostFiber),
       };
 
       if (componentFile) {
@@ -726,7 +957,50 @@ export function runMainWorldFrameworkProbe(
     return res;
   };
 
+  /**
+   * 解引用 __reactContainer$ 上挂的值。
+   * react-dom 在 createRoot/hydrateRoot 里写入的是 `fiberRoot.current`
+   * （HostRoot fiber，tag 3），而不是 FiberRoot 本身。
+   * 活动树不一定在 HostRoot.child 上：实测 React 19 的 HostRoot fiber
+   * `child === null`，树在 `stateNode.current.child`（FiberRoot.current 的另一
+   * 份引用）或 `alternate.child`（当前/备用树交替）上，因此按序取第一个
+   * 形似 fiber 的节点。解不出来返回 null，不猜测。
+   */
+  const resolveReactContainerFiber = (value: any): any => {
+    if (!value || typeof value !== "object") return null;
+    let root = value;
+    // 少数封装/工具会直接挂 FiberRoot：{ current: HostRootFiber, containerInfo }
+    if (
+      typeof root.tag !== "number" &&
+      root.current &&
+      typeof root.current === "object"
+    ) {
+      root = root.current;
+    }
+    if (!root || typeof root !== "object") return null;
+    if (root.tag === 3 || root.tag === 17) {
+      const candidates = [
+        root.child,
+        root.stateNode?.current?.child,
+        root.alternate?.child,
+      ];
+      for (let i = 0; i < candidates.length; i++) {
+        const candidate = candidates[i];
+        if (
+          candidate &&
+          typeof candidate === "object" &&
+          typeof candidate.tag === "number"
+        ) {
+          return candidate;
+        }
+      }
+      return null;
+    }
+    return typeof root.tag === "number" ? root : null;
+  };
+
   const detectOnHost = (anyHost: any): FrameworkProbeEntry | null => {
+    let containerKey: string | null = null;
     for (const k of Object.getOwnPropertyNames(anyHost)) {
       if (
         k.startsWith("__reactFiber$") ||
@@ -734,7 +1008,18 @@ export function runMainWorldFrameworkProbe(
       ) {
         const res = collectReactChain(anyHost[k]);
         if (res) return res;
-        break;
+      }
+      if (k.startsWith("__reactContainer$")) {
+        containerKey = k;
+      }
+    }
+
+    // 目标元素恰为 React 根容器时，只有 __reactContainer$ 而没有 __reactFiber$
+    if (containerKey) {
+      const containerFiber = resolveReactContainerFiber(anyHost[containerKey]);
+      if (containerFiber) {
+        const res = collectReactChain(containerFiber);
+        if (res) return res;
       }
     }
 

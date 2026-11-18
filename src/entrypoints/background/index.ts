@@ -1,4 +1,5 @@
 import { db } from "../../storage/db";
+import { message } from "../../shared/protocol";
 import { initI18nPreference } from "../../shared/i18n";
 import { setStorageBudgetListener } from "../../storage/storage-budget";
 import { StreamHealthMonitor } from "../../recording/stream-health-monitor";
@@ -74,7 +75,46 @@ const cdpCollector = new CdpEvidenceCollector(
 const interactionCapture = new InteractionCapture(
   db,
   (sessionId, event) => applySessionEvent(db, sessionId, event),
-  (sessionId) => recordingCoordinator.isStopping(sessionId)
+  (sessionId) => recordingCoordinator.isStopping(sessionId),
+  1000,
+  350,
+  1500,
+  {
+    getInflightNetworkCount: (tabId) =>
+      cdpCollector.getInflightRequestCount(tabId),
+    waitForDomQuiet: async (tabId, frameId, interactionId, options) => {
+      await chrome.tabs
+        .sendMessage(
+          tabId,
+          message(
+            "content/wait-settled",
+            {
+              interactionId,
+              quietWindowMs: options.quietWindowMs,
+              maxWaitMs: options.maxWaitMs,
+            },
+            undefined,
+            "content"
+          ),
+          { frameId }
+        )
+        .catch(() => undefined);
+    },
+    onSettledCaptured: async (tabId, frameId, sessionId, interactionId) => {
+      await chrome.tabs
+        .sendMessage(
+          tabId,
+          message(
+            "content/capture-framework-settled",
+            { interactionId },
+            sessionId,
+            "content"
+          ),
+          { frameId }
+        )
+        .catch(() => undefined);
+    },
+  }
 );
 const navigationCapture = new NavigationCapture(db, interactionCapture);
 const issueSceneCapture = new IssueSceneCapture((sessionId) =>

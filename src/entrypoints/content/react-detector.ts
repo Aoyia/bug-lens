@@ -6,6 +6,53 @@ import { redactAndSanitizeState as redactAndSanitize } from "../../domain/privac
 
 const REACT_FIBER_KEY_PREFIX = "__reactFiber$";
 
+/** 解析 "19.2.8" / "18.3.1" 这类版本号的主版本；非法值返回 undefined。 */
+function parseReactMajorVersion(value: unknown): number | undefined {
+  if (typeof value !== "string") return undefined;
+  const matched = value.match(/^(\d{1,2})\./);
+  if (!matched) return undefined;
+  const major = parseInt(matched[1], 10);
+  return major >= 15 && major <= 30 ? major : undefined;
+}
+
+/**
+ * 从 React DevTools 全局 hook 的 renderer 描述读取真实主版本。
+ *
+ * 注意：content script 运行在隔离世界，`window` 是隔离世界自己的全局对象，
+ * 读不到页面主世界写入的 `__REACT_DEVTOOLS_GLOBAL_HOOK__`（该 hook 只能由
+ * background 以 world:"MAIN" 注入的探针读取，见 main-world-probe.ts）。
+ * 因此本函数在隔离世界里通常返回 0（未知）。isolated world 命中 fiber 属于
+ * 理论上的边界情况，此时版本未知必须标记为 0，不能伪造成某个具体版本。
+ */
+function readReactMajorFromDevToolsHook(): number {
+  try {
+    const host: any = typeof window !== "undefined" ? window : undefined;
+    const container = host?.__REACT_DEVTOOLS_GLOBAL_HOOK__?.renderers;
+    if (!container) return 0;
+    const renderers: any[] = [];
+    if (typeof container.forEach === "function") {
+      container.forEach((renderer: any) => {
+        renderers.push(renderer);
+      });
+    } else if (typeof container === "object") {
+      for (const key of Object.keys(container)) renderers.push(container[key]);
+    }
+    let fallback: number | undefined;
+    for (const renderer of renderers) {
+      if (!renderer || typeof renderer !== "object") continue;
+      const major =
+        parseReactMajorVersion(renderer.version) ??
+        parseReactMajorVersion(renderer.reconcilerVersion);
+      if (major === undefined) continue;
+      if (renderer.rendererPackageName === "react-dom") return major;
+      if (fallback === undefined) fallback = major;
+    }
+    return fallback ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
 function getFiberKey(el: Element): string | undefined {
   for (const key of Object.getOwnPropertyNames(el)) {
     if (key.startsWith(REACT_FIBER_KEY_PREFIX)) return key;
@@ -88,6 +135,7 @@ function extractFiberState(fiber: any): Record<string, unknown> | undefined {
 
 function extractFiberNode(
   fiber: any,
+  version: number,
   isTarget = false
 ): FrameworkComponentNode | undefined {
   if (!fiber || !isComponentFiber(fiber)) return undefined;
@@ -96,7 +144,7 @@ function extractFiberNode(
 
   return {
     framework: "react",
-    version: 18,
+    version,
     componentName: name,
     props: extractFiberProps(fiber),
     state: extractFiberState(fiber),
@@ -106,6 +154,7 @@ function extractFiberNode(
 
 function buildReactTree(
   fiber: any,
+  version: number,
   depth = 0,
   maxDepth = 6
 ): FrameworkComponentNode | undefined {
@@ -117,7 +166,7 @@ function buildReactTree(
 
   const node: FrameworkComponentNode = {
     framework: "react",
-    version: 18,
+    version,
     componentName: name,
     props: extractFiberProps(fiber),
     state: extractFiberState(fiber),
@@ -129,7 +178,7 @@ function buildReactTree(
 
   while (child && siblingCount < 20) {
     if (isComponentFiber(child)) {
-      const childNode = buildReactTree(child, depth + 1, maxDepth);
+      const childNode = buildReactTree(child, version, depth + 1, maxDepth);
       if (childNode) {
         children.push(childNode);
         siblingCount++;
@@ -190,14 +239,15 @@ export function detectReact(
   const fiber = getClosestFiber(targetElement);
   if (!fiber) return undefined;
 
-  const targetComponent = extractFiberNode(fiber, true);
+  const version = readReactMajorFromDevToolsHook();
+  const targetComponent = extractFiberNode(fiber, version, true);
   if (!targetComponent) return undefined;
 
   const parentChain: FrameworkComponentNode[] = [];
   let parent = (fiber as any).return;
   while (parent) {
     if (isComponentFiber(parent)) {
-      const node = extractFiberNode(parent);
+      const node = extractFiberNode(parent, version);
       if (node) {
         parentChain.unshift(node);
       }
@@ -207,7 +257,9 @@ export function detectReact(
 
   const rootFiber = getRootFiber(fiber as any);
   const rootChild = rootFiber ? rootFiber.child : null;
-  const rootComponent = rootChild ? buildReactTree(rootChild, 0, 6) : undefined;
+  const rootComponent = rootChild
+    ? buildReactTree(rootChild, version, 0, 6)
+    : undefined;
 
   return {
     targetComponent,
@@ -243,7 +295,10 @@ export function captureReactTree(): FrameworkSnapshot | undefined {
 
   const rootFiber = getRootFiber(fiber as any);
   const rootChild = rootFiber ? rootFiber.child : null;
-  const rootComponent = rootChild ? buildReactTree(rootChild, 0, 6) : undefined;
+  const version = readReactMajorFromDevToolsHook();
+  const rootComponent = rootChild
+    ? buildReactTree(rootChild, version, 0, 6)
+    : undefined;
   if (!rootComponent) return undefined;
 
   return { rootComponent, parentChain: [] };

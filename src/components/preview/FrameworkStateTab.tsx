@@ -13,6 +13,7 @@ export interface FrameworkStateTabProps {
 const TRIGGER_LABEL_KEYS: Record<FrameworkStateEvidence["trigger"], string> = {
   start: "fwTriggerStart",
   interaction: "fwTriggerInteraction",
+  settled: "fwTriggerSettled",
   "issue-scene": "fwTriggerIssueScene",
   resume: "fwTriggerResume",
 };

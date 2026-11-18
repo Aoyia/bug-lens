@@ -103,6 +103,22 @@ function withTimeout<T>(
   });
 }
 
+export interface SettledCaptureHooks {
+  getInflightNetworkCount?: (tabId: number) => number;
+  waitForDomQuiet?: (
+    tabId: number,
+    frameId: number,
+    interactionId: string,
+    options: { quietWindowMs: number; maxWaitMs: number }
+  ) => Promise<void>;
+  onSettledCaptured?: (
+    tabId: number,
+    frameId: number,
+    sessionId: string,
+    interactionId: string
+  ) => Promise<void> | void;
+}
+
 export class InteractionCapture {
   private readonly queues = new Map<string, Promise<unknown>>();
   private readonly pending = new Set<Promise<void>>();
@@ -111,6 +127,8 @@ export class InteractionCapture {
   private readonly isStopping: (sessionId: string) => boolean;
   private readonly channelTimeoutMs: number;
   private readonly settledDelayMs: number;
+  private readonly maxSettledDelayMs: number;
+  private readonly settledHooks?: SettledCaptureHooks;
   private aborted = false;
   private abortedSessionId?: string;
   private abortController = new AbortController();
@@ -119,6 +137,7 @@ export class InteractionCapture {
     sessionId: string;
     interactionId: string;
     timer: ReturnType<typeof setTimeout>;
+    abortController: AbortController;
   };
   /**
    * CDP 截图熔断：按 tabId 记录熔断截止时间。
@@ -133,13 +152,18 @@ export class InteractionCapture {
     writeSessionEvent: SessionEventWriter,
     isStopping: (sessionId: string) => boolean,
     channelTimeoutMs = 1000,
-    settledDelayMs = 350
+    settledDelayMs = 350,
+    maxSettledDelayMs?: number,
+    settledHooks?: SettledCaptureHooks
   ) {
     this.repository = repository;
     this.writeSessionEvent = writeSessionEvent;
     this.isStopping = isStopping;
     this.channelTimeoutMs = channelTimeoutMs;
     this.settledDelayMs = settledDelayMs;
+    this.maxSettledDelayMs =
+      maxSettledDelayMs ?? (settledDelayMs >= 350 ? 1500 : settledDelayMs);
+    this.settledHooks = settledHooks;
   }
 
   handle(
@@ -175,10 +199,20 @@ export class InteractionCapture {
     });
   }
 
-  private clearPendingSettledTimer(): void {
+  private clearPendingSettledTimer(skippedReason?: string): void {
     if (this.pendingSettled) {
-      clearTimeout(this.pendingSettled.timer);
+      const prev = this.pendingSettled;
+      clearTimeout(prev.timer);
+      prev.abortController.abort();
       this.pendingSettled = undefined;
+      if (skippedReason) {
+        void this.track(
+          this.persist(prev.sessionId, prev.interactionId, {
+            type: "settled-skipped",
+            reason: skippedReason,
+          }).then(() => undefined)
+        );
+      }
     }
   }
 
@@ -590,33 +624,133 @@ export class InteractionCapture {
     interaction: InteractionRecord,
     sender: chrome.runtime.MessageSender
   ): void {
-    this.clearPendingSettledTimer();
+    this.clearPendingSettledTimer(`superseded-by:${interaction.id}`);
     const scheduledAt = Date.now();
+    const waitAbort = new AbortController();
     const timer = setTimeout(() => {
-      if (this.pendingSettled?.timer === timer) {
-        this.pendingSettled = undefined;
+      if (
+        this.aborted ||
+        this.isStopping(session.id) ||
+        waitAbort.signal.aborted
+      ) {
+        return;
       }
-      if (this.aborted || this.isStopping(session.id)) return;
       void this.track(
-        this.captureSettledFrame(session, interaction, sender, scheduledAt)
+        this.captureSettledFrame(
+          session,
+          interaction,
+          sender,
+          scheduledAt,
+          waitAbort
+        )
       );
     }, this.settledDelayMs);
     this.pendingSettled = {
       sessionId: session.id,
       interactionId: interaction.id,
       timer,
+      abortController: waitAbort,
     };
+  }
+
+  private async waitUntilPageSettled(
+    session: RecordingSession,
+    interaction: InteractionRecord,
+    sender: chrome.runtime.MessageSender,
+    scheduledAt: number,
+    waitAbort: AbortController
+  ): Promise<void> {
+    const remainingBudgetMs = Math.max(
+      0,
+      this.maxSettledDelayMs - Math.max(0, Date.now() - scheduledAt)
+    );
+    if (remainingBudgetMs <= 0 || !this.settledHooks) {
+      return;
+    }
+
+    const tabId = sender.tab?.id ?? session.target.tabId;
+    const frameId = sender.frameId ?? interaction.page?.frameId ?? 0;
+
+    const tasks: Array<Promise<void>> = [];
+    if (this.settledHooks.waitForDomQuiet && tabId !== undefined) {
+      const quietPromise = Promise.race([
+        this.settledHooks
+          .waitForDomQuiet(tabId, frameId, interaction.id, {
+            quietWindowMs: 150,
+            maxWaitMs: remainingBudgetMs,
+          })
+          .catch(() => undefined),
+        new Promise<void>((resolve) => {
+          const onAbort = () => resolve();
+          waitAbort.signal.addEventListener("abort", onAbort, { once: true });
+          this.abortController.signal.addEventListener("abort", onAbort, {
+            once: true,
+          });
+        }),
+      ]);
+      tasks.push(quietPromise);
+    }
+
+    if (this.settledHooks.getInflightNetworkCount && tabId !== undefined) {
+      const netDeadline = Date.now() + remainingBudgetMs;
+      const pollNetwork = (async () => {
+        while (Date.now() < netDeadline) {
+          if (
+            this.aborted ||
+            this.isStopping(session.id) ||
+            waitAbort.signal.aborted
+          ) {
+            return;
+          }
+          if (this.settledHooks!.getInflightNetworkCount!(tabId) <= 0) {
+            return;
+          }
+          await new Promise((r) =>
+            setTimeout(r, Math.min(80, Math.max(10, netDeadline - Date.now())))
+          );
+        }
+      })();
+      tasks.push(pollNetwork);
+    }
+
+    if (tasks.length > 0) {
+      await Promise.all(tasks);
+    }
   }
 
   private async captureSettledFrame(
     session: RecordingSession,
     interaction: InteractionRecord,
     sender: chrome.runtime.MessageSender,
-    scheduledAt: number
+    scheduledAt: number,
+    waitAbort: AbortController
   ): Promise<void> {
-    if (this.aborted || this.isStopping(session.id)) return;
+    if (
+      this.aborted ||
+      this.isStopping(session.id) ||
+      waitAbort.signal.aborted
+    ) {
+      return;
+    }
     if (!this.repository.saveEvidenceAssetWithinBudget) return;
     try {
+      await this.waitUntilPageSettled(
+        session,
+        interaction,
+        sender,
+        scheduledAt,
+        waitAbort
+      );
+      if (this.pendingSettled?.abortController === waitAbort) {
+        this.pendingSettled = undefined;
+      }
+      if (
+        this.aborted ||
+        this.isStopping(session.id) ||
+        waitAbort.signal.aborted
+      ) {
+        return;
+      }
       const currentSession = await this.repository.getActiveSession();
       if (
         !currentSession ||
@@ -641,7 +775,13 @@ export class InteractionCapture {
         sender.tab?.id,
         sender.tab?.windowId
       );
-      if (this.aborted || this.isStopping(session.id)) return;
+      if (
+        this.aborted ||
+        this.isStopping(session.id) ||
+        waitAbort.signal.aborted
+      ) {
+        return;
+      }
       const bytes = dataUrlToArrayBuffer(rawDataUrl);
       const vp = this.resolveTopViewport(
         currentSession,
@@ -666,8 +806,26 @@ export class InteractionCapture {
           settledAssetId,
           settledDurationMs: Math.max(0, Date.now() - scheduledAt),
         });
+        const settledTabId = sender.tab?.id ?? currentSession.target.tabId;
+        const settledFrameId = sender.frameId ?? latest.page?.frameId ?? 0;
+        if (
+          settledTabId !== undefined &&
+          this.settledHooks?.onSettledCaptured
+        ) {
+          await Promise.resolve(
+            this.settledHooks.onSettledCaptured(
+              settledTabId,
+              settledFrameId,
+              session.id,
+              latest.id
+            )
+          ).catch(() => undefined);
+        }
       }
     } catch {
+      if (this.pendingSettled?.abortController === waitAbort) {
+        this.pendingSettled = undefined;
+      }
       // 稳定帧为非关键视觉增强：切页/停止/配额受限时不阻塞也不记错误 issue
     }
   }

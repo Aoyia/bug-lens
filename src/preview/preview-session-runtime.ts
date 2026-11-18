@@ -482,6 +482,29 @@ export class PreviewSessionRuntime {
     await this.storage.saveSession(this.session);
   }
 
+  async setUserNarrative(input: {
+    actual?: string;
+    expected?: string;
+  }): Promise<void> {
+    if (!this.session) return;
+    const actual = input.actual?.trim() || undefined;
+    const expected = input.expected?.trim() || undefined;
+    const nextNarrative =
+      actual || expected
+        ? {
+            ...(actual ? { actual } : {}),
+            ...(expected ? { expected } : {}),
+            updatedAtEpochMs: Date.now(),
+          }
+        : undefined;
+    this.session = {
+      ...this.session,
+      userNarrative: nextNarrative,
+    };
+    this.snapshotVersion += 1;
+    await this.storage.saveSession(this.session);
+  }
+
   async restore(
     kind: "interaction" | "console" | "network" | "issueScene"
   ): Promise<void> {

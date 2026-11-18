@@ -1302,7 +1302,7 @@ export async function collectSpatialDomTree(
       depth,
       componentName: componentOf(el)?.componentName,
       componentFile: componentOf(el)?.componentFile,
-      computedStyles: extractKeyComputedStyles(el, styleAdjustmentMode),
+      computedStyles: extractKeyComputedStyles(el, false),
       layoutStyle: extractLayoutStyles(el),
     }));
 
@@ -1371,7 +1371,7 @@ export async function collectSpatialDomTree(
       componentName: comp?.componentName,
       componentFile: comp?.componentFile,
       componentLine: comp?.componentLine,
-      computedStyles: extractKeyComputedStyles(el, styleAdjustmentMode),
+      computedStyles: extractKeyComputedStyles(el, false),
       layoutStyle: extractLayoutStyles(el),
       boxModel: styleAdjustmentMode ? extractBoxModelGeometry(el) : undefined,
       layoutContext: styleAdjustmentMode ? extractLayoutContext(el) : undefined,
