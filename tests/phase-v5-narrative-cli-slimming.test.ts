@@ -715,6 +715,40 @@ test("Module D.2: buildAiPrompt and buildEvidencePackageBundle align accurately 
     hasMedia: false,
   };
 
+  // 默认（不传 packMode）必须是 full-viewer：提示词与 README 均按完整人类报告描述
+  const defaultPrompt = buildAiPrompt(snapshot, "/tmp/pack.zip", {
+    promptLanguage: "en-US",
+  });
+  assert.match(defaultPrompt, /Schema v5 \(full-viewer\)/);
+  assert.match(defaultPrompt, /report\.html/);
+  assert.doesNotMatch(defaultPrompt, /report\.html` and raw video are omitted/);
+
+  const defaultBundle = buildEvidencePackageBundle(
+    snapshot,
+    {
+      html: "<!doctype html><title>Bug Lens</title>",
+      script: "void 0;",
+      styles: "body {}",
+      icon: new Uint8Array([1, 2, 3]),
+    },
+    {}
+  );
+  assert.ok(
+    defaultBundle.files.some((f) => f.name === "report.html"),
+    "默认 full-viewer 必须产出 report.html"
+  );
+  const defaultSessionData = JSON.parse(
+    new TextDecoder().decode(
+      defaultBundle.files.find((f) => f.name === "session-data.json")!.data
+    )
+  );
+  assert.equal(defaultSessionData.packMode, "full-viewer");
+  const defaultReadme = new TextDecoder().decode(
+    defaultBundle.files.find((f) => f.name === "README.md")!.data
+  );
+  assert.match(defaultReadme, /Schema v5 · full-viewer/);
+  assert.match(defaultReadme, /双击 `report\.html`/);
+
   const minimalPrompt = buildAiPrompt(snapshot, "/tmp/pack.zip", {
     promptLanguage: "en-US",
     packMode: "ai-minimal",
@@ -735,7 +769,17 @@ test("Module D.2: buildAiPrompt and buildEvidencePackageBundle align accurately 
   );
   assert.match(minimalReadme, /Schema v5 · ai-minimal/);
   assert.match(minimalReadme, /screenshots\/step-N-settled\.jpg/);
-  assert.doesNotMatch(minimalReadme, /Double-click `report\.html`/);
+  assert.doesNotMatch(minimalReadme, /双击 `report\.html`/);
+  assert.doesNotMatch(minimalReadme, /`report\.html` \/ `assets\/report\.\*`/);
+  assert.match(minimalReadme, /当前为 `ai-minimal` 精简包/);
+
+  // full-viewer 包必须显式列出 report.html/assets 与 data 包装说明
+  assert.match(
+    defaultReadme,
+    /`report\.html` \/ `assets\/report\.\*`：供人工查阅的离线只读报告入口/
+  );
+  assert.match(defaultReadme, /`data\/session-data\.js`/);
+  assert.doesNotMatch(defaultReadme, /当前为 `ai-minimal` 精简包/);
 
   const jsonDiffTest = diffJsonValues({ a: 1, b: [1, 2] }, { a: 2, b: [1, 3] });
   assert.equal(jsonDiffTest.totalChanges, 2);

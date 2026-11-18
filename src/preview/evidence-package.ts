@@ -216,7 +216,7 @@ export function buildAiPrompt(
       : promptOptions?.promptLanguage === "zh-CN"
         ? false
         : isEn();
-  const packMode: PackMode = promptOptions?.packMode ?? "ai-minimal";
+  const packMode: PackMode = promptOptions?.packMode ?? "full-viewer";
   const isFullViewer = packMode === "full-viewer";
   const issueScenes = snapshot.issueScenes ?? [];
   const sourceMappedErrorsText = formatSourceMappedErrors(
@@ -1070,7 +1070,7 @@ export function buildTicketBundle(
 
 function buildPackageReadme(
   snapshot: EvidencePackageSnapshot,
-  packMode: PackMode = "ai-minimal"
+  packMode: PackMode = "full-viewer"
 ): string {
   const issueScenes = snapshot.issueScenes ?? [];
   const issues = snapshot.session.quality.issues;
@@ -1079,10 +1079,11 @@ function buildPackageReadme(
   const isFullViewer = packMode === "full-viewer";
 
   if (isEn()) {
-    const mediaDescription =
-      isFullViewer && snapshot.hasMedia
+    const mediaDescription = !isFullViewer
+      ? "- No video recording in `ai-minimal` mode (use `screenshots/step-N-settled.jpg` and `screenshots/final-frame.jpg` to inspect final/settled states)."
+      : snapshot.hasMedia
         ? "- `media/recording.webm`: Target tab recording. Time zero corresponds to session `startedAtEpochMs`."
-        : "- No video recording in `ai-minimal` mode (use `screenshots/step-N-settled.jpg` and `screenshots/final-frame.jpg` to inspect final/settled states).";
+        : "- This pack contains no recording video (none was captured for this session); use `screenshots/step-N-settled.jpg` and `screenshots/final-frame.jpg` to inspect settled/final states.";
     const fullViewerLinesEn = isFullViewer
       ? `- \`report.html\` / \`assets/report.*\`: Read-only offline report viewer for humans.
 - \`data/session-data.js\` & \`data/network-details.js\`: Legacy viewer JS wrappers.`
@@ -1163,10 +1164,11 @@ ${issueLines}
 `;
   }
 
-  const mediaDescription =
-    isFullViewer && snapshot.hasMedia
+  const mediaDescription = !isFullViewer
+    ? "- 当前为 `ai-minimal` 精简包（不含 `report.html` 与录屏视频），请使用 `screenshots/step-N-settled.jpg` 与 `screenshots/final-frame.jpg` 核查交互稳定后及结束画面。"
+    : snapshot.hasMedia
       ? "- `media/recording.mp4` / `media/recording.webm`：目标标签页录像，时间零点对应会话 `startedAtEpochMs`。"
-      : "- 当前为 `ai-minimal` 精简包（不含 `report.html` 与录屏视频），请使用 `screenshots/step-N-settled.jpg` 与 `screenshots/final-frame.jpg` 核查交互稳定后及结束画面。";
+      : "- 本包未包含录屏视频（该会话未捕获到录像），请使用 `screenshots/step-N-settled.jpg` 与 `screenshots/final-frame.jpg` 核查交互稳定后及结束画面。";
   const fullViewerLinesZh = isFullViewer
     ? `- \`report.html\` / \`assets/report.*\`：供人工查阅的离线只读报告入口。
 - \`data/session-data.js\` 与 \`data/network-details.js\`：兼容离线 HTML 报告的 JS 包装文件。`
@@ -1656,14 +1658,14 @@ function renderReportHtml(
 }
 
 /**
- * 构建完整证据包产物集合与导出元信息（支持 `ai-minimal` 默认精简模式与 `full-viewer` 人工查看器模式）。
+ * 构建完整证据包产物集合与导出元信息（默认 `full-viewer` 人类完整报告；显式传 `packMode: "ai-minimal"` 时输出 AI 精简包）。
  */
 export function buildEvidencePackageBundle(
   snapshot: EvidencePackageSnapshot,
   assets?: StaticReportAssets,
   options?: BuildEvidencePackageOptions
 ): EvidencePackageBundle {
-  const packMode: PackMode = options?.packMode ?? "ai-minimal";
+  const packMode: PackMode = options?.packMode ?? "full-viewer";
   const currentLocale = getLocale();
   const startedAt =
     snapshot.session.timeline.startedAtEpochMs ??

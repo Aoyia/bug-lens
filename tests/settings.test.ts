@@ -659,17 +659,24 @@ describe("Storage 存储读写与历史版本兼容迁移测试", () => {
     assert.equal(updated.workflow.language, "zh-CN");
   });
 
-  test("workflow.includeHtmlViewer defaults to false and validates boolean values", () => {
-    assert.equal(DEFAULT_APP_SETTINGS.workflow.includeHtmlViewer, false);
+  test("workflow.aiMinimalPack defaults to false (full human report) and validates boolean values", () => {
+    assert.equal(DEFAULT_APP_SETTINGS.workflow.aiMinimalPack, false);
 
     const enabled = mergeAppSettings(DEFAULT_APP_SETTINGS, {
-      workflow: { includeHtmlViewer: true } as any,
+      workflow: { aiMinimalPack: true } as any,
     });
-    assert.equal(enabled.workflow.includeHtmlViewer, true);
+    assert.equal(enabled.workflow.aiMinimalPack, true);
 
     const invalid = mergeAppSettings(DEFAULT_APP_SETTINGS, {
-      workflow: { includeHtmlViewer: "yes" } as any,
+      workflow: { aiMinimalPack: "yes" } as any,
     });
-    assert.equal(invalid.workflow.includeHtmlViewer, false);
+    assert.equal(invalid.workflow.aiMinimalPack, false);
+
+    // 旧字段 includeHtmlViewer 已随本分支一并移除，不得再出现在配置模型中
+    const legacy = mergeAppSettings(DEFAULT_APP_SETTINGS, {
+      workflow: { includeHtmlViewer: false } as any,
+    });
+    assert.equal("includeHtmlViewer" in legacy.workflow, false);
+    assert.equal(legacy.workflow.aiMinimalPack, false);
   });
 });

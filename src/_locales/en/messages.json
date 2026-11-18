@@ -2322,11 +2322,11 @@
   "settingShowGuideDesc": {
     "message": "Display the 3-step workflow guide in the popup panel"
   },
-  "settingIncludeHtmlViewer": {
-    "message": "Include Offline HTML Viewer & Video"
+  "settingAiMinimalPack": {
+    "message": "AI Minimal Mode (no offline report or video)"
   },
-  "settingIncludeHtmlViewerDesc": {
-    "message": "When off (recommended), exports a lightweight JSON-only AI pack. Turn on to also bundle report.html and video recording for human review"
+  "settingAiMinimalPackDesc": {
+    "message": "Off by default: exports the complete human-readable report with report.html, assets and the video recording, ready to share or archive. Turning it on strips report.html / assets and the recording, keeping JSON-only evidence so size and token usage drop sharply — ideal when feeding a pack straight to an AI"
   },
   "settingTargetAssistant": {
     "message": "Target AI Assistant"

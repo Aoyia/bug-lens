@@ -140,12 +140,11 @@ export class PreviewExportController {
       const appSettings = await (
         this.options.loadSettings ?? loadAppSettings
       )().catch(() => undefined);
-      const includeHtmlViewer =
-        appSettings?.workflow.includeHtmlViewer ?? false;
-      const packMode = includeHtmlViewer ? "full-viewer" : "ai-minimal";
-      const reportAssets: StaticReportAssets | undefined = includeHtmlViewer
-        ? await this.loadAssets()
-        : undefined;
+      const aiMinimalPack = appSettings?.workflow.aiMinimalPack ?? false;
+      const packMode = aiMinimalPack ? "ai-minimal" : "full-viewer";
+      const reportAssets: StaticReportAssets | undefined = aiMinimalPack
+        ? undefined
+        : await this.loadAssets();
       const bundle = buildEvidencePackageBundle(snapshot, reportAssets, {
         packMode,
       });
@@ -157,7 +156,7 @@ export class PreviewExportController {
         sessionId,
         mediaSource: storage,
         sink: temporaryArchive.sink,
-        includeMedia: includeHtmlViewer,
+        includeMedia: !aiMinimalPack,
         createManifest: (integrity) => ({
           name: "manifest.json",
           data: new TextEncoder().encode(

@@ -526,6 +526,11 @@ export function buildRealSessionZipBytes(overrides?: {
 export function buildRealV5SessionZipBytes(overrides?: {
   expectedConfidence?: "explicit" | "missing";
   includeSettledAndFinal?: boolean;
+  /**
+   * 打包模式：默认显式使用 "ai-minimal"，保证 CLI 契约测试继续覆盖精简包读取路径
+   * （产品默认已反转为 full-viewer，不能依赖 buildEvidencePackageBundle 的隐式默认）。
+   */
+  packMode?: "ai-minimal" | "full-viewer";
 }): Uint8Array {
   const t0 = 1793071570000;
   const session: RecordingSession = {
@@ -922,7 +927,9 @@ export function buildRealV5SessionZipBytes(overrides?: {
     icon: new Uint8Array([1, 2, 3]),
   };
 
-  const bundle = buildEvidencePackageBundle(snapshot, reportAssets);
+  const bundle = buildEvidencePackageBundle(snapshot, reportAssets, {
+    packMode: overrides?.packMode ?? "ai-minimal",
+  });
   const zipEntries: Record<string, Uint8Array> = {};
   const integrityEntries: Record<
     string,

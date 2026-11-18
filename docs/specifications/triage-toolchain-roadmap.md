@@ -38,6 +38,8 @@ Bug Lens Triage 工具链是连接缺陷现场证据包（ZIP 归档/解压工�
 +----------------------------------------------------------------------------------------------------+
 ```
 
+> **导出默认值**：扩展默认导出 `full-viewer` 完整人类报告（含 `report.html`、`assets/` 与录屏 `media/*.webm`）；`ai-minimal` 纯 JSON 极简包需用户在设置中显式开启「AI 精简模式」（`workflow.aiMinimalPack`）。Triage 工具链必须同时兼容两种产物。
+
 1. **Triage CLI (`src/triage-cli/`)**：
    底层核心运行时。提供本地命令行执行入口与纯函数式查询 API，负责解压工作区生命周期管理、文件校验、时序对其、字段抽取与字符预算截断，确保零外部网络依赖与跨平台安全性；
 2. **Triage MCP Server (`src/triage-cli/cli.ts` MCP 模式)**：

@@ -1120,8 +1120,8 @@ export type RuntimeMessage =
         sessionId: string;
         exportMode?: "ai" | "ticket";
         traceContext?: ExportTraceContext;
-        /** 是否在导出包中包含离线 HTML 查看器与视频（来自 workflow.includeHtmlViewer） */
-        includeHtmlViewer?: boolean;
+        /** 是否输出 AI 精简包（剔除 report.html/assets 与录屏，来自 workflow.aiMinimalPack；缺省即完整报告） */
+        aiMinimalPack?: boolean;
         /** 剪贴板提示词模板设置（offscreen 无法读取 chrome.storage，由 background 透传） */
         promptSettings?: Partial<
           Pick<

@@ -72,6 +72,59 @@ test("Contract: Schema v5 buildEvidencePackageBundle default ai-minimal export m
   }
 });
 
+test("Contract: full-viewer pack (default product mode) keeps report.html, ai-minimal pack omits it", () => {
+  const tempRoot = mkdtempSync(join(tmpdir(), "bug-lens-v5-packmode-"));
+  try {
+    const fullPath = join(tempRoot, "v5-full-viewer.zip");
+    const minimalPath = join(tempRoot, "v5-ai-minimal.zip");
+    writeFileSync(
+      fullPath,
+      buildRealV5SessionZipBytes({ packMode: "full-viewer" })
+    );
+    writeFileSync(
+      minimalPath,
+      buildRealV5SessionZipBytes({ packMode: "ai-minimal" })
+    );
+
+    const fullOverview = JSON.parse(
+      runOpenPackTool({ pack: fullPath, format: "json" })
+    );
+    assert.equal(fullOverview.kind, "session");
+    assert.equal(fullOverview.integrity.valid, true);
+    assert.equal(fullOverview.packMode, "full-viewer");
+
+    const reportHtml = runReadPackFileTool({
+      pack: fullPath,
+      path: "report.html",
+    });
+    assert.match(reportHtml, /<!doctype html>/i);
+    assert.match(
+      runReadPackFileTool({ pack: fullPath, path: "data/session-data.js" }),
+      /window\.__BUG_LENS_DATA__/
+    );
+
+    // ai-minimal 必须彻底剔除查看器与 data 包装，CLI 读取应显式报 FILE_NOT_FOUND_IN_PACK
+    const minimalOverview = JSON.parse(
+      runOpenPackTool({ pack: minimalPath, format: "json" })
+    );
+    assert.equal(minimalOverview.packMode, "ai-minimal");
+    assert.throws(
+      () => runReadPackFileTool({ pack: minimalPath, path: "report.html" }),
+      /FILE_NOT_FOUND_IN_PACK/
+    );
+    assert.throws(
+      () =>
+        runReadPackFileTool({
+          pack: minimalPath,
+          path: "data/session-data.js",
+        }),
+      /FILE_NOT_FOUND_IN_PACK/
+    );
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test("Contract: buildEvidencePackage export schema matches triage-cli reader expectations", () => {
   const tempRoot = mkdtempSync(join(tmpdir(), "bug-lens-contract-"));
   try {

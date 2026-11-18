@@ -133,7 +133,7 @@ node "<skillDir>/scripts/bug-lens-cli.mjs" open_pack "<绝对路径.zip>"
      ```bash
      node "<skillDir>/scripts/bug-lens-cli.mjs" get_css --scene 0 --property "<目标CSS属性子串，如 overflow|display|word-break>"
      ```
-   - **交互稳定帧、终态帧与帧对比**（Schema v5 `ai-minimal` 默认不含录屏视频，优先读取 `step-N-settled` / `final-frame` 或直接对比变化）：
+   - **交互稳定帧、终态帧与帧对比**（Schema v5 `ai-minimal` 精简模式不含录屏视频，优先读取 `step-N-settled` / `final-frame` 或直接对比变化）：
      ```bash
      node "<skillDir>/scripts/bug-lens-cli.mjs" get_screenshot --step 1 --settled
      node "<skillDir>/scripts/bug-lens-cli.mjs" get_screenshot --final

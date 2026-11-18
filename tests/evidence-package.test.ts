@@ -80,12 +80,27 @@ const reportAssets: StaticReportAssets = {
   icon: new Uint8Array([1, 2, 3]),
 };
 
-test("evidence package defaults to ai-minimal pure JSON and supports full-viewer HTML mode", () => {
-  const aiFiles = new Map(
+test("evidence package defaults to full-viewer human report and supports explicit ai-minimal JSON mode", () => {
+  // 默认（不传 packMode）必须产出人类完整报告：report.html + assets + data/*.js
+  const defaultFiles = new Map(
     buildEvidencePackage(snapshot, reportAssets).map((file) => [
       file.name,
       new TextDecoder().decode(file.data),
     ])
+  );
+  assert.ok(defaultFiles.has("report.html"));
+  assert.ok(defaultFiles.has("assets/report.js"));
+  assert.ok(defaultFiles.has("assets/report.css"));
+  assert.ok(defaultFiles.has("data/session-data.js"));
+  const defaultSessionJson = JSON.parse(defaultFiles.get("session-data.json")!);
+  assert.equal(defaultSessionJson.packMode, "full-viewer");
+  assert.equal(defaultSessionJson.session.id, session.id);
+  assert.match(defaultFiles.get("README.md")!, /双击 `report\.html`/);
+
+  const aiFiles = new Map(
+    buildEvidencePackage(snapshot, reportAssets, {
+      packMode: "ai-minimal",
+    }).map((file) => [file.name, new TextDecoder().decode(file.data)])
   );
   assert.deepEqual(
     [...aiFiles.keys()],
@@ -101,6 +116,7 @@ test("evidence package defaults to ai-minimal pure JSON and supports full-viewer
   assert.equal(aiSessionJson.schemaVersion, 5);
   assert.equal(aiSessionJson.packMode, "ai-minimal");
   assert.equal(aiSessionJson.session.id, session.id);
+  assert.doesNotMatch(aiFiles.get("README.md")!, /双击 `report\.html`/);
 
   const files = new Map(
     buildEvidencePackage(snapshot, reportAssets, {

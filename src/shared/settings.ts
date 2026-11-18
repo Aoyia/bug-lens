@@ -10,8 +10,11 @@ export interface WorkflowSettings {
   stopAction: "preview" | "silentExport";
   autoCopyPrompt: boolean;
   showWorkflowGuide: boolean;
-  /** 是否在导出的 ZIP 证据包中附带离线 HTML 报告与录屏视频；默认 false（AI Minimal Pack） */
-  includeHtmlViewer: boolean;
+  /**
+   * 是否导出 AI 精简包（仅纯 JSON，剔除 report.html / assets 与录屏视频）。
+   * 默认 false：ZIP 首先面向人类阅读，默认输出完整离线报告；开启后体积与 Token 显著下降。
+   */
+  aiMinimalPack: boolean;
 }
 
 export interface DefaultRecordingSettings {
@@ -54,7 +57,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = Object.freeze({
     stopAction: "preview",
     autoCopyPrompt: true,
     showWorkflowGuide: true,
-    includeHtmlViewer: false,
+    aiMinimalPack: false,
   }),
   defaultRecording: Object.freeze({
     captureVideo: true,
@@ -126,10 +129,10 @@ export function mergeAppSettings(
         typeof srcWorkflow.showWorkflowGuide === "boolean"
           ? srcWorkflow.showWorkflowGuide
           : target.workflow.showWorkflowGuide,
-      includeHtmlViewer:
-        typeof srcWorkflow.includeHtmlViewer === "boolean"
-          ? srcWorkflow.includeHtmlViewer
-          : target.workflow.includeHtmlViewer,
+      aiMinimalPack:
+        typeof srcWorkflow.aiMinimalPack === "boolean"
+          ? srcWorkflow.aiMinimalPack
+          : target.workflow.aiMinimalPack,
     },
     defaultRecording: {
       captureVideo:

@@ -485,12 +485,16 @@ export function OptionsApp() {
         targetAssistant: settings.ai.targetAssistant,
         promptLanguage: settings.ai.promptLanguage,
         customInstructions: customInstructionsText,
+        packMode: settings.workflow.aiMinimalPack
+          ? "ai-minimal"
+          : "full-viewer",
       }
     );
   }, [
     settings.ai.promptTemplate,
     settings.ai.promptLanguage,
     settings.ai.targetAssistant,
+    settings.workflow.aiMinimalPack,
     customInstructionsText,
   ]);
 
@@ -884,23 +888,23 @@ export function OptionsApp() {
                 <div className="setting-row">
                   <div className="setting-info">
                     <span className="setting-label">
-                      {t("settingIncludeHtmlViewer")}
+                      {t("settingAiMinimalPack")}
                     </span>
                     <span className="setting-desc">
-                      {t("settingIncludeHtmlViewerDesc")}
+                      {t("settingAiMinimalPackDesc")}
                     </span>
                   </div>
                   <div className="setting-control">
                     <label className="toggle-switch">
                       <input
                         type="checkbox"
-                        checked={settings.workflow.includeHtmlViewer}
+                        checked={settings.workflow.aiMinimalPack}
                         onChange={(e) =>
                           triggerAutoSave({
                             ...settings,
                             workflow: {
                               ...settings.workflow,
-                              includeHtmlViewer: e.currentTarget.checked,
+                              aiMinimalPack: e.currentTarget.checked,
                             },
                           })
                         }

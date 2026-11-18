@@ -769,7 +769,9 @@ test("PreviewSessionRuntime.load/getPackageSnapshot 透传 interaction-settled �
   assert.ok(snap.finalFrameAsset);
   assert.equal(snap.finalFrameAsset.capturedAtEpochMs, 2490);
 
-  const bundle = buildEvidencePackageBundle(snap);
+  const bundle = buildEvidencePackageBundle(snap, undefined, {
+    packMode: "ai-minimal",
+  });
   const fileNames = new Set(bundle.files.map((f) => f.name));
   assert.ok(fileNames.has("screenshots/step-1.jpg"));
   assert.ok(fileNames.has("screenshots/step-1-settled.jpg"));

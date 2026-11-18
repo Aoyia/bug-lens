@@ -2322,11 +2322,11 @@
   "settingShowGuideDesc": {
     "message": "是否在面板中展示 3 步工作流认知卡片"
   },
-  "settingIncludeHtmlViewer": {
-    "message": "附带离线 HTML 报告与录屏视频"
+  "settingAiMinimalPack": {
+    "message": "AI 精简模式（不含离线报告与录屏）"
   },
-  "settingIncludeHtmlViewerDesc": {
-    "message": "关闭时默认导出纯 JSON 的 AI 轻量诊断包（推荐，体积显著更小）；开启后额外打包 report.html 与录屏视频，便于人工离线回看"
+  "settingAiMinimalPackDesc": {
+    "message": "默认关闭：导出完整人类可读报告，含 report.html、assets 与录屏视频，可直接发给同事或存档回看。开启后剔除 report.html / assets 与录屏，仅保留纯 JSON 证据，体积与 Token 消耗大幅下降，适合直接喂给 AI 排查"
   },
   "settingTargetAssistant": {
     "message": "目标 AI 编程助手"

@@ -132,12 +132,28 @@ test.describe("Bug Lens Recording Matrix E2E: Vue 2/3 & React 18/19 真实录制
       const unzipped = unzipSync(new Uint8Array(zipBuf));
       const fileKeys = Object.keys(unzipped);
 
-      // 7. 验证 Schema v5 核心产物布局
+      // 7. 验证 Schema v5 核心产物布局（默认 full-viewer：人类完整报告 + 录屏）
       expect(unzipped["session-data.json"]).toBeDefined();
       expect(unzipped["network-details.json"]).toBeDefined();
       expect(unzipped["README.md"]).toBeDefined();
       expect(unzipped["AI_PROMPT.md"]).toBeDefined();
-      expect(unzipped["report.html"]).toBeUndefined(); // 默认 ai-minimal
+      expect(
+        unzipped["report.html"],
+        "默认导出必须包含人类可读离线报告 report.html"
+      ).toBeDefined();
+      expect(unzipped["report.html"]!.byteLength).toBeGreaterThan(500);
+      expect(unzipped["assets/report.js"]).toBeDefined();
+      expect(unzipped["assets/report.css"]).toBeDefined();
+      expect(unzipped["assets/icon_idle.png"]).toBeDefined();
+      expect(unzipped["data/session-data.js"]).toBeDefined();
+      expect(unzipped["data/network-details.js"]).toBeDefined();
+      const mediaKeys = fileKeys.filter((k) =>
+        /^media\/recording\.(webm|mp4)$/.test(k)
+      );
+      expect(
+        mediaKeys.length,
+        "默认 full-viewer 必须包含录屏视频 media/recording.*"
+      ).toBe(1);
 
       const settledShots = fileKeys.filter((k) =>
         /^screenshots\/step-\d+-settled\.jpg$/.test(k)
@@ -147,7 +163,8 @@ test.describe("Bug Lens Recording Matrix E2E: Vue 2/3 & React 18/19 真实录制
 
       const sessionData = JSON.parse(strFromU8(unzipped["session-data.json"]!));
       expect(sessionData.schemaVersion).toBe(5);
-      expect(sessionData.packMode).toBe("ai-minimal");
+      expect(sessionData.packMode).toBe("full-viewer");
+      expect(sessionData.hasMedia).toBe(true);
       expect(sessionData.interactions.length).toBeGreaterThanOrEqual(1);
 
       // 8. 验证框架组件与父业务链在真实录制中的提取结果
@@ -369,4 +386,92 @@ test.describe("Bug Lens Recording Matrix E2E: Vue 2/3 & React 18/19 真实录制
       }
     });
   }
+});
+
+test.describe("Bug Lens Recording Matrix E2E: AI 精简模式（显式开启）", () => {
+  test.setTimeout(90_000);
+
+  test("REC-MATRIX (vue2-dev, ai-minimal): 显式开启精简模式后导出纯 JSON 包，无 report.html/assets/录屏", async ({
+    context,
+    openActionPopup,
+    mediaProbe,
+    getAppUrl,
+    serviceWorker,
+  }) => {
+    // 显式开启 AI 精简模式（产品默认是 full-viewer，这里验证 opt-in 路径）
+    await serviceWorker.evaluate(async () => {
+      const stored = (await chrome.storage.local.get("app-settings")) as Record<
+        string,
+        any
+      >;
+      const prev = stored["app-settings"] ?? {};
+      await chrome.storage.local.set({
+        "app-settings": {
+          ...prev,
+          workflow: { ...(prev.workflow ?? {}), aiMinimalPack: true },
+        },
+      });
+    });
+
+    let targetPage = context.pages()[0];
+    if (!targetPage) targetPage = await context.newPage();
+    await targetPage.goto(getAppUrl("vue2", "dev"));
+    await targetPage.waitForSelector('[data-testid="app-root"]', {
+      timeout: 5_000,
+    });
+    await targetPage.bringToFront();
+    await targetPage
+      .waitForFunction(() => document.hasFocus(), undefined, { timeout: 2_000 })
+      .catch(() => undefined);
+
+    const popup = await openActionPopup(targetPage);
+    await popup.waitForSelector('[data-testid="record-panel"]');
+    const targetTabId = await popup.evaluate<number | undefined>(
+      "(async () => (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id)()"
+    );
+    expect(targetTabId).toBeTruthy();
+    await popup.click('[data-testid="start-recording-btn"]');
+    await popup.dispose();
+
+    const session = await mediaProbe.waitForSession(targetTabId!);
+    await mediaProbe.waitForActive(session.id, targetTabId!);
+
+    await expect(targetPage.locator("#__wbr_stop_btn__")).toBeVisible({
+      timeout: 5_000,
+    });
+    await targetPage.click('[data-testid="el-wrapper-btn"]');
+    await targetPage.waitForTimeout(500);
+    await targetPage.locator("#__wbr_stop_btn__").click();
+
+    const exported = await mediaProbe.waitForExportDownload();
+    expect(exported.filename).toBeTruthy();
+
+    const unzipped = unzipSync(
+      new Uint8Array(fs.readFileSync(exported.filename))
+    );
+    const fileKeys = Object.keys(unzipped);
+
+    expect(unzipped["session-data.json"]).toBeDefined();
+    expect(unzipped["network-details.json"]).toBeDefined();
+    expect(unzipped["README.md"]).toBeDefined();
+    expect(unzipped["AI_PROMPT.md"]).toBeDefined();
+    // 精简模式必须彻底剔除人类查看器、data 包装与录屏
+    expect(unzipped["report.html"]).toBeUndefined();
+    expect(unzipped["assets/report.js"]).toBeUndefined();
+    expect(unzipped["assets/report.css"]).toBeUndefined();
+    expect(unzipped["data/session-data.js"]).toBeUndefined();
+    expect(
+      fileKeys.filter((k) => /^media\/recording\.(webm|mp4)$/.test(k)).length,
+      "ai-minimal 不得打包录屏视频"
+    ).toBe(0);
+
+    const sessionData = JSON.parse(strFromU8(unzipped["session-data.json"]!));
+    expect(sessionData.schemaVersion).toBe(5);
+    expect(sessionData.packMode).toBe("ai-minimal");
+    expect(sessionData.hasMedia).toBe(false);
+    expect(sessionData.interactions.length).toBeGreaterThanOrEqual(1);
+    const manifest = JSON.parse(strFromU8(unzipped["manifest.json"]!));
+    expect(manifest.packMode).toBe("ai-minimal");
+    expect(manifest.files["report.html"]).toBeUndefined();
+  });
 });

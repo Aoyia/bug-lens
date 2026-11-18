@@ -790,8 +790,7 @@ export function createSessionLifecycle(
       await ensureOffscreenDocument();
       const loadedSettings = await loadAppSettings().catch(() => undefined);
       const promptSettings = loadedSettings?.ai;
-      const includeHtmlViewer =
-        loadedSettings?.workflow.includeHtmlViewer ?? false;
+      const aiMinimalPack = loadedSettings?.workflow.aiMinimalPack ?? false;
       packResult = (await chrome.runtime.sendMessage(
         message(
           "offscreen/export-pack",
@@ -800,7 +799,7 @@ export function createSessionLifecycle(
             traceContext,
             exportMode,
             promptSettings,
-            includeHtmlViewer,
+            aiMinimalPack,
           },
           undefined,
           "offscreen"

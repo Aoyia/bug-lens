@@ -58,7 +58,7 @@ export async function writeEvidenceArchive(input: {
   createManifest?: (files: ArchiveEntryIntegrity) => ArchiveFile;
   precomputedMediaIntegrity?: { byteLength: number; sha256: string };
   onPerfReport?: (report: PerfReportData) => void;
-  /** 是否打包录屏视频条目；false（默认 AI Minimal Pack）时跳过 media/recording.* */
+  /** 是否打包录屏视频条目；false（AI 精简模式 ai-minimal）时跳过 media/recording.* */
   includeMedia?: boolean;
 }): Promise<ExportProgress> {
   // 背压队列：sink 写入速度慢于 zip 产出时按序排队，防止乱序与内存堆积

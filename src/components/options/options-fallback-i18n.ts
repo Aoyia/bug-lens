@@ -48,13 +48,13 @@ export const OPTIONS_FALLBACK_MESSAGES: Record<
     zh: "是否在面板中展示 3 步工作流认知卡片",
     en: "Display the 3-step workflow guide in the popup panel",
   },
-  settingIncludeHtmlViewer: {
-    zh: "附带离线 HTML 报告与录屏视频",
-    en: "Include Offline HTML Viewer & Video",
+  settingAiMinimalPack: {
+    zh: "AI 精简模式（不含离线报告与录屏）",
+    en: "AI Minimal Mode (no offline report or video)",
   },
-  settingIncludeHtmlViewerDesc: {
-    zh: "关闭时默认导出纯 JSON 的 AI 轻量诊断包（推荐，体积显著更小）；开启后额外打包 report.html 与录屏视频，便于人工离线回看",
-    en: "When off (recommended), exports a lightweight JSON-only AI pack. Turn on to also bundle report.html and video recording for human review",
+  settingAiMinimalPackDesc: {
+    zh: "默认关闭：导出完整人类可读报告，含 report.html、assets 与录屏视频，可直接发给同事或存档回看。开启后剔除 report.html / assets 与录屏，仅保留纯 JSON 证据，体积与 Token 消耗大幅下降，适合直接喂给 AI 排查",
+    en: "Off by default: exports the complete human-readable report with report.html, assets and the video recording, ready to share or archive. Turning it on strips report.html / assets and the recording, keeping JSON-only evidence so size and token usage drop sharply — ideal when feeding a pack straight to an AI",
   },
   settingTargetAssistant: {
     zh: "目标 AI 编程助手",

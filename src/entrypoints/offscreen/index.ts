@@ -571,7 +571,7 @@ async function exportPack(payload: {
   sessionId: string;
   traceContext?: ExportTraceContext;
   promptSettings?: ClipboardPromptSettings;
-  includeHtmlViewer?: boolean;
+  aiMinimalPack?: boolean;
 }): Promise<{
   prompt: string;
   ticketTemplate?: string;
@@ -601,14 +601,14 @@ async function exportPack(payload: {
 
     const filename = `web-bug-report-${payload.sessionId.slice(0, 8)}.zip`;
 
-    const includeHtmlViewer = payload.includeHtmlViewer === true;
-    const packMode = includeHtmlViewer ? "full-viewer" : "ai-minimal";
+    const aiMinimalPack = payload.aiMinimalPack === true;
+    const packMode = aiMinimalPack ? "ai-minimal" : "full-viewer";
 
     // 2. 静态报告模版加载耗时（仅 full-viewer 模式下加载）
     const tTemplateStart = performance.now();
-    const reportAssets: StaticReportAssets | undefined = includeHtmlViewer
-      ? await loadStaticReportAssets()
-      : undefined;
+    const reportAssets: StaticReportAssets | undefined = aiMinimalPack
+      ? undefined
+      : await loadStaticReportAssets();
     const templateLoadDurationMs = performance.now() - tTemplateStart;
 
     // 3. 离线 HTML/JSON 组装耗时
@@ -669,10 +669,10 @@ async function exportPack(payload: {
       sessionId: payload.sessionId,
       mediaSource: db,
       sink,
-      includeMedia: includeHtmlViewer,
-      precomputedMediaIntegrity: includeHtmlViewer
-        ? precomputedMediaIntegrity
-        : undefined,
+      includeMedia: !aiMinimalPack,
+      precomputedMediaIntegrity: aiMinimalPack
+        ? undefined
+        : precomputedMediaIntegrity,
       onPerfReport: (report) => {
         collectedPerfReport = report;
       },

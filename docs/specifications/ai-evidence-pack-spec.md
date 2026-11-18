@@ -23,12 +23,12 @@ Bug Lens 初始架构围绕“人类工程师在本地浏览器双击打开离�
    - **Portal 浮层物理割裂**：组件库（Element UI、Ant Design）将下拉菜单、弹窗挂载在 `document.body`，现行局部 DOM 快照回溯切断了与业务宿主组件的联系；
    - **时序盲区**：截图仅在点击/按键瞬间同步抓取，缺失交互动画完成后的稳定帧（Settled Frame）与录屏结束瞬间的最终报错帧（Final Frame），迫使 AI 多次手写 `ffmpeg` 降级抽帧。
 
-### 1.2 “AI-First”核心设计原则
+### 1.2 “AI-First 数据结构 + Human-First 默认产物”核心设计原则
 
-本规范确立“面向 AI 优先（AI-First）”的全新数据包架构原则：
+本规范确立“数据结构面向 AI 优先、默认产物面向人类优先”的全新数据包架构原则：
 
-1. **AI Agent 作为默认主消费方**：
-   系统导出默认输出极简 AI 证据包（AI Evidence Pack v2），剔除所有非结构化死重与仅面向人类视觉排查的资产；人类离线可视化查看器（`report.html`、`assets/` 静态库及完整录屏视频）转为显式可选导出项。
+1. **人类可读报告作为默认产物，AI 精简包为显式可选项**：
+   系统导出默认输出完整人类可读报告（`full-viewer`：含 `report.html`、`assets/` 静态库与完整录屏视频），ZIP 的首要消费方是打开它的人（发给同事、存档、评审）；AI 排查属于进阶用法，由用户在设置中显式开启「AI 精简模式」后才输出极简 AI 证据包（`ai-minimal`），剔除仅面向人类视觉排查的资产，换取体积与 Token 的大幅下降。
 2. **零语法外壳（Zero-Wrapper Protocol）**：
    彻底废弃所有以 `.js` 包装的全局变量声明语句，全量采用标准 `.json` 格式，保证 `jq`、Python `json`、Node.js 原生解析器开箱即读。
 3. **确定性无损瘦身（Deterministic Lossless Slimming）**：
@@ -43,6 +43,8 @@ Bug Lens 初始架构围绕“人类工程师在本地浏览器双击打开离�
 ### 2.1 目录结构与规范文件布局
 
 面向 AI 的极简数据包采用平面化与功能域清晰的目录结构。以下为 v1 历史归档与 v2 极简 AI 证据包的布局对比：
+
+> **默认产物说明**：扩展默认导出 `full-viewer`（完整人类报告），即在下述 v2 布局之外额外包含 `report.html`、`assets/report.{js,css}`、`assets/icon_idle.png`、`data/*.js` 包装与 `media/recording.webm` 录屏；仅当用户显式开启「AI 精简模式」（`workflow.aiMinimalPack = true`）时，才输出下表的 `ai-minimal` 纯 JSON 布局。
 
 ```
 ========================= 历史 v1 报告包 (Human-Oriented) =========================
@@ -71,7 +73,7 @@ web-bug-report-<hash>.zip
     ├── step-1.jpg
     └── ...
 
-======================= 规范 v2 极简 AI 证据包 (AI-First Default) =======================
+======================= 规范 v2 证据包 (AI Minimal 模式产物) =======================
 ai-evidence-pack-<hash>.zip
 ├── manifest.json                          # 包完整性与 CAS 寻址元数据清单 (标准 JSON)
 ├── session-data.json                      # 会话、时序、交互、折叠日志、网络索引 (标准 JSON)
@@ -98,7 +100,7 @@ ai-evidence-pack-<hash>.zip
 ### 2.2 文件命名与资源类型规范
 
 1. **`manifest.json`**：
-   位于归档根目录，必须为合法的 UTF-8 编码 JSON。声明数据包格式版本（`schemaVersion: 5`）、会话 ID、创建时间戳、包导出模式（`ai-minimal` 或 `full-viewer`）以及所有归档文件的 SHA-256 校验字典。
+   位于归档根目录，必须为合法的 UTF-8 编码 JSON。声明数据包格式版本（`schemaVersion: 5`）、会话 ID、创建时间戳、包导出模式（`full-viewer` 为默认的人类完整报告，`ai-minimal` 为用户显式开启的 AI 精简包）以及所有归档文件的 SHA-256 校验字典。
 2. **`session-data.json`**：
    根目录核心索引文件。承载会话元数据（`summary`）、交互时序流（`interactions`）、指纹去重后的控制台日志（`consoleSummary`）、网络请求主索引（`networkEntries`）、框架状态快照（`frameworkStates`）及问题现场元数据（`issueScenes`）。
 3. **`network-details.json`**：
@@ -124,7 +126,10 @@ export interface AiEvidencePackManifestV5 {
   format: "bug-lens-evidence-pack";
   /** 规范主版本号，Schema v5 规范固定为 5 */
   schemaVersion: 5;
-  /** 导出类型：极简 AI 模式或包含离线查看器的人工模式 */
+  /**
+   * 导出模式：默认 `full-viewer`（人类完整报告，含 report.html/assets/录屏）；
+   * `ai-minimal` 仅在用户显式开启「AI 精简模式」时产生
+   */
   packMode: "ai-minimal" | "full-viewer";
   /** 会话全局唯一标识符 */
   sessionId: string;
@@ -496,8 +501,8 @@ export type DomStylesV2 = DomStylesV5;
 为了在升级到 Schema v5 规范后保持对全量历史证据包的兼容，制定如下双向迁移适配契约：
 
 1. **导出端（Bug Lens Extension）双模式控制**：
-   - 默认模式：导出 `ai-evidence-pack-*.zip`，执行纯 JSON 结构与 CAS 去重，不写入 `report.html`、`assets/` 与 `data/*.js`；
-   - 兼容开关：在扩展选项（Options）中提供“包含离线可视化 HTML 查看器（Include Offline HTML Viewer）”多选框。若开启，系统在标准 JSON 导出之外，派生打包 `report.html`、`assets/` 并生成 `data/*.js` 包装文件。
+   - 默认模式（`full-viewer`）：导出 `web-bug-report-*.zip`，在标准 JSON 与 CAS 去重之外，一并打包 `report.html`、`assets/`、`data/*.js` 包装与 `media/recording.webm` 录屏，保证 ZIP 可直接双击离线回看；
+   - 兼容开关（`ai-minimal`）：在扩展选项（Options）中提供「AI 精简模式（不含离线报告与录屏）」开关（`workflow.aiMinimalPack`，默认关闭）。开启后仅输出纯 JSON 结构与 CAS 去重载荷，不写入 `report.html`、`assets/`、`data/*.js` 与 `media/*.webm`。
 2. **消费端（Triage CLI & AI Agent Skill）自适应协议解析器**：
    Triage 工具链（`src/triage-cli/pack/open.ts`）在解包并装载证据包时，执行如下判别流：
    ```
@@ -1072,18 +1077,18 @@ export interface CssWinnerRule {
 
 下表基于 `~/Downloads` 目录下 87 个真实 Bug Lens 证据包（总解压态 824.19MB，总压缩态 673.42MB）的逐文件二进制扫描与全量字段反序列化统计，测算实施 Schema v5 规范各项瘦身杠杆后的实际数值：
 
-| 优化杠杆 / 模块             | 优化前解压总体积 | 优化前占解压比 | 改造策略与技术动作                           | 优化后解压总体积 | 净削减体积     | 削减比例    | 对应解决的实测痛点                                  |
-| --------------------------- | ---------------- | -------------- | -------------------------------------------- | ---------------- | -------------- | ----------- | --------------------------------------------------- |
-| **L1. 剥离视频媒体**        | 379.65 MB        | 46.1%          | 默认不打包 `media/*.webm`，转为可选导出      | 0.00 MB          | **-379.65 MB** | **-100.0%** | 多模态工具无法看视频，消除最大二进制包袱            |
-| **L2. 剔除离线查看器**      | 18.20 MB         | 2.2%           | 默认不打包 `report.html` 与 `assets/*`       | 0.00 MB          | **-18.20 MB**  | **-100.0%** | AI Agent 从不执行离线页面，消除无用死重             |
-| **L3. 响应体 CAS 去重**     | 155.23 MB        | 18.8%          | SHA-256 内容寻址存储，单包内相同内容复用     | 125.63 MB        | **-29.60 MB**  | **-19.1%**  | 消除单包内 i18n/枚举字典重复存储 6.4MB 问题         |
-| **L4. 控制台签名折叠**      | 49.68 MB         | 6.0%           | `[level, textHash, source]` 聚合与计数器折叠 | 11.93 MB         | **-37.75 MB**  | **-76.0%**  | 消除 8.9 万条日志中的 76% 重复轮询与告警            |
-| **L5. 裁剪内联 Base64**     | 8.07 MB          | 1.0%           | URL 超过 256 字符截断为元数据占位符          | 0.40 MB          | **-7.67 MB**   | **-95.0%**  | 根除单条 386KB 畸形 Base64 URL 导致的解析卡顿       |
-| **L6. Initiator 栈顶剪枝**  | 21.36 MB         | 2.6%           | 仅保留 topFrame 顶层入口，剪除底层混淆栈     | 2.50 MB          | **-18.86 MB**  | **-88.3%**  | 剔除 21.36MB AI 消费率为 0 的死重调用栈             |
-| **L7. 框架 Storage 增量化** | 3.61 MB          | 0.4%           | 会话首帧基线快照 + 变更 Key 增量 Diff        | 2.28 MB          | **-1.33 MB**   | **-36.8%**  | 消除跨快照机械化重复全量拷贝 localStorage           |
-| **L8. 精准 Winner Rules**   | 7.73 MB          | 0.9%           | 淘汰 8MB cascade.json，仅输出胜出 CSS 规则   | 0.15 MB          | **-7.58 MB**   | **-98.1%**  | 消除 AI 连续编写 7 个 Node 脚本反编译 CSSOM         |
-| **保留核心资产**            | 180.66 MB        | 21.9%          | 截图(105MB)、网络索引(13MB)、JSON元数据等    | 199.46 MB        | +18.80 MB*     | +10.4%      | *包含新增的稳定帧与最终帧静态图片体积               |
-| **全量汇总 (Total)**        | **824.19 MB**    | **100.0%**     | **全面实施 Schema v5 极简规范架构**          | **350.00 MB**    | **-474.19 MB** | **-57.5%**  | **解压态体积缩减 57.5%，压缩态自 673MB 降至 285MB** |
+| 优化杠杆 / 模块             | 优化前解压总体积 | 优化前占解压比 | 改造策略与技术动作                                     | 优化后解压总体积 | 净削减体积     | 削减比例    | 对应解决的实测痛点                                  |
+| --------------------------- | ---------------- | -------------- | ------------------------------------------------------ | ---------------- | -------------- | ----------- | --------------------------------------------------- |
+| **L1. 剥离视频媒体**        | 379.65 MB        | 46.1%          | AI 精简模式下不打包 `media/*.webm`，默认完整报告仍保留 | 0.00 MB          | **-379.65 MB** | **-100.0%** | 多模态工具无法看视频，消除最大二进制包袱            |
+| **L2. 剔除离线查看器**      | 18.20 MB         | 2.2%           | AI 精简模式下不打包 `report.html` 与 `assets/*`        | 0.00 MB          | **-18.20 MB**  | **-100.0%** | AI Agent 从不执行离线页面，消除无用死重             |
+| **L3. 响应体 CAS 去重**     | 155.23 MB        | 18.8%          | SHA-256 内容寻址存储，单包内相同内容复用               | 125.63 MB        | **-29.60 MB**  | **-19.1%**  | 消除单包内 i18n/枚举字典重复存储 6.4MB 问题         |
+| **L4. 控制台签名折叠**      | 49.68 MB         | 6.0%           | `[level, textHash, source]` 聚合与计数器折叠           | 11.93 MB         | **-37.75 MB**  | **-76.0%**  | 消除 8.9 万条日志中的 76% 重复轮询与告警            |
+| **L5. 裁剪内联 Base64**     | 8.07 MB          | 1.0%           | URL 超过 256 字符截断为元数据占位符                    | 0.40 MB          | **-7.67 MB**   | **-95.0%**  | 根除单条 386KB 畸形 Base64 URL 导致的解析卡顿       |
+| **L6. Initiator 栈顶剪枝**  | 21.36 MB         | 2.6%           | 仅保留 topFrame 顶层入口，剪除底层混淆栈               | 2.50 MB          | **-18.86 MB**  | **-88.3%**  | 剔除 21.36MB AI 消费率为 0 的死重调用栈             |
+| **L7. 框架 Storage 增量化** | 3.61 MB          | 0.4%           | 会话首帧基线快照 + 变更 Key 增量 Diff                  | 2.28 MB          | **-1.33 MB**   | **-36.8%**  | 消除跨快照机械化重复全量拷贝 localStorage           |
+| **L8. 精准 Winner Rules**   | 7.73 MB          | 0.9%           | 淘汰 8MB cascade.json，仅输出胜出 CSS 规则             | 0.15 MB          | **-7.58 MB**   | **-98.1%**  | 消除 AI 连续编写 7 个 Node 脚本反编译 CSSOM         |
+| **保留核心资产**            | 180.66 MB        | 21.9%          | 截图(105MB)、网络索引(13MB)、JSON元数据等              | 199.46 MB        | +18.80 MB*     | +10.4%      | *包含新增的稳定帧与最终帧静态图片体积               |
+| **全量汇总 (Total)**        | **824.19 MB**    | **100.0%**     | **全面实施 Schema v5 极简规范架构**                    | **350.00 MB**    | **-474.19 MB** | **-57.5%**  | **解压态体积缩减 57.5%，压缩态自 673MB 降至 285MB** |
 
 ---
 
@@ -1111,11 +1116,11 @@ export interface CssWinnerRule {
 
 ```typescript
 export interface AiEvidencePackExportOptions {
-  /** 导出模式：默认极简 AI 模式 */
+  /** 导出模式：默认 full-viewer（人类完整报告） */
   mode: "ai-minimal" | "full-viewer";
-  /** 是否剥离录像视频 (默认为 true) */
+  /** 是否剥离录像视频（仅 ai-minimal 生效，默认为 false） */
   omitVideo: boolean;
-  /** 是否剥离离线 HTML 查看器及静态脚本 (默认为 true) */
+  /** 是否剥离离线 HTML 查看器及静态脚本（仅 ai-minimal 生效，默认为 false） */
   omitReportViewer: boolean;
   /** 控制台日志去重开关 (默认为 true) */
   enableConsoleFold: boolean;
@@ -1128,9 +1133,9 @@ export interface AiEvidencePackExportOptions {
 }
 
 export const DEFAULT_AI_EXPORT_OPTIONS: AiEvidencePackExportOptions = {
-  mode: "ai-minimal",
-  omitVideo: true,
-  omitReportViewer: true,
+  mode: "full-viewer",
+  omitVideo: false,
+  omitReportViewer: false,
   enableConsoleFold: true,
   enableCasDeduplication: true,
   truncateBase64UrlLength: 256,

@@ -95,12 +95,26 @@ test("buildEvidencePackage 在传入静态模板时输出完整非空的 report.
     localeMessages: { appTitle: { message: "测试报告" } },
   };
 
+  // 默认（不传 packMode）= 完整人类报告，必须带 report.html / assets / data 包装
   const defaultFiles = buildEvidencePackage(snapshot, reportAssets);
   const defaultMap = new Map(defaultFiles.map((f) => [f.name, f.data]));
-  assert.equal(defaultMap.has("report.html"), false);
-  assert.equal(defaultMap.has("data/session-data.js"), false);
+  assert.equal(defaultMap.has("report.html"), true);
+  assert.equal(defaultMap.has("assets/report.js"), true);
+  assert.equal(defaultMap.has("assets/report.css"), true);
+  assert.equal(defaultMap.has("data/session-data.js"), true);
+  assert.equal(defaultMap.has("data/network-details.js"), true);
   assert.ok(defaultMap.has("session-data.json"));
   assert.ok(defaultMap.has("network-details.json"));
+
+  // 显式 ai-minimal 才剔除查看器与 data 包装
+  const minimalFiles = buildEvidencePackage(snapshot, reportAssets, {
+    packMode: "ai-minimal",
+  });
+  const minimalMap = new Map(minimalFiles.map((f) => [f.name, f.data]));
+  assert.equal(minimalMap.has("report.html"), false);
+  assert.equal(minimalMap.has("assets/report.js"), false);
+  assert.equal(minimalMap.has("data/session-data.js"), false);
+  assert.ok(minimalMap.has("session-data.json"));
 
   const files = buildEvidencePackage(snapshot, reportAssets, {
     packMode: "full-viewer",
