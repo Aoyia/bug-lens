@@ -1,4 +1,8 @@
-import type { ExpectedStatement, IssueScene } from "../shared/protocol.ts";
+import type {
+  ExpectedStatement,
+  IssueScene,
+  TicketDraft,
+} from "../shared/protocol.ts";
 import { isEn } from "../shared/i18n.ts";
 
 export type TicketAudience = "internal" | "customer";
@@ -31,6 +35,30 @@ export type IsBugResult = {
 };
 
 const ETA_PLACEHOLDER = "<待研发确认>";
+
+const QUESTION_IDS: TicketQuestionId[] = [
+  "symptom",
+  "impact",
+  "isBug",
+  "workaround",
+  "eta",
+];
+
+/**
+ * 把用户当场编辑的 override 收敛为可持久化的工单草稿。
+ * 只保留实际编辑过的字段，避免把自动草稿冻结进草稿。
+ */
+export function buildTicketDraft(
+  overrides: TicketQuestionOverrides,
+  now = Date.now()
+): TicketDraft {
+  const draft: TicketDraft = {};
+  for (const id of QUESTION_IDS) {
+    if (overrides[id] !== undefined) draft[id] = String(overrides[id]);
+  }
+  draft.updatedAtEpochMs = now;
+  return draft;
+}
 
 function oneLine(value: unknown): string {
   return String(value ?? "")
@@ -117,9 +145,15 @@ export function buildTicketQuestions(
   const en = isEn();
   const actual = scene?.narrative?.actual ?? "";
   const derived = deriveIsBug(scene?.narrative?.expected, actual);
+  const draft = scene?.ticketDraft;
 
-  const pick = (id: TicketQuestionId, fallback: string): string =>
-    overrides[id] !== undefined ? String(overrides[id]) : fallback;
+  // 优先级：当场编辑 > 已持久化的工单草稿 > 自动草稿/工具推导
+  const pick = (id: TicketQuestionId, fallback: string): string => {
+    if (overrides[id] !== undefined) return String(overrides[id]);
+    const stored = draft?.[id];
+    if (stored !== undefined) return String(stored);
+    return fallback;
+  };
 
   return [
     {

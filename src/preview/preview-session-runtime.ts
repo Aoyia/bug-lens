@@ -8,6 +8,7 @@ import type {
   IssueScene,
   NetworkEntry,
   RecordingSession,
+  TicketDraft,
 } from "../shared/protocol";
 import { t } from "../shared/i18n";
 import type { db } from "../storage/db";
@@ -34,7 +35,10 @@ export type PreviewStorage = Pick<
   | "getMediaChunks"
   | "getFrameworkStates"
   | "saveNetwork"
->;
+> & {
+  /** 持久化工单草稿；测试替身可省略 */
+  saveIssueScene?: (scene: IssueScene) => Promise<unknown>;
+};
 
 export type MediaPreviewResult = { source?: string; error?: string };
 
@@ -503,6 +507,27 @@ export class PreviewSessionRuntime {
     };
     this.snapshotVersion += 1;
     await this.storage.saveSession(this.session);
+  }
+
+  /**
+   * 保存工单五问人工草稿到所属 IssueScene，并同步内存快照，
+   * 使后续导出管线（重新 load 或直接取快照）都能读到。
+   */
+  async saveTicketDraft(sceneId: string, draft: TicketDraft): Promise<void> {
+    const index = this.issueScenes.findIndex((scene) => scene.id === sceneId);
+    if (index < 0) return;
+    const next: IssueScene = {
+      ...this.issueScenes[index],
+      ticketDraft: {
+        ...draft,
+        updatedAtEpochMs: draft.updatedAtEpochMs ?? Date.now(),
+      },
+    };
+    this.issueScenes[index] = next;
+    this.snapshotVersion += 1;
+    this.cachedReportSnapshot = undefined;
+    this.cachedReportSnapshotVersion = -1;
+    await this.storage.saveIssueScene?.(next);
   }
 
   async restore(

@@ -208,6 +208,7 @@ bindTicketPreviewModal({
   notify: (message) => reportView.notify(message),
   openImageViewer: (interactionId, fallback) =>
     reportView.openImageViewer(interactionId, fallback),
+  saveTicketDraft: (sceneId, draft) => runtime.saveTicketDraft(sceneId, draft),
   exportTicketZip: () => {
     void exportController?.export("ticket", { skipClipboard: true });
   },

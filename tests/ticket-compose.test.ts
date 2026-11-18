@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  buildTicketDraft,
   buildTicketQuestions,
   deriveIsBug,
   renderTicketMarkdown,
@@ -217,4 +218,112 @@ test("双受众输出都是合法 Markdown", async () => {
     assert.ok(out.includes("\n"), `${audience} 应包含换行`);
     assert.ok(out.length > 50);
   }
+});
+
+test("向后兼容：无 ticketDraft 的老场景仍按自动草稿生成五问", async () => {
+  await useChinese();
+  const scene = createSensitiveScene();
+  assert.equal(scene.ticketDraft, undefined);
+
+  const questions = buildTicketQuestions(scene);
+  assert.equal(questions.length, 5);
+  assert.equal(questions[0].value, scene.narrative?.actual);
+  assert.equal(questions[1].value, "");
+  assert.equal(questions[2].value, "是缺陷");
+  assert.equal(questions[3].value, "");
+  assert.equal(questions[4].value, "");
+});
+
+test("回填：ticketDraft 有值时五问默认值优先取草稿", async () => {
+  await useChinese();
+  const scene = {
+    ...createSensitiveScene(),
+    ticketDraft: {
+      symptom: "登录后一直转圈",
+      impact: "全部销售无法开单",
+      isBug: "是缺陷",
+      workaround: "刷新页面后重试",
+      eta: "下周三",
+      updatedAtEpochMs: 1730000099999,
+    },
+  } as IssueScene;
+
+  const questions = buildTicketQuestions(scene);
+  assert.deepEqual(
+    questions.map((item) => item.value),
+    ["登录后一直转圈", "全部销售无法开单", "是缺陷", "刷新页面后重试", "下周三"]
+  );
+});
+
+test("优先级：当场 overrides 覆盖已持久化的 ticketDraft", async () => {
+  await useChinese();
+  const scene = {
+    ...createSensitiveScene(),
+    ticketDraft: {
+      impact: "草稿里的影响",
+      workaround: "草稿里的绕过",
+      eta: "草稿里的时间",
+      updatedAtEpochMs: 1730000099999,
+    },
+  } as IssueScene;
+
+  const questions = buildTicketQuestions(scene, {
+    impact: "当场修改的影响",
+    eta: "",
+  });
+  assert.equal(questions[1].value, "当场修改的影响");
+  assert.equal(questions[3].value, "草稿里的绕过");
+  assert.equal(questions[4].value, "");
+});
+
+test("buildTicketDraft：只落盘实际编辑字段并补 updatedAtEpochMs", () => {
+  const draft = buildTicketDraft(
+    { impact: "客户A受影响", workaround: "重启", eta: "本周五" },
+    1730000123456
+  );
+  assert.deepEqual(draft, {
+    impact: "客户A受影响",
+    workaround: "重启",
+    eta: "本周五",
+    updatedAtEpochMs: 1730000123456,
+  });
+  assert.equal("symptom" in draft, false);
+  assert.equal("isBug" in draft, false);
+});
+
+test("人工输入脱敏：ticketDraft 里的内部路径/URL 在客户版被剥离，研发版保留", async () => {
+  await useChinese();
+  const scene = {
+    ...createSensitiveScene(),
+    ticketDraft: {
+      impact: "客户A的 /issues/abc123/ 接口 http://internal.api/x 全部超时",
+      workaround: "让客户A先走 /issues/abc123/replay/ 重放",
+      eta: "本周五",
+      updatedAtEpochMs: 1730000099999,
+    },
+  } as IssueScene;
+
+  const questions = buildTicketQuestions(scene);
+  const customer = renderTicketMarkdown(questions, scene, "customer");
+  const internal = renderTicketMarkdown(questions, scene, "internal");
+
+  for (const token of [
+    "/issues/abc123/",
+    "http://internal.api/x",
+    "internal.api",
+  ]) {
+    assert.equal(
+      customer.includes(token),
+      false,
+      `客户版不应包含人工输入中的敏感 token：${token}\n--- 输出 ---\n${customer}`
+    );
+    assert.equal(
+      internal.includes(token),
+      true,
+      `研发版应保留人工输入：${token}`
+    );
+  }
+  // 业务信息本身不能被误杀
+  assert.ok(customer.includes("全部超时"));
+  assert.ok(customer.includes("本周五"));
 });

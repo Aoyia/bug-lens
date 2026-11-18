@@ -825,6 +825,20 @@ export type IssueSequenceContext = {
   consoleEntries: IssueSequenceConsoleEntry[];
 };
 
+/**
+ * 工单五问的人工草稿（自由文本）。
+ * 全部字段可选，缺失时渲染层回退到自动草稿/工具推导；老包与老会话可直接反序列化。
+ */
+export type TicketDraft = {
+  symptom?: string;
+  impact?: string;
+  /** 人工填写的「算不算 bug」文本；缺省时使用 deriveIsBug 推导结论 */
+  isBug?: string;
+  workaround?: string;
+  eta?: string;
+  updatedAtEpochMs?: number;
+};
+
 export type IssueScene = {
   id: string;
   sessionId: string;
@@ -849,6 +863,8 @@ export type IssueScene = {
     expected?: ExpectedStatement;
     note?: string;
   };
+  /** 工单五问的人工草稿；optional 以兼容旧数据 */
+  ticketDraft?: TicketDraft;
   annotation: AnnotationModel;
   screenshot: {
     status: "pending" | "captured" | "partial" | "unavailable";

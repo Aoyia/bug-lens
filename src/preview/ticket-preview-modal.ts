@@ -9,6 +9,7 @@ import {
   type EvidencePackageSnapshot,
 } from "./evidence-package.ts";
 import {
+  buildTicketDraft,
   buildTicketQuestions,
   renderTicketMarkdown,
   renderTicketQuestionsSection,
@@ -17,6 +18,7 @@ import {
   type TicketQuestionId,
   type TicketQuestionOverrides,
 } from "./ticket-compose.ts";
+import type { TicketDraft } from "../shared/protocol.ts";
 import { bindPlaywrightModalClose } from "./playwright-modal.ts";
 import { isEn, t } from "../shared/i18n.ts";
 
@@ -30,6 +32,11 @@ export interface TicketPreviewModalDeps {
     fallback: { title: string; dataUrl: string }
   ) => void;
   exportTicketZip: () => void;
+  /** 持久化工单五问草稿；缺省时静默跳过（兼容旧装配） */
+  saveTicketDraft?: (
+    sceneId: string,
+    draft: TicketDraft
+  ) => void | Promise<void>;
 }
 
 function escapeHtml(value: string): string {
@@ -155,12 +162,37 @@ export function bindTicketPreviewModal(deps: TicketPreviewModalDeps): void {
   let currentFilename: string | undefined;
   let currentQuestions: TicketQuestion[] = [];
   let questionOverrides: TicketQuestionOverrides = {};
+  let ticketDraftSaveTimer: number | undefined;
+  const TICKET_DRAFT_SAVE_DELAY_MS = 400;
   let activeAudience: TicketAudience = "internal";
 
   const en = () => isEn();
 
   function getScene() {
     return currentSnapshot?.issueScenes?.[0];
+  }
+
+  /** 立即把当前五问编辑落库（关闭弹窗/导出前兜底）。 */
+  function flushTicketDraft(): void {
+    if (ticketDraftSaveTimer !== undefined) {
+      window.clearTimeout(ticketDraftSaveTimer);
+      ticketDraftSaveTimer = undefined;
+    }
+    const scene = getScene();
+    if (!scene || !deps.saveTicketDraft) return;
+    void deps.saveTicketDraft(scene.id, buildTicketDraft(questionOverrides));
+  }
+
+  /** 编辑即存：防抖 400ms，避免逐字符写 IndexedDB。 */
+  function scheduleTicketDraftSave(): void {
+    if (!deps.saveTicketDraft) return;
+    if (ticketDraftSaveTimer !== undefined) {
+      window.clearTimeout(ticketDraftSaveTimer);
+    }
+    ticketDraftSaveTimer = window.setTimeout(() => {
+      ticketDraftSaveTimer = undefined;
+      flushTicketDraft();
+    }, TICKET_DRAFT_SAVE_DELAY_MS);
   }
 
   function getAnnotatedDataUrl(): string | undefined {
@@ -219,12 +251,12 @@ export function bindTicketPreviewModal(deps: TicketPreviewModalDeps): void {
       input.value = question.value;
       input.placeholder = question.placeholder;
       if (field.id === "eta") {
-        input.value = "";
         input.placeholder = "<待研发确认>";
       }
       input.addEventListener("input", () => {
         questionOverrides[field.id] = input.value;
         renderPreview();
+        scheduleTicketDraftSave();
       });
 
       wrapper.appendChild(label);
@@ -361,6 +393,8 @@ export function bindTicketPreviewModal(deps: TicketPreviewModalDeps): void {
   }
 
   function openTicketPreview(): void {
+    // 上一次打开若有未落盘的防抖任务，先用旧场景兜底保存
+    flushTicketDraft();
     const snapshot = deps.getPackageSnapshot();
     if (!snapshot) {
       deps.notify(t("waitForEvidenceLoad"));
@@ -496,6 +530,7 @@ export function bindTicketPreviewModal(deps: TicketPreviewModalDeps): void {
   ticketTabPlain?.addEventListener("click", () => switchTicketTab("plain"));
 
   function closeTicketModal(): void {
+    flushTicketDraft();
     clearTicketHeightTransition();
     ticketModal!.hidden = true;
   }
@@ -507,6 +542,9 @@ export function bindTicketPreviewModal(deps: TicketPreviewModalDeps): void {
   });
 
   bindPlaywrightModalClose(ticketModal);
+
+  // 页面被关闭/刷新时，防抖中的编辑也不丢
+  window.addEventListener("beforeunload", () => flushTicketDraft());
 
   ticketModalCopyBtn?.addEventListener("click", async () => {
     if (!currentTicketBundle) return;

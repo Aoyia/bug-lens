@@ -477,3 +477,53 @@ test("buildTicketTemplate: 方案一（DOM 语义提升、动作合并、去除�
   assert.ok(result.includes('10. 点击 折叠/返回 "《"'));
   assert.ok(!result.includes('点击 div "《"'));
 });
+
+test("buildTicketTemplate/buildTicketBundle: 持久化的 ticketDraft 三问进入导出工单", async () => {
+  await setUserLanguagePreference("zh-CN");
+  const session = createMockSession();
+  const snapshot: EvidencePackageSnapshot = {
+    session,
+    issueScenes: [
+      {
+        id: "scene-draft",
+        sessionId: session.id,
+        capturedAtEpochMs: 1730000010000,
+        observedTimestampMs: 1730000010000,
+        page: {
+          url: "https://example.com/checkout",
+          title: "Checkout Page",
+          frameId: 0,
+        },
+        target: {
+          capturedAtEpochMs: 1730000010000,
+          ancestors: [],
+          computedStyle: {},
+        } as any,
+        narrative: { actual: "点击支付按钮无反应" },
+        ticketDraft: {
+          impact: "影响全部线上收银台",
+          workaround: "引导用户重新下单",
+          eta: "本周五",
+          updatedAtEpochMs: 1730000099999,
+        },
+        annotation: {} as any,
+        issues: [],
+      },
+    ] as any,
+    interactions: [],
+    consoleEntries: [],
+    networkEntries: [],
+    excluded: { interaction: 0, console: 0, network: 0 },
+    hasMedia: false,
+  };
+
+  const markdown = buildTicketTemplate(snapshot, "web-bug-report-abcd.zip");
+  assert.ok(markdown.includes("影响全部线上收银台"));
+  assert.ok(markdown.includes("引导用户重新下单"));
+  assert.ok(markdown.includes("本周五"));
+
+  const bundle = buildTicketBundle(snapshot, "web-bug-report-abcd.zip");
+  assert.ok(bundle.markdown.includes("影响全部线上收银台"));
+  assert.ok(bundle.markdown.includes("引导用户重新下单"));
+  assert.ok(bundle.markdown.includes("本周五"));
+});

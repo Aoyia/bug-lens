@@ -460,6 +460,15 @@ export interface IssueSceneObject {
     note?: string;
     reproductionHint?: string;
   };
+  /** 工单五问人工草稿（可选，旧包缺失） */
+  ticketDraft?: {
+    symptom?: string;
+    impact?: string;
+    isBug?: string;
+    workaround?: string;
+    eta?: string;
+    updatedAtEpochMs?: number;
+  };
   screenshot?: {
     status?: string;
     originalAssetId?: string;
