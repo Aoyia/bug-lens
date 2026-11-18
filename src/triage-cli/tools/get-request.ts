@@ -1,4 +1,5 @@
 import { applyCharBudget } from "../format/budget.ts";
+import { buildJsonOutline } from "../format/json-diff.ts";
 import { formatDuration, formatRelativeTime } from "../format/time.ts";
 import { getPackWorkspaceDir, openPack } from "../pack/open.ts";
 import type { LoadedSessionPack } from "../pack/session-pack.ts";
@@ -94,6 +95,7 @@ export function runGetRequestTool(args: {
   include?: Array<"summary" | "headers" | "initiator" | "body">;
   jsonPath?: string;
   bodyMaxChars?: number;
+  outline?: boolean;
   format?: "text" | "json";
   maxChars?: number;
 }): string {
@@ -191,9 +193,45 @@ export function runGetRequestTool(args: {
     lines.push(`\n## Response Body`);
     if (res.bodyText === undefined) {
       lines.push(`(No response body captured for this entry)`);
+    } else if (args.outline) {
+      const rawFull = loaded.getNetworkBody(entry) ?? res.bodyText;
+      try {
+        const parsed = JSON.parse(rawFull);
+        const { outline, suggestedJsonPaths } = buildJsonOutline(parsed);
+        lines.push(`\`\`\`json\n${JSON.stringify(outline, null, 2)}\n\`\`\``);
+        if (suggestedJsonPaths.length > 0) {
+          lines.push(
+            `- **Suggested jsonPath queries**: ${suggestedJsonPaths.map((p) => `\`${p}\``).join(", ")}`
+          );
+        }
+      } catch {
+        lines.push(res.bodyText);
+      }
     } else {
       lines.push(res.bodyText);
       if (res.bodyTruncated) {
+        let jsonPathExample = "data";
+        try {
+          const rawFull = loaded.getNetworkBody(entry);
+          if (rawFull) {
+            const parsed = JSON.parse(rawFull);
+            const { outline, suggestedJsonPaths } = buildJsonOutline(parsed, {
+              maxDepth: 2,
+              maxKeysPerLevel: 10,
+            });
+            if (suggestedJsonPaths.length > 0) {
+              jsonPathExample = suggestedJsonPaths[0]!;
+            }
+            lines.push(
+              `\n### Response JSON Outline (auto-generated for truncated payload)`
+            );
+            lines.push(
+              `\`\`\`json\n${JSON.stringify(outline, null, 2)}\n\`\`\``
+            );
+          }
+        } catch {
+          // 非 JSON 响应跳过大纲
+        }
         const blobHint =
           !fullBodyPath && workspaceDir && entry.response?.bodyHash
             ? `${workspaceDir}/network/blobs/${entry.response.bodyHash.replace(/^sha256:/i, "").slice(0, 16)}.bin`
@@ -208,7 +246,7 @@ export function runGetRequestTool(args: {
           ? ` Or query \`${directTarget}\` directly with \`jq\` / \`read_file\`.`
           : "";
         lines.push(
-          `\n… [Response body truncated at ${args.bodyMaxChars ?? 8000} chars. Pass \`jsonPath\` (e.g. "data.definition.form.elements[id=ssd_a]") or a higher \`bodyMaxChars\` to inspect further.${directHint}]`
+          `\n… [Response body truncated at ${args.bodyMaxChars ?? 8000} chars. Pass \`jsonPath\` (e.g. "${jsonPathExample}") or a higher \`bodyMaxChars\` to inspect further.${directHint}]`
         );
       }
     }

@@ -6,6 +6,7 @@
   "include": [
     "e2e/**/*.ts",
     "src/triage-cli/**/*.ts",
-    "tests/triage-cli-*.test.ts"
+    "tests/triage-cli-*.test.ts",
+    "tests/phase-v5-*.test.ts"
   ]
 }

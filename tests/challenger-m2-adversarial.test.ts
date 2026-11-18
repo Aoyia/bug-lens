@@ -542,7 +542,9 @@ describe("Empirical Challenger M2: runMainWorldFrameworkProbe 对抗应力测试
         const res = results["probe-prod-minified"];
         assert.ok(res);
         assert.equal(res.framework, "react");
-        assert.equal(res.version, 18);
+        // 该 fixture 无 DevTools hook、fiber 上也无 React 18/19 专有调试字段，
+        // 版本不可判定 → 0（未知）；探针不再默认标 18。
+        assert.equal(res.version, 0);
 
         // 原生 DOM 标签必须 100% 被排除在组件链之外
         const path = res.componentPath || [];

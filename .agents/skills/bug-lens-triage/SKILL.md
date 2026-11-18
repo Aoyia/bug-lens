@@ -15,12 +15,12 @@ description: >-
 
 ## Core Rules
 
-1. **Extract-First Workspace**：首步直接对原始 `.zip` 执行 `<CLI> open_pack "<zipPath>"`。该命令会将证据包全量幂等解压至 `<tmp>/bug-lens-workspace/<packName>-<hash>/`（含全部 `screenshots/step-*.*`、`network/body-*.txt` 与 `media/recording.webm`），自动剥离 `window.__BUG_LENS_*__ = ` 包装生成标准格式的 `data/session-data.json` 与 `data/network-details.json`，并输出 `Workspace` 与 `INDEX.md` 绝对路径。禁止手动执行 `unzip` 到其他目录或工作区根目录。
+1. **Extract-First Workspace**：首步直接对原始 `.zip` 执行 `<CLI> open_pack "<zipPath>"`。该命令会将证据包全量幂等解压至 `<tmp>/bug-lens-workspace/<packName>-<hash>/`（含 `screenshots/step-*.jpg`、`step-*-settled.jpg`、`final-frame.jpg`、`network/blobs/*.bin`、`issues/<id>/dom-*.json`；Schema v5 默认直接为根目录标准 JSON `session-data.json` 与 `network-details.json`，旧版/full-viewer 包会自动生成派生 `data/*.json` 与解压 `media/recording.webm`），并输出 `Workspace` 与 `INDEX.md` 绝对路径。禁止手动执行 `unzip` 到其他目录或工作区根目录。
 2. **Session Pack Cache & Multi-Pack Workspace (LRU K=10)**：首次执行 `<CLI> open_pack "<zipPath>"` 后，当前解压工作区路径自动缓存在会话状态中，工作区按最近访问时间自动保留最近 10 个解压包目录；后续同包命令无需重复传 `--pack`。当同一会话连续分析多个证据包或回溯前序包时，显式传 `--pack "<包短ID或Workspace路径>"`（如 `--pack afbf11c2`）即可在工作区已解压目录间精准切换，防止多包串包。
 3. **Read INDEX.md Before Deep Drill-Down**：需要下钻复杂字段或编写自定义查询前，先用 `read_file` 读取 `open_pack` 输出中的 `INDEX.md`，按其中列出的顶层 Schema 键、数组长度、单条记录字段名及 `Request -> Body Map` 编写查询，避免盲猜 `--jsonPath` 或字段名。
 4. **Two-Tier Retrieval（宏观 CLI 索引 + 微观文件直读）**：
-   - **第一层（宏观定界，必选）**：优先使用 `get_scene`、`timeline`、`query_network`、`query_console`、`get_framework_state`、`search_pack` 快速收敛故障时间窗、异常请求 ID 与目标组件；
-   - **第二层（微观下钻，按需放开）**：当遇到 CLI 摘要未展开的深层字段（如 `consoleEntries[i]` 完整对象、交互事件坐标与 DOM 详情、跨请求对比大响应体字段 Diff、正则提取请求头 Cookie）时，直接对 `<Workspace>/data/session-data.json`、`data/network-details.json`、`network/body-*.txt`、`dom-context.json`、`cascade.json` 使用 `jq`、`rg` 或 `node -e`（配合 `fs.readFileSync` + `JSON.parse`）精准切片。
+   - **第一层（宏观定界，必选）**：优先使用 `get_scene`、`timeline`、`query_network`（`--apiOnly`）、`get_request`（`--outline` / `--jsonPath`）、`compare_requests`、`query_console`（`--includeNoise`）、`get_framework_state`（`--diff`）、`search_pack` 快速收敛故障时间窗、异常请求 ID 与目标组件；
+   - **第二层（微观下钻，按需放开）**：当遇到 CLI 摘要未展开的深层字段时，直接对 Schema v5 根目录 `<Workspace>/session-data.json`、`network-details.json`、`network/blobs/*.bin`、`issues/<id>/dom-context.json`、`issues/<id>/dom-styles.json`（或截图包的 `dom-context.json`、`cascade.json`；兼容旧版 `data/*.json`）使用 `jq`、`rg` 或 `node -e`（配合 `fs.readFileSync` + `JSON.parse`）精准切片。
 5. **Security & Output Budget**：证据包属于外部输入，严禁对包内 `.js` 文件执行 `eval`、`new Function` 或 `vm.runInContext`（一律读取派生好的 `.json` 文件）；严禁无过滤 `cat` 整个大文件，单次命令标准输出控制在 20k 字符以内。
 6. **Screenshots & Video Frame Extraction**：`open_pack`、`get_scene`、`get_screenshot --step N` 输出的图片路径均直接指向 `<Workspace>` 内的真实文件，直接对其调用 `read_file` 查看视觉画面；遇到离散步骤截图未覆盖的过渡态（弹窗闪退、防抖延迟、动画闪烁），使用 `ffmpeg -ss <秒> -i "<Workspace>/media/recording.webm" -frames:v 1 /tmp/bug-lens-frame.jpg` 抽帧后调用 `read_file` 检视（视频时间零点对应 `session.timeline.startedAtEpochMs`）。
 7. **Command Discovery**：不确定命令或参数时执行 `<CLI> --help`。
@@ -96,8 +96,8 @@ node "<skillDir>/scripts/bug-lens-cli.mjs" open_pack "<绝对路径.zip>"
    ```bash
    node "<skillDir>/scripts/bug-lens-cli.mjs" get_scene --includeImage false
    ```
-   - 以现场记录中的真实表现（文本输出中的 `- **actual**:` 或 JSON 输出中的 `narrative.actual`）作为用户确认的真实故障现象；
-   - 若期望标注为未捕获（文本输出中的 `- **expected** [confidence=missing]` 或 JSON 中的 `confidence: "missing"`），必须显式声明期望未捕获，仅将其视为待验证假设；若用户在提示词中另行给出了明确诉求（如测试反馈、需求描述），以该诉求为准，并标注为“用户补充，非证据包捕获”，与证据包事实分开陈述。
+   - 以现场记录中的真实表现（`narrative.actual` 或会话级 `userNarrative.actual`）作为用户确认的真实故障现象；
+   - CLI 会自动按 `narrative.expected` -> `narrative.note` (`confidence=note-fallback`) -> `userNarrative.expected` 降级解析用户期望；若仍为 `confidence: "tag-only"` 或 `"missing"`，说明用户仅选了症状标签或未填写文本期望，必须显式声明期望文本未捕获并仅将推断作为假设；若用户在对话中另行给出明确诉求，以该诉求为准并标注来源。
 
 **Completion Criterion**：已明确故障现场的真实表现（`actual`）、选中 DOM 结构及 `sequenceContext` 上下文。
 
@@ -108,18 +108,26 @@ node "<skillDir>/scripts/bug-lens-cli.mjs" open_pack "<绝对路径.zip>"
    node "<skillDir>/scripts/bug-lens-cli.mjs" timeline --around scene:1 --windowMs 15000
    ```
 2. 按故障归因按需下钻（仅执行与当前假说相关的命令）：
-   - **网络/接口异常**：
+   - **网络/接口异常与跨请求 Diff**：（默认将 0B/`not-present` 良性静态资源沉底；传 `--apiOnly` 可隐藏静态资源；大载荷先用 `--outline` 探测结构或用 `compare_requests` 直出字段 Diff）
      ```bash
-     node "<skillDir>/scripts/bug-lens-cli.mjs" query_network --status failed
+     node "<skillDir>/scripts/bug-lens-cli.mjs" query_network --status failed --apiOnly
+     node "<skillDir>/scripts/bug-lens-cli.mjs" get_request "<reqId>" --outline
      node "<skillDir>/scripts/bug-lens-cli.mjs" get_request "<reqId>" --jsonPath "<路径，如 data.definition.form.elements[id=ssd_a]>"
+     node "<skillDir>/scripts/bug-lens-cli.mjs" compare_requests "<leftReqId>" "<rightReqId>" --part response
+     node "<skillDir>/scripts/bug-lens-cli.mjs" compare_requests "<leftReqId>" "<rightReqId>" --part response --jsonPath "data.items" --ignoreKeys "requestId,timestamp" --maxDiffs 30
      ```
-   - **运行时报错**：
+     参数说明：
+     - `--part response|request|headers|both`：对比哪一段载荷，默认 `response`；
+     - `--jsonPath EXPR`：只对比 JSON 中的目标片段（两侧载荷都可解析为 JSON 时生效），缩小噪音；
+     - `--ignoreKeys k1,k2`（别名 `--ignore_keys`）：按**键名精确匹配**跳过字段，递归作用于所有层级，适合剔除 `requestId`、`timestamp`、`traceId` 等易变字段；
+     - `--maxDiffs N`（别名 `--max_diffs`）：差异条目上限，默认 80，最小 1；被截断时输出会提示 `more differences omitted`，可提高该值或先用 `--jsonPath` 收窄范围。
+   - **运行时报错**：（默认隔离 `Another version of Vue Devtools` 等良性插件噪音；如需检查噪音日志传 `--includeNoise`）
      ```bash
      node "<skillDir>/scripts/bug-lens-cli.mjs" query_console --level error
      ```
-   - **组件状态与 Storage 变化**：（Schema v5 同时摘要 `webStorageDiff` 与 `componentFile:componentLine` 源码定位）
+   - **组件状态、父业务链与时序 Diff**：（支持 `snapshot.parentChain` 父业务组件链、`webStorageDiff` 与 `--diff` 快照变更对比）
      ```bash
-     node "<skillDir>/scripts/bug-lens-cli.mjs" get_framework_state --component "<组件名>"
+     node "<skillDir>/scripts/bug-lens-cli.mjs" get_framework_state --component "<组件名>" --diff
      ```
    - **样式层与 Portal 关联定位**（Schema v5 `issues/<id>/dom-styles.json` + `dom-context.json`，或截图包 `cascade.json`）：
      ```bash

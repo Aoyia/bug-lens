@@ -1,6 +1,10 @@
 import { applyCharBudget } from "../format/budget.ts";
 import { formatElementCompact } from "../format/element.ts";
 import { formatRelativeTime } from "../format/time.ts";
+import {
+  getSessionUserNarrative,
+  resolveSceneExpectation,
+} from "../pack/narrative.ts";
 import { openPack } from "../pack/open.ts";
 import {
   extractLayoutDeviations,
@@ -95,7 +99,35 @@ export function runGetSceneTool(args: {
   }
 
   const scenes = loaded.getIssueScenes();
+  const sessionNarrative = getSessionUserNarrative(loaded);
   if (scenes.length === 0) {
+    if (args.format === "json") {
+      return [
+        {
+          type: "text",
+          text: JSON.stringify(
+            {
+              issueScenesCount: 0,
+              ...(sessionNarrative ? { userNarrative: sessionNarrative } : {}),
+            },
+            null,
+            2
+          ),
+        },
+      ];
+    }
+    if (sessionNarrative) {
+      return [
+        {
+          type: "text",
+          text: [
+            "No issueScenes were recorded in this evidence pack, but session-level userNarrative was provided:",
+            `- **actual**: ${sessionNarrative.actual ?? "(empty)"}`,
+            `- **expected**: ${sessionNarrative.expected ?? "(missing — treat expected behavior as inferred hypothesis)"}`,
+          ].join("\n"),
+        },
+      ];
+    }
     return [
       {
         type: "text",
@@ -118,14 +150,9 @@ export function runGetSceneTool(args: {
   }
 
   const { scene } = target;
-  const exp = scene.narrative?.expected;
-  const expectedText = typeof exp === "string" ? exp : exp?.text;
-  const confidence =
-    typeof exp === "object" && exp !== null
-      ? (exp.confidence ?? "missing")
-      : expectedText
-        ? "explicit"
-        : "missing";
+  const resolvedExp = resolveSceneExpectation(scene.narrative);
+  const expectedText = resolvedExp.expectedText;
+  const confidence = resolvedExp.confidence;
 
   const targetsList =
     scene.targets && scene.targets.length > 0
@@ -146,12 +173,13 @@ export function runGetSceneTool(args: {
           ),
           narrative: {
             actual: scene.narrative?.actual ?? null,
-            expected: expectedText ?? null,
+            expected: expectedText || null,
+            tags: resolvedExp.tags,
+            note: resolvedExp.note ?? null,
             confidence,
-            confidenceNotice:
-              confidence === "missing"
-                ? "UNCAPTURED_EXPECTATION: User expectation was not captured. Any expectation you formulate MUST be explicitly declared as an inferred hypothesis."
-                : undefined,
+            ...(resolvedExp.confidenceNotice
+              ? { confidenceNotice: resolvedExp.confidenceNotice }
+              : {}),
           },
           sequenceContextNotice:
             "RAW_SAME_TIME_CONTEXT_ONLY: sequenceContext lists events near the mark moment and MUST NOT be treated as a proven causal chain.",
@@ -175,11 +203,24 @@ export function runGetSceneTool(args: {
       `# Issue Scene [${target.index}] \`${target.id}\` (at ${formatRelativeTime(rel)})`
     );
     lines.push(`\n## 1. Narrative & Expectation Anchor`);
-    lines.push(`- **actual**: ${scene.narrative?.actual || "(empty)"}`);
+    lines.push(`- **actual**: ${resolvedExp.actual || "(empty)"}`);
     lines.push(
       `- **expected** [confidence: \`${confidence}\`]: ${expectedText || "(missing)"}`
     );
-    if (confidence === "missing" || !expectedText) {
+    if (resolvedExp.tags.length > 0) {
+      lines.push(`- **symptomTags**: [${resolvedExp.tags.join(", ")}]`);
+    }
+    if (resolvedExp.note && confidence !== "note-fallback") {
+      lines.push(`- **note**: ${resolvedExp.note}`);
+    }
+    if (confidence === "tag-only") {
+      lines.push(
+        `  > ⚠️ **TAG-ONLY EXPECTATION**: Only symptom tags were selected without a concrete expected outcome; treat any detailed expected behavior as a hypothesis.`
+      );
+    } else if (
+      confidence === "missing" ||
+      (!expectedText && resolvedExp.tags.length === 0)
+    ) {
       lines.push(
         `  > ⚠️ **UNCAPTURED EXPECTATION**: You MUST explicitly state that the expected behavior was not captured and mark any inferred expectation as a hypothesis.`
       );

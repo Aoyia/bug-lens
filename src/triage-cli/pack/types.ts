@@ -201,6 +201,8 @@ export interface InteractionEntry {
   };
 }
 
+import type { ConsoleNoiseCategory } from "../../domain/console-noise.ts";
+
 export interface DiagnosticStackFrame {
   functionName?: string;
   url?: string;
@@ -235,6 +237,9 @@ export interface ConsoleEntry {
     originalName?: string;
     failureReason?: string;
   };
+  /** 良性插件/内部诊断噪音标注（如 Vue DevTools 版本冲突提示） */
+  isNoise?: boolean;
+  noiseCategory?: ConsoleNoiseCategory;
   /** Schema v5 consoleSummary 预折叠元数据（内部/查询保留，避免展开大数组） */
   repeatCount?: number;
   lastCreatedAt?: number;
@@ -249,6 +254,8 @@ export interface ConsoleFoldedEntryV5 {
   text: string;
   source?: string;
   count: number;
+  isNoise?: boolean;
+  noiseCategory?: ConsoleNoiseCategory;
   firstCreatedAt?: number;
   lastCreatedAt?: number;
   timeRangeMs?: [number, number];
@@ -275,6 +282,8 @@ export interface NetworkEntry {
   durationMs?: number;
   initiatorType?: string;
   errorText?: string;
+  isStaticAsset?: boolean;
+  isBenignStatic?: boolean;
   businessError?: {
     code?: string | number;
     message?: string;
@@ -444,8 +453,11 @@ export interface IssueSceneObject {
       | string
       | {
           text?: string;
-          confidence?: "explicit" | "inferred" | "missing" | string;
+          tags?: string[];
+          confidence?:
+            "explicit" | "tag-only" | "inferred" | "missing" | string;
         };
+    note?: string;
     reproductionHint?: string;
   };
   screenshot?: {
@@ -518,6 +530,11 @@ export interface SessionDataPayload {
       initialTitle?: string;
       environment?: Record<string, unknown>;
     };
+    userNarrative?: {
+      actual?: string;
+      expected?: string;
+      updatedAtEpochMs?: number;
+    };
     options?: Record<string, unknown>;
     timeline?: {
       createdAtEpochMs?: number;
@@ -534,6 +551,11 @@ export interface SessionDataPayload {
   networkEntries?: NetworkEntry[];
   issueScenes?: IssueSceneEnvelope[];
   frameworkStates?: FrameworkStateEntry[];
+  userNarrative?: {
+    actual?: string;
+    expected?: string;
+    updatedAtEpochMs?: number;
+  };
   hasMedia?: boolean;
 }
 
@@ -654,6 +676,9 @@ export interface CascadeIndex {
     sheetCount?: number;
     ruleCount?: number;
     elementCount?: number;
+    totalSheetCount?: number;
+    totalRuleCount?: number;
+    pruned?: boolean;
     capturedAtEpochMs?: number;
   };
 }

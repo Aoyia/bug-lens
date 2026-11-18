@@ -1,4 +1,4 @@
-import type { RecordingSession } from "../src/shared/protocol.ts";
+import type { RecordingSession } from "../../src/shared/protocol.ts";
 
 /**
  * 最小 chrome mock：覆盖 background runtime 测试所需的 chrome API 面。

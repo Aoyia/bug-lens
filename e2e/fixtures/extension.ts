@@ -14,6 +14,8 @@ import { execFileSync } from "node:child_process";
 import {
   browserAppNameFromExecutable,
   createNativeShortcutDriver,
+  isExtensionPagePopupDriver,
+  nativeShortcutSkipReason,
   parseChromeShortcut,
   type ActionShortcut,
   type NativeShortcutDriver,
@@ -72,7 +74,7 @@ export type ExtensionFixtures = {
   mediaProbe: MediaProbe;
   serverUrl: string;
   getAppUrl: (
-    framework: "vue2" | "vue3" | "react",
+    framework: "vue2" | "vue3" | "react" | "react19",
     mode: "dev" | "prod"
   ) => string;
 };
@@ -85,6 +87,89 @@ async function activeTab(
     const tab = tabs[0];
     return tab ? { id: tab.id, url: tab.url, title: tab.title } : undefined;
   });
+}
+
+/** 从 manifest 已绑定的 _execute_action 命令解析真实快捷键（仅 native 驱动需要）。 */
+async function resolveActionShortcut(
+  serviceWorker: Worker
+): Promise<ActionShortcut> {
+  const commands = await serviceWorker.evaluate(async () =>
+    chrome.commands.getAll()
+  );
+  const command = commands.find((entry) => entry.name === "_execute_action");
+  if (!command)
+    throw new Error("ACTION_COMMAND_MISSING: 构建产物未声明 _execute_action");
+  if (!command.shortcut)
+    throw new Error(
+      "ACTION_SHORTCUT_UNBOUND: Chrome 未绑定 _execute_action 快捷键"
+    );
+  logE2e("Resolved extension action shortcut", {
+    shortcut: command.shortcut,
+  });
+  return parseChromeShortcut(command.shortcut);
+}
+
+/** 解析浏览器主进程 PID，供 System Events 精确定位测试实例（仅 native 驱动需要）。 */
+async function resolveBrowserPid(
+  context: BrowserContext
+): Promise<number | undefined> {
+  try {
+    const browser = context.browser();
+    if (!browser) return undefined;
+    const cdp = await browser.newBrowserCDPSession();
+    const info = (await cdp.send("SystemInfo.getProcessInfo")) as {
+      processInfo: Array<{ type: string; id: number }>;
+    };
+    const proc = info.processInfo.find((p) => p.type === "browser");
+    await cdp.detach();
+    return proc?.id;
+  } catch {
+    // 忽略 CDP 获取 PID 失败，安全回退到进程名查找
+    return undefined;
+  }
+}
+
+/**
+ * 构造 native（System Events 物理快捷键）驱动并在进程内只做一次预检。
+ * openActionPopup 的 native 分支与 nativeShortcutDriver fixture 共用同一套语义。
+ */
+async function createBrowserNativeShortcutDriver(
+  context: BrowserContext
+): Promise<NativeShortcutDriver> {
+  const browserAppName = browserAppNameFromExecutable(
+    chromium.executablePath()
+  );
+  const browserPid = await resolveBrowserPid(context);
+  const driver = createNativeShortcutDriver(browserAppName, browserPid);
+  if (!hasCompletedShortcutPreflight) {
+    await driver.preflight();
+    hasCompletedShortcutPreflight = true;
+  }
+  logE2e("Native shortcut driver ready", { browserAppName, browserPid });
+  return driver;
+}
+
+/**
+ * 扩展内 popup 驱动：由 service worker 调用 chrome.action.openPopup()，
+ * 由浏览器创建**真实的 Action Popup 窗口**（不是新标签页），因此
+ * chrome.tabs.query({active:true,currentWindow:true}) 仍指向目标标签页，
+ * 且完全不需要 macOS 辅助功能权限。
+ */
+async function openRealActionPopup(serviceWorker: Worker): Promise<void> {
+  const result = await serviceWorker.evaluate(async () => {
+    const action = chrome.action as unknown as {
+      openPopup?: () => Promise<void>;
+    };
+    if (typeof action.openPopup !== "function")
+      return { ok: false, error: "ACTION_OPENPOPUP_UNAVAILABLE" };
+    try {
+      await action.openPopup();
+      return { ok: true, error: "" };
+    } catch (error) {
+      return { ok: false, error: String(error) };
+    }
+  });
+  if (!result.ok) throw new Error(`ACTION_POPUP_OPEN_FAILED: ${result.error}`);
 }
 
 const LARGE_JSON_PAYLOAD = JSON.stringify({
@@ -111,6 +196,8 @@ export const test = base.extend<ExtensionFixtures>({
       "vue3-prod/bundle.js",
       "react-dev/bundle.js",
       "react-prod/bundle.js",
+      "react19-dev/bundle.js",
+      "react19-prod/bundle.js",
     ];
     const isMissingAny = requiredTargets.some(
       (target) => !fs.existsSync(path.resolve(appsDistDir, target))
@@ -329,9 +416,14 @@ export const test = base.extend<ExtensionFixtures>({
 
   getAppUrl: async ({ serverUrl }, use) => {
     const origin = new URL(serverUrl).origin;
-    await use((framework: "vue2" | "vue3" | "react", mode: "dev" | "prod") => {
-      return `${origin}/apps/${framework}/${mode}/index.html`;
-    });
+    await use(
+      (
+        framework: "vue2" | "vue3" | "react" | "react19",
+        mode: "dev" | "prod"
+      ) => {
+        return `${origin}/apps/${framework}/${mode}/index.html`;
+      }
+    );
   },
 
   context: async ({}, use) => {
@@ -446,49 +538,15 @@ export const test = base.extend<ExtensionFixtures>({
   },
 
   actionShortcut: async ({ serviceWorker }, use) => {
-    const commands = await serviceWorker.evaluate(async () =>
-      chrome.commands.getAll()
-    );
-    const command = commands.find((entry) => entry.name === "_execute_action");
-    if (!command)
-      throw new Error("ACTION_COMMAND_MISSING: 构建产物未声明 _execute_action");
-    if (!command.shortcut)
-      throw new Error(
-        "ACTION_SHORTCUT_UNBOUND: Chrome 未绑定 _execute_action 快捷键"
-      );
-    logE2e("Resolved extension action shortcut", {
-      shortcut: command.shortcut,
-    });
-    await use(parseChromeShortcut(command.shortcut));
+    await use(await resolveActionShortcut(serviceWorker));
   },
 
-  nativeShortcutDriver: async ({ context, actionShortcut }, use) => {
-    void actionShortcut;
-    const browserAppName = browserAppNameFromExecutable(
-      chromium.executablePath()
-    );
-    let browserPid: number | undefined;
-    try {
-      const browser = context.browser();
-      if (browser) {
-        const cdp = await browser.newBrowserCDPSession();
-        const info = (await cdp.send("SystemInfo.getProcessInfo")) as {
-          processInfo: Array<{ type: string; id: number }>;
-        };
-        const proc = info.processInfo.find((p) => p.type === "browser");
-        browserPid = proc?.id;
-        await cdp.detach();
-      }
-    } catch {
-      // 忽略 CDP 获取 PID 失败，安全回退到进程名查找
-    }
-    const driver = createNativeShortcutDriver(browserAppName, browserPid);
-    if (!hasCompletedShortcutPreflight) {
-      await driver.preflight();
-      hasCompletedShortcutPreflight = true;
-    }
-    logE2e("Native shortcut driver ready", { browserAppName, browserPid });
-    await use(driver);
+  nativeShortcutDriver: async ({ context }, use) => {
+    // 显式跳过（extension-page 驱动 / 跳过辅助功能预检）时，依赖系统级按键模拟的用例
+    // 在此精确跳过，而不是在 preflight() 里抛权限错误，也不是伪装成通过。
+    const skipReason = nativeShortcutSkipReason();
+    if (skipReason) test.skip(true, skipReason);
+    await use(await createBrowserNativeShortcutDriver(context));
   },
 
   nativeSaveDialogDriver: async ({ context }, use) => {
@@ -525,16 +583,7 @@ export const test = base.extend<ExtensionFixtures>({
     fs.rmSync(tmpDir, { recursive: true, force: true });
   },
 
-  openActionPopup: async (
-    {
-      context,
-      serviceWorker,
-      extensionId,
-      actionShortcut,
-      nativeShortcutDriver,
-    },
-    use
-  ) => {
+  openActionPopup: async ({ context, serviceWorker, extensionId }, use) => {
     const popupUrl = `chrome-extension://${extensionId}/popup.html`;
     const browser = context.browser();
     if (!browser)
@@ -553,13 +602,23 @@ export const test = base.extend<ExtensionFixtures>({
       return withOsInteractionLock(
         async () => {
           await targetPage.bringToFront();
-          await targetPage.waitForFunction(
-            () => document.hasFocus(),
-            undefined,
-            {
-              timeout: 2_000,
-            }
-          );
+          if (isExtensionPagePopupDriver()) {
+            // extension-page 驱动只需要「目标页是该窗口的活动标签页」（bringToFront 已保证），
+            // 不要求窗口拿到 OS 键盘焦点；hasFocus 仅作为尽力而为的稳定等待。
+            await targetPage
+              .waitForFunction(() => document.hasFocus(), undefined, {
+                timeout: 2_000,
+              })
+              .catch(() => undefined);
+          } else {
+            await targetPage.waitForFunction(
+              () => document.hasFocus(),
+              undefined,
+              {
+                timeout: 2_000,
+              }
+            );
+          }
 
           const target = await activeTab(serviceWorker);
           const targetUrl = new URL(targetPage.url());
@@ -577,31 +636,60 @@ export const test = base.extend<ExtensionFixtures>({
 
           if (await popupTargetExists())
             throw new Error(
-              "ACTION_POPUP_TARGET_INVALID: 快捷键发送前已有未关闭的 Popup"
+              "ACTION_POPUP_TARGET_INVALID: Popup 打开前已有未关闭的 Popup"
             );
 
-          logE2e("Sending native extension shortcut", {
-            shortcut: actionShortcut.raw,
-            targetTabId: target.id,
-            targetUrl: safeUrlForLog(target.url),
-          });
-          const diag = await nativeShortcutDriver.press(actionShortcut);
-          logE2e("Native extension shortcut sent", {
-            focusedWindow: diag.focusedWindow?.trim(),
-          });
-
-          // 业务核心契约：必须 100% 通过系统原生全局快捷键触发真实的浏览器原生 Action Popup 浮层。
-          // 严禁通过新建 Tab 打开 popup.html 伪造或绕过快捷键测试；若快捷键未成功唤起真实浮层，必须立即报错中断。
+          // 业务核心契约：这里必须打开浏览器的**真实 Action Popup 窗口**，
+          // 严禁用 context.newPage() 打开 popup.html 当作 tab 伪造：
+          // 扩展页作为 tab 时 chrome.tabs.query({active:true,currentWindow:true})
+          // 会指向 popup 自身的 tab，与录制目标标签页不一致（已实测确认）。
           let popup: CdpPopup;
-          try {
-            popup = await attachToPopupTarget(browserCdp, popupUrl, 2_000);
-          } catch {
-            // 若 2s 内未捕获到 Action Popup（例如冷启窗口 Cocoa 焦点首次绑定偶发抖动），显式重新置顶并物理重试一次系统级原生快捷键
-            logE2e("Retrying native shortcut once for action popup attach");
-            await targetPage.bringToFront();
-            await new Promise((resolve) => setTimeout(resolve, 300));
-            await nativeShortcutDriver.press(actionShortcut);
-            popup = await attachToPopupTarget(browserCdp, popupUrl, 5_000);
+          if (isExtensionPagePopupDriver()) {
+            // extension-page：service worker 侧 chrome.action.openPopup()，
+            // 不需要系统级按键，因此不依赖 macOS 辅助功能权限。
+            logE2e("Opening real Action Popup via chrome.action.openPopup()", {
+              targetTabId: target.id,
+              targetUrl: safeUrlForLog(target.url),
+            });
+            await openRealActionPopup(serviceWorker);
+            try {
+              popup = await attachToPopupTarget(browserCdp, popupUrl, 5_000);
+            } catch {
+              logE2e("Retrying chrome.action.openPopup once for popup attach");
+              await targetPage.bringToFront();
+              await new Promise((resolve) => setTimeout(resolve, 300));
+              await openRealActionPopup(serviceWorker);
+              popup = await attachToPopupTarget(browserCdp, popupUrl, 5_000);
+            }
+          } else {
+            // native：保留原有 System Events 物理快捷键路径（需要辅助功能权限）。
+            // 缺少权限时精确跳过，而不是把“未执行”伪装成通过。
+            const skipReason = nativeShortcutSkipReason();
+            if (skipReason) test.skip(true, skipReason);
+            const nativeShortcutDriver =
+              await createBrowserNativeShortcutDriver(context);
+            const actionShortcut = await resolveActionShortcut(serviceWorker);
+
+            logE2e("Sending native extension shortcut", {
+              shortcut: actionShortcut.raw,
+              targetTabId: target.id,
+              targetUrl: safeUrlForLog(target.url),
+            });
+            const diag = await nativeShortcutDriver.press(actionShortcut);
+            logE2e("Native extension shortcut sent", {
+              focusedWindow: diag.focusedWindow?.trim(),
+            });
+
+            try {
+              popup = await attachToPopupTarget(browserCdp, popupUrl, 2_000);
+            } catch {
+              // 若 2s 内未捕获到 Action Popup（例如冷启窗口 Cocoa 焦点首次绑定偶发抖动），显式重新置顶并物理重试一次系统级原生快捷键
+              logE2e("Retrying native shortcut once for action popup attach");
+              await targetPage.bringToFront();
+              await new Promise((resolve) => setTimeout(resolve, 300));
+              await nativeShortcutDriver.press(actionShortcut);
+              popup = await attachToPopupTarget(browserCdp, popupUrl, 5_000);
+            }
           }
           logE2e("Attached to real Action Popup", { url: popup.url });
           return popup;

@@ -235,6 +235,29 @@ async function buildTarget(framework, mode) {
         ),
       },
     });
+  } else if (framework === "react19") {
+    await esbuild.build({
+      absWorkingDir: appDir,
+      entryPoints: ["src/main.jsx"],
+      outfile: path.resolve(outDir, "bundle.js"),
+      bundle: true,
+      format: "iife",
+      jsx: "automatic",
+      jsxDev: isDev,
+      minify: !isDev,
+      sourcemap: isDev ? "inline" : false,
+      tsconfigRaw: {
+        compilerOptions: {
+          jsx: "react-jsx",
+          jsxImportSource: "react",
+        },
+      },
+      define: {
+        "process.env.NODE_ENV": JSON.stringify(
+          isDev ? "development" : "production"
+        ),
+      },
+    });
   }
 }
 
@@ -251,13 +274,15 @@ async function main() {
     buildTarget("vue3", "prod"),
     buildTarget("react", "dev"),
     buildTarget("react", "prod"),
+    buildTarget("react19", "dev"),
+    buildTarget("react19", "prod"),
   ];
 
   await Promise.all(tasks);
 
   const durationMs = Math.round(performance.now() - startTime);
   console.log(
-    `[build-fixture-apps] Successfully built 6 fixture targets in ${durationMs}ms.`
+    `[build-fixture-apps] Successfully built ${tasks.length} fixture targets in ${durationMs}ms.`
   );
 }
 

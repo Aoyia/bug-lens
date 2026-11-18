@@ -22,6 +22,16 @@ const TARGETS = [
     mode: "prod",
     expectedTitle: "React 18 Todo Application",
   },
+  {
+    framework: "react19",
+    mode: "dev",
+    expectedTitle: "React 19 Todo Application",
+  },
+  {
+    framework: "react19",
+    mode: "prod",
+    expectedTitle: "React 19 Todo Application",
+  },
 ];
 
 async function runVerification() {
@@ -187,6 +197,8 @@ async function runVerification() {
           v3PropsKeys: v3?.props ? Object.keys(v3.props) : null,
           reactHostFile: hostFiber?._debugSource?.fileName,
           reactHostLine: hostFiber?._debugSource?.lineNumber,
+          // React 19 移除了 _debugSource，改用 _debugStack 承载源码定位信息
+          hasReactDebugStack: Boolean(compFiber?._debugStack),
           reactCompName: compFiber?.type?.name,
           reactHooksCount,
         };
@@ -221,6 +233,17 @@ async function runVerification() {
               probeData.reactHooksCount >= 4
             : probeData.reactCompName === "TodoItem" ||
               typeof probeData.reactCompName === "string";
+      } else if (target.framework === "react19") {
+        // React 19 的 fiber 调试信息形态不同：_debugSource 已移除，改用 _debugStack；
+        // dev 断言组件名 + hooks 链 + 源码定位通道同时存在，prod 断言组件名与 hooks 链。
+        probeValid =
+          target.mode === "dev"
+            ? probeData.reactCompName === "TodoItem" &&
+              probeData.reactHooksCount >= 4 &&
+              probeData.hasReactDebugStack === true
+            : typeof probeData.reactCompName === "string" &&
+              probeData.reactCompName.length > 0 &&
+              probeData.reactHooksCount >= 4;
       }
 
       const isSuccess =
@@ -316,7 +339,7 @@ async function runVerification() {
   }
 
   console.log(
-    "\n[verify-fixture-apps] 🟢 ALL 6 TARGETS VERIFIED CLEAN 100% IN REAL CHROMIUM BROWSER!"
+    `\n[verify-fixture-apps] 🟢 ALL ${TARGETS.length} TARGETS VERIFIED CLEAN 100% IN REAL CHROMIUM BROWSER!`
   );
 }
 

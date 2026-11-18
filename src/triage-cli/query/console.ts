@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { classifyConsoleNoise } from "../../domain/console-noise.ts";
 import type { LoadedSessionPack } from "../pack/session-pack.ts";
 import type { ConsoleEntry } from "../pack/types.ts";
 
@@ -12,6 +13,7 @@ export interface ConsoleQueryOptions {
   limit?: number;
   unfold?: boolean;
   minCount?: number;
+  includeNoise?: boolean;
 }
 
 export interface ConsoleQueryItem {
@@ -28,6 +30,8 @@ export interface ConsoleQueryItem {
   lastRelativeMs: number;
   timeRangeMs: [number, number];
   signature?: string;
+  isNoise?: boolean;
+  noiseCategory?: string;
 }
 
 export function normalizeConsoleTemplate(text: string): string {
@@ -97,6 +101,8 @@ export function queryConsole(
 ): {
   totalEntries: number;
   matchedCount: number;
+  hiddenNoiseCount: number;
+  hiddenNoiseSignatureCount: number;
   folded: boolean;
   offset: number;
   limit: number;
@@ -131,7 +137,12 @@ export function queryConsole(
     sourceMapped?: string;
     stackStr?: string;
     signature: string;
+    isNoise?: boolean;
+    noiseCategory?: string;
   }> = [];
+
+  let hiddenNoiseCount = 0;
+  const hiddenNoiseSignatures = new Set<string>();
 
   entries.forEach((entry: ConsoleEntry, index: number) => {
     const level = (entry.level ?? "log").toLowerCase();
@@ -183,18 +194,37 @@ export function queryConsole(
         text,
       });
 
+    const repeatCount = Math.max(1, entry.repeatCount ?? 1);
+    const noiseCls = entry.isNoise
+      ? { isNoise: true, category: entry.noiseCategory ?? "devtools-plugin" }
+      : classifyConsoleNoise({
+          text,
+          level,
+          url: entry.url,
+          source: entry.source,
+        });
+
+    if (noiseCls.isNoise && !options.includeNoise) {
+      hiddenNoiseCount += repeatCount;
+      hiddenNoiseSignatures.add(signature);
+      return;
+    }
+
     rawMatched.push({
       entry,
       index,
       relMs,
       lastRelMs,
-      repeatCount: Math.max(1, entry.repeatCount ?? 1),
+      repeatCount,
       level,
       text,
       loc,
       sourceMapped,
       stackStr,
       signature,
+      ...(noiseCls.isNoise
+        ? { isNoise: true, noiseCategory: noiseCls.category }
+        : {}),
     });
   });
 
@@ -229,6 +259,9 @@ export function queryConsole(
             lastRelativeMs: tsRel,
             timeRangeMs: [tsRel, tsRel],
             signature: m.signature,
+            ...(m.isNoise
+              ? { isNoise: true, noiseCategory: m.noiseCategory }
+              : {}),
           });
         }
       } else {
@@ -248,6 +281,9 @@ export function queryConsole(
           lastRelativeMs: lastMs,
           timeRangeMs: [ms, lastMs],
           signature: m.signature,
+          ...(m.isNoise
+            ? { isNoise: true, noiseCategory: m.noiseCategory }
+            : {}),
         });
       }
     }
@@ -272,6 +308,9 @@ export function queryConsole(
           lastRelativeMs: lastMs,
           timeRangeMs: [firstMs, lastMs],
           signature: m.signature,
+          ...(m.isNoise
+            ? { isNoise: true, noiseCategory: m.noiseCategory }
+            : {}),
         });
       } else {
         existing.count += m.repeatCount;
@@ -311,6 +350,8 @@ export function queryConsole(
   return {
     totalEntries: pack.getConsoleTotalCount(),
     matchedCount: finalItems.length,
+    hiddenNoiseCount,
+    hiddenNoiseSignatureCount: hiddenNoiseSignatures.size,
     folded: !options.unfold,
     offset,
     limit,
@@ -335,8 +376,11 @@ export function formatConsoleItem(
     timesStr = `[x${count} times | ${formatRelativeMs(firstMs)}..${formatRelativeMs(lastMs)}]`;
   }
 
+  const noiseTag = item.isNoise
+    ? ` [NOISE:${item.noiseCategory ?? "plugin"}]`
+    : "";
   const idStr = String(item.index).padStart(3, "0");
-  let line = `[#${idStr}] [${levelTag}] ${timesStr} ${item.text}`;
+  let line = `[#${idStr}] [${levelTag}]${noiseTag} ${timesStr} ${item.text}`;
 
   const indent = "       "; // 7 spaces to align under [#042]
   if (item.sourceMapped) {

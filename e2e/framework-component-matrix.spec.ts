@@ -194,7 +194,7 @@ class ShadowProbe {
  * 驱动单个框架场景的端到端截图导出与 ZIP 捕获
  */
 async function captureAndExportScenario(
-  framework: "vue2" | "vue3" | "react",
+  framework: "vue2" | "vue3" | "react" | "react19",
   mode: "dev" | "prod",
   {
     context,
@@ -204,7 +204,7 @@ async function captureAndExportScenario(
     context: import("@playwright/test").BrowserContext;
     serviceWorker: import("@playwright/test").Worker;
     getAppUrl: (
-      framework: "vue2" | "vue3" | "react",
+      framework: "vue2" | "vue3" | "react" | "react19",
       mode: "dev" | "prod"
     ) => string;
   }
@@ -645,5 +645,77 @@ test.describe("Bug Lens Chrome Extension E2E MATRIX: 6 大前端框架正交测�
     expect(aiPromptText).toMatch(
       /未捕获到物理源码路径|No physical source paths captured/
     );
+  });
+
+  // -------------------------------------------------------------
+  // Scenario 7: React 19 Dev + Cascade Pruning + UI Wrapper Parent Penetration
+  // -------------------------------------------------------------
+  test("MATRIX-007 (react19-dev): React 19 开发模式 - 组件树/Hooks 提取、级联裁剪 (cascade.json pruned) 与 AI Prompt", async ({
+    context,
+    serviceWorker,
+    getAppUrl,
+  }) => {
+    const { unzipped, envJson, domJson, aiPromptText } =
+      await captureAndExportScenario("react19", "dev", {
+        context,
+        serviceWorker,
+        getAppUrl,
+      });
+
+    expect(envJson.frameworkComponentStates).toBeDefined();
+    expect(envJson.vueComponentStates).toEqual(
+      envJson.frameworkComponentStates
+    );
+
+    const todoState = envJson.frameworkComponentStates.find(
+      (s: any) =>
+        s.componentFile?.includes("TodoItem") ||
+        s.componentName?.includes("TodoItem")
+    );
+    expect(todoState).toBeDefined();
+    expect(todoState.framework).toBe("react");
+    expect(todoState.props?.title).toBeTruthy();
+    expect(todoState.props?.secretToken).toBe("[REDACTED_SENSITIVE_KEY]");
+    expect(todoState.props?.authPassword).toBe("[REDACTED_SENSITIVE_KEY]");
+    expect(todoState.data?.useState_0).toBe(0);
+    expect(todoState.data?.useState_2).toBe("[REDACTED_SENSITIVE_KEY]");
+
+    const anchorOrLeaf = [
+      ...(domJson.anchors ?? []),
+      ...(domJson.leaves ?? []),
+    ].find((n: any) => n.componentName?.includes("TodoItem"));
+    expect(anchorOrLeaf).toBeDefined();
+    expect(aiPromptText).toContain("🎯 源码物理定位");
+
+    if (unzipped["cascade.json"]) {
+      const cascade = JSON.parse(strFromU8(unzipped["cascade.json"]));
+      expect(cascade.meta?.pruned).toBe(true);
+      expect(cascade.rules?.length ?? 0).toBeLessThanOrEqual(
+        cascade.meta?.totalRuleCount ?? cascade.rules?.length ?? 0
+      );
+    }
+  });
+
+  // -------------------------------------------------------------
+  // Scenario 8: React 19 Prod
+  // -------------------------------------------------------------
+  test("MATRIX-008 (react19-prod): React 19 生产模式 - 压缩组件名保留、Hooks 与敏感脱敏", async ({
+    context,
+    serviceWorker,
+    getAppUrl,
+  }) => {
+    const { envJson } = await captureAndExportScenario("react19", "prod", {
+      context,
+      serviceWorker,
+      getAppUrl,
+    });
+
+    expect(envJson.frameworkComponentStates.length).toBeGreaterThan(0);
+    const compWithProps = envJson.frameworkComponentStates.find(
+      (s: any) => s.props && (s.props.secretToken || s.props.authPassword)
+    );
+    expect(compWithProps).toBeDefined();
+    expect(compWithProps.props.secretToken).toBe("[REDACTED_SENSITIVE_KEY]");
+    expect(compWithProps.props.authPassword).toBe("[REDACTED_SENSITIVE_KEY]");
   });
 });

@@ -13,6 +13,7 @@ export function runQueryConsoleTool(args: {
   limit?: number;
   unfold?: boolean;
   minCount?: number;
+  includeNoise?: boolean;
   format?: "text" | "json";
   maxChars?: number;
 }): string {
@@ -61,6 +62,7 @@ export function runQueryConsoleTool(args: {
     limit: args.limit,
     unfold: args.unfold,
     minCount: args.minCount,
+    includeNoise: args.includeNoise,
   });
 
   if (args.format === "json") {
@@ -77,6 +79,11 @@ export function runQueryConsoleTool(args: {
     for (const item of res.items) {
       lines.push(formatConsoleItem(item, { unfold: args.unfold }));
     }
+  }
+  if (res.hiddenNoiseCount > 0) {
+    lines.push(
+      `\nNote: ${res.hiddenNoiseCount} benign devtools/extension noise entries (${res.hiddenNoiseSignatureCount} unique signatures) hidden by default. Pass \`--includeNoise\` to inspect.`
+    );
   }
   const remaining = res.matchedCount - (res.offset + res.items.length);
   if (remaining > 0) {

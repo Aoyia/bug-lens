@@ -14,6 +14,70 @@
 
 如果看到 `MACOS_ACCESSIBILITY_PERMISSION_REQUIRED` 或“`osascript` 不允许发送按键 `(1002)`”，说明当前启动应用的权限仍未生效。可尝试关闭后重新开启权限，或删除系统设置中的旧条目再重新添加。
 
+### 跳过辅助功能预检（可选）
+
+`global-setup.ts` 的预检保护的是**系统级键盘模拟**（通过 `System Events` 发送 `⇧⌘Y` 唤起真实 Action Popup），不是 Playwright/Chromium 本身：headed Chromium 启动、加载扩展、页面操作都不需要该权限。
+
+```bash
+BUG_LENS_SKIP_ACCESSIBILITY_PREFLIGHT=1 npx playwright test e2e/options-preview.spec.ts
+```
+
+- 默认行为不变：不设置该变量时仍强制预检，未授权直接中断。
+- 设置后 global-setup 打印醒目告警并列出依赖原生快捷键的 spec；这些用例会在 `nativeShortcutDriver` fixture 中被 `test.skip`（不会计为通过），其余用例照常运行。
+- 需要观察真实失败时，再叠加 `BUG_LENS_FORCE_RUN_SHORTCUT_TESTS=1`，此时依赖快捷键的用例不会被跳过，会以 `NATIVE_SHORTCUT_PREFLIGHT_FAILED ... (-10004)` 之类的错误失败。
+- 旧变量 `SKIP_ACCESSIBILITY_CHECK` 仍然有效，是新变量的别名。
+
+### Action Popup 驱动：`BUG_LENS_POPUP_DRIVER`
+
+`openActionPopup` 有两种驱动方式，通过环境变量切换（调用方签名不变）：
+
+| 取值             | 行为                                                                                         | 是否需要辅助功能权限 | 用途                                         |
+| ---------------- | -------------------------------------------------------------------------------------------- | -------------------- | -------------------------------------------- |
+| `native`（默认） | `System Events` 物理快捷键（`⇧⌘Y`）唤起真实 Action Popup                                     | 是                   | **完整验收**：录制、导出、框架矩阵等全部用例 |
+| `extension-page` | service worker 侧 `chrome.action.openPopup()` 打开真实 Action Popup，再由 CDP 驱动弹层内控件 | 否                   | 仅**降级冒烟**（见下方能力边界）             |
+
+```bash
+# 只做无权限冒烟
+BUG_LENS_POPUP_DRIVER=extension-page npx playwright test e2e/recording-framework-matrix.spec.ts --grep "vue2"
+```
+
+#### `extension-page` 的真实能力边界
+
+**能验证什么**（已实测通过）：
+
+- Action Popup 是**真实 Action Popup 窗口**（`chrome.action.openPopup()` 产生 `type=page` 的 `popup.html` target），不是 `context.newPage()` 打开的新标签页；
+- `[data-testid="record-panel"]` 出现；
+- 弹层内 `chrome.tabs.query({active:true,currentWindow:true})` 正确解析为**目标 app tab**（而非 popup 自身）；
+- 录制确实启动：目标页出现 `#__wbr_issue_btn__`，页面录制控件（REC 计时器）存在。
+
+**不能验证什么**：
+
+- `chrome.tabCapture.getMediaStreamId()` 会被 Chrome 的 activeTab 安全模型拒绝，原始报错：
+
+  ```text
+  Extension has not been invoked for the current page (see activeTab permission). Chrome pages cannot be captured.
+  ```
+
+- 会话因此降级为**无视频流**录制；凡经过 `mediaProbe.waitForActive`（要求 `tabCapture` 为 `active`）的录制/导出用例都会在该步失败，例如 `recording-framework-matrix.spec.ts` 会在 `waitForActive` 处抛 `MEDIA_STREAM_ID_FAILED`。
+
+**结论**：`extension-page` 只能作为「无辅助功能权限环境下的降级冒烟」，**不能替代 native 驱动做完整验收**；它不会、也无法让矩阵类完整录制用例跑通。
+
+**为什么程序化授予 activeTab 无解**（4 组对照 + 1 组按键注入，全部为实测）：
+
+| 尝试                                                                                      | 结果                                                                               |
+| ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| service worker 直接调 `getMediaStreamId`                                                  | 同样报错                                                                           |
+| `chrome.action.openPopup()` 之后调用（openPopup 不授予 activeTab）                        | 同样报错                                                                           |
+| `chrome.scripting.executeScript` 成功之后调用（已有 `http://*/*` host permission 也无效） | 同样报错                                                                           |
+| 在扩展页内做 Playwright 受信任点击之后再调用                                              | 同样报错                                                                           |
+| CDP 注入 `Meta+Shift+Y` / `Alt+R`                                                         | 不经过浏览器 accelerator 分支：popup target 数为 0，无 session，activeTab 仍未授予 |
+
+即：`tabCapture` 要求扩展被**真实用户手势调用**（工具栏点击或 OS 级快捷键），只能由 `native` 驱动提供。
+
+#### 各驱动下的跳过策略
+
+`native` 驱动不可用（或显式 `BUG_LENS_SKIP_ACCESSIBILITY_PREFLIGHT=1`）时，`shortcut-recording.spec.ts`（依赖 `nativeShortcutDriver`）会被 `test.skip` 精确跳过；`export.spec.ts` 的 `EXP-001-native-save` 通过 `nativeSaveDialogDriver.isAvailable()` 运行时判定并自行跳过。`BUG_LENS_POPUP_DRIVER=extension-page` 时，只经 `openActionPopup` 的用例不再跳过（它们仍会因上述 tabCapture 限制在深层失败，这是有意暴露的真实失败，不是通过）。
+
 Playwright 当前使用 `Google Chrome for Testing`。如果改用其他浏览器 channel，可通过 `E2E_BROWSER_APP_NAME` 指定 macOS 中显示的进程名。
 
 测试执行期间 Chrome 会短暂成为前台应用，并自动发送一次扩展快捷键。请不要同时运行其他依赖桌面焦点的自动化任务。

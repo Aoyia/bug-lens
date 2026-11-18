@@ -192,10 +192,139 @@ describe("Framework State Capture", () => {
         (result!.rootComponent?.props as any).password,
         "[REDACTED:sensitive-store-key]"
       );
+      // 隔离世界读不到页面 __REACT_DEVTOOLS_GLOBAL_HOOK__，版本必须是 0（未知），
+      // 绝不能硬编码成 18 —— 否则 React 19 页面会被标成 18。
+      assert.equal(result!.rootComponent?.version, 0);
+    });
+
+    test("reads React major from DevTools hook renderer when the hook is visible", () => {
+      mockWindow.__REACT_DEVTOOLS_GLOBAL_HOOK__ = {
+        renderers: new Map([
+          [1, { version: "19.2.8", rendererPackageName: "react-dom" }],
+        ]),
+      };
+      const appFiber = {
+        tag: 0,
+        type: { displayName: "App" },
+        memoizedProps: {},
+        return: null,
+        child: null,
+        sibling: null,
+      };
+      const hostRootFiber = {
+        tag: 3,
+        return: null,
+        child: appFiber,
+        sibling: null,
+      };
+      appFiber.return = hostRootFiber;
+      mockDocument.body.__reactFiber$hook = hostRootFiber;
+
+      const result = captureReactTree();
+      assert.ok(result);
+      assert.equal(result!.rootComponent?.version, 19);
     });
   });
 
   describe("captureFrameworkStateWithMainProbe", () => {
+    test("isolated React snapshot with unknown version (0) must not short-circuit the main-world probe", async () => {
+      // 隔离世界能命中 fiber（理论边界），但读不到 DevTools hook → 版本必然未知(0)
+      const appFiber = {
+        tag: 0,
+        type: { displayName: "App" },
+        memoizedProps: {},
+        return: null,
+        child: null,
+        sibling: null,
+      };
+      const hostRootFiber = {
+        tag: 3,
+        return: null,
+        child: appFiber,
+        sibling: null,
+      };
+      appFiber.return = hostRootFiber;
+      mockDocument.body = {
+        tagName: "BODY",
+        parentElement: null,
+        __reactFiber$unknown: hostRootFiber,
+      };
+      mockDocument.querySelector = () => null;
+
+      const btn = { tagName: "BUTTON" } as unknown as Element;
+      let probeCalls = 0;
+      const state = await captureFrameworkStateWithMainProbe({
+        sessionId: "s-react-version-rescue",
+        trigger: "start",
+        privacyMode: "safe",
+        targetElement: btn,
+        probeFn: async () => {
+          probeCalls += 1;
+          return new Map([
+            [
+              btn,
+              {
+                framework: "react",
+                version: 19,
+                componentName: "TodoList",
+                componentPath: ["App", "TodoList"],
+                componentFile: "src/components/TodoList.jsx",
+              },
+            ],
+          ]);
+        },
+      });
+
+      assert.equal(probeCalls, 1, "React 版本未知时必须继续跑主世界探针");
+      assert.equal(state.snapshot?.targetComponent?.version, 19);
+      assert.equal(state.snapshot?.rootComponent?.version, 19);
+      assert.equal(state.snapshot?.targetComponent?.componentName, "TodoList");
+    });
+
+    test("isolated React snapshot with a known version still short-circuits the probe", async () => {
+      mockWindow.__REACT_DEVTOOLS_GLOBAL_HOOK__ = {
+        renderers: new Map([
+          [1, { version: "19.0.0", rendererPackageName: "react-dom" }],
+        ]),
+      };
+      const appFiber = {
+        tag: 0,
+        type: { displayName: "App" },
+        memoizedProps: {},
+        return: null,
+        child: null,
+        sibling: null,
+      };
+      const hostRootFiber = {
+        tag: 3,
+        return: null,
+        child: appFiber,
+        sibling: null,
+      };
+      appFiber.return = hostRootFiber;
+      mockDocument.body = {
+        tagName: "BODY",
+        parentElement: null,
+        __reactFiber$known: hostRootFiber,
+      };
+      mockDocument.querySelector = () => null;
+
+      let probeCalls = 0;
+      const state = await captureFrameworkStateWithMainProbe({
+        sessionId: "s-react-version-known",
+        trigger: "start",
+        privacyMode: "safe",
+        targetElement: { tagName: "BUTTON" } as unknown as Element,
+        probeFn: async () => {
+          probeCalls += 1;
+          return new Map();
+        },
+      });
+
+      assert.equal(probeCalls, 0, "版本已知时不应重复调用主世界探针");
+      assert.equal(state.snapshot?.rootComponent?.version, 19);
+    });
+
     test("populates FrameworkSnapshot via main-world probe when isolated detectors find nothing", async () => {
       const btn = { tagName: "BUTTON", id: "submit-btn" } as unknown as Element;
       mockDocument.body = { tagName: "BODY", parentElement: null };
@@ -342,6 +471,78 @@ describe("Framework State Capture", () => {
       );
       assert.equal(strictSnap?.rootComponent?.state?.title, "[REDACTED]");
       assert.equal(strictSnap?.rootComponent?.state?.count, 3);
+    });
+  });
+
+  describe("probeEntryToFrameworkSnapshot 版本号来源", () => {
+    test("探针给出 React 19 时全链路标注 19，不再硬编码 18", () => {
+      const snapshot = probeEntryToFrameworkSnapshot(
+        {
+          framework: "react",
+          version: 19,
+          componentName: "TodoList",
+          componentPath: ["App", "TodoList"],
+          componentFile: "src/components/TodoList.jsx",
+          componentLine: 42,
+          parentComponents: [{ componentName: "App" }],
+        },
+        "safe"
+      );
+      assert.ok(snapshot);
+      assert.equal(snapshot!.targetComponent?.version, 19);
+      assert.equal(snapshot!.rootComponent?.version, 19);
+      assert.equal(snapshot!.rootComponent?.componentName, "App");
+      assert.equal(snapshot!.parentChain.length, 0);
+      assert.equal(
+        snapshot!.targetComponent?.componentFile,
+        "src/components/TodoList.jsx"
+      );
+      assert.equal(snapshot!.targetComponent?.componentLine, 42);
+    });
+
+    test("探针未给出具体版本时用 0 表示未知，不伪造 18/3", () => {
+      const reactSnap = probeEntryToFrameworkSnapshot(
+        { framework: "react", componentName: "CheckoutForm" },
+        "safe"
+      );
+      assert.equal(reactSnap?.targetComponent?.version, 0);
+
+      const vueSnap = probeEntryToFrameworkSnapshot(
+        { framework: "vue", componentName: "UserCard" },
+        "safe"
+      );
+      assert.equal(vueSnap?.targetComponent?.version, 0);
+    });
+
+    test("探针结果经 captureFrameworkStateWithMainProbe 归一化后保留探测版本", async () => {
+      const btn = { tagName: "BUTTON" } as unknown as Element;
+      mockDocument.querySelector = () => null;
+      const state = await captureFrameworkStateWithMainProbe({
+        sessionId: "s-version",
+        trigger: "interaction",
+        privacyMode: "safe",
+        targetElement: btn,
+        probeFn: async () =>
+          new Map([
+            [
+              btn,
+              {
+                framework: "react",
+                version: 19,
+                componentName: "TodoList",
+                componentPath: ["App", "TodoList"],
+                componentFile: "src/components/TodoList.jsx",
+                componentLine: 42,
+              },
+            ],
+          ]),
+      });
+      assert.equal(state.snapshot?.targetComponent?.version, 19);
+      assert.equal(
+        state.snapshot?.targetComponent?.componentFile,
+        "src/components/TodoList.jsx"
+      );
+      assert.equal(state.snapshot?.targetComponent?.componentLine, 42);
     });
   });
 });

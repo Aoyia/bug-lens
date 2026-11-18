@@ -238,8 +238,14 @@ export function formatCascadeOverview(cascade?: CascadeIndex): string[] {
   for (const r of rules) rulesMap.set(r.id, r);
 
   const lines: string[] = [];
+  const ruleLabel =
+    cascade.meta?.pruned &&
+    typeof cascade.meta.totalRuleCount === "number" &&
+    cascade.meta.totalRuleCount > rules.length
+      ? `${rules.length} matched rules (pruned from ${cascade.meta.totalRuleCount})`
+      : `${rules.length} rules`;
   lines.push(
-    `\n## CSS Cascade Index (${sheets.length} stylesheets, ${rules.length} rules, ${elements.length} indexed elements)`
+    `\n## CSS Cascade Index (${sheets.length} stylesheets, ${ruleLabel}, ${elements.length} indexed elements)`
   );
 
   const activeSheetIds = new Set<string>();

@@ -14,6 +14,7 @@ export function runQueryNetworkTool(args: {
   urlContains?: string;
   method?: string;
   type?: string;
+  apiOnly?: boolean;
   offset?: number;
   limit?: number;
   format?: "text" | "json";
@@ -64,6 +65,7 @@ export function runQueryNetworkTool(args: {
     urlContains: args.urlContains,
     method: args.method,
     type: args.type,
+    apiOnly: args.apiOnly,
     offset: args.offset,
     limit: args.limit,
   });
@@ -82,6 +84,15 @@ export function runQueryNetworkTool(args: {
     for (const row of res.items) {
       lines.push(`- ${formatNetworkRow(row)}`);
     }
+  }
+  if (res.hiddenStaticCount > 0) {
+    lines.push(
+      `\nNote: ${res.hiddenStaticCount} benign static asset entries excluded by \`--apiOnly\`.`
+    );
+  } else if (res.staticNoBodyCount > 0) {
+    lines.push(
+      `\nNote: ${res.staticNoBodyCount} benign 0B/cached static entries deprioritized to the end. Pass \`--apiOnly\` to exclude static assets.`
+    );
   }
   const remaining = res.matchedCount - (res.offset + res.items.length);
   if (remaining > 0) {

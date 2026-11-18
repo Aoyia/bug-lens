@@ -1,3 +1,7 @@
+import {
+  isBenignStaticNoBodyRequest,
+  isStaticAssetCandidate,
+} from "../../domain/network-filter.ts";
 import { formatDuration, formatRelativeTime } from "../format/time.ts";
 import type { LoadedSessionPack } from "../pack/session-pack.ts";
 import type { NetworkDetailEntry, NetworkEntry } from "../pack/types.ts";
@@ -13,6 +17,7 @@ export interface NetworkQueryOptions {
   urlContains?: string;
   method?: string;
   type?: string;
+  apiOnly?: boolean;
   offset?: number;
   limit?: number;
 }
@@ -30,6 +35,8 @@ export interface NetworkSummaryRow {
   byteLength?: number;
   hasBody: boolean;
   isFailure: boolean;
+  isStaticAsset?: boolean;
+  isBenignStatic?: boolean;
   isBizError?: boolean;
   bizErrorCode?: string | number;
   bizErrorMessage?: string;
@@ -364,6 +371,8 @@ export function queryNetwork(
 ): {
   totalEntries: number;
   matchedCount: number;
+  hiddenStaticCount: number;
+  staticNoBodyCount: number;
   offset: number;
   limit: number;
   items: NetworkSummaryRow[];
@@ -383,6 +392,8 @@ export function queryNetwork(
     : [];
 
   const matched: NetworkSummaryRow[] = [];
+  let hiddenStaticCount = 0;
+  let staticNoBodyCount = 0;
 
   for (const entry of entries) {
     if (urlNeedle && !entry.url.toLowerCase().includes(urlNeedle)) continue;
@@ -416,6 +427,34 @@ export function queryNetwork(
       Boolean(entry.response?.bodyHash) ||
       typeof entry.response?.body === "string" ||
       entry.response?.bodyStatus === "captured";
+    const isStaticAsset =
+      entry.isStaticAsset ??
+      isStaticAssetCandidate({
+        url: entry.url,
+        type: entry.type,
+        mimeType: entry.response?.mimeType,
+      });
+    const isBenignStatic =
+      entry.isBenignStatic ??
+      isBenignStaticNoBodyRequest({
+        url: entry.url,
+        type: entry.type,
+        mimeType: entry.response?.mimeType,
+        status: st,
+        byteLength: entry.response?.byteLength,
+        bodyStatus: entry.response?.bodyStatus,
+        hasBody,
+        isFailure,
+      });
+
+    if (isBenignStatic) {
+      staticNoBodyCount += 1;
+    }
+
+    if (options.apiOnly && !isFailure && (isStaticAsset || isBenignStatic)) {
+      hiddenStaticCount += 1;
+      continue;
+    }
 
     matched.push({
       id: entry.id,
@@ -430,16 +469,21 @@ export function queryNetwork(
       byteLength: entry.response?.byteLength,
       hasBody,
       isFailure,
+      ...(isStaticAsset ? { isStaticAsset: true } : {}),
+      ...(isBenignStatic ? { isBenignStatic: true } : {}),
       isBizError: bizInfo.isBizError ? true : undefined,
       bizErrorCode: bizInfo.code,
       bizErrorMessage: bizInfo.message,
     });
   }
 
-  // 当未显式过滤状态时，失败请求排在前面以便快速发现异常，其余按时间顺序
+  // 当未显式过滤状态时，失败请求排最前，API 请求居中，0B 良性静态资源沉底
   if (!options.status && !options.bizError) {
     matched.sort((a, b) => {
       if (a.isFailure !== b.isFailure) return a.isFailure ? -1 : 1;
+      const aStatic = Boolean(a.isBenignStatic);
+      const bStatic = Boolean(b.isBenignStatic);
+      if (aStatic !== bStatic) return aStatic ? 1 : -1;
       return (a.relativeMs ?? 0) - (b.relativeMs ?? 0);
     });
   }
@@ -450,6 +494,8 @@ export function queryNetwork(
   return {
     totalEntries: entries.length,
     matchedCount: matched.length,
+    hiddenStaticCount,
+    staticNoBodyCount,
     offset,
     limit,
     items: matched.slice(offset, offset + limit),
@@ -489,11 +535,10 @@ export interface InspectedRequestResult {
   bizError?: BizErrorInfo;
 }
 
-export function inspectNetworkRequest(
+export function findNetworkEntry(
   pack: LoadedSessionPack,
-  requestId: string,
-  options: InspectRequestOptions = {}
-): InspectedRequestResult {
+  requestId: string
+): NetworkEntry {
   const entries = pack.getNetworkEntries();
   const entry =
     entries.find((e) => e.id === requestId) ??
@@ -504,6 +549,15 @@ export function inspectNetworkRequest(
       `REQUEST_NOT_FOUND: No network entry found matching "${requestId}". Call query_network first to list available entry IDs.`
     );
   }
+  return entry;
+}
+
+export function inspectNetworkRequest(
+  pack: LoadedSessionPack,
+  requestId: string,
+  options: InspectRequestOptions = {}
+): InspectedRequestResult {
+  const entry = findNetworkEntry(pack, requestId);
 
   const includeSet = new Set(
     options.include && options.include.length > 0

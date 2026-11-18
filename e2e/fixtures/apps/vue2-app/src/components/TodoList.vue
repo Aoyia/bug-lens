@@ -16,15 +16,42 @@
         @toggle="toggleTodo"
       />
     </div>
+    <div
+      class="ui-wrapper-sandbox"
+      style="
+        margin-top: 16px;
+        padding-top: 12px;
+        border-top: 1px dashed #cbd5e1;
+      "
+    >
+      <div style="display: flex; gap: 8px; align-items: center">
+        <ElButton test-id="el-wrapper-btn" @click="triggerAsyncSave">
+          Save Draft
+        </ElButton>
+        <ElButton test-id="open-portal-btn" @click="portalOpen = !portalOpen">
+          Open Portal
+        </ElButton>
+        <span data-testid="async-result">{{ saveStatus }}</span>
+      </div>
+    </div>
+    <ElDialog
+      :visible="portalOpen"
+      :title="`Vue 2 Body Portal Overlay (filter=${listFilter})`"
+      @close="portalOpen = false"
+    />
   </div>
 </template>
 
 <script>
+import ElButton from "./ElButton.vue";
+import ElDialog from "./ElDialog.vue";
 import TodoItem from "./TodoItem.vue";
 
 export default {
   name: "TodoList",
   components: {
+    ElButton,
+    ElDialog,
     TodoItem,
   },
   props: {
@@ -52,6 +79,8 @@ export default {
     return {
       listFilter: "all",
       adminKey: "secret-admin-key-vue2-list-999",
+      portalOpen: false,
+      saveStatus: "idle",
       todos: this.initialTodos.slice(),
     };
   },
@@ -61,6 +90,12 @@ export default {
       if (item) {
         item.completed = !item.completed;
       }
+    },
+    triggerAsyncSave() {
+      this.saveStatus = "saving";
+      setTimeout(() => {
+        this.saveStatus = "Saved OK (settled)";
+      }, 420);
     },
   },
 };

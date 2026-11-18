@@ -438,3 +438,96 @@ test("issue-editor: 方案A 预期展示为胶囊 Pill 并支持一键移除", a
     (globalThis as any).requestAnimationFrame = prevRaf;
   }
 });
+
+test("issue-editor: tag-only 胶囊支持点击展开延迟内联编辑并升级为 explicit", async () => {
+  const { IssueEditor } =
+    await import("../src/entrypoints/content/collector/issue-editor.ts");
+  const dom = createEditorDomMock();
+  const prevDoc = (globalThis as any).document;
+  const prevWin = (globalThis as any).window;
+  const prevRaf = (globalThis as any).requestAnimationFrame;
+  (globalThis as any).document = dom.document;
+  (globalThis as any).window = dom.window;
+  (globalThis as any).requestAnimationFrame = (fn: any) => fn();
+
+  try {
+    let submitted: any;
+    const editor = new IssueEditor({
+      getSession: () => ({ sessionId: "test-session", nonce: "nonce-inline" }),
+      onClose: () => {},
+      onReselect: () => {},
+      onStopAfterCommit: () => {},
+      isMac: true,
+    });
+
+    const originalSend = (globalThis as any).chrome?.runtime?.sendMessage;
+    if (!(globalThis as any).chrome) (globalThis as any).chrome = {};
+    if (!(globalThis as any).chrome.runtime)
+      (globalThis as any).chrome.runtime = {};
+    (globalThis as any).chrome.runtime.sendMessage = async (msg: any) => {
+      if (msg?.type === "issue-scene/commit") {
+        submitted = msg.payload?.narrative;
+      }
+      return { ok: true };
+    };
+
+    try {
+      editor.open({
+        id: "scene-tag-inline",
+        page: { viewport: { width: 1000, height: 800 } },
+        annotation: { point: { xRatio: 0.5, yRatio: 0.5 } },
+        narrative: {
+          expected: { text: "", tags: ["无响应"], confidence: "tag-only" },
+        },
+      });
+
+      const pill = dom.created.find(
+        (el) => "data-issue-expected-pill" in el.attrs
+      );
+      assert.ok(pill, "仅有 tags 时也应渲染预期胶囊");
+      const editBtn = dom.created.find(
+        (el) => "data-issue-expected-edit" in el.attrs
+      );
+      assert.ok(editBtn, "应存在点击编辑期望按钮");
+
+      // 点击后展开懒加载内联输入框
+      editBtn.listeners["click"]?.[0]?.({ stopPropagation: () => {} });
+      const inlineInput = dom.created.find(
+        (el) => "data-issue-expected-inline" in el.attrs
+      );
+      assert.ok(inlineInput, "点击编辑应按需生成 inline input");
+      inlineInput.value = "点击后应弹出确认弹窗";
+      const enterEv = {
+        key: "Enter",
+        isComposing: false,
+        preventDefault: () => {},
+        stopPropagation: () => {},
+      };
+      for (const fn of inlineInput.listeners["keydown"] || []) {
+        fn(enterEv);
+      }
+
+      // 提交并检查升级后的 narrative
+      const actualEl = dom.created.find(
+        (el) => "data-issue-actual" in el.attrs
+      );
+      if (actualEl) actualEl.value = "当前无弹窗";
+      const saveBtn = dom.created.find((el) => "data-issue-save" in el.attrs);
+      await saveBtn?.listeners["click"]?.[0]?.({ stopPropagation: () => {} });
+
+      assert.ok(submitted);
+      assert.equal(submitted.expected.confidence, "explicit");
+      assert.equal(submitted.expected.text, "点击后应弹出确认弹窗");
+      assert.deepEqual(submitted.expected.tags, ["无响应"]);
+    } finally {
+      if (originalSend)
+        (globalThis as any).chrome.runtime.sendMessage = originalSend;
+    }
+
+    editor.close(false);
+  } finally {
+    (globalThis as any).document = prevDoc;
+    (globalThis as any).window = prevWin;
+    (globalThis as any).requestAnimationFrame = prevRaf;
+  }
+});

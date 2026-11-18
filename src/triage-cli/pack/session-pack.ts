@@ -142,6 +142,8 @@ export class LoadedSessionPack {
         lineNumber: loc.lineNumber,
         columnNumber: loc.columnNumber,
         sourceMappedLocation: item.sourceMappedLocation,
+        ...(item.isNoise ? { isNoise: true } : {}),
+        ...(item.noiseCategory ? { noiseCategory: item.noiseCategory } : {}),
         repeatCount: item.count,
         lastCreatedAt: item.lastCreatedAt,
         timeRangeMs: item.timeRangeMs,

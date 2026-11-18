@@ -79,7 +79,7 @@ describe("runMainWorldFrameworkProbe", () => {
     });
   });
 
-  test("React fiber.return 链：标记为 react", () => {
+  test("React fiber.return 链：标记为 react（无版本证据时为 0，不猜 18）", () => {
     const el = fakeEl("blp-3", {
       __reactFiber$test: {
         type: { name: "OrderButton" },
@@ -92,7 +92,7 @@ describe("runMainWorldFrameworkProbe", () => {
         componentName: "OrderButton",
         componentPath: ["App", "OrderButton"],
         framework: "react",
-        version: 18,
+        version: 0,
       });
     });
   });
@@ -314,7 +314,8 @@ describe("runMainWorldFrameworkProbe", () => {
       assert.equal(res.componentName, "a");
       assert.deepEqual(res.componentPath, ["t", "a"]);
       assert.equal(res.framework, "react");
-      assert.equal(res.version, 18);
+      // 无 hook、fiber 上也无可判别版本字段 → 0（未知），而不是写死 18
+      assert.equal(res.version, 0);
     });
   });
 
@@ -634,5 +635,419 @@ describe("runMainWorldFrameworkProbe", () => {
         useState_0: "draft",
       });
     });
+  });
+});
+
+/** React 19 dev 构建中 fiber._debugStack 的真实形态：栈底带 react_stack_bottom_frame。 */
+const REACT19_STACK = [
+  "Error: react-stack-top-frame",
+  "    at jsxDEV (http://localhost:5173/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=abc:326:12)",
+  "    at TodoList (http://localhost:5173/src/components/TodoList.jsx:42:7)",
+  "    at react_stack_bottom_frame (http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=abc:18123:5)",
+  "    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=abc:12000:3)",
+].join("\n");
+
+function react19FiberChain(options: {
+  hostDebugStack?: any;
+  hostDebugSource?: any;
+  hostDebugInfo?: any;
+  hostRoot?: boolean;
+}) {
+  const appFiber: any = {
+    tag: 0,
+    type: { name: "App" },
+    memoizedProps: {},
+    return: null,
+    _debugInfo: null,
+    _debugTask: null,
+    _debugStack: null,
+  };
+  const todoFiber: any = {
+    tag: 0,
+    type: { name: "TodoList" },
+    memoizedProps: { items: 2 },
+    memoizedState: null,
+    return: appFiber,
+    _debugInfo: null,
+    _debugTask: null,
+    _debugStack: null,
+  };
+  const hostFiber: any = {
+    tag: 5,
+    type: "ul",
+    return: todoFiber,
+    _debugInfo: options.hostDebugInfo ?? null,
+    _debugTask: null,
+    _debugStack: options.hostDebugStack,
+    _debugSource: options.hostDebugSource,
+  };
+  if (options.hostRoot) {
+    const hostRootFiber: any = {
+      tag: 3,
+      type: null,
+      child: hostFiber,
+      return: null,
+      _debugInfo: null,
+      _debugTask: null,
+      _debugStack: null,
+    };
+    return { hostFiber, hostRootFiber };
+  }
+  return { hostFiber, hostRootFiber: null };
+}
+
+describe("React 19 源码定位与版本探测", () => {
+  test("fiber._debugStack 能解析出 src/components/TodoList.jsx:42（跳过运行时帧）", () => {
+    const { hostFiber } = react19FiberChain({
+      hostDebugStack: Object.assign(new Error("react-stack-top-frame"), {
+        stack: REACT19_STACK,
+      }),
+    });
+    const el = fakeEl("blp-r19-stack", { __reactFiber$r19: hostFiber });
+    withDocument([el], () => {
+      const res = runMainWorldFrameworkProbe(["blp-r19-stack"])[
+        "blp-r19-stack"
+      ];
+      assert.ok(res);
+      assert.equal(res.componentName, "TodoList");
+      assert.equal(res.componentFile, "src/components/TodoList.jsx");
+      assert.equal(res.componentLine, 42);
+      assert.equal(res.framework, "react");
+      assert.equal(res.version, 19);
+    });
+  });
+
+  test("_debugSource 优先于 _debugStack", () => {
+    const { hostFiber } = react19FiberChain({
+      hostDebugStack: Object.assign(new Error("react-stack-top-frame"), {
+        stack: REACT19_STACK,
+      }),
+      hostDebugSource: {
+        fileName: "/repo/src/components/LegacyCard.jsx",
+        lineNumber: 7,
+      },
+    });
+    const el = fakeEl("blp-r19-priority", { __reactFiber$r19p: hostFiber });
+    withDocument([el], () => {
+      const res = runMainWorldFrameworkProbe(["blp-r19-priority"])[
+        "blp-r19-priority"
+      ];
+      assert.ok(res);
+      assert.equal(res.componentFile, "src/components/LegacyCard.jsx");
+      assert.equal(res.componentLine, 7);
+    });
+  });
+
+  test("_debugStack 为空串或无匹配帧时返回 undefined，不伪造行号", () => {
+    const emptyStack = Object.assign(new Error("react-stack-top-frame"), {
+      stack: "",
+    });
+    const { hostFiber } = react19FiberChain({ hostDebugStack: emptyStack });
+    const el = fakeEl("blp-r19-empty", { __reactFiber$r19e: hostFiber });
+    withDocument([el], () => {
+      const res = runMainWorldFrameworkProbe(["blp-r19-empty"])[
+        "blp-r19-empty"
+      ];
+      assert.ok(res);
+      assert.equal(res.componentName, "TodoList");
+      assert.equal(res.componentFile, undefined);
+      assert.equal(res.componentLine, undefined);
+      assert.equal("filePath" in res, false);
+    });
+
+    const noMatchStack = Object.assign(new Error("react-stack-top-frame"), {
+      stack: [
+        "Error: react-stack-top-frame",
+        "    at jsxDEV (<anonymous>)",
+        "    at react_stack_bottom_frame (http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=abc:18123:5)",
+      ].join("\n"),
+    });
+    const second = react19FiberChain({ hostDebugStack: noMatchStack });
+    const el2 = fakeEl("blp-r19-nomatch", {
+      __reactFiber$r19n: second.hostFiber,
+    });
+    withDocument([el2], () => {
+      const res = runMainWorldFrameworkProbe(["blp-r19-nomatch"])[
+        "blp-r19-nomatch"
+      ];
+      assert.ok(res);
+      assert.equal(res.componentFile, undefined);
+      assert.equal(res.componentLine, undefined);
+    });
+  });
+
+  test("_debugInfo[].debugLocation 作为第 3 级回退", () => {
+    const { hostFiber } = react19FiberChain({
+      hostDebugInfo: [
+        {
+          name: "TodoListBoundary",
+          env: "Server",
+          debugLocation: REACT19_STACK,
+        },
+      ],
+    });
+    const el = fakeEl("blp-r19-info", { __reactFiber$r19i: hostFiber });
+    withDocument([el], () => {
+      const res = runMainWorldFrameworkProbe(["blp-r19-info"])["blp-r19-info"];
+      assert.ok(res);
+      assert.equal(res.componentFile, "src/components/TodoList.jsx");
+      assert.equal(res.componentLine, 42);
+    });
+  });
+
+  test("__reactContainer$ 上的 HostRoot fiber 能解出组件链", () => {
+    const { hostRootFiber } = react19FiberChain({ hostRoot: true });
+    const el = fakeEl("blp-r19-container", {
+      __reactContainer$abc: hostRootFiber,
+    });
+    withDocument([el], () => {
+      const res = runMainWorldFrameworkProbe(["blp-r19-container"])[
+        "blp-r19-container"
+      ];
+      assert.ok(res);
+      assert.equal(res.framework, "react");
+      assert.equal(res.componentName, "TodoList");
+      assert.deepEqual(res.componentPath, ["App", "TodoList"]);
+      assert.equal(res.version, 19);
+    });
+  });
+
+  test("__reactContainer$ 上挂 FiberRoot({current}) 时同样可解引用", () => {
+    const { hostRootFiber } = react19FiberChain({ hostRoot: true });
+    const el = fakeEl("blp-r19-fiberroot", {
+      __reactContainer$def: { current: hostRootFiber, containerInfo: {} },
+    });
+    withDocument([el], () => {
+      const res = runMainWorldFrameworkProbe(["blp-r19-fiberroot"])[
+        "blp-r19-fiberroot"
+      ];
+      assert.ok(res);
+      assert.equal(res.componentName, "TodoList");
+    });
+  });
+
+  test("__reactContainer$ 解不出 fiber 时返回 null，不瞎猜", () => {
+    const el = fakeEl("blp-r19-container-null", {
+      __reactContainer$empty: { current: null },
+    });
+    withDocument([el], () => {
+      assert.equal(
+        runMainWorldFrameworkProbe(["blp-r19-container-null"])[
+          "blp-r19-container-null"
+        ],
+        null
+      );
+    });
+  });
+
+  test("DevTools hook renderer version=19.2.8 → 版本 19", () => {
+    const saved = (globalThis as any).__REACT_DEVTOOLS_GLOBAL_HOOK__;
+    try {
+      (globalThis as any).__REACT_DEVTOOLS_GLOBAL_HOOK__ = {
+        renderers: new Map([
+          [1, { version: "19.2.8", rendererPackageName: "react-dom" }],
+        ]),
+      };
+      // fiber 上没有任何可判别字段，版本只能来自 hook
+      const el = fakeEl("blp-ver-19", {
+        __reactFiber$ver19: {
+          tag: 5,
+          type: "button",
+          return: { tag: 0, type: { name: "OrderButton" }, return: null },
+        },
+      });
+      withDocument([el], () => {
+        const res = runMainWorldFrameworkProbe(["blp-ver-19"])["blp-ver-19"];
+        assert.equal(res?.version, 19);
+      });
+    } finally {
+      (globalThis as any).__REACT_DEVTOOLS_GLOBAL_HOOK__ = saved;
+    }
+  });
+
+  test("DevTools hook renderer version=18.3.1 → 版本 18", () => {
+    const saved = (globalThis as any).__REACT_DEVTOOLS_GLOBAL_HOOK__;
+    try {
+      (globalThis as any).__REACT_DEVTOOLS_GLOBAL_HOOK__ = {
+        renderers: [{ version: "18.3.1", rendererPackageName: "react-dom" }],
+      };
+      const el = fakeEl("blp-ver-18", {
+        __reactFiber$ver18: {
+          tag: 5,
+          type: "button",
+          return: { tag: 0, type: { name: "OrderButton" }, return: null },
+        },
+      });
+      withDocument([el], () => {
+        const res = runMainWorldFrameworkProbe(["blp-ver-18"])["blp-ver-18"];
+        assert.equal(res?.version, 18);
+      });
+    } finally {
+      (globalThis as any).__REACT_DEVTOOLS_GLOBAL_HOOK__ = saved;
+    }
+  });
+
+  test("无 hook 时按 fiber 结构判别：19 = 有 _debugInfo/_debugStack，18 = 只有 _debugSource", () => {
+    const saved = (globalThis as any).__REACT_DEVTOOLS_GLOBAL_HOOK__;
+    try {
+      delete (globalThis as any).__REACT_DEVTOOLS_GLOBAL_HOOK__;
+
+      const r19 = react19FiberChain({});
+      const el19 = fakeEl("blp-ver-heur19", {
+        __reactFiber$h19: r19.hostFiber,
+      });
+      withDocument([el19], () => {
+        assert.equal(
+          runMainWorldFrameworkProbe(["blp-ver-heur19"])["blp-ver-heur19"]
+            ?.version,
+          19
+        );
+      });
+
+      const el18 = fakeEl("blp-ver-heur18", {
+        __reactFiber$h18: {
+          tag: 5,
+          type: "button",
+          _debugSource: {
+            fileName: "/repo/src/components/LegacyButton.tsx",
+            lineNumber: 12,
+          },
+          return: { tag: 0, type: { name: "LegacyButton" }, return: null },
+        },
+      });
+      withDocument([el18], () => {
+        const res = runMainWorldFrameworkProbe(["blp-ver-heur18"])[
+          "blp-ver-heur18"
+        ];
+        assert.equal(res?.version, 18);
+        assert.equal(res?.componentFile, "src/components/LegacyButton.tsx");
+        assert.equal(res?.componentLine, 12);
+      });
+    } finally {
+      (globalThis as any).__REACT_DEVTOOLS_GLOBAL_HOOK__ = saved;
+    }
+  });
+});
+
+/** 通过 _debugSource.fileName 注入路径，验证 normalizeFilePath 的归一化结果。 */
+function componentFileFor(fileName: string): string | undefined {
+  const el = fakeEl("blp-normalize", {
+    __reactFiber$normalize: {
+      tag: 5,
+      type: "button",
+      _debugSource: { fileName, lineNumber: 5 },
+      return: { tag: 0, type: { name: "PathTarget" }, return: null },
+    },
+  });
+  let file: string | undefined;
+  withDocument([el], () => {
+    const res = runMainWorldFrameworkProbe(["blp-normalize"])["blp-normalize"];
+    assert.ok(res);
+    file = res.componentFile;
+  });
+  return file;
+}
+
+describe("normalizeFilePath 路径归一化", () => {
+  test("http:// + host[:port] 前缀被剥离，query 一并剥离", () => {
+    assert.equal(
+      componentFileFor(
+        "http://localhost:5173/src/components/TodoList.jsx?t=1712:42:7"
+      ),
+      "src/components/TodoList.jsx"
+    );
+  });
+
+  test("https:// + 自定义端口前缀被剥离", () => {
+    assert.equal(
+      componentFileFor("https://example.com:8080/src/a/b.js"),
+      "src/a/b.js"
+    );
+  });
+
+  test("webpack:/// 虚拟协议与 ./ 前缀被剥离", () => {
+    assert.equal(componentFileFor("webpack:///./src/x.jsx"), "src/x.jsx");
+  });
+
+  test("file:/// 绝对路径仅保留源码根起的相对路径", () => {
+    assert.equal(componentFileFor("file:///Users/a/proj/src/y.js"), "src/y.js");
+  });
+
+  test("无协议的绝对路径保留源码根起的相对路径", () => {
+    assert.equal(componentFileFor("/Users/a/proj/src/z.js"), "src/z.js");
+  });
+
+  test("已相对路径原样直通", () => {
+    assert.equal(componentFileFor("src/q.jsx"), "src/q.jsx");
+  });
+
+  test("node_modules 路径维持原有判定", () => {
+    assert.equal(
+      componentFileFor("/Users/a/proj/node_modules/antd/es/button/index.js"),
+      "node_modules/antd/es/button/index.js"
+    );
+  });
+
+  test("无法识别源码根时返回 undefined，不返回空串、不编造 src/ 前缀", () => {
+    assert.equal(componentFileFor("http://localhost:5173"), undefined);
+  });
+});
+
+describe("resolveReactContainerFiber 解引用顺序", () => {
+  function containerProbe(container: unknown) {
+    const el = fakeEl("blp-container-shape", {
+      __reactContainer$shape: container,
+    });
+    let res: ReturnType<typeof runMainWorldFrameworkProbe>[string] | undefined;
+    withDocument([el], () => {
+      res = runMainWorldFrameworkProbe(["blp-container-shape"])[
+        "blp-container-shape"
+      ];
+    });
+    return res;
+  }
+
+  test("HostRoot.child 直接可用时取 child", () => {
+    const { hostFiber } = react19FiberChain({});
+    const res = containerProbe({ tag: 3, child: hostFiber });
+    assert.ok(res);
+    assert.equal(res.componentName, "TodoList");
+    assert.deepEqual(res.componentPath, ["App", "TodoList"]);
+  });
+
+  test("HostRoot.child 为空时回退到 stateNode.current.child", () => {
+    const { hostFiber } = react19FiberChain({});
+    const res = containerProbe({
+      tag: 3,
+      child: null,
+      stateNode: { current: { child: hostFiber } },
+      alternate: { child: null },
+    });
+    assert.ok(res);
+    assert.equal(res.componentName, "TodoList");
+    assert.deepEqual(res.componentPath, ["App", "TodoList"]);
+  });
+
+  test("child 与 stateNode.current.child 均为空时回退到 alternate.child", () => {
+    const { hostFiber } = react19FiberChain({});
+    const res = containerProbe({
+      tag: 3,
+      child: null,
+      stateNode: { current: { child: null } },
+      alternate: { child: hostFiber },
+    });
+    assert.ok(res);
+    assert.equal(res.componentName, "TodoList");
+    assert.deepEqual(res.componentPath, ["App", "TodoList"]);
+  });
+
+  test("三种形态全为空时返回 null，不瞎猜", () => {
+    const res = containerProbe({
+      tag: 3,
+      child: null,
+      stateNode: { current: { child: null } },
+      alternate: { child: null },
+    });
+    assert.equal(res, null);
   });
 });

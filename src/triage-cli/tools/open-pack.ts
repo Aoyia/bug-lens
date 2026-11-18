@@ -3,6 +3,10 @@ import { join, resolve } from "node:path";
 import { applyCharBudget } from "../format/budget.ts";
 import { formatDuration, formatRelativeTime } from "../format/time.ts";
 import {
+  getSessionUserNarrative,
+  resolveSceneExpectation,
+} from "../pack/narrative.ts";
+import {
   DERIVED_JSON_FILES,
   getPackWorkspaceDir,
   INDEX_FILE,
@@ -25,6 +29,7 @@ function formatSessionPackOverview(
 ): string {
   const summary = pack.data.summary;
   const scenes = pack.getIssueScenes();
+  const userNarrative = getSessionUserNarrative(pack);
   const topErrors = queryConsole(pack, {
     levels: ["error"],
     limit: 5,
@@ -32,6 +37,10 @@ function formatSessionPackOverview(
   const topFailedNet = queryNetwork(pack, {
     status: "failed",
     limit: 5,
+  });
+  const networkStaticStats = queryNetwork(pack, {
+    status: "all",
+    limit: 1,
   });
   const files = pack.listFiles();
   const workspaceDir = getPackWorkspaceDir(pack);
@@ -63,26 +72,24 @@ function formatSessionPackOverview(
       casStats: pack.manifest?.casStats,
       integrity: pack.integrity,
       summary,
+      ...(userNarrative ? { userNarrative } : {}),
       issueScenes: scenes.map((s) => {
-        const exp = s.scene.narrative?.expected;
-        const expectedText = typeof exp === "string" ? exp : exp?.text;
-        const confidence =
-          typeof exp === "object" && exp !== null
-            ? (exp.confidence ?? "missing")
-            : expectedText
-              ? "explicit"
-              : "missing";
+        const exp = resolveSceneExpectation(s.scene.narrative);
         return {
           id: s.id,
           index: s.index,
-          actual: s.scene.narrative?.actual ?? null,
-          expected: expectedText ?? null,
-          expectedConfidence: confidence,
+          actual: exp.actual || null,
+          expected: exp.expectedText || null,
+          expectedConfidence: exp.confidence,
+          ...(exp.tags.length > 0 ? { symptomTags: exp.tags } : {}),
+          ...(exp.note ? { note: exp.note } : {}),
           originalSource: s.originalSource,
           annotatedSource: s.annotatedSource,
         };
       }),
       topConsoleErrors: topErrors.items,
+      hiddenConsoleNoiseCount: topErrors.hiddenNoiseCount,
+      staticNoBodyNetworkCount: networkStaticStats.staticNoBodyCount,
       topNetworkFailures: topFailedNet.items,
       filesCount: files.length,
       files,
@@ -136,8 +143,20 @@ function formatSessionPackOverview(
     );
   }
   lines.push(
-    `- **Counts**: ${pack.getInteractions().length} interactions | ${pack.getConsoleTotalCount()} console entries (${topErrors.matchedCount} unique error signatures) | ${pack.getNetworkEntries().length} network requests (${topFailedNet.matchedCount} failed) | ${scenes.length} issue scenes | ${pack.getFrameworkStates().length} framework snapshots`
+    `- **Counts**: ${pack.getInteractions().length} interactions | ${pack.getConsoleTotalCount()} console entries (${topErrors.matchedCount} unique error signatures${topErrors.hiddenNoiseCount > 0 ? `, ${topErrors.hiddenNoiseCount} benign noise hidden` : ""}) | ${pack.getNetworkEntries().length} network requests (${topFailedNet.matchedCount} failed${networkStaticStats.staticNoBodyCount > 0 ? `, ${networkStaticStats.staticNoBodyCount} benign 0B static` : ""}) | ${scenes.length} issue scenes | ${pack.getFrameworkStates().length} framework snapshots`
   );
+
+  if (userNarrative) {
+    lines.push(`\n## Session User Narrative`);
+    if (userNarrative.actual) {
+      lines.push(`- **actual**: ${userNarrative.actual}`);
+    }
+    if (userNarrative.expected) {
+      lines.push(
+        `- **expected** [confidence=explicit]: ${userNarrative.expected}`
+      );
+    }
+  }
 
   lines.push(`\n## Issue Scenes (${scenes.length})`);
   if (scenes.length === 0) {
@@ -147,21 +166,17 @@ function formatSessionPackOverview(
       const rel = pack.toRelativeMs(
         s.scene.selectionStartedAtEpochMs ?? s.scene.observedAtEpochMs
       );
-      const exp = s.scene.narrative?.expected;
-      const expectedText = typeof exp === "string" ? exp : exp?.text;
-      const confidence =
-        typeof exp === "object" && exp !== null
-          ? (exp.confidence ?? "missing")
-          : expectedText
-            ? "explicit"
-            : "missing";
+      const exp = resolveSceneExpectation(s.scene.narrative);
       lines.push(
         `- **Scene [${s.index}] \`${s.id}\`** (at ${formatRelativeTime(rel)}):`
       );
-      lines.push(`  - **actual**: ${s.scene.narrative?.actual || "(empty)"}`);
+      lines.push(`  - **actual**: ${exp.actual || "(empty)"}`);
       lines.push(
-        `  - **expected** [confidence=${confidence}]: ${expectedText || "(not captured — treat any expectation as inferred hypothesis)"}`
+        `  - **expected** [confidence=${exp.confidence}]: ${exp.expectedText || (exp.tags.length > 0 ? `(symptom tags only: [${exp.tags.join(", ")}] — expected behavior not stated)` : "(not captured — treat any expectation as inferred hypothesis)")}`
       );
+      if (exp.note && exp.confidence !== "note-fallback") {
+        lines.push(`  - **note**: ${exp.note}`);
+      }
       lines.push(
         `  - **screenshots**: annotated=\`${s.annotatedSource ?? "none"}\`, original=\`${s.originalSource ?? "none"}\``
       );
@@ -179,10 +194,19 @@ function formatSessionPackOverview(
 
   lines.push(`\n## Top Console Errors (${topErrors.matchedCount} total)`);
   if (topErrors.items.length === 0) {
-    lines.push(`(No console errors recorded)`);
+    lines.push(
+      topErrors.hiddenNoiseCount > 0
+        ? `(No application console errors recorded; ${topErrors.hiddenNoiseCount} benign devtools/extension noise entries hidden — pass \`query_console --includeNoise\` to inspect)`
+        : `(No console errors recorded)`
+    );
   } else {
     for (const item of topErrors.items) {
       lines.push(`- ${formatConsoleItem(item)}`);
+    }
+    if (topErrors.hiddenNoiseCount > 0) {
+      lines.push(
+        `- _(${topErrors.hiddenNoiseCount} benign devtools/extension noise entries hidden; pass \`query_console --includeNoise\` to inspect)_`
+      );
     }
   }
 

@@ -4,6 +4,10 @@ import { fileURLToPath } from "node:url";
 import type { SearchScope } from "./query/search.ts";
 import type { TimelineEventKind } from "./query/timeline.ts";
 import { runCompareFramesTool } from "./tools/compare-frames.ts";
+import {
+  runCompareRequestsTool,
+  type CompareRequestPart,
+} from "./tools/compare-requests.ts";
 import { runExtractPackTool } from "./tools/extract-pack.ts";
 import { runGetCssTool } from "./tools/get-css.ts";
 import { runGetFrameworkStateTool } from "./tools/get-framework-state.ts";
@@ -30,6 +34,8 @@ const KNOWN_BOOLEAN_FLAGS = new Set([
   "biz_error",
   "settled",
   "final",
+  "outline",
+  "diff",
   "help",
   "version",
   "includeImage",
@@ -40,6 +46,10 @@ const KNOWN_BOOLEAN_FLAGS = new Set([
   "include_all_network",
   "includeAllConsole",
   "include_all_console",
+  "includeNoise",
+  "include_noise",
+  "apiOnly",
+  "api_only",
 ]);
 
 function parseCliArgs(rawArgs: string[]): ParsedCliArgs {
@@ -215,11 +225,12 @@ Commands:
   get_screenshot [--step N] [--settled|--final] Locate screenshot image (instant, settled, final, or issue) and print path
   compare_frames [--step N] [--final|--to M]  Compare before/after visual frames (instant vs settled, or step vs final)
   timeline [--aroundSceneId ID] [--windowMs]  Unified chronological timeline of interactions, console errors, and network requests
-  query_console [--levels error,warning]      Filter console logs (folded by fingerprint; supports --unfold and --minCount)
-  query_network [--status failed|biz_error]   Filter network requests (prioritizes failures, supports --bizError)
-  get_request <id> [--include body]           Inspect request headers, request body, initiator stack, and response body (with JSONPath)
+  query_console [--levels error,warning]      Filter console logs (folded by fingerprint; supports --unfold, --minCount, --includeNoise)
+  query_network [--status failed|biz_error]   Filter network requests (prioritizes failures, supports --bizError, --apiOnly)
+  get_request <id> [--include body] [--outline] Inspect request headers, request body, initiator stack, response body, or JSON outline
+  compare_requests <leftId> <rightId> [--part response|request|headers|both] [--jsonPath EXPR] [--ignoreKeys k1,k2] [--maxDiffs N]  Diff JSON or text request/response/headers between two network requests
   get_interactions [--fromIndex N] [--limit]  List recorded user interactions
-  get_framework_state [--component NAME]      Inspect Vue/React component props, state, and webStorage snapshots
+  get_framework_state [--component NAME] [--diff] Inspect Vue/React component props, state, diff across snapshots, and webStorage snapshots
   search_pack <query>                         Cross-search console, network URLs/bodies, interactions, cascade rules, and state
   read_pack_file <path> [--jsonPath EXPR]     Read raw JSON/JS/text file or workspace artifact (INDEX.md, data/*.json)
   extract_pack [--dest DIR]                   Describe active workspace or copy extracted pack to custom directory`;
@@ -399,6 +410,7 @@ export function runTriageCli(argv: string[]): string {
         limit: numFlag(flags, "limit"),
         unfold: boolFlag(flags, "unfold"),
         minCount: numFlag(flags, "minCount", "min_count"),
+        includeNoise: boolFlag(flags, "includeNoise", "include_noise"),
         format,
         maxChars,
       });
@@ -432,6 +444,7 @@ export function runTriageCli(argv: string[]): string {
           strFlag(flags, "urlContains", "url_contains", "url") ?? rest[0],
         method: strFlag(flags, "method"),
         type: strFlag(flags, "type"),
+        apiOnly: boolFlag(flags, "apiOnly", "api_only"),
         offset: numFlag(flags, "offset"),
         limit: numFlag(flags, "limit"),
         format,
@@ -444,7 +457,7 @@ export function runTriageCli(argv: string[]): string {
       const id = strFlag(flags, "id", "requestId", "request_id") ?? rest[0];
       if (!id) {
         throw new Error(
-          "Usage: bug-lens-cli.mjs get_request <id> [--jsonPath EXPR]"
+          "Usage: bug-lens-cli.mjs get_request <id> [--jsonPath EXPR] [--outline]"
         );
       }
       return runGetRequestTool({
@@ -454,6 +467,30 @@ export function runTriageCli(argv: string[]): string {
           Array<"summary" | "headers" | "initiator" | "body"> | undefined,
         jsonPath: strFlag(flags, "jsonPath", "json_path") ?? rest[1],
         bodyMaxChars: numFlag(flags, "bodyMaxChars", "body_max_chars"),
+        outline: boolFlag(flags, "outline"),
+        format,
+        maxChars,
+      });
+    }
+
+    case "compare_requests": {
+      const { pack, rest } = resolvePackAndPositionals(flags, positionals);
+      const left = strFlag(flags, "left", "from") ?? rest[0];
+      const right = strFlag(flags, "right", "to") ?? rest[1];
+      if (!left || !right) {
+        throw new Error(
+          "Usage: bug-lens-cli.mjs compare_requests <leftId> <rightId> [--part response|request|headers|both] [--jsonPath EXPR] [--ignoreKeys k1,k2] [--maxDiffs N]"
+        );
+      }
+      const part = strFlag(flags, "part") as CompareRequestPart | undefined;
+      return runCompareRequestsTool({
+        pack,
+        left,
+        right,
+        part,
+        jsonPath: strFlag(flags, "jsonPath", "json_path"),
+        ignoreKeys: csvFlag(flags, "ignoreKeys", "ignore_keys"),
+        maxDiffs: numFlag(flags, "maxDiffs", "max_diffs"),
         format,
         maxChars,
       });
@@ -485,6 +522,9 @@ export function runTriageCli(argv: string[]): string {
         nearMs: numFlag(flags, "nearMs", "near_ms"),
         component: strFlag(flags, "component") ?? rest[0],
         path: strFlag(flags, "path", "jsonPath", "json_path"),
+        diff: boolFlag(flags, "diff"),
+        compareFrom: numFlag(flags, "compareFrom", "compare_from"),
+        compareTo: numFlag(flags, "compareTo", "compare_to"),
         format,
         maxChars,
       });

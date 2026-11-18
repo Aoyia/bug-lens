@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import { createPortal } from "react-dom";
+import { ElButton } from "./ElButton.jsx";
 import { TodoItem } from "./TodoItem.jsx";
 
 export function TodoList({ initialTodos }) {
@@ -6,6 +8,8 @@ export function TodoList({ initialTodos }) {
   const [listSecretToken, setListSecretToken] = useState(
     "react18-list-secret-token-333"
   );
+  const [portalOpen, setPortalOpen] = useState(false);
+  const [saveStatus, setSaveStatus] = useState("idle");
   const [todos, setTodos] = useState(
     initialTodos || [
       {
@@ -33,6 +37,13 @@ export function TodoList({ initialTodos }) {
     );
   };
 
+  const handleAsyncSave = () => {
+    setSaveStatus("saving");
+    setTimeout(() => {
+      setSaveStatus("Saved OK (settled)");
+    }, 420);
+  };
+
   return (
     <div className="todo-list-container">
       <div className="todo-list-toolbar">
@@ -52,6 +63,61 @@ export function TodoList({ initialTodos }) {
           />
         ))}
       </div>
+      <div
+        className="ui-wrapper-sandbox"
+        style={{
+          marginTop: "16px",
+          paddingTop: "12px",
+          borderTop: "1px dashed #cbd5e1",
+        }}
+      >
+        <div
+          className="sandbox-actions"
+          style={{ display: "flex", gap: "8px", alignItems: "center" }}
+        >
+          <ElButton testId="el-wrapper-btn" onClick={handleAsyncSave}>
+            Save Draft
+          </ElButton>
+          <ElButton
+            testId="open-portal-btn"
+            onClick={() => setPortalOpen((prev) => !prev)}
+          >
+            Open Portal
+          </ElButton>
+          <span data-testid="async-result">{saveStatus}</span>
+        </div>
+      </div>
+      {portalOpen &&
+        createPortal(
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="el-dialog portal-dialog"
+            data-testid="portal-dialog"
+            style={{
+              position: "fixed",
+              right: "24px",
+              bottom: "24px",
+              background: "#fff",
+              border: "2px solid #2563eb",
+              borderRadius: "8px",
+              padding: "14px 18px",
+              zIndex: 9999,
+            }}
+          >
+            <div data-testid="portal-title">
+              React 18 Body Portal Overlay (filter={listFilter})
+            </div>
+            <button
+              type="button"
+              data-testid="close-portal-btn"
+              onClick={() => setPortalOpen(false)}
+            >
+              Close
+            </button>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

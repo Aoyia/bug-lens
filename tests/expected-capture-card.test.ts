@@ -356,3 +356,57 @@ test("速记卡：焦点隔离与防劫持屏障（阻止外部模态夺焦并�
     ctx.restore();
   }
 });
+
+test("速记卡：快捷标签与文本框解耦，仅选标签输出 tag-only，补写文本保留 tags 并升级 explicit", () => {
+  const submittedPayloads: any[] = [];
+  const ctx = openCard({
+    onSubmit: (expected) => submittedPayloads.push(expected),
+  });
+  try {
+    const input = ctx.dom.findByAttr("data-expected-input", "true");
+    const chip0 = ctx.dom.findByAttr(
+      "data-expected-chip",
+      "expectedChipNoResponse"
+    );
+    assert.ok(chip0, "应渲染快捷症状标签按钮");
+
+    // 1. 勾选快捷标签不应篡改/污染输入框文本
+    chip0.click();
+    assert.equal(input.value, "");
+
+    // 确认仅标签提交时为 tag-only 且携带 tags
+    const confirmBtn = ctx.dom.findByAttr("data-expected-confirm", "true");
+    confirmBtn.click();
+    assert.equal(submittedPayloads.length, 1);
+    assert.equal(submittedPayloads[0].confidence, "tag-only");
+    assert.equal(submittedPayloads[0].text, "");
+    assert.ok(submittedPayloads[0].tags?.length === 1);
+  } finally {
+    ctx.restore();
+  }
+
+  // 2. 输入明确期望后再叠加标签，提交应同时保留 text (explicit) 与 tags
+  const mixedPayloads: any[] = [];
+  const ctx2 = openCard({
+    onSubmit: (expected) => mixedPayloads.push(expected),
+  });
+  try {
+    const input = ctx2.dom.findByAttr("data-expected-input", "true");
+    const chip = ctx2.dom.findByAttr(
+      "data-expected-chip",
+      "expectedChipLoadFailed"
+    );
+    input.value = "提交按钮点击后应保存成功";
+    input.listeners["input"]?.[0]?.({ stopPropagation: () => {} });
+    chip.click();
+    assert.equal(input.value, "提交按钮点击后应保存成功");
+
+    ctx2.dom.findByAttr("data-expected-confirm", "true").click();
+    assert.equal(mixedPayloads.length, 1);
+    assert.equal(mixedPayloads[0].confidence, "explicit");
+    assert.equal(mixedPayloads[0].text, "提交按钮点击后应保存成功");
+    assert.ok(mixedPayloads[0].tags?.length === 1);
+  } finally {
+    ctx2.restore();
+  }
+});

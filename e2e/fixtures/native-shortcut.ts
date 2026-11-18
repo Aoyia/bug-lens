@@ -21,6 +21,80 @@ export interface NativeShortcutDriver {
   press(shortcut: ActionShortcut): Promise<NativeShortcutDiagnostics>;
 }
 
+/**
+ * Action Popup 的驱动方式：
+ * - `native`（默认）：原有 System Events 原生快捷键（⇧⌘Y）路径，需要 macOS 辅助功能权限；
+ *   缺少权限时 global-setup 立即 fail-fast 中断，避免大量用例白跑到深层才失败。
+ * - `extension-page`（显式 opt-in）：service worker 侧调用 `chrome.action.openPopup()`
+ *   打开真实 Action Popup，不发送任何系统级按键，因此不依赖辅助功能权限。
+ *   注意它只是**降级冒烟**：Chrome 的 activeTab 安全模型会让 tabCapture 一直失败，
+ *   不能替代 native 驱动做完整录制验收（详见 e2e/README.md）。
+ */
+export type PopupDriverMode = "native" | "extension-page";
+
+/**
+ * 读取 BUG_LENS_POPUP_DRIVER。
+ * 默认 `native`：保持 global-setup 的权限 fail-fast 语义；
+ * `extension-page` 仅在无辅助功能权限、只想做 popup 冒烟时显式开启。
+ */
+export function popupDriverMode(): PopupDriverMode {
+  const raw = (process.env.BUG_LENS_POPUP_DRIVER ?? "").trim().toLowerCase();
+  if (raw === "" || raw === "native") return "native";
+  if (raw === "extension-page") return "extension-page";
+  throw new Error(
+    `BUG_LENS_POPUP_DRIVER_UNSUPPORTED: 仅支持 extension-page | native，实际收到 ${JSON.stringify(
+      process.env.BUG_LENS_POPUP_DRIVER
+    )}`
+  );
+}
+
+/** 当前是否为“不依赖系统级按键”的扩展内 popup 驱动。 */
+export function isExtensionPagePopupDriver(): boolean {
+  return popupDriverMode() === "extension-page";
+}
+
+/**
+ * 是否显式跳过 macOS 辅助功能预检。
+ * 默认（未设置任何环境变量）保持严格：global-setup 仍会强制预检并在失败时中断。
+ */
+export function isAccessibilityPreflightSkipped(): boolean {
+  const raw =
+    process.env.BUG_LENS_SKIP_ACCESSIBILITY_PREFLIGHT ??
+    process.env.SKIP_ACCESSIBILITY_CHECK;
+  if (!raw) return false;
+  const normalized = raw.trim().toLowerCase();
+  return normalized === "1" || normalized === "true";
+}
+
+/** 跳过预检后仍强制运行依赖系统级键盘模拟的用例（用于暴露真实失败而非静默跳过）。 */
+export function isNativeShortcutRunForced(): boolean {
+  const raw = process.env.BUG_LENS_FORCE_RUN_SHORTCUT_TESTS;
+  if (!raw) return false;
+  const normalized = raw.trim().toLowerCase();
+  return normalized === "1" || normalized === "true";
+}
+
+/**
+ * 依赖系统级键盘模拟的用例应被跳过时返回原因，否则返回 undefined。
+ *
+ * 两种触发条件（都会先被 BUG_LENS_FORCE_RUN_SHORTCUT_TESTS 覆盖）：
+ * 1. BUG_LENS_POPUP_DRIVER=extension-page（显式 opt-in）：本次运行根本不会发送系统级按键，
+ *    因此凡是真的要按物理快捷键的用例（原生快捷键录制）都不具备执行前提，必须跳过而不是伪装通过。
+ * 2. 显式 BUG_LENS_SKIP_ACCESSIBILITY_PREFLIGHT=1 且驱动为 native：避免在缺少权限时
+ *    把“未执行”包装成“通过”。
+ *
+ * 注意：只影响直接依赖 nativeShortcutDriver 的用例；openActionPopup 在 extension-page
+ * 驱动下不再经过这里（它不需要系统级按键），因此不会被误跳过。
+ */
+export function nativeShortcutSkipReason(): string | undefined {
+  if (isNativeShortcutRunForced()) return undefined;
+  if (isExtensionPagePopupDriver()) {
+    return "SKIPPED_BY_POPUP_DRIVER: BUG_LENS_POPUP_DRIVER=extension-page 只驱动扩展内部 Action Popup，不发送 System Events 系统级物理按键；本用例真正依赖原生快捷键触发，无法在该驱动下验证真实行为，故不执行（结果不可信）。如已授予辅助功能权限，请设置 BUG_LENS_POPUP_DRIVER=native；若只想强制观察真实失败，设置 BUG_LENS_FORCE_RUN_SHORTCUT_TESTS=1。";
+  }
+  if (!isAccessibilityPreflightSkipped()) return undefined;
+  return "SKIPPED_BY_ACCESSIBILITY_PREFLIGHT_BYPASS: BUG_LENS_SKIP_ACCESSIBILITY_PREFLIGHT 已跳过 macOS 辅助功能预检；本用例依赖 System Events 系统级按键模拟，缺少该权限时真实行为无法验证，故不执行（结果不可信）。若需强制观察真实失败，设置 BUG_LENS_FORCE_RUN_SHORTCUT_TESTS=1。";
+}
+
 const MODIFIER_ALIASES = new Map<string, ShortcutModifier>([
   ["command", "command"],
   ["cmd", "command"],
