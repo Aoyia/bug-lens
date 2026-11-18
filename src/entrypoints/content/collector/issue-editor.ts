@@ -38,6 +38,8 @@ export type IssueEditorDeps = {
   onClose(restoreWidget: boolean): void;
   onReselect(): void;
   onStopAfterCommit(): void;
+  /** 速记卡产出的实际现象草稿（本地规则生成，未落协议），用于回填 actual */
+  getInitialActualDraft?(): string | undefined;
   isMac: boolean;
 };
 
@@ -373,6 +375,13 @@ export class IssueEditor {
     );
     if (actualInput && scene.narrative?.actual) {
       actualInput.value = scene.narrative.actual;
+    } else if (actualInput) {
+      // 速记卡兜底草稿：只回填到输入框，用户仍可改可删，commit 走原有路径
+      const draft = this.deps.getInitialActualDraft?.()?.trim();
+      if (draft) {
+        actualInput.value = draft;
+        actualInput.setAttribute("data-issue-actual-draft", "true");
+      }
     }
 
     const pill = root.querySelector<HTMLElement>("[data-issue-expected-pill]");

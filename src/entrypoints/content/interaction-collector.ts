@@ -23,9 +23,18 @@ import type {
   FrameworkStateTrigger,
 } from "../../shared/protocol";
 import { RecordingWidget } from "./collector/recording-widget";
-import { SelectionOverlay } from "./collector/selection-overlay";
+import {
+  SelectionOverlay,
+  type SelectionSnapshot,
+} from "./collector/selection-overlay";
 import { IssueEditor } from "./collector/issue-editor";
 import { ExpectedCaptureCard } from "./collector/expected-capture-card";
+import {
+  buildActualDraft,
+  describeDraftSemantics,
+  pickDraftElement,
+} from "./collector/actual-draft";
+import { MarkFlow } from "./collector/mark-flow";
 import { DomObserver } from "./collector/dom-observer";
 import { InactivityMonitor } from "./collector/inactivity-monitor";
 import { recentErrorsTracker } from "../../screenshot/probes/recent-errors-tracker";
@@ -119,6 +128,11 @@ if (existingController) {
   let cachedStartedAtEpochMs: number | undefined;
   /** 速记卡确认的期望，随 issue-scene/capture 透传，编辑器打开后清空。 */
   let pendingExpected: ExpectedStatement | undefined;
+  /**
+   * 速记卡产出的"实际现象"草稿：不进协议，仅在内容脚本内存里传给编辑器，
+   * 由编辑器回填 actual 输入框后随正常 commit 落库。
+   */
+  let pendingActualDraft: string | undefined;
   let lastInteractedElementRef: WeakRef<Element> | Element | undefined;
   function resolveLastInteractedElement(): Element | undefined {
     const raw =
@@ -140,6 +154,7 @@ if (existingController) {
   let editor: IssueEditor | undefined;
   let overlay: SelectionOverlay | undefined;
   let expectedCard: ExpectedCaptureCard | undefined;
+  let markFlow: MarkFlow<SelectionSnapshot> | undefined;
   let monitor: InactivityMonitor | undefined;
   let isRemotePaused = false;
   let iframeReporter: IframeActivityReporter | undefined;
@@ -462,20 +477,69 @@ if (existingController) {
         widget.setIssueSelecting(false);
         widget.unmount();
       },
+      getInitialActualDraft: () => pendingActualDraft,
       isMac,
     });
 
-    // 元素选择遮罩：在页面上框选问题区域，确认后进入编辑器
+    // 标记问题流程：点「标记问题」→ 框选 → 速记卡（贴选区）→ 编辑器。
+    // 顺序由 MarkFlow 统一约束，卡片永远在框选完之后出现。
+    markFlow = new MarkFlow<SelectionSnapshot>({
+      openOverlay() {
+        widget.setIssueSelecting(true);
+        overlay?.open();
+        captureFrameworkTick("issue-scene");
+      },
+      closeOverlay() {
+        overlay?.close();
+      },
+      openCard(anchorRect, draft) {
+        expectedCard?.open(undefined, { anchorRect, draft });
+      },
+      closeCard() {
+        expectedCard?.close();
+      },
+      capture(snapshot) {
+        overlay?.capture(snapshot);
+      },
+      onCancel() {
+        pendingExpected = undefined;
+        pendingActualDraft = undefined;
+        widget.setIssueSelecting(false);
+      },
+    });
+
+    // 元素选择遮罩：框选产出选区快照（rect / 命中元素 / annotation），
+    // 截图在速记卡落定后由 MarkFlow 触发 overlay.capture()
     overlay = new SelectionOverlay({
       getSession: () => session,
       getPendingExpected: () => pendingExpected,
       getLastTriggerElement: () => resolveLastInteractedElement(),
+      onSelectionReady(snapshot) {
+        // 草稿语义来自"选区内的目标元素"：中心点命中 → 框内面积最大 → 最后交互元素
+        const draftElement = pickDraftElement({
+          hitTest: snapshot.hitTest,
+          candidates: snapshot.candidates,
+          fallback: resolveDraftAnchorElement(),
+          emptySelection: snapshot.emptySelection,
+        });
+        const draft = buildActualDraft(
+          describeDraftSemantics(draftElement, session?.privacyMode ?? "safe")
+        );
+        markFlow?.selectionReady(snapshot, snapshot.rect, draft);
+      },
       onCaptureComplete(scene, dataUrl) {
         pendingExpected = undefined;
+        markFlow?.reset();
         widget.unmount();
+        // 编辑器构造时读取 pendingActualDraft 回填 actual，读完即清空
         editor?.open(scene, dataUrl);
+        pendingActualDraft = undefined;
       },
       onCancel() {
+        // 框选取消 / 截图失败：整条标记取消，不弹卡片、不留 pending
+        markFlow?.cancel();
+        pendingExpected = undefined;
+        pendingActualDraft = undefined;
         widget.setIssueSelecting(false);
       },
       onError: (message) => widget.showToast(message, 5_500, "error"),
@@ -483,17 +547,30 @@ if (existingController) {
       shortcutKeyText: widget.shortcutKeyText,
     });
 
-    // 期望速记卡：选区前置步骤，先记录"预期应该发生什么"
+    // 期望速记卡：框选完成后贴着选区弹出，记录"预期应该发生什么"
     expectedCard = new ExpectedCaptureCard({
-      onSubmit(expected) {
+      onSubmit(expected, actual, meta) {
         pendingExpected = expected;
-        proceedToIssueSelection();
+        pendingActualDraft = actual || undefined;
+        if (meta.auto && actual) {
+          widget.showToast(t("actualDraftAutoSaved"), 3_000, "normal");
+        }
+        markFlow?.resolveCard();
       },
-      onSkip() {
+      onSkip(actual, meta) {
+        // 期望缺失时草稿只作为 actual 事实存在，绝不升格为 expected
         pendingExpected = undefined;
-        proceedToIssueSelection();
+        pendingActualDraft = actual;
+        if (meta?.auto && actual) {
+          widget.showToast(t("actualDraftAutoSaved"), 3_000, "normal");
+        }
+        markFlow?.resolveCard();
       },
       onCancel() {
+        // 卡片阶段取消：与框选取消一致，整条标记取消
+        markFlow?.cancel();
+        pendingExpected = undefined;
+        pendingActualDraft = undefined;
         widget.setIssueSelecting(false);
       },
     });
@@ -650,17 +727,23 @@ if (existingController) {
     if (!isTopFrame) return;
     if (mountedWidget?.isSaving || mountedWidget?.isClosing) return;
     if (overlay?.isActive || editor?.isOpen || expectedCard?.isOpen) return;
-    expectedCard?.open(anchor);
+    if (markFlow?.isBusy) return;
+    // 先框选：用户圈出问题区域后，速记卡才贴着选区弹出
+    markFlow?.begin(anchor);
   }
 
-  // 速记卡确认/跳过后进入元素选择，并采集当前框架状态作为问题上下文
-  function proceedToIssueSelection(): void {
-    if (!isTopFrame) return;
-    if (mountedWidget?.isSaving || mountedWidget?.isClosing) return;
-    if (overlay?.isActive || editor?.isOpen) return;
-    mountedWidget?.setIssueSelecting(true);
-    overlay?.open();
-    captureFrameworkTick("issue-scene");
+  function resolveDraftAnchorElement(): Element | undefined {
+    const last = resolveLastInteractedElement();
+    if (last) return last;
+    const active = document.activeElement;
+    if (
+      active &&
+      active !== document.documentElement &&
+      active !== document.body
+    ) {
+      return active;
+    }
+    return undefined;
   }
 
   function removeIssueUi(): void {
@@ -668,6 +751,9 @@ if (existingController) {
       overlay?.close();
       editor?.close(false);
       expectedCard?.close();
+      markFlow?.reset();
+      pendingExpected = undefined;
+      pendingActualDraft = undefined;
       mountedWidget?.setIssueSelecting(false);
     }
   }

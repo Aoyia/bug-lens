@@ -588,6 +588,65 @@
       }
     }
   },
+  "expectedActualLabel": {
+    "message": "实际发生了什么（已按页面元素预填，可修改）"
+  },
+  "expectedActualPlaceholder": {
+    "message": "例如：点了提交没有任何反应"
+  },
+  "expectedActualClear": {
+    "message": "清空"
+  },
+  "actualDraftButton": {
+    "message": "按钮「$NAME$」点击后无响应",
+    "placeholders": {
+      "name": { "content": "$1" }
+    }
+  },
+  "actualDraftInputEmpty": {
+    "message": "输入框「$NAME$」为空",
+    "placeholders": {
+      "name": { "content": "$1" }
+    }
+  },
+  "actualDraftInputFilled": {
+    "message": "输入框「$NAME$」当前值为「$VALUE$」",
+    "placeholders": {
+      "name": { "content": "$1" },
+      "value": { "content": "$2" }
+    }
+  },
+  "actualDraftList": {
+    "message": "列表「$NAME$」显示 $COUNT$ 条记录",
+    "placeholders": {
+      "name": { "content": "$1" },
+      "count": { "content": "$2" }
+    }
+  },
+  "actualDraftDialog": {
+    "message": "弹窗「$TITLE$」未按预期关闭/展示",
+    "placeholders": {
+      "title": { "content": "$1" }
+    }
+  },
+  "actualDraftText": {
+    "message": "元素「$TEXT$」显示异常",
+    "placeholders": {
+      "text": { "content": "$1" }
+    }
+  },
+  "actualDraftFallback": {
+    "message": "$TAG$ 元素与预期不符",
+    "placeholders": {
+      "tag": { "content": "$1" }
+    }
+  },
+  "actualDraftUnknownElement": {
+    "message": "页面元素与预期不符"
+  },
+  "actualDraftAutoSaved": {
+    "message": "已自动记下当前现象，可在编辑器里继续修改"
+  },
   "shortcut": {
     "message": "快捷键"
   },

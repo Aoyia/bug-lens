@@ -588,6 +588,65 @@
       }
     }
   },
+  "expectedActualLabel": {
+    "message": "What actually happened (prefilled from the element, editable)"
+  },
+  "expectedActualPlaceholder": {
+    "message": "e.g. clicking Submit did nothing"
+  },
+  "expectedActualClear": {
+    "message": "Clear"
+  },
+  "actualDraftButton": {
+    "message": "Button \"$NAME$\" did nothing after clicking",
+    "placeholders": {
+      "name": { "content": "$1" }
+    }
+  },
+  "actualDraftInputEmpty": {
+    "message": "Input \"$NAME$\" is empty",
+    "placeholders": {
+      "name": { "content": "$1" }
+    }
+  },
+  "actualDraftInputFilled": {
+    "message": "Input \"$NAME$\" currently contains \"$VALUE$\"",
+    "placeholders": {
+      "name": { "content": "$1" },
+      "value": { "content": "$2" }
+    }
+  },
+  "actualDraftList": {
+    "message": "List \"$NAME$\" shows $COUNT$ records",
+    "placeholders": {
+      "name": { "content": "$1" },
+      "count": { "content": "$2" }
+    }
+  },
+  "actualDraftDialog": {
+    "message": "Dialog \"$TITLE$\" did not close or appear as expected",
+    "placeholders": {
+      "title": { "content": "$1" }
+    }
+  },
+  "actualDraftText": {
+    "message": "Element \"$TEXT$\" is displayed incorrectly",
+    "placeholders": {
+      "text": { "content": "$1" }
+    }
+  },
+  "actualDraftFallback": {
+    "message": "$TAG$ element does not match expectations",
+    "placeholders": {
+      "tag": { "content": "$1" }
+    }
+  },
+  "actualDraftUnknownElement": {
+    "message": "Page element does not match expectations"
+  },
+  "actualDraftAutoSaved": {
+    "message": "Captured what happened automatically — you can still edit it in the editor"
+  },
   "shortcut": {
     "message": "Shortcut"
   },

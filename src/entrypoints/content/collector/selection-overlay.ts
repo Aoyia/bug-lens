@@ -16,6 +16,14 @@ import { probeEntryToFrameworkSnapshot } from "../../../domain/framework-state-c
 import { t } from "../../../shared/i18n";
 import { lockViewportScroll } from "../../../shared/dom/scroll-lock";
 
+/** 视口坐标系下的矩形（与 getBoundingClientRect 一致，单位 px） */
+export type SelectionRect = {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+};
+
 export type SelectedTargetItem = {
   element: Element;
   target: TargetDomSnapshot;
@@ -25,8 +33,59 @@ export type SelectedTargetItem = {
     widthRatio: number;
     heightRatio: number;
   };
+  /** 该元素的高亮框几何（视口 px），用于推导选区整体 rect */
+  rect: SelectionRect;
   overlayBox: HTMLElement;
 };
+
+/** 草稿元素候选：框内元素 + 其视口面积 */
+export type DraftElementCandidate = { element: Element; area: number };
+
+/**
+ * 框选完成快照：把「选了什么」交给上层弹速记卡，
+ * 截图与 issue-scene/capture 推迟到卡片落定后由 capture() 执行。
+ */
+export type SelectionSnapshot = {
+  items: SelectedTargetItem[];
+  viewport: { width: number; height: number };
+  /** 选区整体 rect（视口 px）：卡片定位锚点 */
+  rect: SelectionRect;
+  annotation: AnnotationModel;
+  /** 选区中心点命中的页面元素（极小选区不探测） */
+  hitTest?: Element;
+  /** 框内元素及面积（极小选区为空） */
+  candidates: DraftElementCandidate[];
+  /** 选区退化（<8px 或空白）：上层据此走「无元素」草稿兜底 */
+  emptySelection: boolean;
+  selectionStartedAtEpochMs?: number;
+};
+
+/** 选区视为有效元素的最小边长：更小的点击视为"点到空白/极小题" */
+export const MIN_SELECTION_PX = 8;
+
+/** 多个元素框的并集（视口 px）；空数组返回 0 尺寸矩形 */
+export function unionSelectionRect(rects: SelectionRect[]): SelectionRect {
+  if (rects.length === 0) return { top: 0, left: 0, width: 0, height: 0 };
+  const left = Math.min(...rects.map((r) => r.left));
+  const top = Math.min(...rects.map((r) => r.top));
+  const right = Math.max(...rects.map((r) => r.left + r.width));
+  const bottom = Math.max(...rects.map((r) => r.top + r.height));
+  return {
+    top,
+    left,
+    width: Math.max(0, right - left),
+    height: Math.max(0, bottom - top),
+  };
+}
+
+/** 选区是否退化：宽或高不足 MIN_SELECTION_PX */
+export function isDegenerateSelection(rect: SelectionRect): boolean {
+  return (
+    rect.width < MIN_SELECTION_PX ||
+    rect.height < MIN_SELECTION_PX ||
+    rect.width * rect.height <= 0
+  );
+}
 
 export type SelectionOverlayDeps = {
   getSession():
@@ -48,6 +107,11 @@ export type SelectionOverlayDeps = {
     },
     dataUrl: string | undefined
   ): void;
+  /**
+   * 框选完成：遮罩已收起、截图尚未采集。上层在此弹出速记卡，
+   * 卡片落定后再调用 overlay.capture(snapshot) 继续截图与落库。
+   */
+  onSelectionReady(snapshot: SelectionSnapshot): void;
   onCancel(): void;
   /** 采集失败的非阻塞反馈出口（toast 等）；不得回退到阻塞页面的原生对话框 */
   onError(message: string): void;
@@ -266,7 +330,13 @@ export class SelectionOverlay {
         zIndex: "10",
       });
 
-      const item: SelectedTargetItem = { element: el, target, box, overlayBox };
+      const item: SelectedTargetItem = {
+        element: el,
+        target,
+        box,
+        rect: { top, left, width, height },
+        overlayBox,
+      };
       removeBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         e.preventDefault();
@@ -294,7 +364,7 @@ export class SelectionOverlay {
       updateUI();
     };
 
-    // 结束选择并进入截图编辑器：按钮点击与回车共用同一路径
+    // 结束选择：收起遮罩，交给上层弹速记卡（截图在卡片落定后进行）
     const doFinish = () => {
       if (selectedItems.length === 0 && !currentHovered) return;
       shadow.querySelectorAll("div").forEach((el) => {
@@ -302,7 +372,7 @@ export class SelectionOverlay {
       });
       hint.style.display = "none";
       outline.style.display = "none";
-      this.captureMulti(selectedItems, currentHovered);
+      this.finishSelection(selectedItems, currentHovered);
     };
 
     finishBtn.addEventListener("click", (e) => {
@@ -416,16 +486,16 @@ export class SelectionOverlay {
     }
   }
 
-  private captureMulti(
+  /**
+   * 框选结束：只产出"选了什么"（rect / 命中元素 / annotation），
+   * 收起遮罩并把控制权交回上层（弹速记卡）。截图推迟到 capture()。
+   */
+  private finishSelection(
     items: SelectedTargetItem[],
     fallbackCandidate?: { element: Element; clientX: number; clientY: number }
   ): void {
     const session = this.deps.getSession();
     if (!session || !this._isActive) return;
-    this._isActive = false;
-    if (this.escapeListener)
-      window.removeEventListener("keydown", this.escapeListener, true);
-    this.escapeListener = undefined;
 
     let finalItems = [...items];
     if (finalItems.length === 0 && fallbackCandidate) {
@@ -460,22 +530,27 @@ export class SelectionOverlay {
           element: fallbackCandidate.element,
           target,
           box,
+          rect: {
+            top: rect.top,
+            left: rect.left,
+            width: rect.width,
+            height: rect.height,
+          },
           overlayBox: dummyOverlay,
         },
       ];
     }
 
     if (finalItems.length === 0) {
-      this.layer?.remove();
-      this.layer = undefined;
-      this.unlockScroll();
+      this.teardownInteraction();
+      this._isActive = false;
       this.deps.onCancel();
       return;
     }
 
-    this.unlockScroll();
-    this.layer?.remove();
-    this.layer = undefined;
+    // 收起遮罩与滚动锁，但保持 _isActive：卡片阶段仍视作标记流程进行中，
+    // 空闲监测与页面交互采集不在此期间抢跑。
+    this.teardownInteraction();
 
     const viewport = { width: window.innerWidth, height: window.innerHeight };
     const targets = finalItems.map((item) => item.target);
@@ -498,7 +573,57 @@ export class SelectionOverlay {
       targetBoxes,
     };
 
-    const selectionStartedAtEpochMs = this.startedAtEpochMs;
+    const rect = unionSelectionRect(finalItems.map((item) => item.rect));
+    const degenerate = isDegenerateSelection(rect);
+    const hitTest = degenerate
+      ? undefined
+      : pageElementAtPoint(
+          rect.left + rect.width / 2,
+          rect.top + rect.height / 2,
+          undefined,
+          this.deps.getEditorElement()
+        );
+
+    const snapshot: SelectionSnapshot = {
+      items: finalItems,
+      viewport,
+      rect,
+      annotation,
+      hitTest,
+      candidates: degenerate
+        ? []
+        : finalItems.map((item) => ({
+            element: item.element,
+            area: Math.max(0, item.rect.width) * Math.max(0, item.rect.height),
+          })),
+      emptySelection: degenerate,
+      selectionStartedAtEpochMs: this.startedAtEpochMs,
+    };
+
+    this.deps.onSelectionReady(snapshot);
+  }
+
+  private teardownInteraction(): void {
+    if (this.escapeListener)
+      window.removeEventListener("keydown", this.escapeListener, true);
+    this.escapeListener = undefined;
+    this.unlockScroll();
+    this.layer?.remove();
+    this.layer = undefined;
+  }
+
+  /**
+   * 卡片落定后继续采集：框架探针 → issue-scene/capture → 编辑器。
+   * 期望在此时才读取，确保 captures 到的是速记卡产出的 expected。
+   */
+  capture(snapshot: SelectionSnapshot): void {
+    const session = this.deps.getSession();
+    if (!session || !this._isActive) return;
+    this._isActive = false;
+    const { items: finalItems, viewport, annotation } = snapshot;
+    const targets = finalItems.map((item) => item.target);
+    const primaryTarget = targets[0];
+    const selectionStartedAtEpochMs = snapshot.selectionStartedAtEpochMs;
     this.startedAtEpochMs = undefined;
     const enrichFrameworkViaMainProbe = async () => {
       if (
