@@ -2616,6 +2616,18 @@
       }
     }
   },
+  "customerNoteScreenshotHeading": {
+    "message": "Attached Screenshot"
+  },
+  "customerNoteScreenshotAlt": {
+    "message": "Annotated issue screenshot"
+  },
+  "customerNoteScreenshotMissing": {
+    "message": "(No screenshot attached this time.)"
+  },
+  "customerNoteScreenshotTooLarge": {
+    "message": "(The screenshot is too large and was not included with this file.)"
+  },
   "createTicketAndDownload": {
     "message": "Create Ticket & Download"
   },

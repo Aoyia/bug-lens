@@ -4,10 +4,12 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 
 import {
+  CUSTOMER_NOTE_IMAGE_MAX_BYTES,
   buildCustomerNoteFile,
   buildCustomerNoteFilename,
   buildTicketQuestions,
   detectCustomerNoteLeaks,
+  isCustomerNoteImageWithinLimit,
 } from "../src/preview/ticket-compose.ts";
 import { setUserLanguagePreference } from "../src/shared/i18n.ts";
 import type { IssueScene } from "../src/shared/protocol.ts";
@@ -162,6 +164,137 @@ test("buildCustomerNoteFile：以 # 开头，含客户版正文，不含任何�
   }
 });
 
+test("buildCustomerNoteFile：有标注截图时内联 data URI，不留裸路径", async () => {
+  const restore = installZhI18n();
+  try {
+    await useChinese();
+    const scene = createSensitiveScene();
+    const dataUri = "data:image/jpeg;base64,AAAA";
+    const out = buildCustomerNoteFile(buildTicketQuestions(scene), scene, {
+      annotatedImageDataUri: dataUri,
+    });
+
+    assert.ok(out.includes("![问题标注截图]"), "应输出 Markdown 图片语法");
+    assert.ok(out.includes("data:image/jpeg;base64,"), "应内联 data URI");
+    assert.ok(out.includes(dataUri), "应写入完整的 data URI");
+    assert.equal(
+      out.includes("screenshot-annotated"),
+      false,
+      "不应保留裂图裸路径"
+    );
+  } finally {
+    restore();
+  }
+});
+
+test("buildCustomerNoteFile：无标注截图时省略图片行并给出文字说明", async () => {
+  const restore = installZhI18n();
+  try {
+    await useChinese();
+    const scene = createSensitiveScene();
+    const zh = readLocale("zh_CN");
+    const out = buildCustomerNoteFile(buildTicketQuestions(scene), scene);
+
+    assert.equal(out.includes("!["), false, "无图时不应出现 Markdown 图片");
+    assert.equal(out.includes("data:image"), false, "无图时不应出现 data URI");
+    assert.equal(out.includes("screenshot-annotated"), false);
+    assert.ok(out.includes("未附截图"), "应给出 i18n 文字说明");
+    assert.ok(out.includes(zh.customerNoteScreenshotMissing.message));
+  } finally {
+    restore();
+  }
+});
+
+test("buildCustomerNoteFile：超过 1.5MB 时不内联，改为大图文字说明", async () => {
+  const restore = installZhI18n();
+  try {
+    await useChinese();
+    const scene = createSensitiveScene();
+    const zh = readLocale("zh_CN");
+    // base64 载荷长度 ≈ 2.8MB，解码后 ≈ 2.1MB，超过 1.5MB 上限
+    const huge = `data:image/png;base64,${"A".repeat(2_800_000)}`;
+    assert.equal(isCustomerNoteImageWithinLimit(huge), false);
+
+    const out = buildCustomerNoteFile(buildTicketQuestions(scene), scene, {
+      annotatedImageDataUri: huge,
+    });
+    assert.equal(out.includes("!["), false, "超限时不应输出图片语法");
+    assert.equal(out.includes("data:image"), false, "超限时不应内联 data URI");
+    assert.equal(out.includes("screenshot-annotated"), false);
+    assert.ok(out.includes("截图为大图"), "应给出大图说明文案");
+    assert.ok(out.includes(zh.customerNoteScreenshotTooLarge.message));
+    assert.ok(out.length < 100_000, `超限时文件不应膨胀，实际 ${out.length}`);
+  } finally {
+    restore();
+  }
+});
+
+test("isCustomerNoteImageWithinLimit：合法小图通过，非法/超限拒绝", () => {
+  assert.equal(
+    isCustomerNoteImageWithinLimit("data:image/jpeg;base64,AAAA"),
+    true
+  );
+  assert.equal(
+    isCustomerNoteImageWithinLimit("data:image/png;base64,AAAA"),
+    true
+  );
+  assert.equal(
+    isCustomerNoteImageWithinLimit("data:text/html;base64,AAAA"),
+    false
+  );
+  assert.equal(
+    isCustomerNoteImageWithinLimit("https://example.com/a.png"),
+    false
+  );
+  assert.equal(isCustomerNoteImageWithinLimit(""), false);
+  assert.equal(CUSTOMER_NOTE_IMAGE_MAX_BYTES, 1_572_864);
+
+  const atLimit = `data:image/jpeg;base64,${"A".repeat(
+    Math.floor(CUSTOMER_NOTE_IMAGE_MAX_BYTES / 3) * 4
+  )}`;
+  assert.equal(
+    isCustomerNoteImageWithinLimit(atLimit),
+    true,
+    "正好 1.5MB 应允许内联"
+  );
+  const overLimit = `data:image/jpeg;base64,${"A".repeat(
+    Math.floor(CUSTOMER_NOTE_IMAGE_MAX_BYTES / 3) * 4 + 4
+  )}`;
+  assert.equal(
+    isCustomerNoteImageWithinLimit(overLimit),
+    false,
+    "超过 1.5MB 应拒绝"
+  );
+});
+
+test("带图的客户版单文件仍不泄露技术 token", async () => {
+  const restore = installZhI18n();
+  try {
+    await useChinese();
+    const scene = createSensitiveScene();
+    const out = buildCustomerNoteFile(buildTicketQuestions(scene), scene, {
+      annotatedImageDataUri: "data:image/jpeg;base64,AAAA",
+    });
+
+    const forbidden = [
+      "src/components/Foo.tsx",
+      "div.el-button > span",
+      "http://internal.api/x",
+      "scene-abc123",
+      "/issues/abc123/",
+      "## 研发版",
+      "asset-annotated",
+      "asset-original",
+    ];
+    for (const token of forbidden) {
+      assert.equal(out.includes(token), false, `不应包含：${token}`);
+    }
+    assert.ok(out.includes("![问题标注截图]"));
+  } finally {
+    restore();
+  }
+});
+
 test("buildCustomerNoteFile：无 ticketDraft 的老场景仍可生成且不抛错", async () => {
   await useChinese();
   const scene = createSensitiveScene();
@@ -236,6 +369,10 @@ test("客户版单文件导出相关 i18n key 中英齐备", () => {
     "customerNoteExported",
     "customerNoteExportFailed",
     "customerNoteLeakWarning",
+    "customerNoteScreenshotHeading",
+    "customerNoteScreenshotAlt",
+    "customerNoteScreenshotMissing",
+    "customerNoteScreenshotTooLarge",
   ];
   for (const locale of ["zh_CN", "en"] as const) {
     const dict = readLocale(locale);

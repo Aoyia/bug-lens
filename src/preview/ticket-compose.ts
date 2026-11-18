@@ -390,6 +390,15 @@ function renderInternalAppendix(scene: IssueScene | undefined): string {
   return lines.join("\n");
 }
 
+export type TicketRenderOptions = {
+  /**
+   * 客户版截图区块的自定义渲染结果。传入后替换默认的 `screenshot-annotated` 占位；
+   * 传空字符串表示不输出截图区块。
+   * 该区块在脱敏之后拼接，避免 base64 被脱敏规则误伤。
+   */
+  customerScreenshotBlock?: string;
+};
+
 /**
  * 纯函数：五问 + 场景 → Markdown。
  * internal 保留技术细节；customer 仅输出业务字段并做输出级脱敏。
@@ -397,7 +406,8 @@ function renderInternalAppendix(scene: IssueScene | undefined): string {
 export function renderTicketMarkdown(
   questions: TicketQuestion[],
   scene: IssueScene | undefined,
-  audience: TicketAudience
+  audience: TicketAudience,
+  options: TicketRenderOptions = {}
 ): string {
   const en = isEn();
   const customer = audience === "customer";
@@ -413,6 +423,11 @@ export function renderTicketMarkdown(
 
   if (customer) {
     const sections = [heading, "", body];
+    const customBlock = options.customerScreenshotBlock;
+    if (customBlock !== undefined) {
+      const text = sanitizeForCustomer(sections.join("\n")).trim();
+      return customBlock ? `${text}\n\n${customBlock}\n` : `${text}\n`;
+    }
     if (scene?.screenshot?.annotatedAssetId) {
       sections.push(
         "",
@@ -443,6 +458,52 @@ export function renderTicketQuestionsSection(
 
 const CUSTOMER_NOTE_TITLE_MAX = 60;
 
+/** 客户版单文件内联截图的体积上限（1.5MB 原始字节，base64 后约 2MB）。 */
+export const CUSTOMER_NOTE_IMAGE_MAX_BYTES = 1_572_864;
+
+/** 仅接受可直接内联的图片 data URI，避免任意字符串被写进 Markdown 图片语法。 */
+const INLINE_IMAGE_DATA_URI =
+  /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
+
+function dataUriByteLength(dataUri: string): number {
+  const comma = dataUri.indexOf(",");
+  if (comma < 0) return 0;
+  const payload = dataUri.slice(comma + 1);
+  const padding = payload.endsWith("==") ? 2 : payload.endsWith("=") ? 1 : 0;
+  return Math.max(0, Math.floor((payload.length * 3) / 4) - padding);
+}
+
+/** 纯函数：data URI 是否为合法图片且未超过内联体积上限。 */
+export function isCustomerNoteImageWithinLimit(dataUri: string): boolean {
+  if (!INLINE_IMAGE_DATA_URI.test(dataUri)) return false;
+  return dataUriByteLength(dataUri) <= CUSTOMER_NOTE_IMAGE_MAX_BYTES;
+}
+
+export type CustomerNoteFileOptions = {
+  /**
+   * 调用方同步读好的标注截图 data URI（仅 issue-annotated 资产）。
+   * 缺省 / 非法 / 超限时不会输出 Markdown 图片语法。
+   */
+  annotatedImageDataUri?: string;
+};
+
+/**
+ * 客户版截图区块：有图内联为 data URI，无图/超限退化为可读文字，
+ * 任何情况下都不产生裂图引用。
+ */
+function renderCustomerNoteScreenshotBlock(
+  dataUri: string | undefined
+): string {
+  const heading = `## ${t("customerNoteScreenshotHeading")}`;
+  if (!dataUri || !INLINE_IMAGE_DATA_URI.test(dataUri)) {
+    return `${heading}\n\n${t("customerNoteScreenshotMissing")}`;
+  }
+  if (!isCustomerNoteImageWithinLimit(dataUri)) {
+    return `${heading}\n\n${t("customerNoteScreenshotTooLarge")}`;
+  }
+  return `${heading}\n\n![${t("customerNoteScreenshotAlt")}](${dataUri})`;
+}
+
 /** 从五问里取现象摘要作为单文件标题（已脱敏、单行、截断）。 */
 function customerNoteTitle(questions: TicketQuestion[]): string {
   const symptom = questions.find((question) => question.id === "symptom");
@@ -460,12 +521,18 @@ function customerNoteTitle(questions: TicketQuestion[]): string {
  * 纯函数：客户版单文件说明。
  * 只含「一句话标题 + 脱敏提示 + 客户版正文」，不含研发版/技术附录/证据目录/sceneId。
  * 无 ticketDraft 时由自动草稿生成，不抛错。
+ * 截图由调用方同步读好 data URI 后传入；纯函数不做字节读取，保持可单测。
  */
 export function buildCustomerNoteFile(
   questions: TicketQuestion[],
-  scene: IssueScene | undefined
+  scene: IssueScene | undefined,
+  options: CustomerNoteFileOptions = {}
 ): string {
-  const body = renderTicketMarkdown(questions, scene, "customer").trim();
+  const body = renderTicketMarkdown(questions, scene, "customer", {
+    customerScreenshotBlock: renderCustomerNoteScreenshotBlock(
+      options.annotatedImageDataUri
+    ),
+  }).trim();
   return [
     `# ${customerNoteTitle(questions)}`,
     "",

@@ -2616,6 +2616,18 @@
       }
     }
   },
+  "customerNoteScreenshotHeading": {
+    "message": "问题截图"
+  },
+  "customerNoteScreenshotAlt": {
+    "message": "问题标注截图"
+  },
+  "customerNoteScreenshotMissing": {
+    "message": "（本次未附截图）"
+  },
+  "customerNoteScreenshotTooLarge": {
+    "message": "（截图为大图，未随本文件附带）"
+  },
   "createTicketAndDownload": {
     "message": "立即提工单并下载"
   },

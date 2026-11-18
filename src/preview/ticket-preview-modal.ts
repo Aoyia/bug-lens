@@ -248,7 +248,10 @@ export function bindTicketPreviewModal(deps: TicketPreviewModalDeps): void {
     if (activeAudience !== "customer") setAudience("customer");
     const scene = getScene();
     const questions = buildTicketQuestions(scene, questionOverrides);
-    const content = buildCustomerNoteFile(questions, scene);
+    // 截图字节已在快照内存中，同步取成 data URI；纯函数 buildCustomerNoteFile 保持同步。
+    const content = buildCustomerNoteFile(questions, scene, {
+      annotatedImageDataUri: getAnnotatedDataUrl(),
+    });
     renderLeakWarning(content);
     const leaks = detectCustomerNoteLeaks(content);
     if (leaks.length > 0) {
