@@ -1833,7 +1833,7 @@
     }
   },
   "markModeHint": {
-    "message": "Mark mode ($CURRENT$) · click to select elements · Enter to capture",
+    "message": "Mark mode ($CURRENT$) · click the problem area · Enter to describe expected",
     "placeholders": {
       "current": { "content": "$1" }
     }

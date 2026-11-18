@@ -1833,7 +1833,7 @@
     }
   },
   "markModeHint": {
-    "message": "标记模式 ($CURRENT$) · 点击选择网页元素 · 回车进入截图",
+    "message": "标记模式 ($CURRENT$) · 点击选择出错区域 · 回车后填写预期",
     "placeholders": {
       "current": { "content": "$1" }
     }
