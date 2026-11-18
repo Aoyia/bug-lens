@@ -1,6 +1,7 @@
 import { existsSync, realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { loadSkillContract, renderContractCommand } from "./contract.ts";
 import type { SearchScope } from "./query/search.ts";
 import type { TimelineEventKind } from "./query/timeline.ts";
 import { runCompareFramesTool } from "./tools/compare-frames.ts";
@@ -219,6 +220,7 @@ function formatHelp(): string {
 Usage: node bug-lens-cli.mjs <command> [options]
 
 Commands:
+  contract                                    Print skill contract JSON (impl version, capabilities, commands, workspace namespace)
   open_pack <zipOrDir>                        Extract pack to workspace (idempotent), generate derived JSON & INDEX.md, cache session path, and print overview
   get_scene [--selector S] [--cssProperty P]  Inspect issue scene (session) or DOM anchor & CSS cascade rules (screenshot)
   get_css [--scene ID] [--property P]       Inspect winner CSS rules & computed layout styles (v5 dom-styles / cascade)
@@ -255,6 +257,11 @@ export function runTriageCli(argv: string[]): string {
   const maxChars = numFlag(flags, "maxChars", "max_chars");
 
   switch (cmd) {
+    case "contract": {
+      // 纯只读：不需要 --pack，也不依赖工作区状态
+      return renderContractCommand(loadSkillContract());
+    }
+
     case "open_pack": {
       const { pack } = resolvePackAndPositionals(flags, positionals, true);
       if (!pack) {

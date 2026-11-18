@@ -13,9 +13,27 @@ description: >-
 
 设 `<CLI>` 为本 `SKILL.md` 同级目录下的 `scripts/bug-lens-cli.mjs` 绝对路径（即 `node "<skillDir>/scripts/bug-lens-cli.mjs"`）。
 
+## Step 0: Contract Self-Check (必做，每会话一次)
+
+执行 `<CLI> contract`，输出为 JSON。按结果分流：
+
+- **命令失败（`UNKNOWN_COMMAND`）** → 当前为 legacy 实现（无契约层）。按本文件后续流程执行，忽略所有标记 `[cap: ...]` 的段落。
+- **返回 JSON** → 读取 `capabilities` 数组，只执行已声明能力对应的工作流段落。`[cap: X]` 段落在 `capabilities` 不含 `X` 时整段跳过。
+- `workspaceNamespace` 决定工作区根目录。不同 `implVersion` 的证据缓存物理隔离，**禁止跨版本复用 `--pack` 短 ID**。
+- 契约的 `implVersion` 与用户所述扩展版本不一致时，先告知用户实际版本，再继续。
+
+## Contract-Gated Capabilities
+
+仅当 `contract` 输出声明的 `capabilities` 含对应项时才启用（未声明则整段跳过，不要自行推测）：
+
+- `pack-mode` — 证据包出包模式（`ai-minimal` / `full-viewer`）决定可用的证据粒度与录屏视频是否存在。
+- `ticket-draft` — 可生成工单草稿/工单模板等下游出口。
+- `customer-note` — 可生成面向客户的说明文案（customer note 出口）。
+- `expectation-assertion` — 可读取并断言用户填写的显式预期（而非仅依赖症状标签推断）。
+
 ## Core Rules
 
-1. **Extract-First Workspace**：首步直接对原始 `.zip` 执行 `<CLI> open_pack "<zipPath>"`。该命令会将证据包全量幂等解压至 `<tmp>/bug-lens-workspace/<packName>-<hash>/`（含 `screenshots/step-*.jpg`、`step-*-settled.jpg`、`final-frame.jpg`、`network/blobs/*.bin`、`issues/<id>/dom-*.json`；Schema v5 默认直接为根目录标准 JSON `session-data.json` 与 `network-details.json`，旧版/full-viewer 包会自动生成派生 `data/*.json` 与解压 `media/recording.webm`），并输出 `Workspace` 与 `INDEX.md` 绝对路径。禁止手动执行 `unzip` 到其他目录或工作区根目录。
+1. **Extract-First Workspace**：首步直接对原始 `.zip` 执行 `<CLI> open_pack "<zipPath>"`。该命令会将证据包全量幂等解压至 `<tmp>/<workspaceNamespace>/<packName>-<hash>/`（含 `screenshots/step-*.jpg`、`step-*-settled.jpg`、`final-frame.jpg`、`network/blobs/*.bin`、`issues/<id>/dom-*.json`；Schema v5 默认直接为根目录标准 JSON `session-data.json` 与 `network-details.json`，旧版/full-viewer 包会自动生成派生 `data/*.json` 与解压 `media/recording.webm`），并输出 `Workspace` 与 `INDEX.md` 绝对路径。禁止手动执行 `unzip` 到其他目录或工作区根目录。
 2. **Session Pack Cache & Multi-Pack Workspace (LRU K=10)**：首次执行 `<CLI> open_pack "<zipPath>"` 后，当前解压工作区路径自动缓存在会话状态中，工作区按最近访问时间自动保留最近 10 个解压包目录；后续同包命令无需重复传 `--pack`。当同一会话连续分析多个证据包或回溯前序包时，显式传 `--pack "<包短ID或Workspace路径>"`（如 `--pack afbf11c2`）即可在工作区已解压目录间精准切换，防止多包串包。
 3. **Read INDEX.md Before Deep Drill-Down**：需要下钻复杂字段或编写自定义查询前，先用 `read_file` 读取 `open_pack` 输出中的 `INDEX.md`，按其中列出的顶层 Schema 键、数组长度、单条记录字段名及 `Request -> Body Map` 编写查询，避免盲猜 `--jsonPath` 或字段名。
 4. **Two-Tier Retrieval（宏观 CLI 索引 + 微观文件直读）**：

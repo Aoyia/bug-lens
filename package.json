@@ -22,6 +22,7 @@
     "build:fixture-apps": "node scripts/build-fixture-apps.mjs",
     "verify:fixture-apps": "node scripts/verify-fixture-apps.mjs",
     "verify:probe": "npx tsx scripts/verify-framework-probe.mjs",
+    "verify:skill-contract": "node scripts/verify-skill-contract.mjs",
     "typecheck": "tsc --noEmit && tsc --project tsconfig.e2e.json",
     "typecheck:e2e": "tsc --project tsconfig.e2e.json",
     "prepare": "husky",

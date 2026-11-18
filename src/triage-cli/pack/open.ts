@@ -13,6 +13,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, posix, resolve, sep } from "node:path";
+import { loadSkillContract } from "../contract.ts";
 import { PackLruCache, type LoadedPack } from "./cache.ts";
 import { buildIndexMarkdown } from "./index-writer.ts";
 import { parseWindowAssignmentJson } from "./js-json.ts";
@@ -80,7 +81,9 @@ interface ExtractStamp {
 export function getTriageWorkspaceDir(): string {
   const custom =
     process.env.BUG_LENS_WORKSPACE_DIR || process.env.BUG_LENS_CLI_WORKSPACE;
-  return custom ? resolve(custom) : join(tmpdir(), "bug-lens-workspace");
+  if (custom) return resolve(custom);
+  // 命名空间隔离：v5 落到 <tmp>/bug-lens-workspace-v5，与旧版证据缓存平级并列、物理隔离
+  return join(tmpdir(), loadSkillContract().workspaceNamespace);
 }
 
 /** ZIP 对应的解压目录：`<workspace>/<zip文件名>-<源路径哈希6位>`，同名不同位置的包互不覆盖。 */
