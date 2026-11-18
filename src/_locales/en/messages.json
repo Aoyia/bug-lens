@@ -2580,6 +2580,42 @@
   "ticketCustomerConfirmHint": {
     "message": "Internal technical information is hidden automatically. Please confirm the customer name and business details before forwarding."
   },
+  "exportCustomerNote": {
+    "message": "Export customer note"
+  },
+  "exportCustomerNoteTitle": {
+    "message": "Export a single Markdown file with only the customer version, no technical data"
+  },
+  "customerNotePrivacyNotice": {
+    "message": "Internal technical information has been hidden automatically. Please confirm the customer name before forwarding."
+  },
+  "customerNoteDefaultTitle": {
+    "message": "Issue Summary"
+  },
+  "customerNoteExported": {
+    "message": "Customer note exported: $FILENAME$",
+    "placeholders": {
+      "filename": {
+        "content": "$1"
+      }
+    }
+  },
+  "customerNoteExportFailed": {
+    "message": "Failed to export customer note: $ERROR$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "customerNoteLeakWarning": {
+    "message": "Possible leftover technical information detected ($TOKENS$). Export still proceeded; please review before forwarding.",
+    "placeholders": {
+      "tokens": {
+        "content": "$1"
+      }
+    }
+  },
   "createTicketAndDownload": {
     "message": "Create Ticket & Download"
   },

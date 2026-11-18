@@ -9,8 +9,11 @@ import {
   type EvidencePackageSnapshot,
 } from "./evidence-package.ts";
 import {
+  buildCustomerNoteFile,
+  buildCustomerNoteFilename,
   buildTicketDraft,
   buildTicketQuestions,
+  detectCustomerNoteLeaks,
   renderTicketMarkdown,
   renderTicketQuestionsSection,
   type TicketAudience,
@@ -158,6 +161,12 @@ export function bindTicketPreviewModal(deps: TicketPreviewModalDeps): void {
   const customerConfirmHint = root.getElementById(
     "ticket-customer-confirm"
   ) as HTMLElement | null;
+  const exportCustomerNoteBtn = root.getElementById(
+    "ticket-export-customer-note"
+  ) as HTMLButtonElement | null;
+  const customerLeakWarning = root.getElementById(
+    "ticket-customer-leak-warning"
+  ) as HTMLElement | null;
 
   let currentTicketBundle: { markdown: string; html: string } | undefined;
   let activeHeightTransitionTimeout: number | undefined;
@@ -173,6 +182,85 @@ export function bindTicketPreviewModal(deps: TicketPreviewModalDeps): void {
 
   function getScene() {
     return currentSnapshot?.issueScenes?.[0];
+  }
+
+  /** 客户版说明文件名只取会话/场景短标识，避免页面标题、客户名进入文件名。 */
+  function customerNoteIdentifier(): string | undefined {
+    return currentSnapshot?.session?.id ?? getScene()?.id;
+  }
+
+  /** 导出前的可疑残留提示：只提示，不阻断导出。 */
+  function renderLeakWarning(text?: string): void {
+    if (!customerLeakWarning) return;
+    const leaks = text ? detectCustomerNoteLeaks(text) : [];
+    if (leaks.length === 0) {
+      customerLeakWarning.textContent = "";
+      customerLeakWarning.hidden = true;
+      return;
+    }
+    customerLeakWarning.textContent = t(
+      "customerNoteLeakWarning",
+      leaks.join(en() ? ", " : "、")
+    );
+    customerLeakWarning.hidden = false;
+  }
+
+  /** 复用证据包既有下载通道：blob URL + chrome.downloads（无扩展 API 时退回 <a download>）。 */
+  async function downloadMarkdownFile(
+    filename: string,
+    content: string
+  ): Promise<void> {
+    const blob = new Blob([content], {
+      type: "text/markdown;charset=utf-8",
+    });
+    if (
+      typeof URL === "undefined" ||
+      typeof URL.createObjectURL !== "function"
+    ) {
+      throw new Error("download unsupported");
+    }
+    const blobUrl = URL.createObjectURL(blob);
+    try {
+      if (typeof chrome !== "undefined" && chrome.downloads?.download) {
+        await chrome.downloads.download({
+          url: blobUrl,
+          filename,
+          saveAs: true,
+        });
+      } else {
+        const anchor = root.createElement("a");
+        anchor.href = blobUrl;
+        anchor.download = filename;
+        root.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+      }
+    } finally {
+      window.setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+    }
+  }
+
+  async function exportCustomerNote(): Promise<void> {
+    if (!currentSnapshot) {
+      deps.notify(t("waitForEvidenceLoad"));
+      return;
+    }
+    if (activeAudience !== "customer") setAudience("customer");
+    const scene = getScene();
+    const questions = buildTicketQuestions(scene, questionOverrides);
+    const content = buildCustomerNoteFile(questions, scene);
+    renderLeakWarning(content);
+    const leaks = detectCustomerNoteLeaks(content);
+    if (leaks.length > 0) {
+      deps.notify(t("customerNoteLeakWarning", leaks.join(en() ? ", " : "、")));
+    }
+    const filename = buildCustomerNoteFilename(customerNoteIdentifier());
+    try {
+      await downloadMarkdownFile(filename, content);
+      deps.notify(t("customerNoteExported", filename));
+    } catch (error) {
+      deps.notify(t("customerNoteExportFailed", String(error)));
+    }
   }
 
   /** 立即把当前五问编辑落库（关闭弹窗/导出前兜底）。 */
@@ -367,12 +455,18 @@ export function bindTicketPreviewModal(deps: TicketPreviewModalDeps): void {
       ticketRichView.innerHTML = html;
       enhanceTicketImages();
     }
+    renderLeakWarning(
+      activeAudience === "customer" ? currentTicketBundle.markdown : undefined
+    );
   }
 
   function setAudience(audience: TicketAudience): void {
     activeAudience = audience;
     audienceInternalBtn?.classList.toggle("active", audience === "internal");
     audienceCustomerBtn?.classList.toggle("active", audience === "customer");
+    if (exportCustomerNoteBtn) {
+      exportCustomerNoteBtn.disabled = audience !== "customer";
+    }
     if (customerConfirmHint) {
       customerConfirmHint.hidden = audience !== "customer";
     }
@@ -412,6 +506,7 @@ export function bindTicketPreviewModal(deps: TicketPreviewModalDeps): void {
     activeAudience = "internal";
     audienceInternalBtn?.classList.add("active");
     audienceCustomerBtn?.classList.remove("active");
+    if (exportCustomerNoteBtn) exportCustomerNoteBtn.disabled = true;
     if (customerConfirmHint) customerConfirmHint.hidden = true;
 
     const stepCount = snapshot.interactions?.length ?? 0;
@@ -446,6 +541,9 @@ export function bindTicketPreviewModal(deps: TicketPreviewModalDeps): void {
   previewTicketBtn?.addEventListener("click", openTicketPreview);
   audienceInternalBtn?.addEventListener("click", () => setAudience("internal"));
   audienceCustomerBtn?.addEventListener("click", () => setAudience("customer"));
+  exportCustomerNoteBtn?.addEventListener("click", () => {
+    void exportCustomerNote();
+  });
 
   function switchTicketTab(mode: "rich" | "plain"): void {
     if (

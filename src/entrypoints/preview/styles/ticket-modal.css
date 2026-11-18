@@ -458,6 +458,35 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
+/* 客户版单文件导出：紧邻受众切换，仅在客户版可用 */
+.ticket-audience-action {
+  margin-left: 6px;
+  padding: 4px 10px;
+  height: 26px;
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--zen-primary, #165dff);
+  background: #ffffff;
+  border: 1px solid var(--zen-border-accent, rgba(22, 93, 255, 0.2));
+  border-radius: 3px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.ticket-audience-action:hover:not(:disabled) {
+  background: rgba(22, 93, 255, 0.08);
+  border-color: rgba(22, 93, 255, 0.35);
+}
+
+.ticket-audience-action:disabled {
+  color: var(--zen-text-muted, #86909c);
+  border-color: var(--zen-border, rgba(0, 0, 0, 0.08));
+  background: rgba(0, 0, 0, 0.02);
+  cursor: not-allowed;
+}
+
 /* 五问编辑区 */
 .ticket-questions-editor {
   display: grid;
@@ -529,6 +558,11 @@
   background: rgba(245, 63, 63, 0.08);
   border-left: 2px solid rgba(245, 63, 63, 0.5);
   border-radius: 3px;
+}
+
+/* 导出前可疑残留提示：只提示，不阻断导出 */
+.ticket-customer-leak-warning {
+  margin-top: -4px;
 }
 
 /* 顶栏预览工单按钮 */

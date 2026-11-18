@@ -3,7 +3,7 @@ import type {
   IssueScene,
   TicketDraft,
 } from "../shared/protocol.ts";
-import { isEn } from "../shared/i18n.ts";
+import { isEn, t } from "../shared/i18n.ts";
 
 export type TicketAudience = "internal" | "customer";
 
@@ -439,4 +439,70 @@ export function renderTicketQuestionsSection(
   audience: TicketAudience
 ): string {
   return renderQuestionsSection(questions, audience);
+}
+
+const CUSTOMER_NOTE_TITLE_MAX = 60;
+
+/** 从五问里取现象摘要作为单文件标题（已脱敏、单行、截断）。 */
+function customerNoteTitle(questions: TicketQuestion[]): string {
+  const symptom = questions.find((question) => question.id === "symptom");
+  const raw = oneLine(sanitizeForCustomer(oneLine(symptom?.value ?? "")))
+    .replace(/^#+\s*/, "")
+    .trim();
+  const title =
+    raw.length > CUSTOMER_NOTE_TITLE_MAX
+      ? `${raw.slice(0, CUSTOMER_NOTE_TITLE_MAX)}…`
+      : raw;
+  return title || t("customerNoteDefaultTitle");
+}
+
+/**
+ * 纯函数：客户版单文件说明。
+ * 只含「一句话标题 + 脱敏提示 + 客户版正文」，不含研发版/技术附录/证据目录/sceneId。
+ * 无 ticketDraft 时由自动草稿生成，不抛错。
+ */
+export function buildCustomerNoteFile(
+  questions: TicketQuestion[],
+  scene: IssueScene | undefined
+): string {
+  const body = renderTicketMarkdown(questions, scene, "customer").trim();
+  return [
+    `# ${customerNoteTitle(questions)}`,
+    "",
+    `> ${t("customerNotePrivacyNotice")}`,
+    "",
+    body,
+    "",
+  ].join("\n");
+}
+
+/**
+ * 纯函数：客户版说明文件名。
+ * 只用 sessionId / sceneId 之类的短标识，避免页面标题、客户名进入文件名。
+ */
+export function buildCustomerNoteFilename(identifier?: string): string {
+  const short = oneLine(identifier)
+    .slice(0, 8)
+    .replace(/[^A-Za-z0-9]/g, "")
+    .toLowerCase();
+  return `bug-lens-customer-note-${short || "note"}.md`;
+}
+
+const CUSTOMER_LEAK_PATTERNS: Array<{ label: string; pattern: RegExp }> = [
+  { label: "http://", pattern: /https?:\/\//i },
+  { label: "/issues/", pattern: /\/issues\//i },
+  { label: ".tsx", pattern: /\.(?:tsx?|jsx?|vue|mjs|cjs)\b/i },
+  { label: "sceneId", pattern: /\bscene[-_][\w-]+|\bsceneId\b/i },
+  { label: "selector", pattern: /\bselectors?\b/i },
+];
+
+/**
+ * 纯函数：导出前的可疑残留检测（只提示、不阻断）。
+ * 返回命中的特征标签，供 UI 展示警告文案。
+ */
+export function detectCustomerNoteLeaks(text: string): string[] {
+  const input = String(text ?? "");
+  return CUSTOMER_LEAK_PATTERNS.filter(({ pattern }) =>
+    pattern.test(input)
+  ).map(({ label }) => label);
 }

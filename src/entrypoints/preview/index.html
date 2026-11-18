@@ -1167,6 +1167,17 @@
             >
               客户版
             </button>
+            <button
+              id="ticket-export-customer-note"
+              class="ticket-audience-action"
+              type="button"
+              disabled
+              data-i18n="exportCustomerNote"
+              data-i18n-title="exportCustomerNoteTitle"
+              title="导出仅含客户版的 Markdown 单文件，不含任何技术数据"
+            >
+              导出客户版说明
+            </button>
           </div>
           <div
             id="ticket-questions-editor"
@@ -1180,6 +1191,11 @@
           >
             已自动隐藏内部技术信息，请人工确认客户名称与业务细节后再转发
           </div>
+          <div
+            id="ticket-customer-leak-warning"
+            class="ticket-customer-confirm ticket-customer-leak-warning"
+            hidden
+          ></div>
           <div id="ticket-rich-view" class="ticket-rich-view"></div>
           <pre id="ticket-plain-view" class="ticket-plain-view" hidden></pre>
         </div>

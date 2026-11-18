@@ -2580,6 +2580,42 @@
   "ticketCustomerConfirmHint": {
     "message": "已自动隐藏内部技术信息，请人工确认客户名称与业务细节后再转发"
   },
+  "exportCustomerNote": {
+    "message": "导出客户版说明"
+  },
+  "exportCustomerNoteTitle": {
+    "message": "导出仅含客户版的 Markdown 单文件，不含任何技术数据"
+  },
+  "customerNotePrivacyNotice": {
+    "message": "已自动隐藏内部技术信息，请确认客户名称后转发"
+  },
+  "customerNoteDefaultTitle": {
+    "message": "问题说明"
+  },
+  "customerNoteExported": {
+    "message": "客户版说明已导出：$FILENAME$",
+    "placeholders": {
+      "filename": {
+        "content": "$1"
+      }
+    }
+  },
+  "customerNoteExportFailed": {
+    "message": "客户版说明导出失败：$ERROR$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "customerNoteLeakWarning": {
+    "message": "检测到可能残留的技术信息（$TOKENS$），已照常导出，请人工复核后再转发",
+    "placeholders": {
+      "tokens": {
+        "content": "$1"
+      }
+    }
+  },
   "createTicketAndDownload": {
     "message": "立即提工单并下载"
   },
