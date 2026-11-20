@@ -721,7 +721,7 @@ export function OptionsApp() {
               {typeof chrome !== "undefined" &&
               chrome.runtime?.getManifest?.()?.version
                 ? chrome.runtime.getManifest().version
-                : "0.7.41"}
+                : "0.7.42"}
             </div>
           </aside>
 
