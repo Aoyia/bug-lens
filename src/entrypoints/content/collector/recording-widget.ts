@@ -25,6 +25,11 @@ export type WidgetCallbacks = {
   isIdlePaused(): boolean;
   getPausedDurationMs?(): number;
   getSessionId?(): string | undefined;
+  isMac?: boolean;
+};
+
+export type WidgetOptions = {
+  isMac?: boolean;
 };
 
 type ToastTone = "success" | "error";
@@ -40,11 +45,14 @@ export class RecordingWidget {
   private autoCollapseTimer: number | undefined;
   private isDragging = false;
   private isHovering = false;
+  private isManuallyCollapsed = false;
   private isBubbleShowing = false;
   private bubbleElement?: HTMLElement;
   private bubbleTimer?: number;
   private cleanupCollapseListeners?: () => void;
   private cleanupDragListeners?: () => void;
+  private cleanupDragHandleListener?: () => void;
+  private cleanupResizeListeners?: () => void;
   private _isSaving = false;
   private _isClosing = false;
   private isConfirmingDiscard = false;
@@ -53,9 +61,9 @@ export class RecordingWidget {
   private closePromise?: Promise<void>;
   private closeResolve?: () => void;
   private readonly callbacks: WidgetCallbacks;
-  private readonly isMac: boolean;
-  readonly shortcutKeyText: string;
-  readonly stopShortcutKeyText: string;
+  private isMac: boolean;
+  shortcutKeyText!: string;
+  stopShortcutKeyText!: string;
 
   get isSaving(): boolean {
     return this._isSaving;
@@ -65,17 +73,42 @@ export class RecordingWidget {
     return this._isClosing;
   }
 
-  constructor(callbacks: WidgetCallbacks) {
+  constructor(callbacks: WidgetCallbacks, options?: WidgetOptions) {
     this.callbacks = callbacks;
+    const explicitIsMac = options?.isMac ?? callbacks.isMac;
     this.isMac =
-      typeof navigator !== "undefined" &&
-      Boolean(
-        /(Mac|iPhone|iPod|iPad)/i.test(
-          navigator.platform || navigator.userAgent
-        )
-      );
+      explicitIsMac !== undefined
+        ? Boolean(explicitIsMac)
+        : typeof navigator !== "undefined" &&
+          Boolean(
+            /(Mac|iPhone|iPod|iPad)/i.test(
+              navigator.platform || navigator.userAgent
+            )
+          );
+    this.syncShortcutTexts();
+  }
+
+  private syncShortcutTexts(): void {
     this.shortcutKeyText = this.isMac ? "⌥S" : "Alt+S";
     this.stopShortcutKeyText = this.isMac ? "⇧⌘Y" : "Ctrl+Shift+Y";
+  }
+
+  setIsMac(isMac: boolean): void {
+    this.isMac = Boolean(isMac);
+    this.syncShortcutTexts();
+    this.updateLanguage();
+  }
+
+  private isCoarseOrNoHoverPointer(): boolean {
+    try {
+      return (
+        typeof window !== "undefined" &&
+        typeof window.matchMedia === "function" &&
+        Boolean(window.matchMedia("(hover: none), (pointer: coarse)")?.matches)
+      );
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -115,9 +148,10 @@ export class RecordingWidget {
     const topPx = Number.parseFloat(saved?.top ?? "");
     if (!Number.isFinite(rightPx) || !Number.isFinite(topPx)) return false;
 
-    const winWidth = window.innerWidth || document.documentElement.clientWidth;
+    const winWidth =
+      window.innerWidth || document.documentElement?.clientWidth || 1024;
     const winHeight =
-      window.innerHeight || document.documentElement.clientHeight;
+      window.innerHeight || document.documentElement?.clientHeight || 768;
     const rect = root.getBoundingClientRect();
     const maxRight = Math.max(0, winWidth - rect.width);
     const maxTop = Math.max(0, winHeight - rect.height);
@@ -185,7 +219,7 @@ export class RecordingWidget {
           width: auto !important;
           height: 36px !important;
           min-width: 0 !important;
-          max-width: none !important;
+          max-width: calc(100vw - 16px) !important;
           min-height: 0 !important;
           max-height: none !important;
           margin: 0 !important;
@@ -264,8 +298,30 @@ export class RecordingWidget {
         #__wbr_recording_widget__.__wbr_saving__ .__wbr_drag_handle,
         #__wbr_recording_widget__.__wbr_saving__ .__wbr_dot,
         #__wbr_recording_widget__.__wbr_saving__ [data-wbr-rec-tag],
-        #__wbr_recording_widget__.__wbr_saving__ .__wbr_btn_group {
+        #__wbr_recording_widget__.__wbr_saving__ .__wbr_btn_group,
+        #__wbr_recording_widget__.__wbr_saving__ #__wbr_collapse_toggle_btn__ {
           display: none !important;
+        }
+        #__wbr_collapse_toggle_btn__ {
+          border: 1px solid rgba(255, 255, 255, 0.18) !important;
+          background: rgba(255, 255, 255, 0.1) !important;
+          color: rgba(255, 255, 255, 0.85) !important;
+          border-radius: 4px !important;
+          padding: 3px 6px !important;
+          font-size: 11px !important;
+          line-height: 1 !important;
+          cursor: pointer !important;
+          flex-shrink: 0 !important;
+          display: inline-flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          outline: none !important;
+          margin: 0 !important;
+          transition: background 0.15s ease, color 0.15s ease !important;
+        }
+        #__wbr_collapse_toggle_btn__:hover {
+          background: rgba(255, 255, 255, 0.2) !important;
+          color: #ffffff !important;
         }
         .__wbr_btn_group {
           display: flex !important;
@@ -366,6 +422,65 @@ export class RecordingWidget {
           color: #ffffff !important;
         }
         .__wbr_timer { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important; font-size: 12px !important; color: #e5e6eb !important; font-weight: 600 !important; flex-shrink: 0 !important; }
+        @media (max-width: 600px) {
+          #__wbr_recording_widget__ {
+            right: 8px;
+            bottom: 12px;
+            height: auto !important;
+            min-height: 36px !important;
+            padding: 6px 10px !important;
+            gap: 6px 8px !important;
+            flex-wrap: wrap !important;
+          }
+          #__wbr_recording_widget__.__wbr_collapsed__ {
+            height: 30px !important;
+            min-height: 30px !important;
+            padding: 4px 10px !important;
+            gap: 6px !important;
+            flex-wrap: nowrap !important;
+          }
+          #__wbr_recording_widget__.__wbr_saving__ {
+            height: 30px !important;
+            min-height: 30px !important;
+            padding: 4px 12px !important;
+            flex-wrap: nowrap !important;
+          }
+          #__wbr_recording_widget__:not(.__wbr_collapsed__) .__wbr_btn_group {
+            order: 2 !important;
+            flex: 1 1 100% !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            flex-wrap: wrap !important;
+            white-space: normal !important;
+            gap: 6px !important;
+          }
+          #__wbr_recording_widget__.__wbr_collapsed__ .__wbr_btn_group {
+            order: 0 !important;
+            flex: 0 1 auto !important;
+            width: auto !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            flex-wrap: nowrap !important;
+          }
+          #__wbr_recording_widget__:not(.__wbr_collapsed__) #__wbr_collapse_toggle_btn__ {
+            margin-left: auto !important;
+          }
+          #__wbr_recording_widget__.__wbr_collapsed__ #__wbr_collapse_toggle_btn__ {
+            margin-left: 0 !important;
+          }
+          #__wbr_recording_widget__ .__wbr_btn {
+            padding: 4px 8px !important;
+            font-size: 10.5px !important;
+            max-width: 100% !important;
+          }
+          #__wbr_recording_widget__.__wbr_collapsed__ #__wbr_stop_btn__ {
+            padding: 3px 7px !important;
+            font-size: 10px !important;
+            max-width: 150px !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+          }
+        }
       </style>
       <span class="__wbr_drag_handle" title="${t("dragToMove")}">⋮⋮</span>
       <span class="__wbr_dot"></span>
@@ -378,6 +493,7 @@ export class RecordingWidget {
         <button id="__wbr_stop_btn__" class="__wbr_btn" title="${t("widgetToolbarStopTooltip", [this.stopShortcutKeyText])}">${t("stopRecording")}</button>
         <button id="__wbr_discard_btn__" class="__wbr_btn" title="${t("widgetToolbarDiscardTooltip")}">${t("discardRecording")}</button>
       </div>
+      <button id="__wbr_collapse_toggle_btn__" type="button" title="${t("widgetCollapseTooltip")}" aria-label="${t("widgetCollapseTooltip")}" aria-expanded="true">▾</button>
     `;
 
     const attach = () => {
@@ -469,43 +585,83 @@ export class RecordingWidget {
           );
         }
 
-        // 拖拽手柄逻辑
+        const collapseToggleBtn = root.querySelector<HTMLButtonElement>(
+          "#__wbr_collapse_toggle_btn__"
+        );
+        collapseToggleBtn?.addEventListener(
+          "click",
+          (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            if (this._isSaving || this._isClosing) return;
+            this.toggleManualCollapse();
+          },
+          true
+        );
+
+        // 拖拽手柄逻辑（Pointer Events 兼容鼠标与触控）
         const dragHandle =
           root.querySelector<HTMLElement>(".__wbr_drag_handle");
         if (dragHandle) {
-          const onMouseDown = (e: MouseEvent) => {
+          const onPointerDown = (e: PointerEvent) => {
+            if (typeof e.button === "number" && e.button !== 0) return;
             e.stopPropagation();
             e.preventDefault();
             if (this._isSaving || this._isClosing) return;
             this.resetDiscardConfirm();
             this.isDragging = true;
+            this.isManuallyCollapsed = false;
             if (this.autoCollapseTimer) {
               window.clearTimeout(this.autoCollapseTimer);
               this.autoCollapseTimer = undefined;
             }
             root.classList.remove("__wbr_collapsed__");
+            this.syncCollapseToggleState();
+
+            const pointerId = e.pointerId;
+            try {
+              (dragHandle as any).setPointerCapture?.(pointerId);
+            } catch {}
 
             const rect = root.getBoundingClientRect();
             const offsetX = e.clientX - rect.left;
             const offsetY = e.clientY - rect.top;
 
-            const onMouseMove = (moveEvt: MouseEvent) => {
-              moveEvt.preventDefault();
+            const onPointerMove = (moveEvt: PointerEvent) => {
+              if (
+                pointerId !== undefined &&
+                moveEvt.pointerId !== undefined &&
+                moveEvt.pointerId !== pointerId
+              ) {
+                return;
+              }
+              moveEvt.preventDefault?.();
               const winWidth =
-                window.innerWidth || document.documentElement.clientWidth;
+                window.innerWidth ||
+                document.documentElement?.clientWidth ||
+                1024;
               const winHeight =
-                window.innerHeight || document.documentElement.clientHeight;
+                window.innerHeight ||
+                document.documentElement?.clientHeight ||
+                768;
+              const currentRect = root.getBoundingClientRect();
+              const widgetWidth = Number.isFinite(currentRect.width)
+                ? currentRect.width
+                : rect.width;
+              const widgetHeight = Number.isFinite(currentRect.height)
+                ? currentRect.height
+                : rect.height;
 
               let left = moveEvt.clientX - offsetX;
               let top = moveEvt.clientY - offsetY;
 
-              const maxLeft = Math.max(0, winWidth - rect.width);
-              const maxTop = Math.max(0, winHeight - rect.height);
+              const maxLeft = Math.max(0, winWidth - widgetWidth);
+              const maxTop = Math.max(0, winHeight - widgetHeight);
               left = Math.min(Math.max(0, left), maxLeft);
               top = Math.min(Math.max(0, top), maxTop);
 
               // 统一采用右边缘定位 (right)，使收缩时固定右边，左侧向右平移收缩
-              const right = Math.max(0, winWidth - (left + rect.width));
+              const right = Math.max(0, winWidth - (left + widgetWidth));
 
               const topPx = `${top}px`;
               const rightPx = `${right}px`;
@@ -516,10 +672,38 @@ export class RecordingWidget {
               this.syncBubblePosition(root);
             };
 
-            const onMouseUp = () => {
+            const cleanupActiveDrag = () => {
               this.isDragging = false;
-              window.removeEventListener("mousemove", onMouseMove);
-              window.removeEventListener("mouseup", onMouseUp);
+              window.removeEventListener?.(
+                "pointermove",
+                onPointerMove as EventListener
+              );
+              window.removeEventListener?.(
+                "pointerup",
+                onPointerEnd as EventListener
+              );
+              window.removeEventListener?.(
+                "pointercancel",
+                onPointerEnd as EventListener
+              );
+              try {
+                if (pointerId !== undefined) {
+                  (dragHandle as any).releasePointerCapture?.(pointerId);
+                }
+              } catch {}
+            };
+
+            const onPointerEnd = (endEvt?: PointerEvent) => {
+              if (
+                endEvt &&
+                pointerId !== undefined &&
+                endEvt.pointerId !== undefined &&
+                endEvt.pointerId !== pointerId
+              ) {
+                return;
+              }
+              if (!this.isDragging) return;
+              cleanupActiveDrag();
               this.cleanupDragListeners = undefined;
 
               try {
@@ -545,33 +729,72 @@ export class RecordingWidget {
               this.resetCollapseTimer();
             };
 
-            this.cleanupDragListeners = () => {
-              window.removeEventListener("mousemove", onMouseMove);
-              window.removeEventListener("mouseup", onMouseUp);
-            };
-            window.addEventListener("mousemove", onMouseMove);
-            window.addEventListener("mouseup", onMouseUp);
+            this.cleanupDragListeners?.();
+            this.cleanupDragListeners = cleanupActiveDrag;
+            window.addEventListener?.(
+              "pointermove",
+              onPointerMove as EventListener
+            );
+            window.addEventListener?.(
+              "pointerup",
+              onPointerEnd as EventListener
+            );
+            window.addEventListener?.(
+              "pointercancel",
+              onPointerEnd as EventListener
+            );
           };
 
           dragHandle.addEventListener(
-            "mousedown",
-            onMouseDown as EventListener
+            "pointerdown",
+            onPointerDown as EventListener
           );
+          this.cleanupDragHandleListener = () => {
+            dragHandle.removeEventListener?.(
+              "pointerdown",
+              onPointerDown as EventListener
+            );
+          };
         }
+
+        const onViewportResize = () => {
+          if (this._isClosing || !this.container) return;
+          this.applyPosition(root, {
+            right: root.style.right,
+            top: root.style.top,
+          });
+          this.syncBubblePosition(root);
+        };
+        window.addEventListener?.("resize", onViewportResize);
+        window.visualViewport?.addEventListener?.("resize", onViewportResize);
+        this.cleanupResizeListeners = () => {
+          window.removeEventListener?.("resize", onViewportResize);
+          window.visualViewport?.removeEventListener?.(
+            "resize",
+            onViewportResize
+          );
+        };
 
         // 自动折叠逻辑
         // 鼠标悬停期间保持展开：只清除折叠计时器，不再重新安排折叠
         const onMouseEnter = () => {
           if (this._isSaving || this._isClosing) return;
+          if (this.isCoarseOrNoHoverPointer() || this.isManuallyCollapsed) {
+            return;
+          }
           this.isHovering = true;
           this.keepExpanded();
         };
         const onMouseMove = () => {
           if (this._isSaving || this._isClosing) return;
+          if (this.isCoarseOrNoHoverPointer() || this.isManuallyCollapsed) {
+            return;
+          }
           this.keepExpanded();
         };
         const onFocusIn = () => {
           if (this._isSaving || this._isClosing) return;
+          if (this.isManuallyCollapsed) return;
           if (this.isHovering) {
             this.keepExpanded();
           } else {
@@ -586,6 +809,9 @@ export class RecordingWidget {
         const onMouseLeave = () => {
           if (this._isSaving || this._isClosing) return;
           this.isHovering = false;
+          if (this.isCoarseOrNoHoverPointer() || this.isManuallyCollapsed) {
+            return;
+          }
           if (this.autoCollapseTimer) {
             window.clearTimeout(this.autoCollapseTimer);
           }
@@ -594,6 +820,7 @@ export class RecordingWidget {
               if (this.container && !this.isDragging && !this._isSaving) {
                 this.resetDiscardConfirm();
                 this.container.classList.add("__wbr_collapsed__");
+                this.syncCollapseToggleState();
               }
             }, 1500);
           }
@@ -608,11 +835,13 @@ export class RecordingWidget {
           root.removeEventListener("mouseleave", onMouseLeave);
         };
 
+        this.isManuallyCollapsed = false;
         // 启动初始折叠倒计时
         this.resetCollapseTimer();
 
         this.setIssueSelecting(false);
         this.updateLanguage();
+        this.syncCollapseToggleState();
 
         this.refreshTimerDisplay();
         this.timerInterval = window.setInterval(
@@ -628,6 +857,20 @@ export class RecordingWidget {
     attach();
   }
 
+  private getBubbleShortcutHtml(): string {
+    return `<kbd style="background:#ffffff !important;color:#1d2129 !important;padding:1px 4px !important;border-radius:3px !important;font-weight:600 !important;font-size:10px !important;box-shadow:0 1px 2px rgba(0,0,0,0.2) !important;font-family:inherit !important;display:inline-block !important;line-height:14px !important;height:14px !important;vertical-align:baseline !important;">${this.shortcutKeyText}</kbd>`;
+  }
+
+  private buildBubbleGuideHtml(): string {
+    const rawGuideText = t("widgetBubbleGuide", ["__SHORTCUT_PLACEHOLDER__"]);
+    return rawGuideText.includes("__SHORTCUT_PLACEHOLDER__")
+      ? rawGuideText.replace(
+          "__SHORTCUT_PLACEHOLDER__",
+          this.getBubbleShortcutHtml()
+        )
+      : rawGuideText;
+  }
+
   private syncBubblePosition(root: HTMLElement): void {
     if (!this.bubbleElement) return;
     const rect = root.getBoundingClientRect();
@@ -641,12 +884,85 @@ export class RecordingWidget {
       (typeof document !== "undefined" &&
         document.documentElement?.clientHeight) ||
       768;
-    const right = Math.max(8, winWidth - rect.right);
-    const bottom = winHeight - rect.top + 8;
+
+    const rectLeft = Number.isFinite(rect.left) ? rect.left : 0;
+    const rectWidth = Number.isFinite(rect.width) ? rect.width : 0;
+    const rectRight = Number.isFinite(rect.right)
+      ? rect.right
+      : rectLeft + rectWidth;
+    const rectTop = Number.isFinite(rect.top) ? rect.top : winHeight - 60;
+    const rectHeight = Number.isFinite(rect.height) ? rect.height : 36;
+    const rectBottom = Number.isFinite(rect.bottom)
+      ? rect.bottom
+      : rectTop + rectHeight;
+
+    const maxBubbleWidth = Math.min(320, Math.max(160, winWidth - 16));
+    const bubbleRect = this.bubbleElement.getBoundingClientRect?.();
+    const bubbleWidth =
+      bubbleRect && Number.isFinite(bubbleRect.width) && bubbleRect.width > 0
+        ? Math.min(bubbleRect.width, maxBubbleWidth)
+        : maxBubbleWidth;
+    const bubbleHeight =
+      bubbleRect && Number.isFinite(bubbleRect.height) && bubbleRect.height > 0
+        ? bubbleRect.height
+        : 88;
+
+    const desiredRight = winWidth - rectRight;
+    const maxRight = Math.max(8, winWidth - bubbleWidth - 8);
+    const right = Math.min(Math.max(8, desiredRight), maxRight);
+
+    const placeBelow =
+      rectTop < bubbleHeight + 16 &&
+      winHeight - rectBottom >= bubbleHeight + 16;
+
+    if (placeBelow) {
+      const top = Math.min(
+        Math.max(8, rectBottom + 8),
+        Math.max(8, winHeight - bubbleHeight - 8)
+      );
+      this.bubbleElement.style.setProperty("top", `${top}px`, "important");
+      this.bubbleElement.style.setProperty("bottom", "auto", "important");
+    } else {
+      const maxBottom = Math.max(8, winHeight - bubbleHeight - 8);
+      const bottom = Math.min(Math.max(8, winHeight - rectTop + 8), maxBottom);
+      this.bubbleElement.style.setProperty(
+        "bottom",
+        `${bottom}px`,
+        "important"
+      );
+      this.bubbleElement.style.setProperty("top", "auto", "important");
+    }
+
     this.bubbleElement.style.setProperty("right", `${right}px`, "important");
-    this.bubbleElement.style.setProperty("bottom", `${bottom}px`, "important");
-    this.bubbleElement.style.setProperty("top", "auto", "important");
     this.bubbleElement.style.setProperty("left", "auto", "important");
+
+    const arrowEl = this.bubbleElement.querySelector?.(
+      "#__wbr_widget_bubble_arrow__"
+    ) as HTMLElement | null;
+    if (arrowEl) {
+      const bubbleRightEdge = winWidth - right;
+      const widgetCenterX = rectLeft + rectWidth / 2;
+      const rawArrowRight = bubbleRightEdge - widgetCenterX - 4;
+      const arrowRight = Math.min(
+        Math.max(16, rawArrowRight),
+        Math.max(16, bubbleWidth - 24)
+      );
+      arrowEl.style?.setProperty?.("right", `${arrowRight}px`, "important");
+      arrowEl.style?.setProperty?.("left", "auto", "important");
+      if (placeBelow) {
+        arrowEl.style?.setProperty?.("top", "-5px", "important");
+        arrowEl.style?.setProperty?.("bottom", "auto", "important");
+        arrowEl.style?.setProperty?.(
+          "transform",
+          "rotate(225deg)",
+          "important"
+        );
+      } else {
+        arrowEl.style?.setProperty?.("bottom", "-5px", "important");
+        arrowEl.style?.setProperty?.("top", "auto", "important");
+        arrowEl.style?.setProperty?.("transform", "rotate(45deg)", "important");
+      }
+    }
   }
 
   private async checkAndShowInitialBubble(root: HTMLElement): Promise<void> {
@@ -681,18 +997,15 @@ export class RecordingWidget {
     bubble.setAttribute("role", "status");
     bubble.setAttribute("aria-live", "polite");
 
-    const shortcutHtml = `<kbd style="background:#ffffff !important;color:#1d2129 !important;padding:1px 4px !important;border-radius:3px !important;font-weight:600 !important;font-size:10px !important;box-shadow:0 1px 2px rgba(0,0,0,0.2) !important;font-family:inherit !important;display:inline-block !important;line-height:14px !important;height:14px !important;vertical-align:baseline !important;">${this.shortcutKeyText}</kbd>`;
-    const rawGuideText = t("widgetBubbleGuide", ["__SHORTCUT_PLACEHOLDER__"]);
-    const guideHtml = rawGuideText.includes("__SHORTCUT_PLACEHOLDER__")
-      ? rawGuideText.replace("__SHORTCUT_PLACEHOLDER__", shortcutHtml)
-      : rawGuideText;
+    const guideHtml = this.buildBubbleGuideHtml();
 
     bubble.innerHTML = `
       <style>
         #__wbr_widget_bubble__ {
           position: fixed !important;
           z-index: 2147483647 !important;
-          max-width: 320px !important;
+          max-width: min(320px, calc(100vw - 16px)) !important;
+          box-sizing: border-box !important;
           background: rgba(20, 24, 31, 0.94) !important;
           backdrop-filter: blur(16px) !important;
           -webkit-backdrop-filter: blur(16px) !important;
@@ -761,10 +1074,15 @@ export class RecordingWidget {
         .__wbr_bubble_got_it__:hover {
           background: #3884FF !important;
         }
+        @media (max-width: 600px) {
+          #__wbr_widget_bubble__ {
+            max-width: calc(100vw - 16px) !important;
+          }
+        }
       </style>
       <span style="font-size:14px;line-height:1.2;flex-shrink:0;">💡</span>
       <div style="flex:1;min-width:0;color:#ffffff;font-size:11.5px;line-height:1.45;">
-        <div>${guideHtml}</div>
+        <div class="__wbr_bubble_guide_text__">${guideHtml}</div>
         <button class="__wbr_bubble_got_it__">${t("widgetBubbleGotIt")}</button>
       </div>
       <button class="__wbr_bubble_close__" aria-label="Close">×</button>
@@ -819,6 +1137,47 @@ export class RecordingWidget {
     } catch {}
   }
 
+  private syncCollapseToggleState(): void {
+    const toggleBtn = this.container?.querySelector<HTMLButtonElement>(
+      "#__wbr_collapse_toggle_btn__"
+    );
+    if (!toggleBtn || !this.container) return;
+    const isCollapsed = this.container.classList.contains("__wbr_collapsed__");
+    const tooltip = isCollapsed
+      ? t("widgetExpandTooltip")
+      : t("widgetCollapseTooltip");
+    toggleBtn.textContent = isCollapsed ? "▴" : "▾";
+    toggleBtn.title = tooltip;
+    toggleBtn.setAttribute?.("aria-label", tooltip);
+    toggleBtn.setAttribute?.("aria-expanded", isCollapsed ? "false" : "true");
+  }
+
+  private toggleManualCollapse(): void {
+    if (!this.container || this._isSaving || this._isClosing) return;
+    const isCollapsed = this.container.classList.contains("__wbr_collapsed__");
+    if (isCollapsed) {
+      this.isManuallyCollapsed = false;
+      this.container.classList.remove("__wbr_collapsed__");
+      this.syncCollapseToggleState();
+      this.applyPosition(this.container, {
+        right: this.container.style.right,
+        top: this.container.style.top,
+      });
+      this.syncBubblePosition(this.container);
+      this.resetCollapseTimer();
+    } else {
+      this.isManuallyCollapsed = true;
+      if (this.autoCollapseTimer) {
+        window.clearTimeout(this.autoCollapseTimer);
+        this.autoCollapseTimer = undefined;
+      }
+      this.resetDiscardConfirm();
+      this.container.classList.add("__wbr_collapsed__");
+      this.syncCollapseToggleState();
+      this.syncBubblePosition(this.container);
+    }
+  }
+
   private resetCollapseTimer(): void {
     if (this._isSaving) return;
     if (this.isBubbleShowing) {
@@ -829,14 +1188,22 @@ export class RecordingWidget {
       window.clearTimeout(this.autoCollapseTimer);
       this.autoCollapseTimer = undefined;
     }
+    if (this.isManuallyCollapsed) {
+      return;
+    }
     if (this.container) {
       this.container.classList.remove("__wbr_collapsed__");
+      this.syncCollapseToggleState();
+    }
+    if (this.isCoarseOrNoHoverPointer()) {
+      return;
     }
     if (!this.isDragging && !this.isHovering) {
       this.autoCollapseTimer = window.setTimeout(() => {
         if (this.container && !this.isDragging && !this._isSaving) {
           this.resetDiscardConfirm();
           this.container.classList.add("__wbr_collapsed__");
+          this.syncCollapseToggleState();
         }
       }, 1500);
     }
@@ -865,6 +1232,7 @@ export class RecordingWidget {
     }
     if (this.container) {
       this.container.classList.remove("__wbr_collapsed__");
+      this.syncCollapseToggleState();
     }
   }
 
@@ -915,12 +1283,22 @@ export class RecordingWidget {
     this._isClosing = false;
     this._isSaving = false;
     this.isHovering = false;
+    this.isDragging = false;
+    this.isManuallyCollapsed = false;
     this.isBubbleShowing = false;
     this.isSelectingIssue = false;
     this.resetDiscardConfirm();
     if (this.cleanupDragListeners) {
       this.cleanupDragListeners();
       this.cleanupDragListeners = undefined;
+    }
+    if (this.cleanupDragHandleListener) {
+      this.cleanupDragHandleListener();
+      this.cleanupDragHandleListener = undefined;
+    }
+    if (this.cleanupResizeListeners) {
+      this.cleanupResizeListeners();
+      this.cleanupResizeListeners = undefined;
     }
     if (this.bubbleTimer) {
       window.clearTimeout(this.bubbleTimer);
@@ -964,9 +1342,11 @@ export class RecordingWidget {
     if (saving) {
       this.isHovering = false;
       this.isDragging = false;
+      this.isManuallyCollapsed = false;
       this.resetDiscardConfirm();
       this.container.classList.remove("__wbr_collapsed__");
       this.container.classList.add("__wbr_saving__");
+      this.syncCollapseToggleState();
       const display = this.container.querySelector("#__wbr_timer_display__");
       if (display) {
         display.innerHTML = `<span class="__wbr_spinner"></span>${messageText || t("saving")}`;
@@ -1026,15 +1406,24 @@ export class RecordingWidget {
     const issueBtn =
       this.container.querySelector<HTMLButtonElement>("#__wbr_issue_btn__");
     if (issueBtn) {
-      issueBtn.title = `${t("shortcut")}: ${this.shortcutKeyText}`;
+      issueBtn.title = t("widgetToolbarIssueTooltip", [this.shortcutKeyText]);
       issueBtn.textContent = this.isSelectingIssue
         ? t("selecting")
         : `${t("markIssue")} (${this.shortcutKeyText})`;
     }
 
+    const ticketBtn = this.container.querySelector<HTMLButtonElement>(
+      "#__wbr_ticket_btn__"
+    );
+    if (ticketBtn) {
+      ticketBtn.title = t("widgetToolbarTicketTooltip");
+      ticketBtn.textContent = t("createTicket");
+    }
+
     const stopBtn =
       this.container.querySelector<HTMLButtonElement>("#__wbr_stop_btn__");
     if (stopBtn) {
+      stopBtn.title = t("widgetToolbarStopTooltip", [this.stopShortcutKeyText]);
       stopBtn.textContent = t("stopRecording");
     }
 
@@ -1046,6 +1435,23 @@ export class RecordingWidget {
       discardBtn.textContent = this.isConfirmingDiscard
         ? t("confirmDiscard")
         : t("discardRecording");
+    }
+
+    this.syncCollapseToggleState();
+
+    if (this.bubbleElement) {
+      const guideTextEl = this.bubbleElement.querySelector?.(
+        ".__wbr_bubble_guide_text__"
+      );
+      if (guideTextEl) {
+        guideTextEl.innerHTML = this.buildBubbleGuideHtml();
+      }
+      const gotItBtn = this.bubbleElement.querySelector?.(
+        ".__wbr_bubble_got_it__"
+      );
+      if (gotItBtn) {
+        gotItBtn.textContent = t("widgetBubbleGotIt");
+      }
     }
   }
 
@@ -1127,7 +1533,7 @@ export class RecordingWidget {
     toast.style.cssText = `${FLOATING_TOAST_BASE_CSS} pointer-events: auto !important;`;
 
     const actionHtml = action
-      ? `<span style="color:#c9cdd4!important;margin:0 4px!important;user-select:none!important;">·</span><span id="__wbr_toast_action__" role="button" tabindex="0" style="color:#165dff!important;cursor:pointer!important;text-decoration:none!important;font-weight:500!important;white-space:nowrap!important;transition:color 0.15s ease!important;">${action.label}</span>`
+      ? `<span style="color:#c9cdd4!important;margin:0 4px!important;user-select:none!important;">·</span><span id="__wbr_toast_action__" role="button" tabindex="0" style="color:#165dff!important;cursor:pointer!important;text-decoration:none!important;font-weight:500!important;white-space:normal!important;word-break:break-word!important;transition:color 0.15s ease!important;">${action.label}</span>`
       : "";
 
     toast.innerHTML = buildToastInnerHtml(message, tone, actionHtml);

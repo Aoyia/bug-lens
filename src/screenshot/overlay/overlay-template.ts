@@ -16,6 +16,7 @@ export function createOverlayMarkup(): string {
           inset: 0;
           background: transparent;
           overflow: hidden;
+          touch-action: none;
           font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         }
         .selection-box {
@@ -34,6 +35,12 @@ export function createOverlayMarkup(): string {
           border-radius: 50%;
           box-sizing: border-box;
           z-index: 12;
+        }
+        /* 扩大透明触控点击热区，同时保持桌面端 8px 视觉尺寸不变 */
+        .handle::after {
+          content: "";
+          position: absolute;
+          inset: -10px;
         }
         .handle.nw { top: -4px; left: -4px; cursor: nwse-resize; }
         .handle.n  { top: -4px; left: calc(50% - 4px); cursor: ns-resize; }
@@ -126,6 +133,7 @@ export function createOverlayMarkup(): string {
           position: absolute;
           inset: 0;
           pointer-events: none;
+          touch-action: none;
         }
       </style>
       <canvas class="canvas-layer"></canvas>

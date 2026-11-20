@@ -82,6 +82,7 @@ export class SelectionOverlay {
       zIndex: "2147483646",
       cursor: "crosshair",
       background: "transparent",
+      touchAction: "none",
     });
     const shadow = layer.attachShadow({ mode: "open" });
 
@@ -110,30 +111,45 @@ export class SelectionOverlay {
       top: "18px",
       left: "50%",
       transform: "translateX(-50%)",
-      maxWidth: "calc(100vw - 32px)",
+      width: "max-content",
+      maxWidth: "calc(100vw - 24px)",
       padding: "8px 16px",
-      borderRadius: "999px",
+      borderRadius: "16px",
       background: "rgba(29,33,41,.94)",
       border: "1px solid rgba(255,255,255,.2)",
       boxShadow: "0 8px 28px rgba(0,0,0,.28)",
       color: "#fff",
       font: "600 13px/1.35 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-      whiteSpace: "nowrap",
+      whiteSpace: "normal",
+      textAlign: "center",
+      boxSizing: "border-box",
       pointerEvents: "auto",
+      touchAction: "manipulation",
       display: "flex",
+      flexWrap: "wrap",
       alignItems: "center",
-      gap: "12px",
+      justifyContent: "center",
+      gap: "8px",
       zIndex: "10",
     });
 
     const statusText = document.createElement("span");
     statusText.textContent = t("markModeHint", this.deps.shortcutKeyText);
+    Object.assign(statusText.style, {
+      minWidth: "0",
+      maxWidth: "100%",
+      overflowWrap: "anywhere",
+    });
 
     const btnGroup = document.createElement("div");
     Object.assign(btnGroup.style, {
       display: "flex",
       alignItems: "center",
+      justifyContent: "center",
+      flexWrap: "wrap",
       gap: "8px",
+      flexShrink: "0",
+      maxWidth: "100%",
     });
 
     const finishBtn = document.createElement("button");
@@ -147,6 +163,8 @@ export class SelectionOverlay {
       fontSize: "12px",
       fontWeight: "600",
       cursor: "pointer",
+      whiteSpace: "nowrap",
+      flexShrink: "0",
     });
     finishBtn.title = t("enterScreenshotByEnter");
 
@@ -161,6 +179,8 @@ export class SelectionOverlay {
       fontSize: "12px",
       fontWeight: "500",
       cursor: "pointer",
+      whiteSpace: "nowrap",
+      flexShrink: "0",
     });
 
     const cancelBtn = document.createElement("button");
@@ -174,6 +194,8 @@ export class SelectionOverlay {
       fontSize: "12px",
       fontWeight: "500",
       cursor: "pointer",
+      whiteSpace: "nowrap",
+      flexShrink: "0",
     });
 
     btnGroup.append(finishBtn, clearBtn, cancelBtn);
@@ -298,6 +320,13 @@ export class SelectionOverlay {
       this.captureMulti(selectedItems, currentHovered);
     };
 
+    hint.addEventListener("pointerdown", (e) => {
+      e.stopPropagation();
+    });
+    hint.addEventListener("click", (e) => {
+      e.stopPropagation();
+    });
+
     finishBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       e.preventDefault();
@@ -355,7 +384,7 @@ export class SelectionOverlay {
       (event) => {
         event.preventDefault();
         event.stopPropagation();
-        if (event.button !== 0) return;
+        if (event.button != null && event.button !== 0) return;
         const candidate = pageElementAtPoint(
           event.clientX,
           event.clientY,

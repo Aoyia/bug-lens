@@ -12,6 +12,58 @@ import type { OverlayPhase } from "./overlay-state";
 
 /** 选区内部拖拽的防误触阈值（px）：位移不足时视为单击，不移动选区框 */
 const DRAG_THRESHOLD_PX = 5;
+const TOOLBAR_VIEWPORT_MARGIN = 8;
+const TOOLBAR_SELECTION_GAP = 8;
+const TOOLBAR_BOTTOM_SAFE_INSET = 12;
+
+type PointerLikeEvent = PointerEvent | MouseEvent;
+
+/**
+ * 计算选区工具栏相对于 `.selection-box` 与视口的位置：
+ * - 纵向优先选区下方，空间不足放上方，上下均不足时内嵌在视口底部安全边距；
+ * - 水平默认右对齐选区，强制钳制在视口左右安全边距内。
+ */
+export function computeToolbarPosition(
+  rect: RectBounds,
+  toolbarWidth: number,
+  toolbarHeight: number,
+  viewW: number,
+  viewH: number
+): { top: number; left: number; viewportLeft: number; viewportTop: number } {
+  const bottomSpace = viewH - (rect.y + rect.height);
+  const topSpace = rect.y;
+  const neededSpace =
+    toolbarHeight + TOOLBAR_SELECTION_GAP + TOOLBAR_VIEWPORT_MARGIN;
+
+  let viewportTop: number;
+  if (bottomSpace >= neededSpace) {
+    viewportTop = rect.y + rect.height + TOOLBAR_SELECTION_GAP;
+  } else if (topSpace >= neededSpace) {
+    viewportTop = rect.y - toolbarHeight - TOOLBAR_SELECTION_GAP;
+  } else {
+    viewportTop = Math.max(
+      TOOLBAR_VIEWPORT_MARGIN,
+      viewH - toolbarHeight - TOOLBAR_BOTTOM_SAFE_INSET
+    );
+  }
+
+  const maxViewportLeft = Math.max(
+    TOOLBAR_VIEWPORT_MARGIN,
+    viewW - toolbarWidth - TOOLBAR_VIEWPORT_MARGIN
+  );
+  const desiredViewportLeft = rect.x + rect.width - toolbarWidth;
+  const viewportLeft = Math.max(
+    TOOLBAR_VIEWPORT_MARGIN,
+    Math.min(desiredViewportLeft, maxViewportLeft)
+  );
+
+  return {
+    top: viewportTop - rect.y,
+    left: viewportLeft - rect.x,
+    viewportLeft,
+    viewportTop,
+  };
+}
 
 /** SelectionController 所需的外部依赖（由组合根注入，无双向引用） */
 export interface SelectionControllerOptions {
@@ -77,9 +129,9 @@ export class SelectionController {
   }
 
   /** 第 1 步：选区 8 点手柄命中 → 启动 Resize（优先于批注命中，与原逻辑顺序一致） */
-  onMouseDown(e: MouseEvent): boolean {
-    const target = e.target as HTMLElement;
-    const handleEl = target.closest<HTMLElement>(".handle");
+  onMouseDown(e: PointerLikeEvent): boolean {
+    const target = e.target as HTMLElement | null;
+    const handleEl = target?.closest?.<HTMLElement>(".handle");
     if (handleEl && this.selection) {
       this.activeHandle = handleEl.dataset.handle || null;
       this.resizeStartPoint = { x: e.clientX, y: e.clientY };
@@ -90,12 +142,14 @@ export class SelectionController {
   }
 
   /** 第 3 步：select 工具下的兜底分支 —— 未命中批注时拉框或平移截图框 */
-  onSelectOrDrag(e: MouseEvent): "selecting" | "dragging-selection" | null {
+  onSelectOrDrag(
+    e: PointerLikeEvent
+  ): "selecting" | "dragging-selection" | null {
     if (this.getCurrentTool() !== "select") return null;
 
     // 排除遮罩 UI 元素（工具栏 / 尺寸角标），避免点击工具按钮误移动选区
-    const target = e.target as HTMLElement;
-    if (target && target.closest(".toolbar, .size-badge")) return null;
+    const target = e.target as HTMLElement | null;
+    if (target?.closest?.(".toolbar, .size-badge")) return null;
 
     if (!this.isSelectionLocked) {
       this.startPoint = { x: e.clientX, y: e.clientY };
@@ -111,8 +165,8 @@ export class SelectionController {
     return null;
   }
 
-  /** mousemove：Resize → 锁定光标 → 整体平移 → 拉框/吸附；返回是否已消费事件 */
-  onMouseMove(e: MouseEvent): boolean {
+  /** pointermove / mousemove：Resize → 锁定光标 → 整体平移 → 拉框/吸附；返回是否已消费事件 */
+  onMouseMove(e: PointerLikeEvent): boolean {
     // 8 点 Resize 微调拉伸
     if (
       this.isResizing &&
@@ -222,8 +276,8 @@ export class SelectionController {
     return false;
   }
 
-  /** mouseup：Resize 复位 → 平移复位 → 拉框完成并锁定选区；返回是否已消费事件 */
-  onMouseUp(e: MouseEvent): boolean {
+  /** pointerup / mouseup：Resize 复位 → 平移复位 → 拉框完成并锁定选区；返回是否已消费事件 */
+  onMouseUp(e: PointerLikeEvent): boolean {
     if (this.isResizing) {
       this.activeHandle = null;
       this.resizeStartPoint = null;
@@ -305,31 +359,21 @@ export class SelectionController {
         }
       }
 
-      // 工具栏框内/框外自适应定位逻辑
+      // 工具栏框内/框外自适应定位逻辑（兼容窄视口折行与左右边界钳制）
       if (toolbar) {
-        const bottomSpace =
-          window.innerHeight - (this.selection.y + this.selection.height);
-        const topSpace = this.selection.y;
-
-        // 当选区底部空间不足 60px 时（如默认全屏框选）
-        if (bottomSpace < 60) {
-          if (topSpace >= 60) {
-            // 外挂：如果顶部空间充足，显示在选区外侧上方
-            toolbar.style.top = "-48px";
-            toolbar.style.bottom = "auto";
-            toolbar.style.right = "0px";
-          } else {
-            // 内嵌：如果上下均挤压（如全屏），直接贴合在选区框内部右下角
-            toolbar.style.top = "auto";
-            toolbar.style.bottom = "16px";
-            toolbar.style.right = "16px";
-          }
-        } else {
-          // 外挂：常规局部选区显示在选区外侧下方
-          toolbar.style.top = "auto";
-          toolbar.style.bottom = "-48px";
-          toolbar.style.right = "0px";
-        }
+        const toolbarWidth = toolbar.offsetWidth || 357;
+        const toolbarHeight = toolbar.offsetHeight || 40;
+        const pos = computeToolbarPosition(
+          this.selection,
+          toolbarWidth,
+          toolbarHeight,
+          window.innerWidth,
+          window.innerHeight
+        );
+        toolbar.style.top = `${pos.top}px`;
+        toolbar.style.bottom = "auto";
+        toolbar.style.left = `${pos.left}px`;
+        toolbar.style.right = "auto";
       }
     }
 

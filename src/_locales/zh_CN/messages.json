@@ -842,6 +842,9 @@
   "resizerTitle": {
     "message": "拖拽调整列表与详情区域高度"
   },
+  "workspaceResizerTitle": {
+    "message": "拖拽调整左右面板宽度（双击重置）"
+  },
   "closeEsc": {
     "message": "关闭 (ESC)"
   },
@@ -2453,6 +2456,12 @@
   },
   "widgetToolbarTicketTooltip": {
     "message": "结束录制并复制工单模板"
+  },
+  "widgetCollapseTooltip": {
+    "message": "收起工具栏"
+  },
+  "widgetExpandTooltip": {
+    "message": "展开工具栏"
   },
   "exportSuccessTicketCopied": {
     "message": "证据包已下载，工单模板已复制"

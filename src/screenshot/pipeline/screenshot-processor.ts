@@ -30,8 +30,95 @@ export interface ProcessScreenshotOptions {
   cropBounds: RectBounds;
   annotations: AnnotationItem[];
   devicePixelRatio?: number;
+  viewportWidth?: number;
+  viewportHeight?: number;
   styleAdjustmentMode?: boolean;
   disablePruning?: boolean;
+}
+
+export interface ScaledCropRectOptions {
+  cropBounds: RectBounds;
+  imgWidth: number;
+  imgHeight: number;
+  viewportWidth?: number;
+  viewportHeight?: number;
+  fallbackDpr?: number;
+}
+
+export interface ScaledCropRect {
+  scaleX: number;
+  scaleY: number;
+  sx: number;
+  sy: number;
+  sWidth: number;
+  sHeight: number;
+  destWidth: number;
+  destHeight: number;
+}
+
+function clampCropAxis(
+  start: number,
+  size: number,
+  maxLimit: number
+): { offset: number; length: number } {
+  if (maxLimit <= 0) {
+    return {
+      offset: Math.max(0, start),
+      length: Math.max(1, size),
+    };
+  }
+  const maxOffset = Math.max(0, maxLimit - 1);
+  const offset = Math.min(Math.max(0, start), maxOffset);
+  const rawEnd = start + size;
+  const clampedEnd = Math.min(maxLimit, Math.max(offset + 1, rawEnd));
+  const length = Math.max(1, clampedEnd - offset);
+  return { offset, length };
+}
+
+/**
+ * 计算截屏位图上的真实缩放因子与钳制后的源裁剪矩形。
+ * 避免 DevTools 模拟篡改 window.devicePixelRatio 后与实际截屏缩放不一致导致裁剪偏移。
+ */
+export function computeScaledCropRect(
+  options: ScaledCropRectOptions
+): ScaledCropRect {
+  const { cropBounds, imgWidth, imgHeight } = options;
+  const fallbackDpr =
+    options.fallbackDpr && options.fallbackDpr > 0 ? options.fallbackDpr : 1;
+  const vpWidth =
+    options.viewportWidth && options.viewportWidth > 0
+      ? options.viewportWidth
+      : 0;
+  const vpHeight =
+    options.viewportHeight && options.viewportHeight > 0
+      ? options.viewportHeight
+      : 0;
+
+  const scaleX = imgWidth > 0 && vpWidth > 0 ? imgWidth / vpWidth : fallbackDpr;
+  const scaleY =
+    imgHeight > 0 && vpHeight > 0 ? imgHeight / vpHeight : fallbackDpr;
+
+  const xAxis = clampCropAxis(
+    cropBounds.x * scaleX,
+    Math.max(0, cropBounds.width) * scaleX,
+    imgWidth
+  );
+  const yAxis = clampCropAxis(
+    cropBounds.y * scaleY,
+    Math.max(0, cropBounds.height) * scaleY,
+    imgHeight
+  );
+
+  return {
+    scaleX,
+    scaleY,
+    sx: xAxis.offset,
+    sy: yAxis.offset,
+    sWidth: xAxis.length,
+    sHeight: yAxis.length,
+    destWidth: Math.max(1, Math.round(xAxis.length)),
+    destHeight: Math.max(1, Math.round(yAxis.length)),
+  };
 }
 
 /** 辅助将 Base64 数据转为 Image 对象 */
@@ -110,6 +197,12 @@ export async function processScreenshot(
   const dpr =
     options.devicePixelRatio ||
     (typeof window !== "undefined" ? window.devicePixelRatio : 1);
+  const vpWidth =
+    options.viewportWidth ||
+    (typeof window !== "undefined" ? window.innerWidth : 0);
+  const vpHeight =
+    options.viewportHeight ||
+    (typeof window !== "undefined" ? window.innerHeight : 0);
   const { cropBounds, annotations } = options;
   const styleAdjustmentMode = options.styleAdjustmentMode ?? true;
 
@@ -125,9 +218,20 @@ export async function processScreenshot(
         ? options.viewportImage
         : await loadImage(options.viewportDataUrl);
 
+    const imgWidth = img.naturalWidth || img.width;
+    const imgHeight = img.naturalHeight || img.height;
+    const cropRect = computeScaledCropRect({
+      cropBounds,
+      imgWidth,
+      imgHeight,
+      viewportWidth: vpWidth,
+      viewportHeight: vpHeight,
+      fallbackDpr: dpr,
+    });
+
     const canvas = document.createElement("canvas");
-    canvas.width = Math.round(cropBounds.width * dpr);
-    canvas.height = Math.round(cropBounds.height * dpr);
+    canvas.width = cropRect.destWidth;
+    canvas.height = cropRect.destHeight;
 
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("Failed to get 2d context");
@@ -140,18 +244,23 @@ export async function processScreenshot(
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
 
-    // 映射裁剪坐标
+    // 映射裁剪坐标（使用基于真实位图尺寸推算的缩放比，避免虚拟 DPR 偏差）
     ctx.drawImage(
       img,
-      cropBounds.x * dpr,
-      cropBounds.y * dpr,
-      cropBounds.width * dpr,
-      cropBounds.height * dpr,
+      cropRect.sx,
+      cropRect.sy,
+      cropRect.sWidth,
+      cropRect.sHeight,
       0,
       0,
       canvas.width,
       canvas.height
     );
+
+    const originX =
+      cropRect.scaleX > 0 ? cropRect.sx / cropRect.scaleX : cropBounds.x;
+    const originY =
+      cropRect.scaleY > 0 ? cropRect.sy / cropRect.scaleY : cropBounds.y;
 
     // 将批注坐标转换为相对选区的坐标
     const relativeAnnotations = annotations.map((ann) => {
@@ -159,8 +268,8 @@ export async function processScreenshot(
         return {
           ...ann,
           bounds: {
-            x: ann.bounds.x - cropBounds.x,
-            y: ann.bounds.y - cropBounds.y,
+            x: ann.bounds.x - originX,
+            y: ann.bounds.y - originY,
             width: ann.bounds.width,
             height: ann.bounds.height,
           },
@@ -170,12 +279,12 @@ export async function processScreenshot(
         return {
           ...ann,
           startPoint: {
-            x: ann.startPoint.x - cropBounds.x,
-            y: ann.startPoint.y - cropBounds.y,
+            x: ann.startPoint.x - originX,
+            y: ann.startPoint.y - originY,
           },
           endPoint: {
-            x: ann.endPoint.x - cropBounds.x,
-            y: ann.endPoint.y - cropBounds.y,
+            x: ann.endPoint.x - originX,
+            y: ann.endPoint.y - originY,
           },
         };
       }
@@ -183,15 +292,23 @@ export async function processScreenshot(
         return {
           ...ann,
           position: {
-            x: ann.position.x - cropBounds.x,
-            y: ann.position.y - cropBounds.y,
+            x: ann.position.x - originX,
+            y: ann.position.y - originY,
           },
         };
       }
       return ann;
     });
 
-    drawAnnotationsOnCanvas(ctx, relativeAnnotations as AnnotationItem[], dpr);
+    const annotationScale =
+      Math.abs(cropRect.scaleX - cropRect.scaleY) < 1e-6
+        ? cropRect.scaleX
+        : (cropRect.scaleX + cropRect.scaleY) / 2;
+    drawAnnotationsOnCanvas(
+      ctx,
+      relativeAnnotations as AnnotationItem[],
+      annotationScale
+    );
     // 方案 A：上限 2048px + JPEG 92% 质量，兼顾大屏（27寸 2K/4K）小字清晰度与轻量体积
     let finalCanvas = canvas;
     const maxDimension = 2048;
@@ -389,13 +506,10 @@ export async function processScreenshot(
       title: typeof document !== "undefined" ? document.title : "",
       userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "",
       viewport: {
-        width: typeof window !== "undefined" ? window.innerWidth : 0,
-        height: typeof window !== "undefined" ? window.innerHeight : 0,
+        width: vpWidth,
+        height: vpHeight,
       },
-      mediaBreakpoint:
-        typeof window !== "undefined" && window.innerWidth < 768
-          ? "mobile"
-          : "desktop",
+      mediaBreakpoint: vpWidth > 0 && vpWidth < 768 ? "mobile" : "desktop",
       recentConsoleErrors: recentErrorsTracker.getRecentConsoleErrors(5000),
       recentFailedRequests: recentErrorsTracker.getRecentFailedRequests(5000),
       frameworkComponentStates:

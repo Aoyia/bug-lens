@@ -15,6 +15,32 @@ import type { BackgroundContext } from "./context";
 import type { SessionLifecycle } from "./lifecycle";
 import type { ScreenshotService } from "./screenshot";
 
+/** 查询真实宿主平台信息，在无 API 或调用异常时优雅降级返回 unknown / null。 */
+async function queryHostPlatformInfo(): Promise<{
+  ok: true;
+  os: string;
+  isMac: boolean | null;
+}> {
+  try {
+    const getPlatformInfo =
+      typeof chrome !== "undefined"
+        ? chrome.runtime?.getPlatformInfo
+        : undefined;
+    if (typeof getPlatformInfo !== "function") {
+      return { ok: true, os: "unknown", isMac: null };
+    }
+    const info = await getPlatformInfo();
+    const os = typeof info?.os === "string" && info.os ? info.os : "unknown";
+    return {
+      ok: true,
+      os,
+      isMac: os === "unknown" ? null : os === "mac",
+    };
+  } catch {
+    return { ok: true, os: "unknown", isMac: null };
+  }
+}
+
 /** 消息路由服务：承载 content script / popup / offscreen 的所有消息分发。 */
 export interface MessageRouter {
   handle(raw: unknown, sender: chrome.runtime.MessageSender): Promise<unknown>;
@@ -319,6 +345,10 @@ export function createMessageRouter(
         case "i18n/get-dict": {
           const dict = await loadLocaleDict(incoming.payload.locale);
           return { ok: true, dict };
+        }
+        // 查询扩展宿主操作系统平台（不受 DevTools 设备模拟改写 navigator.platform 影响）
+        case "runtime/host-platform": {
+          return await queryHostPlatformInfo();
         }
         // content script 子 iframe 活跃心跳：转发给顶层主帧（frameId: 0）刷新闲置监测倒计时
         case "content/activity-ping": {

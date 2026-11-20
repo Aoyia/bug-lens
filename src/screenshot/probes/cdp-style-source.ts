@@ -29,11 +29,15 @@ export async function fetchStyleSourceInfoWithCDP(
   if (!selectors.length) return [];
   const sources: RuleSourceInfo[] = [];
   const alreadyAttached = await isTabAlreadyAttached(tabId);
+  if (alreadyAttached) {
+    // 已有外部调试客户端（如 Chrome DevTools）附着时直接降级，避免无权限发送命令
+    return [];
+  }
 
+  let attachedByUs = false;
   try {
-    if (!alreadyAttached) {
-      await chrome.debugger.attach({ tabId }, "1.3");
-    }
+    await chrome.debugger.attach({ tabId }, "1.3");
+    attachedByUs = true;
     await chrome.debugger.sendCommand({ tabId }, "DOM.enable");
     await chrome.debugger.sendCommand({ tabId }, "CSS.enable");
 
@@ -103,7 +107,7 @@ export async function fetchStyleSourceInfoWithCDP(
   } catch {
     // CDP attach 失败或发生冲突时做静默降级处理，不抛出异常
   } finally {
-    if (!alreadyAttached) {
+    if (attachedByUs) {
       try {
         await chrome.debugger.detach({ tabId });
       } catch {

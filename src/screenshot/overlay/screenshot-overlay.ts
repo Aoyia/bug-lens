@@ -35,6 +35,10 @@ export function buildScreenshotToastMessage(
 export class ScreenshotOverlay {
   private container: HTMLDivElement | null = null;
   private shadowRoot: ShadowRoot | null = null;
+  private wrapper: HTMLDivElement | null = null;
+
+  private prevViewportWidth = 0;
+  private prevViewportHeight = 0;
 
   private currentTool: "select" | "rect" | "arrow" | "privacy" | "text" =
     "select";
@@ -59,9 +63,13 @@ export class ScreenshotOverlay {
 
   constructor() {
     this.handleKeyDown = this.handleKeyDown.bind(this);
-    this.handleMouseDown = this.handleMouseDown.bind(this);
-    this.handleMouseMove = this.handleMouseMove.bind(this);
-    this.handleMouseUp = this.handleMouseUp.bind(this);
+    this.handlePointerDown = this.handlePointerDown.bind(this);
+    this.handlePointerMove = this.handlePointerMove.bind(this);
+    this.handlePointerUp = this.handlePointerUp.bind(this);
+    this.handlePointerCancel = this.handlePointerCancel.bind(this);
+    this.stopLegacyEventPropagation =
+      this.stopLegacyEventPropagation.bind(this);
+    this.handleWindowResize = this.handleWindowResize.bind(this);
     this.handleDoubleClick = this.handleDoubleClick.bind(this);
     this.handleContextMenu = this.handleContextMenu.bind(this);
     this.handleOverlayDblClick = this.handleOverlayDblClick.bind(this);
@@ -142,6 +150,7 @@ export class ScreenshotOverlay {
     const wrapper = document.createElement("div");
     wrapper.className = "overlay-wrapper";
     wrapper.innerHTML = createOverlayMarkup();
+    this.wrapper = wrapper;
 
     this.shadowRoot.appendChild(wrapper);
     document.body.appendChild(this.container);
@@ -184,14 +193,27 @@ export class ScreenshotOverlay {
     window.addEventListener("keyup", this.handleKeyUp, true);
     // 截图激活期间禁用网页右键菜单，避免误触发网页交互
     window.addEventListener("contextmenu", this.handleContextMenu, true);
+    window.addEventListener?.("resize", this.handleWindowResize);
     this.unlockScrollFn = lockViewportScroll({
       lockOverflow: false,
       allowEditableKeys: true,
       shadowRoot: this.shadowRoot,
     });
-    wrapper.addEventListener("mousedown", this.handleMouseDown);
-    wrapper.addEventListener("mousemove", this.handleMouseMove);
-    wrapper.addEventListener("mouseup", this.handleMouseUp);
+    wrapper.addEventListener("pointerdown", this.handlePointerDown);
+    wrapper.addEventListener("pointermove", this.handlePointerMove);
+    wrapper.addEventListener("pointerup", this.handlePointerUp);
+    wrapper.addEventListener("pointercancel", this.handlePointerCancel);
+    // 宿主页面零泄漏保护：仅阻断 legacy 鼠标与触摸合成事件传播，不重复进入交互状态机
+    for (const legacyType of [
+      "mousedown",
+      "mousemove",
+      "mouseup",
+      "touchstart",
+      "touchmove",
+      "touchend",
+    ]) {
+      wrapper.addEventListener(legacyType, this.stopLegacyEventPropagation);
+    }
     // 拦截 click / dblclick 传播，避免截图操作触发网页的点击与双击逻辑
     wrapper.addEventListener("dblclick", this.handleOverlayDblClick);
     // 双击文本批注进入二次编辑（单击仅选中/拖拽）
@@ -242,6 +264,8 @@ export class ScreenshotOverlay {
     }
 
     this.updateCanvasDimensions();
+    this.prevViewportWidth = window.innerWidth;
+    this.prevViewportHeight = window.innerHeight;
 
     // 默认直接框选整个视口 (Full Viewport Pre-selection)
     this.selectionController.selection = {
@@ -251,6 +275,35 @@ export class ScreenshotOverlay {
       height: window.innerHeight,
     };
     this.selectionController.renderSelectionBox();
+  }
+
+  private handleWindowResize(): void {
+    this.updateCanvasDimensions();
+    const sel = this.selectionController.selection;
+    if (
+      !this.selectionController.isSelectionLocked &&
+      this.stateMachine.phase === "idle" &&
+      sel &&
+      sel.x === 0 &&
+      sel.y === 0 &&
+      sel.width === this.prevViewportWidth &&
+      sel.height === this.prevViewportHeight
+    ) {
+      this.selectionController.selection = {
+        x: 0,
+        y: 0,
+        width: window.innerWidth,
+        height: window.innerHeight,
+      };
+    }
+    this.prevViewportWidth = window.innerWidth;
+    this.prevViewportHeight = window.innerHeight;
+
+    if (this.selectionController.selection) {
+      this.selectionController.renderSelectionBox();
+    } else {
+      this.renderAnnotationsOnCanvas();
+    }
   }
 
   private updateCanvasDimensions(): void {
@@ -426,22 +479,51 @@ export class ScreenshotOverlay {
     e.stopPropagation();
   }
 
+  private stopLegacyEventPropagation(e: Event): void {
+    e.stopPropagation();
+  }
+
+  private releasePointerCaptureSafely(pointerId?: number): void {
+    if (typeof pointerId !== "number") return;
+    try {
+      const wrapperAny = this.wrapper as any;
+      if (wrapperAny?.hasPointerCapture?.(pointerId) !== false) {
+        wrapperAny?.releasePointerCapture?.(pointerId);
+      }
+    } catch {
+      // 忽略未捕获指针时的状态异常
+    }
+  }
+
   /**
-   * 鼠标事件路由：先选区手柄，再批注域，最后 select 工具兜底。
-   * 顺序与原实现一致，保证行为等价。
+   * 指针事件路由：先选区手柄，再批注域，最后 select 工具兜底。
+   * 统一处理鼠标与触控指针（Pointer Events）。
    */
-  private handleMouseDown(e: MouseEvent): void {
-    const target = e.target as HTMLElement;
-    if (target && target.closest(".inline-text-input")) {
+  private handlePointerDown(e: PointerEvent): void {
+    if ((e as { isPrimary?: boolean }).isPrimary === false) {
+      e.stopPropagation();
+      return;
+    }
+
+    const target = e.target as HTMLElement | null;
+    if (target?.closest?.(".inline-text-input")) {
       e.stopPropagation();
       return;
     }
     // 点击工具栏 / 尺寸角标等 overlay UI 元素：不启动任何绘制 / 拖拽意图。
     // 否则非 select 工具下点击工具按钮会被当成"开始绘制"（返回 draw 意图），
     // 轻则误入 drawing 状态，重则（text 工具）在按钮位置误弹文本输入框。
-    if (target && target.closest(".toolbar, .size-badge")) {
+    if (target?.closest?.(".toolbar, .size-badge")) {
       e.stopPropagation();
       return;
+    }
+
+    if (typeof e.pointerId === "number") {
+      try {
+        (this.wrapper as any)?.setPointerCapture?.(e.pointerId);
+      } catch {
+        // 忽略合成事件或无效 pointerId 的异常
+      }
     }
 
     // 1) 选区 8 点手柄 resize（优先于批注命中）
@@ -471,7 +553,12 @@ export class ScreenshotOverlay {
     e.stopPropagation();
   }
 
-  private handleMouseMove(e: MouseEvent): void {
+  private handlePointerMove(e: PointerEvent): void {
+    if ((e as { isPrimary?: boolean }).isPrimary === false) {
+      e.stopPropagation();
+      return;
+    }
+
     // 渲染 3x 放大镜
     this.renderMagnifier(e.clientX, e.clientY);
 
@@ -485,7 +572,7 @@ export class ScreenshotOverlay {
       e.stopPropagation();
       return;
     }
-    // 无拖拽进行中：按鼠标位置更新 hover 光标（批注手柄/批注体优先）
+    // 无拖拽进行中：按指针位置更新 hover 光标（批注手柄/批注体优先）
     this.updateHoverCursor(e.clientX, e.clientY);
     e.stopPropagation();
   }
@@ -511,7 +598,14 @@ export class ScreenshotOverlay {
     }
   }
 
-  private handleMouseUp(e: MouseEvent): void {
+  private handlePointerUp(e: PointerEvent): void {
+    if ((e as { isPrimary?: boolean }).isPrimary === false) {
+      e.stopPropagation();
+      return;
+    }
+
+    this.releasePointerCaptureSafely(e.pointerId);
+
     // 批注域：拖拽复位 → 手柄复位 → 绘制提交/text 输入
     const annUp = this.annotationController.onMouseUp(e);
     if (annUp) {
@@ -526,6 +620,33 @@ export class ScreenshotOverlay {
       this.stateMachine.transition("locked");
       e.stopPropagation();
       return;
+    }
+    e.stopPropagation();
+  }
+
+  private handlePointerCancel(e: PointerEvent): void {
+    this.releasePointerCaptureSafely(e.pointerId);
+    const phase = this.stateMachine.phase;
+    if (phase === "drawing") {
+      this.annotationController.activeTempAnnotation = null;
+      this.stateMachine.transition("locked");
+      this.renderAnnotationsOnCanvas();
+      e.stopPropagation();
+      return;
+    }
+    if (phase === "dragging-annotation" || phase === "resizing-annotation") {
+      this.annotationController.onMouseUp(e);
+      this.stateMachine.transition("locked");
+      e.stopPropagation();
+      return;
+    }
+    if (
+      phase === "selecting" ||
+      phase === "resizing-selection" ||
+      phase === "dragging-selection"
+    ) {
+      this.selectionController.onMouseUp(e);
+      this.stateMachine.transition("locked");
     }
     e.stopPropagation();
   }
@@ -774,6 +895,7 @@ export class ScreenshotOverlay {
     window.removeEventListener("keydown", this.handleKeyDown, true);
     window.removeEventListener("keyup", this.handleKeyUp, true);
     window.removeEventListener("contextmenu", this.handleContextMenu, true);
+    window.removeEventListener?.("resize", this.handleWindowResize);
     if (this.unlockScrollFn) {
       this.unlockScrollFn();
       this.unlockScrollFn = null;
@@ -787,6 +909,7 @@ export class ScreenshotOverlay {
     }
     this.container = null;
     this.shadowRoot = null;
+    this.wrapper = null;
     this.viewportImage = null;
     this.magnifier = null;
     this.textEditor = null;

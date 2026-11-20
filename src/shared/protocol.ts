@@ -1086,7 +1086,8 @@ export type RuntimeMessage =
         >;
       }
     >
-  | Envelope<"i18n/get-dict", { locale: "zh-CN" | "en-US" }>;
+  | Envelope<"i18n/get-dict", { locale: "zh-CN" | "en-US" }>
+  | Envelope<"runtime/host-platform", Record<string, never>>;
 
 export function message<T extends RuntimeMessage["type"], P>(
   type: T,
@@ -1189,6 +1190,11 @@ export type RuntimeMessageResponseMap = {
   "i18n/get-dict": {
     ok: true;
     dict?: Record<string, { message: string }>;
+  };
+  "runtime/host-platform": {
+    ok: true;
+    os: string;
+    isMac: boolean | null;
   };
   "offscreen/export-pack": {
     ok: true;

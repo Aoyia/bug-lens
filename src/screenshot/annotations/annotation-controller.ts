@@ -11,6 +11,8 @@ import { getToolStrategy, type ToolContext } from "./tools/tool-registry";
 import type { OverlayPhase } from "../overlay/overlay-state";
 import { UndoManager } from "../../shared/undo-manager";
 
+type PointerLikeEvent = PointerEvent | MouseEvent;
+
 /** AnnotationController 所需的外部依赖（由组合根注入，无双向引用） */
 export interface AnnotationControllerOptions {
   getSelection: () => RectBounds | null;
@@ -64,7 +66,7 @@ export class AnnotationController {
 
   /** 第 2 步：批注命中（调整手柄 → 整体 → 清空选中 → 绘制启动）；返回意图供组合根驱动转移。
    *  文本批注的二次编辑统一由组合根的双击（dblclick）触发，此处单击仅选中/拖拽。 */
-  onMouseDown(e: MouseEvent): "resize" | "drag" | "draw" | null {
+  onMouseDown(e: PointerLikeEvent): "resize" | "drag" | "draw" | null {
     // 1. 优先检测是否击中了当前选中批注框的 Resize 控制点
     const handleHit = this.hitTestAnnotationHandle(e.clientX, e.clientY);
     if (handleHit) {
@@ -104,8 +106,8 @@ export class AnnotationController {
     return null;
   }
 
-  /** mousemove：批注手柄缩放 → 批注拖拽平移 → 绘制临时批注；返回是否已消费事件 */
-  onMouseMove(e: MouseEvent): boolean {
+  /** pointermove / mousemove：批注手柄缩放 → 批注拖拽平移 → 绘制临时批注；返回是否已消费事件 */
+  onMouseMove(e: PointerLikeEvent): boolean {
     if (
       this.getPhase() === "resizing-annotation" &&
       this.selectedAnnotation &&
@@ -159,9 +161,9 @@ export class AnnotationController {
     return false;
   }
 
-  /** mouseup：批注拖拽复位 → 手柄复位 → 绘制提交/text 输入唤起；返回意图供组合根驱动转移 */
+  /** pointerup / mouseup：批注拖拽复位 → 手柄复位 → 绘制提交/text 输入唤起；返回意图供组合根驱动转移 */
   onMouseUp(
-    e: MouseEvent
+    e: PointerLikeEvent
   ): "resize" | "drag" | "committed" | "spawned-text" | null {
     if (this.getPhase() === "dragging-annotation") {
       this.draggedAnnotation = null;

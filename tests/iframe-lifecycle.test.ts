@@ -125,6 +125,7 @@ describe("iframe 生命周期与 UI 防冲突隔离 (R1)", () => {
       assert.ok(listeners["input"], "应监听 input");
       assert.ok(listeners["scroll"], "应监听 scroll");
       assert.ok(listeners["wheel"], "应监听 wheel");
+      assert.ok(listeners["touchstart"], "应监听 touchstart");
 
       // 1. 触发第一次交互事件
       listeners["pointerdown"]({ type: "pointerdown" });
@@ -154,6 +155,64 @@ describe("iframe 生命周期与 UI 防冲突隔离 (R1)", () => {
       assert.equal(listeners["input"], undefined);
       assert.equal(listeners["scroll"], undefined);
       assert.equal(listeners["wheel"], undefined);
+      assert.equal(listeners["touchstart"], undefined);
+    } finally {
+      mock.timers.reset();
+    }
+  });
+
+  test("IframeActivityReporter 正确注册并卸载 touchstart 监听且触控触发 activity-ping", () => {
+    mock.timers.enable({ apis: ["Date"] });
+    try {
+      const addCalls: Array<{ type: string; options: unknown }> = [];
+      const removeCalls: Array<{ type: string; capture: unknown }> = [];
+      const listeners: Record<string, (e: any) => void> = {};
+      const topWin: any = {};
+      const childWin: any = {
+        top: topWin,
+        addEventListener: (
+          type: string,
+          fn: (e: any) => void,
+          options: any
+        ) => {
+          addCalls.push({ type, options });
+          listeners[type] = fn;
+        },
+        removeEventListener: (
+          type: string,
+          fn: (e: any) => void,
+          capture: any
+        ) => {
+          removeCalls.push({ type, capture });
+          if (listeners[type] === fn) delete listeners[type];
+        },
+      };
+      (globalThis as any).window = childWin;
+
+      const sentMessages: any[] = [];
+      const reporter = new IframeActivityReporter(async (msg) => {
+        sentMessages.push(msg);
+        return { ok: true };
+      });
+
+      reporter.start();
+      const touchAdd = addCalls.find((c) => c.type === "touchstart");
+      assert.ok(touchAdd, "应注册 touchstart 监听");
+      assert.deepEqual(touchAdd.options, { capture: true, passive: true });
+
+      listeners["touchstart"]({ type: "touchstart" });
+      assert.equal(
+        sentMessages.length,
+        1,
+        "touchstart 应触发 content/activity-ping"
+      );
+      assert.equal(sentMessages[0].type, "content/activity-ping");
+
+      reporter.stop();
+      const touchRemove = removeCalls.find((c) => c.type === "touchstart");
+      assert.ok(touchRemove, "stop() 应卸载 touchstart 监听");
+      assert.equal(touchRemove.capture, true);
+      assert.equal(listeners["touchstart"], undefined);
     } finally {
       mock.timers.reset();
     }

@@ -44,3 +44,95 @@ test("fetchStyleSourceInfoWithCDP 在无调试器的 Node 环境中可以静默�
   const res = await fetchStyleSourceInfoWithCDP(123, [".header", ".button"]);
   assert.deepEqual(res, []);
 });
+
+test("fetchStyleSourceInfoWithCDP 当目标 Tab 已被外部调试器（如 DevTools）附着时直接返回 [] 且不调用 attach/sendCommand/detach", async () => {
+  const originalChrome = (globalThis as { chrome?: unknown }).chrome;
+  let attachCalls = 0;
+  let sendCommandCalls = 0;
+  let detachCalls = 0;
+
+  (globalThis as { chrome?: unknown }).chrome = {
+    debugger: {
+      getTargets: async () => [{ tabId: 123, attached: true }],
+      attach: async () => {
+        attachCalls += 1;
+      },
+      sendCommand: async () => {
+        sendCommandCalls += 1;
+        return {};
+      },
+      detach: async () => {
+        detachCalls += 1;
+      },
+    },
+  };
+
+  try {
+    const res = await fetchStyleSourceInfoWithCDP(123, [".header", ".button"]);
+    assert.deepEqual(res, []);
+    assert.equal(attachCalls, 0);
+    assert.equal(sendCommandCalls, 0);
+    assert.equal(detachCalls, 0);
+  } finally {
+    if (originalChrome === undefined) {
+      delete (globalThis as { chrome?: unknown }).chrome;
+    } else {
+      (globalThis as { chrome?: unknown }).chrome = originalChrome;
+    }
+  }
+});
+
+test("fetchStyleSourceInfoWithCDP 在未附着时正常 attach -> sendCommand -> finally detach", async () => {
+  const originalChrome = (globalThis as { chrome?: unknown }).chrome;
+  const calls: string[] = [];
+
+  (globalThis as { chrome?: unknown }).chrome = {
+    debugger: {
+      getTargets: async () => [{ tabId: 123, attached: false }],
+      attach: async () => {
+        calls.push("attach");
+      },
+      sendCommand: async (_target: unknown, method: string) => {
+        calls.push(`cmd:${method}`);
+        if (method === "DOM.getDocument") return { root: { nodeId: 1 } };
+        if (method === "DOM.querySelector") return { nodeId: 2 };
+        if (method === "CSS.getMatchedStylesForNode") {
+          return {
+            matchedCSSRules: [
+              {
+                rule: {
+                  selectorList: { text: ".header" },
+                  range: { startLine: 10, startColumn: 2 },
+                },
+              },
+            ],
+          };
+        }
+        return {};
+      },
+      detach: async () => {
+        calls.push("detach");
+      },
+    },
+  };
+
+  try {
+    const res = await fetchStyleSourceInfoWithCDP(123, [".header"]);
+    assert.equal(res.length, 1);
+    assert.deepEqual(res[0], {
+      selectorText: ".header",
+      startLine: 10,
+      startColumn: 2,
+    });
+    assert.equal(calls[0], "attach");
+    assert.ok(calls.includes("cmd:DOM.enable"));
+    assert.ok(calls.includes("cmd:CSS.enable"));
+    assert.equal(calls[calls.length - 1], "detach");
+  } finally {
+    if (originalChrome === undefined) {
+      delete (globalThis as { chrome?: unknown }).chrome;
+    } else {
+      (globalThis as { chrome?: unknown }).chrome = originalChrome;
+    }
+  }
+});

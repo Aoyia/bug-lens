@@ -438,3 +438,157 @@ test("issue-editor: 方案A 预期展示为胶囊 Pill 并支持一键移除", a
     (globalThis as any).requestAnimationFrame = prevRaf;
   }
 });
+
+test("issue-editor: 375px 窄视口下工具栏与控制卡片自适应换行且定位/拖拽/resize 均在 [8, 367] 边界内", async () => {
+  const { IssueEditor } =
+    await import("../src/entrypoints/content/collector/issue-editor.ts");
+  const dom = createEditorDomMock();
+  dom.window.innerWidth = 375;
+  dom.window.innerHeight = 667;
+
+  const prevDoc = (globalThis as any).document;
+  const prevWin = (globalThis as any).window;
+  const prevRaf = (globalThis as any).requestAnimationFrame;
+  (globalThis as any).document = dom.document;
+  (globalThis as any).window = dom.window;
+  (globalThis as any).requestAnimationFrame = (fn: any) => fn();
+
+  try {
+    const editor = new IssueEditor({
+      getSession: () => ({ sessionId: "test-session", nonce: "nonce-1" }),
+      onClose: () => {},
+      onReselect: () => {},
+      onStopAfterCommit: () => {},
+      isMac: true,
+    });
+
+    // 目标标注靠近屏幕最右边缘（xRatio: 0.95）
+    editor.open({
+      id: "scene-narrow",
+      page: { viewport: { width: 375, height: 667 } },
+      annotation: {
+        point: { xRatio: 0.95, yRatio: 0.3 },
+        targetBox: {
+          xRatio: 0.88,
+          yRatio: 0.25,
+          widthRatio: 0.1,
+          heightRatio: 0.08,
+        },
+      },
+    });
+
+    const root = editor.element!;
+    assert.ok(root.innerHTML.includes("max-width: calc(100vw - 16px)"));
+    assert.ok(root.innerHTML.includes("flex-wrap: wrap"));
+    assert.ok(root.innerHTML.includes("justify-content: center"));
+    assert.ok(root.innerHTML.includes("flex-wrap:wrap;row-gap:8px"));
+    assert.ok(root.innerHTML.includes("flex:1 1 180px;min-width:140px"));
+    assert.ok(root.innerHTML.includes("white-space:nowrap;flex-shrink:0"));
+
+    const svg = dom.created.find((el) => "data-issue-svg" in el.attrs);
+    svg.getBoundingClientRect = () => ({
+      left: 0,
+      top: 52,
+      width: 375,
+      height: 220,
+      right: 375,
+      bottom: 272,
+    });
+
+    const controlCard = dom.created.find(
+      (el) => "data-issue-control-card" in el.attrs
+    );
+    assert.ok(controlCard, "应存在控制卡片");
+
+    // 1. 模拟卡片真实窄屏宽度 300px 时，positionControlCard 应将 left 钳制在 [8, 367] 内且右缘不越界
+    controlCard.offsetWidth = 300;
+    controlCard.offsetHeight = 96;
+    dom.windowListeners["resize"]?.[0]?.();
+
+    const initialLeft = Number.parseFloat(controlCard.style.left);
+    assert.ok(
+      initialLeft >= 8 && initialLeft <= 367,
+      `initialLeft (${initialLeft}) 应在 [8, 367] 范围内`
+    );
+    assert.ok(
+      initialLeft + 300 <= 367,
+      `卡片右缘 (${initialLeft + 300}) 不得超出 367`
+    );
+
+    // 2. 模拟 offsetWidth=0（尚未布局兜底）时，不回退 560px，仍保证在 [8, 367] 内
+    controlCard.offsetWidth = 0;
+    dom.windowListeners["resize"]?.[0]?.();
+    const fallbackLeft = Number.parseFloat(controlCard.style.left);
+    assert.ok(
+      fallbackLeft >= 8 && fallbackLeft <= 367,
+      `fallbackLeft (${fallbackLeft}) 应在 [8, 367] 范围内`
+    );
+
+    // 3. 模拟用户向右大幅拖拽及向左大幅拖拽，均应钳制在 [8, 367]
+    controlCard.offsetWidth = 300;
+    const dragHandle = dom.created.find(
+      (el) => "data-issue-drag-handle" in el.attrs
+    );
+    assert.ok(dragHandle, "应存在拖拽手柄");
+
+    dragHandle.listeners["pointerdown"]?.[0]?.({
+      pointerId: 1,
+      clientX: 100,
+      clientY: 200,
+      preventDefault() {},
+    });
+    dragHandle.listeners["pointermove"]?.[0]?.({
+      pointerId: 1,
+      clientX: 600,
+      clientY: 200,
+    });
+    const draggedRightLeft = Number.parseFloat(controlCard.style.left);
+    assert.equal(draggedRightLeft, 67, "向右拖到极限应停在 375 - 300 - 8 = 67");
+    assert.ok(draggedRightLeft >= 8 && draggedRightLeft + 300 <= 367);
+
+    dragHandle.listeners["pointermove"]?.[0]?.({
+      pointerId: 1,
+      clientX: -500,
+      clientY: 200,
+    });
+    const draggedLeft = Number.parseFloat(controlCard.style.left);
+    assert.equal(draggedLeft, 8, "向左拖到极限应停在 8");
+
+    dragHandle.listeners["pointerup"]?.[0]?.({ pointerId: 1 });
+
+    // 4. 模拟横屏宽屏拖到右侧后切回 375px 竖屏触发 resize，应重新钳制到 [8, 367]
+    dom.window.innerWidth = 812;
+    dragHandle.listeners["pointerdown"]?.[0]?.({
+      pointerId: 2,
+      clientX: 10,
+      clientY: 200,
+      preventDefault() {},
+    });
+    dragHandle.listeners["pointermove"]?.[0]?.({
+      pointerId: 2,
+      clientX: 450,
+      clientY: 200,
+    });
+    dragHandle.listeners["pointerup"]?.[0]?.({ pointerId: 2 });
+    assert.ok(Number.parseFloat(controlCard.style.left) > 367);
+
+    dom.window.innerWidth = 375;
+    dom.windowListeners["resize"]?.[0]?.();
+    const reclampedLeft = Number.parseFloat(controlCard.style.left);
+    assert.ok(
+      reclampedLeft >= 8 && reclampedLeft + 300 <= 367,
+      `resize 回 375px 后卡片左缘 (${reclampedLeft}) 与右缘 (${reclampedLeft + 300}) 均应在 [8, 367] 内`
+    );
+
+    editor.close(false);
+    assert.equal(
+      dom.windowListeners["resize"]?.length ?? 0,
+      0,
+      "关闭编辑器后应清理 resize 监听器"
+    );
+  } finally {
+    (globalThis as any).document = prevDoc;
+    (globalThis as any).window = prevWin;
+    (globalThis as any).requestAnimationFrame = prevRaf;
+  }
+});

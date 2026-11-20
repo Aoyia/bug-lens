@@ -904,7 +904,7 @@ test.describe("Bug Lens Chrome Extension E2E SCREENSHOT-005: 截图确认导出�
     const downloadPath = await download.path();
     expect(downloadPath).toBeTruthy();
     expect(download.suggestedFilename()).toMatch(
-      /^bug-lens-screenshot-.*\.zip$/
+      /^bug-lens-screenshot-\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.zip$/
     );
 
     const zipStats = fs.statSync(downloadPath!);

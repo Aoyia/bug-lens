@@ -9,6 +9,9 @@ export const FLOATING_TOAST_BASE_CSS = `
   left: 50% !important;
   transform: translateX(-50%) translateY(-10px) !important;
   z-index: 2147483647 !important;
+  width: max-content !important;
+  max-width: calc(100vw - 24px) !important;
+  box-sizing: border-box !important;
   background: #ffffff !important;
   -webkit-backdrop-filter: blur(16px) !important;
   backdrop-filter: blur(16px) !important;
@@ -21,6 +24,8 @@ export const FLOATING_TOAST_BASE_CSS = `
   box-shadow: 0 16px 42px -6px rgba(0, 0, 0, 0.18), 0 6px 16px -2px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04) !important;
   display: flex !important;
   align-items: flex-start !important;
+  flex-wrap: wrap !important;
+  word-break: break-word !important;
   gap: 10px !important;
   transition: opacity 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
   opacity: 0 !important;
@@ -49,13 +54,13 @@ export function buildToastInnerHtml(
     const [title, ...rest] = message.split("\n");
     const descHtml = formatShortcutKbdHtml(rest.join("\n"));
     contentHtml = `
-      <div style="display:flex!important;flex-direction:column!important;gap:2px!important;align-items:flex-start!important;text-align:left!important;">
-        <div style="font-size:13.5px!important;font-weight:600!important;color:#1d2129!important;line-height:1.4!important;">${title}</div>
-        <div style="font-size:12px!important;font-weight:400!important;color:#86909c!important;line-height:1.4!important;">${descHtml}${actionHtml}</div>
+      <div style="display:flex!important;flex-direction:column!important;gap:2px!important;align-items:flex-start!important;text-align:left!important;min-width:0!important;flex:1 1 0%!important;max-width:100%!important;">
+        <div style="font-size:13.5px!important;font-weight:600!important;color:#1d2129!important;line-height:1.4!important;max-width:100%!important;word-break:break-word!important;">${title}</div>
+        <div style="font-size:12px!important;font-weight:400!important;color:#86909c!important;line-height:1.4!important;max-width:100%!important;word-break:break-word!important;">${descHtml}${actionHtml}</div>
       </div>
     `;
   } else {
-    contentHtml = `<span style="line-height:1.4!important;">${message}${actionHtml}</span>`;
+    contentHtml = `<span style="line-height:1.4!important;min-width:0!important;flex:1 1 auto!important;max-width:100%!important;word-break:break-word!important;">${message}${actionHtml}</span>`;
   }
 
   let iconHtml = "";
@@ -64,7 +69,7 @@ export function buildToastInnerHtml(
   } else {
     const icon = tone === "error" ? "!" : "✓";
     const iconColor = tone === "error" ? "#d5484c" : "#00b42a";
-    iconHtml = `<span style="color:${iconColor};font-size:16px;font-weight:700;line-height:1;margin-top:${isDualLine ? "2px" : "0"};align-self:${isDualLine ? "flex-start" : "center"};">${icon}</span>`;
+    iconHtml = `<span style="color:${iconColor};font-size:16px;font-weight:700;line-height:1;flex-shrink:0!important;margin-top:${isDualLine ? "2px" : "0"};align-self:${isDualLine ? "flex-start" : "center"};">${icon}</span>`;
   }
 
   return `${iconHtml} ${contentHtml}`;

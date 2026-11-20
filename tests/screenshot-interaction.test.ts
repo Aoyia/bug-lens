@@ -48,11 +48,14 @@ interface Stub {
   };
 }
 
-function createCtxStub(): any {
+function createCtxStub(canvas?: any): any {
   return new Proxy(
     {},
     {
       get(_target, prop) {
+        if (prop === "canvas") {
+          return canvas ?? { width: 1280, height: 800 };
+        }
         if (prop === "measureText") {
           return (s: string) => ({ width: s.length * 8 });
         }
@@ -71,9 +74,22 @@ function createCtxStub(): any {
 }
 
 function createElementStub(tag: string): Stub {
-  // 供 hover 光标断言使用：组合根通过 shadowRoot.querySelector(".selection-box")
-  // 设置内联 cursor，测试经由同一实例读取
+  // 供 hover 光标与定位断言使用：组合根通过 shadowRoot.querySelector 读取同一实例
   const selectionBoxStub = { style: {} as Record<string, any> };
+  const toolbarStub = {
+    style: {} as Record<string, any>,
+    offsetWidth: 357,
+    offsetHeight: 40,
+    querySelector: () => null,
+    querySelectorAll: () => [],
+    addEventListener: () => {},
+  };
+  const canvasStub: any = {
+    width: 0,
+    height: 0,
+    style: {} as Record<string, any>,
+    getContext: () => createCtxStub(canvasStub),
+  };
   const stub: Stub = {
     tagName: tag.toUpperCase(),
     id: "",
@@ -111,6 +127,8 @@ function createElementStub(tag: string): Stub {
     },
     querySelector(sel: string) {
       if (sel === ".selection-box") return selectionBoxStub as any;
+      if (sel === ".toolbar") return toolbarStub as any;
+      if (sel === ".canvas-layer") return canvasStub as any;
       return null;
     },
     querySelectorAll() {
@@ -169,6 +187,10 @@ interface Harness {
   mouseDown: (x: number, y: number, target?: any) => void;
   mouseMove: (x: number, y: number) => void;
   mouseUp: (x: number, y: number) => void;
+  pointerDown: (x: number, y: number, target?: any, extra?: any) => void;
+  pointerMove: (x: number, y: number, extra?: any) => void;
+  pointerUp: (x: number, y: number, extra?: any) => void;
+  pointerCancel: (x: number, y: number, extra?: any) => void;
   onComplete: () => void;
   onCancel: () => void;
 }
@@ -200,25 +222,66 @@ function createHarness(): Harness {
     }
   };
 
+  const pointerDown = (
+    x: number,
+    y: number,
+    target = plainTarget,
+    extra: any = {}
+  ) =>
+    fire("pointerdown", {
+      type: "pointerdown",
+      pointerId: 1,
+      pointerType: "mouse",
+      isPrimary: true,
+      clientX: x,
+      clientY: y,
+      target,
+      ...extra,
+    });
+  const pointerMove = (x: number, y: number, extra: any = {}) =>
+    fire("pointermove", {
+      type: "pointermove",
+      pointerId: 1,
+      pointerType: "mouse",
+      isPrimary: true,
+      clientX: x,
+      clientY: y,
+      target: plainTarget,
+      ...extra,
+    });
+  const pointerUp = (x: number, y: number, extra: any = {}) =>
+    fire("pointerup", {
+      type: "pointerup",
+      pointerId: 1,
+      pointerType: "mouse",
+      isPrimary: true,
+      clientX: x,
+      clientY: y,
+      target: plainTarget,
+      ...extra,
+    });
+  const pointerCancel = (x: number, y: number, extra: any = {}) =>
+    fire("pointercancel", {
+      type: "pointercancel",
+      pointerId: 1,
+      pointerType: "touch",
+      isPrimary: true,
+      clientX: x,
+      clientY: y,
+      target: plainTarget,
+      ...extra,
+    });
+
   return {
     overlay,
     wrapper,
-    mouseDown: (x, y, target = plainTarget) =>
-      fire("mousedown", { type: "mousedown", clientX: x, clientY: y, target }),
-    mouseMove: (x, y) =>
-      fire("mousemove", {
-        type: "mousemove",
-        clientX: x,
-        clientY: y,
-        target: plainTarget,
-      }),
-    mouseUp: (x, y) =>
-      fire("mouseup", {
-        type: "mouseup",
-        clientX: x,
-        clientY: y,
-        target: plainTarget,
-      }),
+    mouseDown: (x, y, target = plainTarget) => pointerDown(x, y, target),
+    mouseMove: (x, y) => pointerMove(x, y),
+    mouseUp: (x, y) => pointerUp(x, y),
+    pointerDown,
+    pointerMove,
+    pointerUp,
+    pointerCancel,
     onComplete,
     onCancel,
   };
@@ -1113,6 +1176,39 @@ describe("截图激活期间事件隔离（避免网页响应）", () => {
     assert.ok(sp >= 1, "mousedown should stop propagation");
   });
 
+  test("legacy mouse 与 touch 事件仅阻断传播，不重复触发状态机", () => {
+    const h = createHarness();
+    const anyOv = h.overlay as any;
+    for (const legacyType of [
+      "mousedown",
+      "mousemove",
+      "mouseup",
+      "touchstart",
+      "touchmove",
+      "touchend",
+    ]) {
+      let sp = 0;
+      const fns = h.wrapper.listeners[legacyType] || [];
+      assert.ok(fns.length >= 1, `${legacyType} listener should be bound`);
+      for (const fn of fns) {
+        fn({
+          type: legacyType,
+          clientX: 120,
+          clientY: 120,
+          target: plainTarget,
+          preventDefault: () => {},
+          stopPropagation: () => {
+            sp++;
+          },
+        });
+      }
+      assert.equal(sp, 1, `${legacyType} should stopPropagation`);
+    }
+    assert.equal(anyOv.stateMachine.phase, "idle");
+    assert.equal(anyOv.selectionController.isSelecting, false);
+    assert.equal(anyOv.isSelectionLocked, false);
+  });
+
   test("contextmenu 在截图激活期间被全局拦截", () => {
     const h = createHarness();
     const anyOv = h.overlay as any;
@@ -1741,5 +1837,173 @@ describe("InlineTextEditor", () => {
     editor.cancelEdit();
     editor.cancelEdit(); // 第二次调用应为 no-op
     assert.equal(closed, 1, "重复取消只触发一次 onClose");
+  });
+});
+
+// ---------- 窄视口定位、触控 Pointer Events 与视口 resize 同步 ----------
+describe("移动端窄视口与触控 Pointer Events 适配", () => {
+  test("375x667 窄屏左边缘小选区（x=10, width=60）下工具栏左右坐标钳制在视口内", () => {
+    (globalThis as any).window = {
+      ...windowStub,
+      innerWidth: 375,
+      innerHeight: 667,
+    };
+    const h = createHarness();
+    const anyOv = h.overlay as any;
+
+    h.pointerDown(10, 100);
+    h.pointerMove(70, 180);
+    h.pointerUp(70, 180);
+
+    const toolbar = anyOv.shadowRoot.querySelector(".toolbar");
+    const leftOffset = Number.parseFloat(toolbar.style.left);
+    const viewportLeft = 10 + leftOffset;
+    const viewportRight = viewportLeft + toolbar.offsetWidth;
+
+    assert.equal(toolbar.style.right, "auto");
+    assert.ok(
+      viewportLeft >= 8,
+      `左边缘不应溢出视口: viewportLeft=${viewportLeft}`
+    );
+    assert.ok(
+      viewportRight <= 375 - 8,
+      `右边缘不应溢出视口: viewportRight=${viewportRight}`
+    );
+    assert.equal(toolbar.style.top, "88px");
+  });
+
+  test("375x667 窄屏全屏选区下工具栏钳制在视口内并内嵌底部安全边距", () => {
+    (globalThis as any).window = {
+      ...windowStub,
+      innerWidth: 375,
+      innerHeight: 667,
+    };
+    const h = createHarness();
+    const anyOv = h.overlay as any;
+    const toolbar = anyOv.shadowRoot.querySelector(".toolbar");
+
+    const leftOffset = Number.parseFloat(toolbar.style.left);
+    const topOffset = Number.parseFloat(toolbar.style.top);
+    const viewportLeft = 0 + leftOffset;
+    const viewportRight = viewportLeft + toolbar.offsetWidth;
+
+    assert.equal(toolbar.style.right, "auto");
+    assert.equal(toolbar.style.bottom, "auto");
+    assert.ok(viewportLeft >= 8, `viewportLeft=${viewportLeft}`);
+    assert.ok(viewportRight <= 375 - 8, `viewportRight=${viewportRight}`);
+    assert.equal(topOffset, 667 - toolbar.offsetHeight - 12);
+  });
+
+  test("pointerType='touch' 下完成框选、拖拽选区、批注绘制与 pointer capture 管理", () => {
+    const h = createHarness();
+    const anyOv = h.overlay as any;
+    const captured: number[] = [];
+    const released: number[] = [];
+    (h.wrapper as any).setPointerCapture = (id: number) => captured.push(id);
+    (h.wrapper as any).hasPointerCapture = (id: number) =>
+      captured.includes(id) && !released.includes(id);
+    (h.wrapper as any).releasePointerCapture = (id: number) =>
+      released.push(id);
+
+    // 1) touch 拉框选区
+    h.pointerDown(100, 100, plainTarget, {
+      pointerType: "touch",
+      pointerId: 7,
+    });
+    assert.deepEqual(captured, [7]);
+    h.pointerMove(300, 220, { pointerType: "touch", pointerId: 7 });
+    h.pointerUp(300, 220, { pointerType: "touch", pointerId: 7 });
+    assert.deepEqual(released, [7]);
+    assert.equal(anyOv.isSelectionLocked, true);
+    assert.deepEqual(anyOv.selectionController.selection, {
+      x: 100,
+      y: 100,
+      width: 200,
+      height: 120,
+    });
+
+    // 2) touch 拖拽选区整体平移
+    h.pointerDown(200, 160, plainTarget, {
+      pointerType: "touch",
+      pointerId: 8,
+    });
+    h.pointerMove(230, 180, { pointerType: "touch", pointerId: 8 });
+    h.pointerUp(230, 180, { pointerType: "touch", pointerId: 8 });
+    assert.deepEqual(anyOv.selectionController.selection, {
+      x: 130,
+      y: 120,
+      width: 200,
+      height: 120,
+    });
+
+    // 3) touch 绘制 rect 批注
+    anyOv.currentTool = "rect";
+    h.pointerDown(150, 140, plainTarget, {
+      pointerType: "touch",
+      pointerId: 9,
+    });
+    h.pointerMove(240, 200, { pointerType: "touch", pointerId: 9 });
+    h.pointerUp(240, 200, { pointerType: "touch", pointerId: 9 });
+    assert.equal(anyOv.annotationController.annotations.length, 1);
+    assert.deepEqual(anyOv.annotationController.annotations[0].bounds, {
+      x: 150,
+      y: 140,
+      width: 90,
+      height: 60,
+    });
+
+    // 4) pointercancel 复位进行中的绘制
+    h.pointerDown(160, 150, plainTarget, {
+      pointerType: "touch",
+      pointerId: 10,
+    });
+    assert.equal(anyOv.stateMachine.phase, "drawing");
+    h.pointerCancel(180, 170, { pointerType: "touch", pointerId: 10 });
+    assert.equal(anyOv.stateMachine.phase, "locked");
+    assert.equal(anyOv.annotationController.annotations.length, 1);
+  });
+
+  test("window resize 同步更新画布尺寸并重算工具栏位置，destroy 时卸载监听", () => {
+    const listeners: Record<string, Function[]> = {};
+    const dynamicWindow: any = {
+      innerWidth: 1280,
+      innerHeight: 800,
+      devicePixelRatio: 1,
+      addEventListener(type: string, fn: Function) {
+        (listeners[type] ||= []).push(fn);
+      },
+      removeEventListener(type: string, fn: Function) {
+        listeners[type] = (listeners[type] || []).filter((f) => f !== fn);
+      },
+    };
+    (globalThis as any).window = dynamicWindow;
+
+    const h = createHarness();
+    const anyOv = h.overlay as any;
+    const canvas = anyOv.shadowRoot.querySelector(".canvas-layer");
+    const toolbar = anyOv.shadowRoot.querySelector(".toolbar");
+
+    assert.equal(canvas.width, 1280);
+    assert.equal(canvas.height, 800);
+    assert.equal(listeners["resize"]?.length, 1);
+
+    // 模拟切换到 375x667 移动端视口并触发 resize
+    dynamicWindow.innerWidth = 375;
+    dynamicWindow.innerHeight = 667;
+    for (const fn of listeners["resize"]) fn();
+
+    assert.equal(canvas.width, 375);
+    assert.equal(canvas.height, 667);
+    assert.deepEqual(anyOv.selectionController.selection, {
+      x: 0,
+      y: 0,
+      width: 375,
+      height: 667,
+    });
+    const leftOffset = Number.parseFloat(toolbar.style.left);
+    assert.ok(leftOffset >= 8 && leftOffset + toolbar.offsetWidth <= 375 - 8);
+
+    h.overlay.destroy();
+    assert.equal(listeners["resize"]?.length ?? 0, 0);
   });
 });

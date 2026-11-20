@@ -4,10 +4,10 @@ import { message } from "../../../shared/protocol";
  * 子 iframe 轻量级活跃事件上报器：
  *
  * 仅在 child iframe (window.top !== window) 且录制处于活跃期时启动；
- * 监听 pointerdown, keydown, input, scroll 用户交互事件（passive & capture），
+ * 监听 pointerdown, keydown, input, scroll, wheel, touchstart 用户交互事件（passive & capture），
  * 经 1500ms 节流后向 background 发送 content/activity-ping，
  * background 负责路由转发至 top frame，重置 InactivityMonitor 计时器，
- * 防止用户在子 iframe 操作时主页面误判闲置暂停。
+ * 防止用户在子 iframe 操作（含触屏与 DevTools 移动模拟）时主页面误判闲置暂停。
  */
 export class IframeActivityReporter {
   private started = false;
@@ -19,6 +19,7 @@ export class IframeActivityReporter {
     "input",
     "scroll",
     "wheel",
+    "touchstart",
   ];
 
   constructor(

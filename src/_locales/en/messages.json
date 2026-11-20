@@ -842,6 +842,9 @@
   "resizerTitle": {
     "message": "Drag to adjust height"
   },
+  "workspaceResizerTitle": {
+    "message": "Drag to resize left/right panels (double-click to reset)"
+  },
   "closeEsc": {
     "message": "Close (ESC)"
   },
@@ -2453,6 +2456,12 @@
   },
   "widgetToolbarTicketTooltip": {
     "message": "Stop recording and copy ticket template"
+  },
+  "widgetCollapseTooltip": {
+    "message": "Collapse toolbar"
+  },
+  "widgetExpandTooltip": {
+    "message": "Expand toolbar"
   },
   "exportSuccessTicketCopied": {
     "message": "Evidence package downloaded, ticket template copied"

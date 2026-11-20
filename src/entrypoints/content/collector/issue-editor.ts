@@ -95,6 +95,7 @@ export function isEnterCommitKey(e: {
 export class IssueEditor {
   private editorElement: HTMLDivElement | undefined;
   private keydownListener: ((e: KeyboardEvent) => void) | undefined;
+  private resizeListener: (() => void) | undefined;
   private removeFocusShield: (() => void) | undefined;
 
   constructor(private readonly deps: IssueEditorDeps) {}
@@ -110,6 +111,10 @@ export class IssueEditor {
     if (this.keydownListener) {
       window.removeEventListener("keydown", this.keydownListener, true);
       this.keydownListener = undefined;
+    }
+    if (this.resizeListener) {
+      window.removeEventListener?.("resize", this.resizeListener);
+      this.resizeListener = undefined;
     }
     if (this.removeFocusShield) {
       this.removeFocusShield();
@@ -155,6 +160,11 @@ export class IssueEditor {
         top: 14px;
         left: 50%;
         transform: translateX(-50%);
+        width: max-content;
+        max-width: calc(100vw - 16px);
+        flex-wrap: wrap;
+        justify-content: center;
+        box-sizing: border-box;
         z-index: 30;
       }
       #__wbr_issue_editor__ textarea,
@@ -241,24 +251,24 @@ export class IssueEditor {
         <svg data-issue-svg viewBox="0 0 1000 1000" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;touch-action:none"></svg>
       </div>
     </div>
-    <div data-issue-control-card style="position:fixed;z-index:30;width:min(calc(100vw - 32px),680px);background:rgba(255,255,255,0.96);backdrop-filter:blur(20px);border:1px solid #e5e6eb;border-radius:4px;box-shadow:0 8px 30px rgba(0,0,0,0.18);padding:8px 12px;display:flex;flex-direction:column;gap:6px;transition:top 0.15s ease-out, left 0.15s ease-out">
+    <div data-issue-control-card style="position:fixed;z-index:30;width:min(calc(100vw - 16px),680px);max-width:calc(100vw - 16px);box-sizing:border-box;background:rgba(255,255,255,0.96);backdrop-filter:blur(20px);border:1px solid #e5e6eb;border-radius:4px;box-shadow:0 8px 30px rgba(0,0,0,0.18);padding:8px 12px;display:flex;flex-direction:column;gap:6px;transition:top 0.15s ease-out, left 0.15s ease-out">
       ${
         backfillExpected
           ? `<div data-issue-expected-pill style="display:inline-flex;align-items:center;gap:6px;background:#e8f3ff;color:#165dff;border:1px solid #bedaff;border-radius:12px;padding:2px 8px 2px 10px;font-size:11px;font-weight:500;width:fit-content;max-width:100%;box-sizing:border-box">
-        <span data-issue-expected-text style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t("issueExpectedPillPrefix")}${escapeHtml(backfillExpected)}</span>
-        <button data-issue-expected-remove type="button" style="background:none;border:none;color:#165dff;cursor:pointer;padding:0 2px;font-size:13px;line-height:1;display:flex;align-items:center;opacity:0.75" title="${t("issueRemoveExpected")}">✕</button>
+        <span data-issue-expected-text style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t("issueExpectedPillPrefix")}${escapeHtml(backfillExpected)}</span>
+        <button data-issue-expected-remove type="button" style="background:none;border:none;color:#165dff;cursor:pointer;padding:0 2px;font-size:13px;line-height:1;display:flex;align-items:center;opacity:0.75;flex-shrink:0" title="${t("issueRemoveExpected")}">✕</button>
       </div>`
           : ""
       }
-      <div style="display:flex;align-items:center;gap:8px">
-        <div data-issue-drag-handle style="display:flex;align-items:center;justify-content:center;cursor:grab;padding:0 2px;color:#8c97a8;user-select:none;touch-action:none" title="${t("issueDragHandleTitle")}">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;row-gap:8px">
+        <div data-issue-drag-handle style="display:flex;align-items:center;justify-content:center;cursor:grab;padding:0 2px;color:#8c97a8;user-select:none;touch-action:none;flex-shrink:0" title="${t("issueDragHandleTitle")}">
           <svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor"><circle cx="3" cy="3" r="1.5"/><circle cx="7" cy="3" r="1.5"/><circle cx="3" cy="8" r="1.5"/><circle cx="7" cy="8" r="1.5"/><circle cx="3" cy="13" r="1.5"/><circle cx="7" cy="13" r="1.5"/></svg>
         </div>
-        <input data-issue-actual placeholder="${t("issueActualPlaceholder")}" style="flex:1;box-sizing:border-box;height:34px;padding:0 10px;font-size:12px;font-family:inherit;outline:none;border-radius:2px">
-        <button data-issue-save class="__wbr_issue_action" style="display:inline-flex;align-items:center;gap:4px;background:#165dff;color:#ffffff;border:1px solid #165dff;border-radius:2px;height:34px;padding:0 14px;font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap">${t("issueSaveContinue")}</button>
-        <button data-issue-save-stop class="__wbr_issue_action" style="display:inline-flex;align-items:center;gap:4px;background:#f2f3f5;color:#4e5969;border:1px solid #e5e6eb;border-radius:2px;height:34px;padding:0 12px;font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap" title="${t("issueSaveStopTitle")}">${t("issueSaveStop")}</button>
+        <input data-issue-actual placeholder="${t("issueActualPlaceholder")}" style="flex:1 1 180px;min-width:140px;box-sizing:border-box;height:34px;padding:0 10px;font-size:12px;font-family:inherit;outline:none;border-radius:2px">
+        <button data-issue-save class="__wbr_issue_action" style="display:inline-flex;align-items:center;gap:4px;background:#165dff;color:#ffffff;border:1px solid #165dff;border-radius:2px;height:34px;padding:0 14px;font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap;flex-shrink:0">${t("issueSaveContinue")}</button>
+        <button data-issue-save-stop class="__wbr_issue_action" style="display:inline-flex;align-items:center;gap:4px;background:#f2f3f5;color:#4e5969;border:1px solid #e5e6eb;border-radius:2px;height:34px;padding:0 12px;font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap;flex-shrink:0" title="${t("issueSaveStopTitle")}">${t("issueSaveStop")}</button>
       </div>
-      <div data-issue-error style="color:#b42318;font-size:12px;padding:6px 10px;border-radius:2px;background:#fde3df;border:1px solid #f99f95;display:none"></div>
+      <div data-issue-error style="color:#b42318;font-size:12px;padding:6px 10px;border-radius:2px;background:#fde3df;border:1px solid #f99f95;display:none;word-break:break-word;box-sizing:border-box"></div>
     </div>`;
     document.documentElement.appendChild(root);
     this.editorElement = root;
@@ -285,48 +295,71 @@ export class IssueEditor {
     let cardInitialLeft = 0;
     let cardInitialTop = 0;
 
+    const getCardMetrics = () => {
+      const maxAvailableWidth = Math.max(240, window.innerWidth - 16);
+      const cardWidth = Math.min(
+        maxAvailableWidth,
+        controlCard.offsetWidth || Math.min(340, maxAvailableWidth)
+      );
+      const maxAvailableHeight = Math.max(48, window.innerHeight - 16);
+      const cardHeight = Math.min(
+        maxAvailableHeight,
+        controlCard.offsetHeight || 52
+      );
+      return { cardWidth, cardHeight };
+    };
+
+    const clampCardPosition = (rawLeft: number, rawTop: number) => {
+      const { cardWidth, cardHeight } = getCardMetrics();
+      const maxLeft = Math.max(8, window.innerWidth - cardWidth - 8);
+      const maxTop = Math.max(8, window.innerHeight - cardHeight - 8);
+      return {
+        left: Math.max(8, Math.min(maxLeft, rawLeft)),
+        top: Math.max(8, Math.min(maxTop, rawTop)),
+      };
+    };
+
     const dragHandle = root.querySelector<HTMLElement>(
       "[data-issue-drag-handle]"
     );
     dragHandle?.addEventListener("pointerdown", (event) => {
       cardDragging = true;
       userMovedCard = true;
-      dragHandle.setPointerCapture(event.pointerId);
+      dragHandle.setPointerCapture?.(event.pointerId);
       dragHandle.style.cursor = "grabbing";
       controlCard.style.transition = "none";
       cardStartX = event.clientX;
       cardStartY = event.clientY;
-      cardInitialLeft = controlCard.offsetLeft;
-      cardInitialTop = controlCard.offsetTop;
+      const parsedLeft = Number.parseFloat(controlCard.style.left);
+      const parsedTop = Number.parseFloat(controlCard.style.top);
+      cardInitialLeft = Number.isFinite(parsedLeft)
+        ? parsedLeft
+        : controlCard.offsetLeft || 0;
+      cardInitialTop = Number.isFinite(parsedTop)
+        ? parsedTop
+        : controlCard.offsetTop || 0;
       event.preventDefault();
     });
     dragHandle?.addEventListener("pointermove", (event) => {
       if (!cardDragging) return;
       const dx = event.clientX - cardStartX;
       const dy = event.clientY - cardStartY;
-      const newLeft = Math.max(
-        8,
-        Math.min(
-          window.innerWidth - controlCard.offsetWidth - 8,
-          cardInitialLeft + dx
-        )
+      const { left, top } = clampCardPosition(
+        cardInitialLeft + dx,
+        cardInitialTop + dy
       );
-      const newTop = Math.max(
-        8,
-        Math.min(
-          window.innerHeight - controlCard.offsetHeight - 8,
-          cardInitialTop + dy
-        )
-      );
-      controlCard.style.left = `${newLeft}px`;
-      controlCard.style.top = `${newTop}px`;
+      controlCard.style.left = `${left}px`;
+      controlCard.style.top = `${top}px`;
     });
-    dragHandle?.addEventListener("pointerup", () => {
+    const finishCardDrag = (event?: PointerEvent) => {
       if (!cardDragging) return;
       cardDragging = false;
-      dragHandle.style.cursor = "grab";
+      if (event) dragHandle?.releasePointerCapture?.(event.pointerId);
+      if (dragHandle) dragHandle.style.cursor = "grab";
       controlCard.style.transition = "top 0.15s ease-out, left 0.15s ease-out";
-    });
+    };
+    dragHandle?.addEventListener("pointerup", finishCardDrag);
+    dragHandle?.addEventListener("pointercancel", finishCardDrag);
 
     const positionControlCard = () => {
       if (!controlCard || !svg || userMovedCard) return;
@@ -342,15 +375,17 @@ export class IssueEditor {
       const targetPxX = rect.left + targetX * rect.width;
       const targetPxYBottom = rect.top + targetYBottom * rect.height;
       const targetPxYTop = rect.top + targetYTop * rect.height;
-      const cardWidth = controlCard.offsetWidth || 560;
-      const cardHeight = controlCard.offsetHeight || 52;
+      const { cardWidth, cardHeight } = getCardMetrics();
+      const maxLeft = Math.max(8, window.innerWidth - cardWidth - 8);
       let left = targetPxX - cardWidth / 2;
-      left = Math.max(16, Math.min(window.innerWidth - cardWidth - 16, left));
+      left = Math.max(8, Math.min(maxLeft, left));
       let top = targetPxYBottom + 14;
-      if (top + cardHeight > window.innerHeight - 16) {
+      if (top + cardHeight > window.innerHeight - 8) {
         top = targetPxYTop - cardHeight - 14;
       }
-      top = Math.max(64, Math.min(window.innerHeight - cardHeight - 16, top));
+      const maxTop = Math.max(8, window.innerHeight - cardHeight - 8);
+      const minTop = Math.min(64, maxTop);
+      top = Math.max(minTop, Math.min(maxTop, top));
       Object.assign(controlCard.style, { left: `${left}px`, top: `${top}px` });
     };
     if (image.complete) {
@@ -358,7 +393,30 @@ export class IssueEditor {
     } else {
       image.addEventListener("load", positionControlCard);
     }
-    window.addEventListener("resize", positionControlCard);
+    const handleViewportResize = () => {
+      if (!this.isOpen) return;
+      if (userMovedCard) {
+        const currentLeft = Number.parseFloat(controlCard.style.left);
+        const currentTop = Number.parseFloat(controlCard.style.top);
+        const { left, top } = clampCardPosition(
+          Number.isFinite(currentLeft)
+            ? currentLeft
+            : controlCard.offsetLeft || 0,
+          Number.isFinite(currentTop) ? currentTop : controlCard.offsetTop || 0
+        );
+        Object.assign(controlCard.style, {
+          left: `${left}px`,
+          top: `${top}px`,
+        });
+        return;
+      }
+      positionControlCard();
+    };
+    if (this.resizeListener) {
+      window.removeEventListener?.("resize", this.resizeListener);
+    }
+    this.resizeListener = handleViewportResize;
+    window.addEventListener?.("resize", this.resizeListener);
     requestAnimationFrame(positionControlCard);
 
     const actualInput = root.querySelector<HTMLInputElement>(
@@ -758,7 +816,6 @@ export class IssueEditor {
       error.style.borderColor = "#ffd591";
     };
     const cancel = () => {
-      window.removeEventListener("resize", positionControlCard);
       void chrome.runtime.sendMessage(
         message(
           "issue-scene/cancel",
@@ -820,7 +877,6 @@ export class IssueEditor {
               });
             return;
           }
-          window.removeEventListener("resize", positionControlCard);
           this.close(!stopAfterCommit);
           if (stopAfterCommit) this.deps.onStopAfterCommit();
         })

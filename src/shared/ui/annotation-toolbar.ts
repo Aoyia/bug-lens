@@ -19,7 +19,13 @@ export const ANNOTATION_TOOLBAR_CSS = `
     position: absolute;
     display: flex;
     align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
     gap: 2px;
+    row-gap: 4px;
+    width: max-content;
+    max-width: calc(100vw - 16px);
+    box-sizing: border-box;
     background: rgba(35, 35, 35, 0.95);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
@@ -78,5 +84,15 @@ export const ANNOTATION_TOOLBAR_CSS = `
   }
   .toolbar button.confirm-btn:hover:not(:disabled) {
     background: #06ad56;
+  }
+  @media (max-width: 600px) {
+    .toolbar {
+      padding: 4px;
+      gap: 2px;
+      row-gap: 4px;
+    }
+    .toolbar .divider {
+      margin: 0 2px;
+    }
   }
 `;
