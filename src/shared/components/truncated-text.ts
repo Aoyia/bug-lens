@@ -1,3 +1,47 @@
+const TRUNCATED_TEXT_CSS = `
+  :host {
+    display: inline-block;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+  span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+`;
+
+let cachedStyleSheet: CSSStyleSheet | null = null;
+
+function applyTruncatedTextStyles(shadow: ShadowRoot): void {
+  if (
+    typeof CSSStyleSheet !== "undefined" &&
+    typeof CSSStyleSheet.prototype?.replaceSync === "function" &&
+    "adoptedStyleSheets" in shadow
+  ) {
+    try {
+      if (!cachedStyleSheet || !(cachedStyleSheet instanceof CSSStyleSheet)) {
+        const sheet = new CSSStyleSheet();
+        sheet.replaceSync(TRUNCATED_TEXT_CSS);
+        cachedStyleSheet = sheet;
+      }
+      shadow.adoptedStyleSheets = [cachedStyleSheet];
+      return;
+    } catch {
+      // Constructable Stylesheets 在受限环境下失败时安全回退到 <style>
+    }
+  }
+
+  const style = document.createElement("style");
+  style.textContent = TRUNCATED_TEXT_CSS;
+  shadow.appendChild(style);
+}
+
 const ElementBase =
   typeof HTMLElement !== "undefined"
     ? HTMLElement
@@ -17,26 +61,8 @@ export class TruncatedText extends ElementBase {
   constructor() {
     super();
     const shadow = this.attachShadow({ mode: "open" });
-    const style = document.createElement("style");
-    style.textContent = `
-      :host {
-        display: inline-block;
-        max-width: 100%;
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        vertical-align: middle;
-      }
-      span {
-        display: block;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-    `;
+    applyTruncatedTextStyles(shadow);
     this.spanEl = document.createElement("span");
-    shadow.appendChild(style);
     shadow.appendChild(this.spanEl);
   }
 

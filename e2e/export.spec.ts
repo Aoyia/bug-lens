@@ -22,6 +22,13 @@ async function delay(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function buildExpectedSessionZipPattern(sessionId: string): RegExp {
+  const shortId = sessionId.slice(0, 8).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(
+    `^web-bug-report-${shortId}-\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}\\.zip$`
+  );
+}
+
 type PreparedExport = {
   session: import("../src/shared/protocol.ts").RecordingSession;
   targetPage: import("@playwright/test").Page;
@@ -623,8 +630,8 @@ test.describe("Bug Lens Chrome Extension E2E EXP-001: ZIP Export and AI Handoff"
     const dirFiles = fs.readdirSync(isolatedDownloadDir);
     expect(dirFiles.length).toBe(1);
     expect(dirFiles[0]).not.toMatch(/\.crdownload$/);
-    const expectedBasename = `web-bug-report-${session.id.slice(0, 8)}.zip`;
-    expect(dirFiles[0]).toBe(expectedBasename);
+    const expectedPattern = buildExpectedSessionZipPattern(session.id);
+    expect(dirFiles[0]).toMatch(expectedPattern);
 
     const zipPath = path.join(isolatedDownloadDir, dirFiles[0]!);
     await verifyZipAndOfflineReport(context, {

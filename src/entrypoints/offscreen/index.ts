@@ -29,6 +29,7 @@ import {
   installProcessFlightRecorder,
   recordFlightLog,
 } from "../../diagnostics/diagnostics-store";
+import { buildSessionReportFilename } from "../../shared/export-filename";
 import type { PerfReportData } from "../../shared/dev-profiler";
 import type {
   ExportTraceContext,
@@ -597,7 +598,7 @@ async function exportPack(payload: {
     }
     const dbQueryDurationMs = performance.now() - tDbStart;
 
-    const filename = `web-bug-report-${payload.sessionId.slice(0, 8)}.zip`;
+    const filename = buildSessionReportFilename(payload.sessionId);
 
     // 2. 静态报告模版加载耗时
     const tTemplateStart = performance.now();

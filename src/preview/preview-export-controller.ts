@@ -1,6 +1,7 @@
 import { buildExportManifest } from "../export/export-manifest.ts";
 import { createTemporaryArchive } from "../export/archive-destination.ts";
 import { writeEvidenceArchive } from "../export/export-pipeline.ts";
+import { buildSessionReportFilename } from "../shared/export-filename.ts";
 import { t } from "../shared/i18n.ts";
 import type { ExportArtifact } from "../shared/protocol.ts";
 import type { db } from "../storage/db.ts";
@@ -136,7 +137,7 @@ export class PreviewExportController {
       const snapshot = getSnapshot();
       if (!snapshot || !sessionId) throw new Error(t("loading"));
       const reportAssets = await this.loadAssets();
-      const filename = `web-bug-report-${snapshot.session.id.slice(0, 8)}.zip`;
+      const filename = buildSessionReportFilename(snapshot.session.id);
       temporaryArchive = await createArchive(filename);
       const totalChunks = this.options.getMediaChunkCount();
       await writeArchive({

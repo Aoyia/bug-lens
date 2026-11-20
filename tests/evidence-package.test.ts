@@ -718,3 +718,54 @@ test("buildCompactAiPrompt routes Skill -> auto install -> unzip fallback and st
   });
   assert.match(forcedZh, /文件路径：\n\/Users\/tester\/Downloads\/report\.zip/);
 });
+
+test("evidence package externalizes i18n dictionary into assets/i18n-data.js without inline scripts when localeMessages is provided", () => {
+  const assetsWithLocale: StaticReportAssets = {
+    html: `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>Bug Lens</title></head><body><script id="__BUG_LENS_DATA__" type="application/json"></script>\n<script src="assets/report.js"></script></body></html>`,
+    script: "void 0;",
+    styles: "body {}",
+    icon: new Uint8Array([1, 2, 3]),
+    localeMessages: {
+      metricSteps: { message: "有效步骤" },
+      metricScreenshots: { message: "步骤截图" },
+    },
+  };
+
+  const files = new Map(
+    buildEvidencePackage(snapshot, assetsWithLocale).map((file) => [
+      file.name,
+      new TextDecoder().decode(file.data),
+    ])
+  );
+
+  assert.ok(files.has("assets/i18n-data.js"));
+  const i18nJs = files.get("assets/i18n-data.js")!;
+  assert.ok(i18nJs.startsWith("window.__WEB_BUG_REPORT_I18N__ = "));
+  const parsedBundle = JSON.parse(
+    i18nJs.replace(/^window\.__WEB_BUG_REPORT_I18N__ = /, "").slice(0, -1)
+  );
+  assert.equal(parsedBundle.locale, "zh-CN");
+  assert.deepEqual(parsedBundle.dict, assetsWithLocale.localeMessages);
+
+  const html = files.get("report.html")!;
+  assert.equal(
+    /<script(?![^>]*\bsrc=)[^>]*>[\s\S]*?\S[\s\S]*?<\/script>/i.test(html),
+    false,
+    "report.html 不得包含带内联脚本内容的 <script> 标签"
+  );
+
+  const i18nTag = '<script src="assets/i18n-data.js"></script>';
+  const sessionTag = '<script src="data/session-data.js"></script>';
+  const detailsTag = '<script src="data/network-details.js"></script>';
+  const reportTag = '<script src="assets/report.js"></script>';
+
+  const i18nIdx = html.indexOf(i18nTag);
+  const sessionIdx = html.indexOf(sessionTag);
+  const detailsIdx = html.indexOf(detailsTag);
+  const reportIdx = html.indexOf(reportTag);
+
+  assert.ok(i18nIdx !== -1);
+  assert.ok(sessionIdx > i18nIdx);
+  assert.ok(detailsIdx > sessionIdx);
+  assert.ok(reportIdx > detailsIdx);
+});

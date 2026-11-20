@@ -105,9 +105,24 @@ test("buildEvidencePackage 在传入静态模板时输出完整非空的 report.
 
   assert.ok(html.includes("<!doctype html>"));
   assert.ok(html.includes('<div id="app"></div>'));
+  assert.ok(html.includes('<script src="assets/i18n-data.js"></script>'));
   assert.ok(html.includes("data/session-data.js"));
   assert.ok(html.includes("data/network-details.js"));
-  assert.ok(html.includes("__WEB_BUG_REPORT_I18N__"));
+  assert.equal(
+    /<script(?![^>]*\bsrc=)[^>]*>[\s\S]*?\S[\s\S]*?<\/script>/i.test(html),
+    false,
+    "report.html 不得包含带内联脚本内容的 <script> 标签"
+  );
+
+  const i18nJsRaw = new TextDecoder().decode(
+    fileMap.get("assets/i18n-data.js")!
+  );
+  assert.ok(i18nJsRaw.startsWith("window.__WEB_BUG_REPORT_I18N__ = "));
+  const i18nBundle = JSON.parse(
+    i18nJsRaw.replace(/^window\.__WEB_BUG_REPORT_I18N__ = /, "").slice(0, -1)
+  );
+  assert.deepEqual(i18nBundle.dict, { appTitle: { message: "测试报告" } });
+
   assert.equal(script, "console.log('report init');");
   assert.equal(styles, "body { background: #000; }");
   assert.deepEqual(icon, new Uint8Array([1, 2, 3]));

@@ -312,6 +312,10 @@ test("buildTicketTemplate: 英文模式格式校验", async () => {
   assert.ok(!result.includes("## [Captured Anomalies]"));
   assert.ok(result.includes("## [Evidence Package]"));
   assert.ok(result.includes("Please analyze"));
+  assert.match(
+    result,
+    /Attachment: `web-bug-report-session--\d{4}-\d{2}-\d{2}_\d{2}-\d{2}\.zip`/
+  );
   // 恢复中文
   await setUserLanguagePreference("zh-CN");
 });

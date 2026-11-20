@@ -626,3 +626,100 @@ test("PreviewAiHandoff.render - 过滤 USER_CANCELED 避免外露原始报错码
   assert.equal(statusNode.textContent, "downloadInterrupted");
   assert.equal(pathNode.textContent, "DISK_FULL");
 });
+
+test("PreviewExportController - 普通与提工单导出均生成带时间戳的录制报告文件名", async () => {
+  const archiveNames: string[] = [];
+  const downloadNames: string[] = [];
+
+  (globalThis as any).URL = {
+    createObjectURL: () => "blob:mock-archive-url",
+    revokeObjectURL: () => {},
+  };
+  (globalThis as any).chrome = {
+    i18n: { getMessage: (key: string) => key },
+    downloads: {
+      download: async (opts: { filename?: string }) => {
+        if (opts.filename) downloadNames.push(opts.filename);
+        return 101;
+      },
+      search: (_query: any, callback: Function) => {
+        const last = downloadNames[downloadNames.length - 1] ?? "";
+        callback([
+          {
+            id: 101,
+            state: "complete",
+            filename: `/Users/tester/Downloads/${last}`,
+          },
+        ]);
+      },
+    },
+    runtime: { lastError: null },
+  };
+
+  const { doc } = createMockDocument();
+  const mockSnapshot = {
+    session: {
+      id: "9bf8fef7-1234-5678-9abc-def012345678",
+      title: "Test Report",
+      quality: { overall: "complete", issues: [] },
+      target: { initialTitle: "Test", initialUrl: "http://localhost" },
+      timeline: { startedAtEpochMs: 1000, durationMs: 5000 },
+      options: { privacyMode: "safe" },
+    },
+    interactions: [],
+    consoleEntries: [],
+    networkEntries: [],
+    excluded: { interaction: 0, console: 0, network: 0, issueScene: 0 },
+    hasMedia: false,
+  } as any;
+
+  const controller = new PreviewExportController({
+    root: doc as any,
+    sessionId: mockSnapshot.session.id,
+    storage: {
+      getExportArtifact: async () => undefined,
+      saveExportArtifact: async () => {},
+    } as any,
+    getSnapshot: () => mockSnapshot,
+    getMediaChunkCount: () => 0,
+    notify: () => {},
+    onArtifactChanged: () => {},
+    loadAssets: async () => ({
+      html: "<html></html>",
+      script: "",
+      styles: "",
+      icon: new Uint8Array(),
+    }),
+    createArchive: async (filename: string) => {
+      archiveNames.push(filename);
+      return {
+        storage: "memory",
+        sink: {
+          write: async () => {},
+          close: async () => {},
+          abort: async () => {},
+        },
+        getFile: async () =>
+          new File([], filename, { type: "application/zip" }),
+        cleanup: async () => {},
+      };
+    },
+    writeArchive: async () => ({
+      entriesWritten: 1,
+      bytesWritten: 100,
+      manifestIntegrity: {},
+    }),
+  });
+
+  await controller.export("ai");
+  await controller.export("ticket");
+
+  const expectedPattern =
+    /^web-bug-report-9bf8fef7-\d{4}-\d{2}-\d{2}_\d{2}-\d{2}\.zip$/;
+  assert.equal(archiveNames.length, 2);
+  assert.equal(downloadNames.length, 2);
+  assert.match(archiveNames[0]!, expectedPattern);
+  assert.match(archiveNames[1]!, expectedPattern);
+  assert.equal(downloadNames[0], archiveNames[0]);
+  assert.equal(downloadNames[1], archiveNames[1]);
+});

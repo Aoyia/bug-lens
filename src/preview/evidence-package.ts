@@ -10,6 +10,7 @@ import {
   type RecordingSession,
 } from "../shared/protocol";
 import { getLocale, isEn, t } from "../shared/i18n.ts";
+import { resolveTicketTargetZipName } from "../shared/export-filename.ts";
 import { generatePlaywrightScript } from "./playwright-generator.ts";
 import {
   describeBrowserFromUserAgent,
@@ -53,7 +54,7 @@ export type StaticReportAssets = {
   script: string;
   styles: string;
   icon: Uint8Array;
-  /** 离线报告用 i18n 字典（按导出时的界面语言注入 report.html） */
+  /** 离线报告用 i18n 字典（按导出时的界面语言生成外链 assets/i18n-data.js） */
   localeMessages?: Record<string, { message: string }>;
 };
 
@@ -675,14 +676,10 @@ export function buildTicketTemplate(
   const pageUrl =
     oneLine(session.target?.initialUrl) || (isEnglish ? "Unknown" : "未知");
 
-  let targetZipName = `web-bug-report-${session.id.slice(0, 8)}.zip`;
-  if (zipPathOrFilename) {
-    const raw = zipPathOrFilename.trim().replace(/^["']|["']$/g, "");
-    const parts = raw.split(/[/\\]/);
-    if (parts.length > 0 && parts[parts.length - 1]) {
-      targetZipName = parts[parts.length - 1];
-    }
-  }
+  const targetZipName = resolveTicketTargetZipName(
+    session.id,
+    zipPathOrFilename
+  );
 
   // 1. 问题说明
   let actualDesc = "";
@@ -840,14 +837,10 @@ export function buildTicketHtml(
   const pageUrl =
     oneLine(session.target?.initialUrl) || (isEnglish ? "Unknown" : "未知");
 
-  let targetZipName = `web-bug-report-${session.id.slice(0, 8)}.zip`;
-  if (zipPathOrFilename) {
-    const raw = zipPathOrFilename.trim().replace(/^["']|["']$/g, "");
-    const parts = raw.split(/[/\\]/);
-    if (parts.length > 0 && parts[parts.length - 1]) {
-      targetZipName = parts[parts.length - 1];
-    }
-  }
+  const targetZipName = resolveTicketTargetZipName(
+    session.id,
+    zipPathOrFilename
+  );
 
   // 1. 问题说明
   let actualDesc = "";
@@ -1551,7 +1544,7 @@ export function buildEvidencePackage(
     splitAiAndReportPayloads(payload);
 
   const i18nScript = assets.localeMessages
-    ? `<script>window.__WEB_BUG_REPORT_I18N__ = ${JSON.stringify({ locale: currentLocale, dict: assets.localeMessages })};</script>\n`
+    ? `<script src="assets/i18n-data.js"></script>\n`
     : "";
   const reportScriptTag = `${i18nScript}<script src="data/session-data.js"></script>\n<script src="data/network-details.js"></script>`;
   let htmlContent = assets.html.replace(
@@ -1580,6 +1573,16 @@ export function buildEvidencePackage(
     { name: "assets/report.js", data: strToU8(assets.script) },
     { name: "assets/report.css", data: strToU8(assets.styles) },
     { name: "assets/icon_idle.png", data: assets.icon },
+    ...(assets.localeMessages
+      ? [
+          {
+            name: "assets/i18n-data.js",
+            data: strToU8(
+              `window.__WEB_BUG_REPORT_I18N__ = ${JSON.stringify({ locale: currentLocale, dict: assets.localeMessages })};`
+            ),
+          },
+        ]
+      : []),
     {
       name: "reproduce.spec.ts",
       data: strToU8(

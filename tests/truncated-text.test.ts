@@ -94,3 +94,87 @@ test("TruncatedText: renders text and manages tooltip safely without recursion",
   assert.equal(el.textContent, "通过 innerText 写入的文本");
   assert.equal(span.textContent, "通过 innerText 写入的文本");
 });
+
+test("TruncatedText: uses Constructable Stylesheets instead of inline <style> when supported, and falls back otherwise", () => {
+  const origDocument = (globalThis as any).document;
+  const origCSSStyleSheet = (globalThis as any).CSSStyleSheet;
+  const origAttachShadow = (TruncatedText.prototype as any).attachShadow;
+
+  try {
+    const createdTags: string[] = [];
+    const createMockElement = (tag: string) => {
+      createdTags.push(tag);
+      return {
+        tagName: tag.toUpperCase(),
+        textContent: "",
+        title: "",
+        scrollWidth: 0,
+        removeAttribute() {},
+      };
+    };
+
+    (globalThis as any).document = {
+      createElement: createMockElement,
+    };
+
+    const replacedCss: string[] = [];
+    class MockCSSStyleSheet {
+      cssText = "";
+      replaceSync(text: string) {
+        this.cssText = text;
+        replacedCss.push(text);
+      }
+    }
+    (globalThis as any).CSSStyleSheet = MockCSSStyleSheet;
+
+    const createShadowHost = (withAdoptedStyleSheets: boolean) => {
+      const shadowChildren: unknown[] = [];
+      const shadow: any = {
+        appendChild(node: unknown) {
+          shadowChildren.push(node);
+        },
+      };
+      if (withAdoptedStyleSheets) {
+        shadow.adoptedStyleSheets = [];
+      }
+
+      (TruncatedText.prototype as any).attachShadow = () => shadow;
+      new TruncatedText();
+      return { shadow, shadowChildren };
+    };
+
+    // 1. 支持 Constructable Stylesheets 时：不创建 <style>，挂载 adoptedStyleSheets 并复用单例
+    const first = createShadowHost(true);
+    const second = createShadowHost(true);
+
+    assert.equal(createdTags.includes("style"), false);
+    assert.deepEqual(createdTags, ["span", "span"]);
+    assert.equal(first.shadow.adoptedStyleSheets.length, 1);
+    assert.equal(
+      first.shadow.adoptedStyleSheets[0],
+      second.shadow.adoptedStyleSheets[0]
+    );
+    assert.equal(replacedCss.length, 1);
+    assert.match(replacedCss[0], /:host\s*\{/);
+    assert.match(replacedCss[0], /text-overflow:\s*ellipsis/);
+    assert.equal(first.shadowChildren.length, 1);
+
+    // 2. shadow 不支持 adoptedStyleSheets 时：安全回退至 <style>
+    createdTags.length = 0;
+    const fallback = createShadowHost(false);
+    assert.deepEqual(createdTags, ["style", "span"]);
+    assert.equal(fallback.shadowChildren.length, 2);
+  } finally {
+    (TruncatedText.prototype as any).attachShadow = origAttachShadow;
+    if (origDocument === undefined) {
+      delete (globalThis as any).document;
+    } else {
+      (globalThis as any).document = origDocument;
+    }
+    if (origCSSStyleSheet === undefined) {
+      delete (globalThis as any).CSSStyleSheet;
+    } else {
+      (globalThis as any).CSSStyleSheet = origCSSStyleSheet;
+    }
+  }
+});

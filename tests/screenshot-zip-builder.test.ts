@@ -57,6 +57,10 @@ describe("Screenshot ZIP Builder - 资源包压缩与解压验证", () => {
     assert.ok(pack);
     assert.ok(pack.filename.startsWith("bug-lens-screenshot-"));
     assert.ok(pack.filename.endsWith(".zip"));
+    assert.match(
+      pack.filename,
+      /^bug-lens-screenshot-\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.zip$/
+    );
     assert.ok(
       pack.markdownPrompt.includes("请作为高级 Frontend/Fullstack 调试专家")
     );
