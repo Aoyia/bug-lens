@@ -2,8 +2,8 @@
 .zen-workspace {
   flex: 1;
   display: grid;
-  grid-template-columns: 1fr 1.618fr;
-  gap: 1px;
+  grid-template-columns: minmax(0, 1fr) 5px minmax(0, 1.618fr);
+  gap: 0;
   padding: 0;
   background: var(--zen-border);
   overflow: hidden;
@@ -11,14 +11,21 @@
 
 @media (max-width: 1440px) {
   .zen-workspace {
-    grid-template-columns: 44% 56%;
+    grid-template-columns: minmax(0, 44fr) 5px minmax(0, 56fr);
   }
 }
 
 @media (max-width: 1200px) {
   .zen-workspace {
-    grid-template-columns: 48% 52%;
+    grid-template-columns: minmax(0, 48fr) 5px minmax(0, 52fr);
   }
+}
+
+.zen-workspace.zen-workspace--resized {
+  grid-template-columns:
+    minmax(260px, var(--zen-workspace-left, 38.2%))
+    5px
+    minmax(320px, 1fr);
 }
 
 /* 左侧主画面面板 Left Panel: Metrics & Video */
@@ -26,8 +33,43 @@
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-width: 0;
   overflow: hidden;
   background: #ffffff;
+}
+
+/* 左右面板可拖拽分隔栏 */
+.zen-workspace-resizer {
+  width: 5px;
+  box-sizing: border-box;
+  background: #f1f5f9;
+  border-left: 1px solid var(--zen-border);
+  border-right: 1px solid var(--zen-border);
+  cursor: col-resize;
+  position: relative;
+  z-index: 10;
+  user-select: none;
+  touch-action: none;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+
+.zen-workspace-resizer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -3px;
+  right: -3px;
+}
+
+.zen-workspace-resizer:hover,
+.zen-workspace-resizer.dragging,
+.zen-workspace-resizer:focus-visible {
+  background: var(--zen-primary, #165dff);
+  border-color: var(--zen-primary, #165dff);
+  outline: none;
 }
 
 /* 剃刀原理极简 Metrics 单行流式胶囊 - 柔和高级雅致调色 */
@@ -494,6 +536,7 @@
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-width: 0;
   overflow: hidden;
   background: #ffffff;
 }

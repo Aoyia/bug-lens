@@ -8,6 +8,7 @@ import {
 } from "../../shared/protocol";
 import type { IssueScenePreview } from "../../preview/issue-scene-view";
 import { EvidenceReportView } from "../../preview/evidence-report-view";
+import { bindWorkspaceResizer } from "../../preview/workspace-resizer";
 import { applyI18n, t } from "../../shared/i18n";
 import "../../shared/components/truncated-text";
 
@@ -31,6 +32,8 @@ declare global {
 
 // 自动翻译离线 HTML DOM 节点
 applyI18n();
+// 顶层绑定工作区分隔栏拖拽，保证数据缺失或版本异常降级时仍可交互
+bindWorkspaceResizer(document);
 
 function loadReportData(): StaticReportData | undefined {
   if (typeof window !== "undefined") {

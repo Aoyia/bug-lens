@@ -79,6 +79,10 @@
     overflow: visible;
   }
 
+  .zen-workspace-resizer {
+    display: none;
+  }
+
   .zen-left-panel,
   .zen-right-panel {
     min-height: 520px;
@@ -103,6 +107,7 @@
   }
 
   .zen-left-panel,
+  .zen-workspace-resizer,
   .zen-titlebar-right,
   .zen-tab-bar,
   .toast,

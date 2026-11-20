@@ -1,5 +1,6 @@
 import { copyTextToClipboard } from "../shared/clipboard.ts";
 import { t } from "../shared/i18n.ts";
+import { bindWorkspaceResizer } from "./workspace-resizer.ts";
 
 export type PreviewTab =
   "steps" | "console" | "network" | "issues" | "framework" | "stream";
@@ -8,6 +9,7 @@ export class PreviewPageShell {
   private tab: PreviewTab = "issues";
   private readonly root: Document;
   private onTabChange?: () => void;
+  private readonly cleanupWorkspaceResizer: () => void;
   /** Toast 单例的隐藏定时器句柄：连续通知必须重置计时，否则旧通知的定时器会提前截断新通知。 */
   private toastTimer: number | undefined;
 
@@ -17,6 +19,11 @@ export class PreviewPageShell {
     this.bindAiDrawer();
     this.bindDelegatedCopyActions();
     this.bindTooltips();
+    this.cleanupWorkspaceResizer = bindWorkspaceResizer(root);
+  }
+
+  destroy(): void {
+    this.cleanupWorkspaceResizer();
   }
 
   get activeTab(): PreviewTab {

@@ -230,9 +230,14 @@ button.arco-toolbar-btn.copied {
 }
 
 @media (max-width: 1100px) {
-  .zen-workspace {
+  .zen-workspace,
+  .zen-workspace.zen-workspace--resized {
     grid-template-columns: 1fr;
+    gap: 1px;
     overflow-y: auto;
+  }
+  .zen-workspace-resizer {
+    display: none;
   }
   .zen-right-panel {
     height: auto;
