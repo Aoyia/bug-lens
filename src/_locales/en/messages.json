@@ -2511,5 +2511,37 @@
   },
   "searchSettingsPlaceholder": {
     "message": "Search settings..."
+  },
+  "widgetDockLeft": {
+    "message": "Dock left"
+  },
+  "widgetDockRight": {
+    "message": "Dock right"
+  },
+  "widgetCloseMenu": {
+    "message": "Close menu"
+  },
+  "widgetMobileGuideTip": {
+    "message": "Click the pill to control recording or press $SHORTCUT$ to mark. Drag to dock left or right.",
+    "placeholders": {
+      "shortcut": {
+        "content": "$1"
+      }
+    }
+  },
+  "widgetExportAiShort": {
+    "message": "Export AI Prompt"
+  },
+  "selectionModePick": {
+    "message": "Pick"
+  },
+  "selectionModeScroll": {
+    "message": "Scroll"
+  },
+  "selectionMoveTop": {
+    "message": "Move to top"
+  },
+  "selectionMoveBottom": {
+    "message": "Move to bottom"
   }
 }

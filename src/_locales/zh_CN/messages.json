@@ -2511,5 +2511,37 @@
   },
   "searchSettingsPlaceholder": {
     "message": "搜索设置项..."
+  },
+  "widgetDockLeft": {
+    "message": "靠左"
+  },
+  "widgetDockRight": {
+    "message": "靠右"
+  },
+  "widgetCloseMenu": {
+    "message": "关闭菜单"
+  },
+  "widgetMobileGuideTip": {
+    "message": "点击胶囊操作录制，或按 $SHORTCUT$ 标点，可上下拖动贴边",
+    "placeholders": {
+      "shortcut": {
+        "content": "$1"
+      }
+    }
+  },
+  "widgetExportAiShort": {
+    "message": "导出 AI Prompt"
+  },
+  "selectionModePick": {
+    "message": "选元素"
+  },
+  "selectionModeScroll": {
+    "message": "滚页面"
+  },
+  "selectionMoveTop": {
+    "message": "移至顶部"
+  },
+  "selectionMoveBottom": {
+    "message": "移至底部"
   }
 }

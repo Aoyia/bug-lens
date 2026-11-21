@@ -95,4 +95,32 @@ export const ANNOTATION_TOOLBAR_CSS = `
       margin: 0 2px;
     }
   }
+  @media (max-width: 360px) {
+    .toolbar {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      max-width: calc(100vw - 12px);
+      padding: 3px 4px;
+      gap: 1.5px;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+    .toolbar::-webkit-scrollbar {
+      display: none;
+    }
+    .toolbar button {
+      width: 25px;
+      height: 26px;
+      flex-shrink: 0;
+    }
+    .toolbar button.confirm-btn {
+      width: 28px;
+      height: 26px;
+      flex-shrink: 0;
+    }
+    .toolbar .divider {
+      margin: 0 1px;
+      flex-shrink: 0;
+    }
+  }
 `;

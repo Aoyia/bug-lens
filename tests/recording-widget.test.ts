@@ -192,13 +192,172 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
     const classSet = new Set<string>();
     const styleObj: Record<string, string> = {};
 
+    const mobileArrow = {
+      textContent: "‹",
+      style: {},
+    };
+
+    const mobileMenuTimer = {
+      textContent: "00:00",
+      style: {},
+    };
+
+    const mobileHealthMsg = {
+      textContent: "",
+      title: "",
+      style: { display: "none" },
+    };
+
+    const mobileIssueLabel = {
+      textContent: "标记截图",
+    };
+
+    const mobileDockBtn = {
+      id: "__wbr_mobile_dock_btn__",
+      title: "靠左",
+      attributes: { "aria-label": "靠左" } as Record<string, string>,
+      _innerHTML: "",
+      get innerHTML() {
+        return this._innerHTML;
+      },
+      set innerHTML(val: string) {
+        this._innerHTML = val;
+        this.textContent = val.replace(/<[^>]*>/g, "");
+      },
+      textContent: "靠左",
+      setAttribute(k: string, v: string) {
+        this.attributes[k] = String(v);
+        if (k === "title") this.title = String(v);
+        if (k === "aria-label") this.attributes["aria-label"] = String(v);
+      },
+      getAttribute(k: string) {
+        return this.attributes[k];
+      },
+      addEventListener(type: string, fn: Function) {
+        addListener(this, type, fn);
+      },
+      removeEventListener(type: string, fn: Function) {
+        removeListener(this, type, fn);
+      },
+      dispatchEvent(evt: any) {
+        dispatch(this, evt);
+      },
+      click() {
+        dispatch(this, { type: "click" });
+      },
+    };
+
+    const mobileCloseBtn = {
+      id: "__wbr_mobile_close_btn__",
+      title: "",
+      setAttribute(k: string, v: string) {},
+      addEventListener(type: string, fn: Function) {
+        addListener(this, type, fn);
+      },
+      removeEventListener(type: string, fn: Function) {
+        removeListener(this, type, fn);
+      },
+      dispatchEvent(evt: any) {
+        dispatch(this, evt);
+      },
+      click() {
+        dispatch(this, { type: "click" });
+      },
+    };
+
+    const mobileIssueBtn = {
+      id: "__wbr_mobile_issue_btn__",
+      addEventListener(type: string, fn: Function) {
+        addListener(this, type, fn);
+      },
+      removeEventListener(type: string, fn: Function) {
+        removeListener(this, type, fn);
+      },
+      dispatchEvent(evt: any) {
+        dispatch(this, evt);
+      },
+      click() {
+        dispatch(this, { type: "click" });
+      },
+    };
+
+    const mobileTicketBtn = {
+      id: "__wbr_mobile_ticket_btn__",
+      addEventListener(type: string, fn: Function) {
+        addListener(this, type, fn);
+      },
+      removeEventListener(type: string, fn: Function) {
+        removeListener(this, type, fn);
+      },
+      dispatchEvent(evt: any) {
+        dispatch(this, evt);
+      },
+      click() {
+        dispatch(this, { type: "click" });
+      },
+    };
+
+    const mobileStopBtn = {
+      id: "__wbr_mobile_stop_btn__",
+      addEventListener(type: string, fn: Function) {
+        addListener(this, type, fn);
+      },
+      removeEventListener(type: string, fn: Function) {
+        removeListener(this, type, fn);
+      },
+      dispatchEvent(evt: any) {
+        dispatch(this, evt);
+      },
+      click() {
+        dispatch(this, { type: "click" });
+      },
+    };
+
+    const mobileDiscardBtn = {
+      id: "__wbr_mobile_discard_btn__",
+      textContent: "丢弃录制",
+      classList: {
+        add(cls: string) {},
+        remove(cls: string) {},
+      },
+      style: {
+        setProperty(k: string, v: string) {},
+        removeProperty(k: string) {},
+      },
+      addEventListener(type: string, fn: Function) {
+        addListener(this, type, fn);
+      },
+      removeEventListener(type: string, fn: Function) {
+        removeListener(this, type, fn);
+      },
+      dispatchEvent(evt: any) {
+        dispatch(this, evt);
+      },
+      click() {
+        dispatch(this, { type: "click" });
+      },
+    };
+
+    let rootInnerHTML = "";
     mockRootElement = {
       id: "__wbr_recording_widget__",
+      get innerHTML() {
+        return rootInnerHTML;
+      },
+      set innerHTML(val: string) {
+        rootInnerHTML = val;
+      },
+      attributes: {} as Record<string, string>,
+      dataset: {} as Record<string, string>,
       style: {
         ...styleObj,
         setProperty(prop: string, val: string) {
           styleObj[prop] = val;
           (mockRootElement.style as any)[prop] = val;
+        },
+        removeProperty(prop: string) {
+          delete styleObj[prop];
+          (mockRootElement.style as any)[prop] = "";
         },
       },
       classList: {
@@ -212,7 +371,22 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
           return classSet.has(cls);
         },
       },
-      setAttribute(k: string, v: string) {},
+      setAttribute(k: string, v: string) {
+        this.attributes[k] = String(v);
+        if (k === "data-wbr-mobile-mode")
+          this.dataset.wbrMobileMode = String(v);
+        if (k === "data-wbr-edge") this.dataset.wbrEdge = String(v);
+        if (k === "data-wbr-suppressed") this.dataset.wbrSuppressed = String(v);
+      },
+      removeAttribute(k: string) {
+        delete this.attributes[k];
+        if (k === "data-wbr-mobile-mode") delete this.dataset.wbrMobileMode;
+        if (k === "data-wbr-edge") delete this.dataset.wbrEdge;
+        if (k === "data-wbr-suppressed") delete this.dataset.wbrSuppressed;
+      },
+      getAttribute(k: string) {
+        return this.attributes[k];
+      },
       getBoundingClientRect() {
         return { left: 100, top: 100, width: 200, height: 40 };
       },
@@ -227,13 +401,24 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
       },
       querySelector(sel: string) {
         if (sel.includes("drag_handle")) return dragHandle;
-        if (sel.includes("stop_btn")) return stopBtn;
-        if (sel.includes("issue_btn")) return issueBtn;
+        if (sel.includes("stop_btn") && !sel.includes("mobile")) return stopBtn;
+        if (sel.includes("issue_btn") && !sel.includes("mobile"))
+          return issueBtn;
         if (sel.includes("collapse_toggle_btn")) return collapseToggleBtn;
         if (sel.includes("widget_bubble_arrow")) return bubbleArrow;
         if (sel.includes("timer_display")) return timerDisplay;
         if (sel.includes("rec-tag")) return recTag;
         if (sel.includes("toast_action")) return toastActionBtn;
+        if (sel.includes("mobile_arrow")) return mobileArrow;
+        if (sel.includes("mobile_menu_timer")) return mobileMenuTimer;
+        if (sel.includes("mobile_health_msg")) return mobileHealthMsg;
+        if (sel.includes("mobile_issue_label")) return mobileIssueLabel;
+        if (sel.includes("mobile_dock_btn")) return mobileDockBtn;
+        if (sel.includes("mobile_close_btn")) return mobileCloseBtn;
+        if (sel.includes("mobile_issue_btn")) return mobileIssueBtn;
+        if (sel.includes("mobile_ticket_btn")) return mobileTicketBtn;
+        if (sel.includes("mobile_stop_btn")) return mobileStopBtn;
+        if (sel.includes("mobile_discard_btn")) return mobileDiscardBtn;
         return null;
       },
       remove() {},
@@ -275,6 +460,13 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
               mockRootElement.style.setProperty(prop, val);
             }
           },
+          removeProperty(prop: string) {
+            delete elStyle[prop];
+            elStyle[prop] = "";
+            if (el.id === "__wbr_recording_widget__") {
+              mockRootElement.style.removeProperty(prop);
+            }
+          },
         };
         const el: any = {
           id: "",
@@ -285,9 +477,28 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
           set innerHTML(val: string) {
             _innerHTML = val;
             el.textContent = val.replace(/<[^>]*>/g, "");
+            if (el.id === "__wbr_recording_widget__") {
+              mockRootElement.innerHTML = val;
+            }
           },
           textContent: "",
-          setAttribute() {},
+          attributes: {} as Record<string, string>,
+          dataset: {} as Record<string, string>,
+          setAttribute(k: string, v: string) {
+            this.attributes[k] = String(v);
+            if (el.id === "__wbr_recording_widget__") {
+              mockRootElement.setAttribute(k, v);
+            }
+          },
+          removeAttribute(k: string) {
+            delete this.attributes[k];
+            if (el.id === "__wbr_recording_widget__") {
+              mockRootElement.removeAttribute(k);
+            }
+          },
+          getAttribute(k: string) {
+            return this.attributes[k];
+          },
           remove() {
             const idx = appendedElements.indexOf(el);
             if (idx !== -1) appendedElements.splice(idx, 1);
@@ -898,73 +1109,52 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
     assert.equal(storageMap.get("__wbr_widget_bubble_seen__"), "true");
   });
 
-  test("375px 窄屏 + 触控/无 hover 环境下不触发 1500ms 自动折叠，且显式折叠按钮正常切换", () => {
+  test("PC 桌面端 100% 无损还原：彻底隐藏显式折叠按钮 [▾]，恢复 mouseenter 展开与 1500ms 自动收起", () => {
     const win = globalThis.window as any;
-    win.innerWidth = 375;
-    win.innerHeight = 667;
-    win.matchMedia = (query: string) => ({
-      matches:
-        query.includes("hover: none") || query.includes("pointer: coarse"),
-      media: query,
-    });
+    win.innerWidth = 1200;
+    win.innerHeight = 800;
 
     widget = new RecordingWidget(callbacks);
     widget.mount();
 
-    // 触控/无 hover 环境挂载后不触发 1500ms 自动折叠
-    win.triggerCollapseTimer();
+    // PC 桌面端不应挂载移动仿真模式属性
     assert.equal(
-      mockRootElement.classList.contains("__wbr_collapsed__"),
-      false,
-      "触控环境下不应触发 1500ms 自动折叠"
+      mockRootElement.dataset.wbrMobileMode,
+      undefined,
+      "PC 端不得挂载 data-wbr-mobile-mode"
     );
 
-    // 模拟 mouseleave 同样不触发自动折叠
+    // PC 桌面端子流程隐身调用不影响挂件可见性
+    widget.setSuppressedForSubflow(true);
+    assert.equal(
+      mockRootElement.attributes["data-wbr-suppressed"],
+      undefined,
+      "PC 端 setSuppressedForSubflow 不得给挂件挂载 data-wbr-suppressed"
+    );
+    widget.setSuppressedForSubflow(false);
+
+    // PC 桌面端鼠标移出后 1500ms 自动收起为胶囊
     mockRootElement.dispatchEvent({ type: "mouseleave" });
     win.triggerCollapseTimer();
     assert.equal(
       mockRootElement.classList.contains("__wbr_collapsed__"),
-      false,
-      "触控环境下 mouseleave 不应触发自动折叠"
-    );
-
-    const toggleBtn = mockRootElement.querySelector(
-      "#__wbr_collapse_toggle_btn__"
-    );
-    assert.ok(toggleBtn, "应渲染显式折叠切换按钮 #__wbr_collapse_toggle_btn__");
-    assert.equal(toggleBtn.getAttribute("aria-expanded"), "true");
-
-    // 点击折叠切换按钮 -> 进入折叠胶囊态
-    toggleBtn.click();
-    assert.equal(
-      mockRootElement.classList.contains("__wbr_collapsed__"),
       true,
-      "点击显式折叠按钮应进入折叠胶囊态"
+      "PC 桌面端鼠标移出 1500ms 后应自动收起"
     );
-    assert.equal(toggleBtn.getAttribute("aria-expanded"), "false");
-    assert.equal(toggleBtn.title, t("widgetExpandTooltip"));
 
-    // 再次点击 -> 展开恢复完整操作态，且仍不触发 1500ms 自动折叠
-    toggleBtn.click();
+    // 鼠标移入恢复展开
+    mockRootElement.dispatchEvent({ type: "mouseenter" });
     assert.equal(
       mockRootElement.classList.contains("__wbr_collapsed__"),
       false,
-      "再次点击显式折叠按钮应恢复完整态"
-    );
-    assert.equal(toggleBtn.getAttribute("aria-expanded"), "true");
-    assert.equal(toggleBtn.title, t("widgetCollapseTooltip"));
-    win.triggerCollapseTimer();
-    assert.equal(
-      mockRootElement.classList.contains("__wbr_collapsed__"),
-      false,
-      "触控环境下展开后不应被 1500ms 定时器自动折叠"
+      "PC 桌面端鼠标移入应恢复展开"
     );
   });
 
-  test("Pointer Events 拖拽 (pointerdown -> pointermove -> pointerup/pointercancel) 与 resize 边界重钳制", () => {
+  test("PC 桌面端拖拽手柄 Pointer Events 拖拽与视口 resize 边界钳制", () => {
     const win = globalThis.window as any;
-    win.innerWidth = 375;
-    win.innerHeight = 667;
+    win.innerWidth = 1200;
+    win.innerHeight = 800;
     storageMap.delete("__wbr_widget_bubble_seen__");
 
     widget = new RecordingWidget(callbacks);
@@ -983,33 +1173,15 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
     });
     assert.deepEqual(dragHandle.capturedPointerIds, [7]);
 
-    // 拖出右边界与下边界：应钳制在 [0, 375 - 200] 与 [0, 667 - 40]
+    // 拖出右边界与下边界：应钳制在 [0, 1200 - 200] 与 [0, 800 - 40]
     win.dispatchEvent({
       type: "pointermove",
       pointerId: 7,
-      clientX: 500,
-      clientY: 900,
+      clientX: 1500,
+      clientY: 1000,
     });
     assert.equal(mockRootElement.style.right, "0px");
-    assert.equal(mockRootElement.style.top, "627px");
-
-    // 拖至靠左上方位置，同时验证引导气泡坐标与箭头也被钳制在 375px 视口内
-    win.dispatchEvent({
-      type: "pointermove",
-      pointerId: 7,
-      clientX: 50,
-      clientY: 20,
-    });
-    assert.equal(mockRootElement.style.right, "175px");
-    assert.equal(mockRootElement.style.top, "0px");
-
-    const bubble = document.querySelector("#__wbr_widget_bubble__") as any;
-    assert.ok(bubble);
-    const bubbleRight = Number.parseFloat(bubble.style.right);
-    assert.ok(
-      bubbleRight >= 8 && bubbleRight <= 375 - 320 - 8,
-      `气泡 right=${bubbleRight} 应在 375px 视口安全范围内`
-    );
+    assert.equal(mockRootElement.style.top, "760px");
 
     win.dispatchEvent({ type: "pointerup", pointerId: 7 });
     assert.deepEqual(dragHandle.releasedPointerIds, [7]);
@@ -1032,15 +1204,285 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
     win.dispatchEvent({ type: "pointercancel", pointerId: 9 });
     assert.deepEqual(dragHandle.releasedPointerIds, [7, 9]);
 
-    // 3. 横竖屏切换 / 视口 resize（含 visualViewport resize）：位置应重新钳制进新视口
-    widget.container!.style.setProperty("right", "300px");
-    widget.container!.style.setProperty("top", "500px");
-    win.innerWidth = 320;
-    win.innerHeight = 480;
+    // 3. 视口 resize（含 visualViewport resize）：位置应重新钳制进新视口
+    widget.container!.style.setProperty("right", "1100px");
+    widget.container!.style.setProperty("top", "750px");
+    win.innerWidth = 1000;
+    win.innerHeight = 600;
     win.visualViewport.dispatchEvent({ type: "resize" });
 
-    assert.equal(mockRootElement.style.right, "120px"); // maxRight = 320 - 200
-    assert.equal(mockRootElement.style.top, "440px"); // maxTop = 480 - 40
+    assert.equal(mockRootElement.style.right, "800px"); // maxRight = 1000 - 200
+    assert.equal(mockRootElement.style.top, "560px"); // maxTop = 600 - 40
+  });
+
+  test("移动仿真态全新双态交互：默认侧边磁吸胶囊、轻点侧边菜单展开、一键换边、全胶囊拖拽吸附与子流程互斥隐身", () => {
+    const win = globalThis.window as any;
+    win.innerWidth = 375;
+    win.innerHeight = 667;
+    storageMap.delete("__wbr_widget_bubble_seen__");
+
+    let stoppedExportMode: string | undefined;
+    let markIssueCalled = false;
+    let discardCalled = false;
+
+    const testCallbacks = {
+      ...callbacks,
+      onStop: (info?: WidgetClickInfo) => {
+        stoppedExportMode = info?.exportMode;
+      },
+      onMarkIssue: () => {
+        markIssueCalled = true;
+      },
+      onDiscard: () => {
+        discardCalled = true;
+      },
+    };
+
+    widget = new RecordingWidget(testCallbacks);
+    widget.mount();
+
+    // 1. 验证移动仿真模式属性与默认右侧靠边停靠
+    assert.equal(
+      mockRootElement.dataset.wbrMobileMode,
+      "true",
+      "应挂载 data-wbr-mobile-mode='true'"
+    );
+    assert.equal(mockRootElement.dataset.wbrEdge, "right", "默认应贴右侧停靠");
+    const arrow = mockRootElement.querySelector(".__wbr_mobile_arrow__");
+    assert.ok(arrow);
+    assert.equal(arrow.textContent, "‹", "贴右侧时箭头向内指向左");
+
+    // 验证 Y 坐标避开顶部 56px 和底部 76px
+    const topPx = Number.parseFloat(mockRootElement.style.top || "0");
+    assert.ok(
+      topPx >= 56 && topPx <= 667 - 76 - 32,
+      `Y 坐标 ${topPx} 应在安全保护区内`
+    );
+
+    // 2. 全胶囊轻点（移动距离 < 6px）：展开紧凑侧边菜单
+    mockRootElement.dispatchEvent({
+      type: "pointerdown",
+      button: 0,
+      clientX: 350,
+      clientY: 400,
+    });
+    win.dispatchEvent({
+      type: "pointerup",
+    });
+
+    const menu = document.querySelector("#__wbr_mobile_menu__");
+    assert.ok(menu, "轻点胶囊后应在 DOM 中展开移动端侧边菜单");
+    const backdrop = document.querySelector("#__wbr_mobile_menu_backdrop__");
+    assert.ok(backdrop, "应有 Light Dismiss 透明点击拦截遮罩");
+
+    // 3. 一键换边：点击菜单内换边按钮，胶囊与菜单贴至左侧（方案 A：12×12 图标 + aria-label 同步）
+    const dockBtn = mockRootElement.querySelector("#__wbr_mobile_dock_btn__");
+    assert.ok(dockBtn);
+    assert.match(dockBtn.textContent, /靠左/);
+    assert.equal(dockBtn.title, "靠左");
+    assert.equal(dockBtn.getAttribute("aria-label"), "靠左");
+    dockBtn.click();
+
+    assert.equal(
+      mockRootElement.dataset.wbrEdge,
+      "left",
+      "点击换边后胶囊应贴靠左边缘"
+    );
+    assert.equal(arrow.textContent, "›", "贴左侧时箭头向内指向右");
+    assert.match(dockBtn.textContent, /靠右/, "换边后按钮文案应翻转为靠右");
+    assert.equal(dockBtn.title, "靠右", "换边后按钮 title 应翻转为靠右");
+    assert.equal(
+      dockBtn.getAttribute("aria-label"),
+      "靠右",
+      "换边后按钮 aria-label 应翻转为靠右"
+    );
+
+    // 4. 关闭菜单（Light Dismiss / Close Btn）
+    const closeBtn = mockRootElement.querySelector("#__wbr_mobile_close_btn__");
+    assert.ok(closeBtn);
+    closeBtn.click();
+    assert.equal(
+      document.querySelector("#__wbr_mobile_menu__"),
+      null,
+      "点击关闭菜单应收起菜单"
+    );
+
+    // 再次轻点打开菜单测试操作按钮回调
+    mockRootElement.dispatchEvent({
+      type: "pointerdown",
+      button: 0,
+      clientX: 10,
+      clientY: 400,
+    });
+    win.dispatchEvent({ type: "pointerup" });
+    assert.ok(document.querySelector("#__wbr_mobile_menu__"));
+
+    // 点击工单按钮触发 onStop(ticket) 且关闭菜单
+    const ticketBtn = mockRootElement.querySelector(
+      "#__wbr_mobile_ticket_btn__"
+    );
+    assert.ok(ticketBtn);
+    ticketBtn.click();
+    assert.equal(stoppedExportMode, "ticket");
+    assert.equal(document.querySelector("#__wbr_mobile_menu__"), null);
+
+    // 5. 子流程互斥隐身（仅移动仿真态生效）
+    widget.setSuppressedForSubflow(true);
+    assert.equal(
+      mockRootElement.attributes["data-wbr-suppressed"],
+      "true",
+      "进入子流程时移动端挂件应设置 data-wbr-suppressed='true'"
+    );
+
+    widget.setSuppressedForSubflow(false);
+    assert.equal(
+      mockRootElement.attributes["data-wbr-suppressed"],
+      undefined,
+      "退出子流程时应清除 data-wbr-suppressed"
+    );
+
+    // 6. 全胶囊平滑拖拽（移动距离 >= 6px）与松手磁吸吸附
+    mockRootElement.dispatchEvent({
+      type: "pointerdown",
+      button: 0,
+      clientX: 10,
+      clientY: 400,
+    });
+    // 向右拖拽 260px，中心到达 > 187.5px 区域
+    win.dispatchEvent({
+      type: "pointermove",
+      clientX: 270,
+      clientY: 420,
+    });
+    win.dispatchEvent({ type: "pointerup" });
+
+    assert.equal(
+      mockRootElement.dataset.wbrEdge,
+      "right",
+      "松手后应自动磁吸至最近的右边缘"
+    );
+    const savedPos = JSON.parse(
+      sessionStorage.getItem("__wbr_widget_pos__") || "{}"
+    );
+    assert.equal(savedPos.edge, "right");
+    assert.ok(typeof savedPos.yRatio === "number");
+
+    // 7. 移动仿真态 Saving 状态
+    widget.setSavingState(true, "保存中...");
+    assert.equal(mockRootElement.classList.contains("__wbr_saving__"), true);
+    assert.match(
+      mockRootElement.querySelector("#__wbr_timer_display__").innerHTML,
+      /保存中\.\.\./
+    );
+    widget.setSavingState(false);
+    assert.equal(mockRootElement.classList.contains("__wbr_saving__"), false);
+  });
+
+  test("移动端切回 PC 桌面端：清除移动态 inline 坐标样式，防移动端位置污染 PC 端，恢复 PC 默认右下角定位", () => {
+    const win = globalThis.window as any;
+    win.innerWidth = 375;
+    win.innerHeight = 667;
+    sessionStorage.clear();
+
+    widget = new RecordingWidget(callbacks);
+    widget.mount();
+
+    // 移动态下确认有 inline top/right/left/bottom 样式
+    assert.equal(mockRootElement.dataset.wbrMobileMode, "true");
+    assert.notEqual(mockRootElement.style.top, "");
+
+    // 模拟切回 PC 桌面端 (1280x800)
+    win.innerWidth = 1280;
+    win.innerHeight = 800;
+    win.visualViewport.dispatchEvent({ type: "resize" });
+
+    // 验证移动模式属性被移除
+    assert.equal(mockRootElement.dataset.wbrMobileMode, undefined);
+    assert.equal(mockRootElement.dataset.wbrEdge, undefined);
+
+    // 验证 inline top/bottom/left/right 已被彻底移除，恢复由 PC 默认 CSS 规则生效
+    assert.equal(mockRootElement.style.top, "");
+    assert.equal(mockRootElement.style.bottom, "");
+    assert.equal(mockRootElement.style.left, "");
+    assert.equal(mockRootElement.style.right, "");
+  });
+
+  test("移动仿真态 Code Review 缺陷修复综合验证：移动拖拽中 unmount 清理监听器、healthMsg XSS 转义、快捷键不裁切与气泡边界钳制", () => {
+    const win = globalThis.window as any;
+    win.innerWidth = 375;
+    win.innerHeight = 667;
+    storageMap.delete("__wbr_widget_bubble_seen__");
+
+    widget = new RecordingWidget({ ...callbacks, isMac: false });
+    widget.mount();
+
+    // 1. 验证 Windows 快捷键完整性与移动菜单 CSS 规则
+    assert.equal(widget.shortcutKeyText, "Alt+S");
+    assert.equal(widget.stopShortcutKeyText, "Ctrl+Shift+Y");
+    assert.match(
+      mockRootElement.innerHTML,
+      /width:\s*max-content\s*!important/
+    );
+    assert.match(
+      mockRootElement.innerHTML,
+      /max-width:\s*min\(calc\(100vw - 92px\),\s*240px\)\s*!important/
+    );
+
+    // 2. healthMsg XSS 转义验证
+    const maliciousMsg = '<script>alert("xss")</script>&"\'';
+    widget.updateHealth({
+      code: "RECORDER_ERROR",
+      message: maliciousMsg,
+      badgeText: "ERR",
+      badgeColor: "#f53f3f",
+    });
+    // 打开移动菜单
+    mockRootElement.dispatchEvent({
+      type: "pointerdown",
+      button: 0,
+      clientX: 350,
+      clientY: 400,
+    });
+    win.dispatchEvent({ type: "pointerup" });
+    const mobileMenu = document.querySelector("#__wbr_mobile_menu__");
+    assert.ok(mobileMenu);
+    assert.doesNotMatch(mobileMenu.innerHTML, /<script>/);
+    assert.match(mobileMenu.innerHTML, /&lt;script&gt;/);
+
+    // 3. 气泡宽度钳制：移动端贴右停靠时气泡 max-width 应受控避开左边缘
+    const bubble = document.querySelector(
+      "#__wbr_widget_bubble__"
+    ) as HTMLElement;
+    if (bubble) {
+      const bubbleMaxWidthStr =
+        (bubble.style as any)["max-width"] || bubble.style.maxWidth || "";
+      assert.match(bubbleMaxWidthStr, /px/);
+      const bubbleMaxWidth = Number.parseFloat(bubbleMaxWidthStr);
+      assert.ok(
+        bubbleMaxWidth <= 375 - 68 - 16,
+        "气泡 max-width 必须钳制在视口可用宽度内"
+      );
+    }
+
+    // 4. 移动拖拽中途调用 unmount()，全局 window 监听器必须干净移除
+    mockRootElement.dispatchEvent({
+      type: "pointerdown",
+      button: 0,
+      clientX: 350,
+      clientY: 400,
+    });
+    // 移动 > 6px 激活拖拽状态
+    win.dispatchEvent({
+      type: "pointermove",
+      clientX: 300,
+      clientY: 400,
+    });
+    assert.equal(widget.isDragging, true);
+
+    // 此时直接 unmount
+    widget.unmount();
+    assert.equal(widget.isDragging, false);
+    assert.equal(widget.cleanupDragListeners, undefined);
   });
 
   test("构造参数 isMac 与 setIsMac() 动态刷新快捷键文案与 tooltip", () => {

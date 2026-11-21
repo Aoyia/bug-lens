@@ -322,6 +322,152 @@ export class IssueSceneCapture {
     });
   }
 
+  /**
+   * 视口自适应裁剪兜底：
+   * 当 captureVisibleTab 截取了宽屏外层窗口，但当前为移动端竖屏仿真视口（右侧带大片空白）时，
+   * 将有效页面区域准确裁切出来，使底图比例与坐标系严格契合移动端视口。
+   */
+  async cropViewportIfAspectMismatch(
+    dataUrl: string,
+    viewport: { width: number; height: number },
+    tabDimensions?: { width?: number; height?: number }
+  ): Promise<{
+    dataUrl: string;
+    width: number;
+    height: number;
+    bytes: ArrayBuffer;
+  } | null> {
+    if (
+      typeof fetch !== "function" ||
+      typeof createImageBitmap !== "function" ||
+      typeof OffscreenCanvas !== "function" ||
+      viewport.width <= 0 ||
+      viewport.height <= 0
+    ) {
+      return null;
+    }
+
+    try {
+      const resp = await fetch(dataUrl);
+      const blob = await resp.blob();
+      const bitmap = await createImageBitmap(blob);
+      const bitmapW = bitmap.width;
+      const bitmapH = bitmap.height;
+      if (bitmapW <= 0 || bitmapH <= 0) {
+        bitmap.close?.();
+        return null;
+      }
+
+      const imageAspect = bitmapW / bitmapH;
+      const viewportAspect = viewport.width / viewport.height;
+
+      let cropW = bitmapW;
+      let cropH = bitmapH;
+      let shouldCrop = false;
+
+      // 1. 精确主路径：已知物理 Tab 尺寸（例如 Playwright/DevTools 中 tab = 1280×723，bitmap = 3200×1808，viewport = 375×667）
+      const tabW = tabDimensions?.width;
+      const tabH = tabDimensions?.height;
+      const hasTabDimensions =
+        typeof tabW === "number" &&
+        typeof tabH === "number" &&
+        tabW > 0 &&
+        tabH > 0;
+
+      if (hasTabDimensions) {
+        // PC 桌面端：物理 Tab 与逻辑视口一致，直接跳过裁剪，零重编码
+        if (tabW <= viewport.width + 2 && tabH <= viewport.height + 2) {
+          bitmap.close?.();
+          return null;
+        }
+
+        const tabAspect = tabW / tabH;
+        // 位图宽高比与 Tab 物理宽高比基本一致（允许微小整数像素偏差）
+        if (Math.abs(imageAspect - tabAspect) < 0.08) {
+          // 且位图与移动视口比例不一致，或 Tab 高度大于视口导致底部多出窗口边框
+          if (
+            Math.abs(imageAspect - viewportAspect) > 0.05 ||
+            tabH > viewport.height + 2
+          ) {
+            const scaleX = bitmapW / tabW;
+            const scaleY = bitmapH / tabH;
+            cropW = Math.min(
+              bitmapW,
+              Math.max(1, Math.round(viewport.width * scaleX))
+            );
+            cropH = Math.min(
+              bitmapH,
+              Math.max(1, Math.round(viewport.height * scaleY))
+            );
+            shouldCrop = true;
+          }
+        }
+      } else {
+        // 2. 回退路径（仅拿不到 tabWidth/tabHeight 时）：检查图片与视口宽高比偏差是否显著（> 0.15）
+        if (Math.abs(imageAspect - viewportAspect) > 0.15) {
+          if (imageAspect > viewportAspect) {
+            // 宽屏截窄屏视口
+            const scale = bitmapH / viewport.height;
+            cropW = Math.min(
+              bitmapW,
+              Math.max(1, Math.round(viewport.width * scale))
+            );
+            cropH = bitmapH;
+          } else {
+            // 高窗口截宽视口
+            const scale = bitmapW / viewport.width;
+            cropW = bitmapW;
+            cropH = Math.min(
+              bitmapH,
+              Math.max(1, Math.round(viewport.height * scale))
+            );
+          }
+          shouldCrop = true;
+        }
+      }
+
+      if (!shouldCrop || (cropW === bitmapW && cropH === bitmapH)) {
+        bitmap.close?.();
+        return null;
+      }
+
+      const offscreen = new OffscreenCanvas(cropW, cropH);
+      const ctx = offscreen.getContext("2d");
+      if (!ctx) {
+        bitmap.close?.();
+        return null;
+      }
+
+      ctx.drawImage(bitmap, 0, 0, cropW, cropH, 0, 0, cropW, cropH);
+      bitmap.close?.();
+
+      const croppedBlob = await offscreen.convertToBlob({
+        type: "image/jpeg",
+        quality: 0.92,
+      });
+      const arrayBuffer = await croppedBlob.arrayBuffer();
+      const uint8 = new Uint8Array(arrayBuffer);
+
+      let binary = "";
+      const chunkSize = 8192;
+      for (let i = 0; i < uint8.length; i += chunkSize) {
+        binary += String.fromCharCode(
+          ...uint8.subarray(i, Math.min(i + chunkSize, uint8.length))
+        );
+      }
+      const croppedDataUrl = `data:image/jpeg;base64,${btoa(binary)}`;
+
+      return {
+        dataUrl: croppedDataUrl,
+        width: cropW,
+        height: cropH,
+        bytes: arrayBuffer,
+      };
+    } catch {
+      return null;
+    }
+  }
+
   private async captureImpl(
     payload: CapturePayload,
     sender: Sender
@@ -368,18 +514,118 @@ export class IssueSceneCapture {
 
     try {
       await this.assertTargetTabIsActive(session, realTabId, realWindowId);
-      const capture = chrome.tabs.captureVisibleTab as unknown as (
-        windowId: number,
-        options: { format: "jpeg"; quality: number }
-      ) => Promise<string>;
-      const dataUrl = await capture(
-        realWindowId ?? chrome.windows.WINDOW_ID_CURRENT,
-        { format: "jpeg", quality: 92 }
-      );
+      let dataUrl: string | undefined;
+
+      // 1. 优先尝试 CDP Page.captureScreenshot（在 DevTools / 移动仿真下精确捕获逻辑视口，零右侧空白）
+      if (
+        typeof chrome !== "undefined" &&
+        chrome.debugger &&
+        typeof chrome.debugger.sendCommand === "function" &&
+        typeof realTabId === "number"
+      ) {
+        let timerId: ReturnType<typeof setTimeout> | undefined;
+        try {
+          const cdpTask = Promise.resolve().then(
+            () =>
+              chrome.debugger.sendCommand(
+                { tabId: realTabId },
+                "Page.captureScreenshot",
+                {
+                  format: "jpeg",
+                  quality: 92,
+                  fromSurface: true,
+                  captureBeyondViewport: false,
+                }
+              ) as Promise<{ data?: string }>
+          );
+          const cdpTimeout = new Promise<never>((_, reject) => {
+            timerId = setTimeout(
+              () => reject(new Error("CDP_CAPTURE_TIMEOUT")),
+              2500
+            );
+          });
+          const res = await Promise.race([cdpTask, cdpTimeout]);
+          if (res?.data) {
+            dataUrl = `data:image/jpeg;base64,${res.data}`;
+          }
+        } catch {
+          // CDP 未附着、受限、超时或报错时无缝降级走 captureVisibleTab
+        } finally {
+          if (timerId !== undefined) {
+            clearTimeout(timerId);
+          }
+        }
+      }
+
+      if (!dataUrl) {
+        const capture = chrome.tabs.captureVisibleTab as unknown as (
+          windowId: number,
+          options: { format: "jpeg"; quality: number }
+        ) => Promise<string>;
+        dataUrl = await capture(
+          realWindowId ?? chrome.windows.WINDOW_ID_CURRENT,
+          { format: "jpeg", quality: 92 }
+        );
+      }
       await this.assertTargetTabIsActive(session, realTabId, realWindowId);
-      const { bytes } = dataUrlBytes(dataUrl);
-      const parsedDimensions = readImageDimensions(new Uint8Array(bytes));
-      const fallbackScale = Math.max(1, payload.page.devicePixelRatio);
+
+      let tabDimensions: { width: number; height: number } | undefined;
+      if (
+        typeof sender.tab?.width === "number" &&
+        typeof sender.tab?.height === "number" &&
+        sender.tab.width > 0 &&
+        sender.tab.height > 0
+      ) {
+        tabDimensions = { width: sender.tab.width, height: sender.tab.height };
+      } else if (
+        typeof chrome !== "undefined" &&
+        chrome.tabs &&
+        typeof chrome.tabs.get === "function" &&
+        typeof realTabId === "number"
+      ) {
+        try {
+          const tab = await chrome.tabs.get(realTabId);
+          if (
+            typeof tab?.width === "number" &&
+            typeof tab?.height === "number" &&
+            tab.width > 0 &&
+            tab.height > 0
+          ) {
+            tabDimensions = { width: tab.width, height: tab.height };
+          }
+        } catch {
+          // 忽略查询失败
+        }
+      }
+
+      let bytes: ArrayBuffer;
+      let width: number;
+      let height: number;
+
+      const cropResult = await this.cropViewportIfAspectMismatch(
+        dataUrl,
+        payload.page.viewport,
+        tabDimensions
+      );
+
+      if (cropResult) {
+        dataUrl = cropResult.dataUrl;
+        bytes = cropResult.bytes;
+        width = cropResult.width;
+        height = cropResult.height;
+      } else {
+        const parsed = dataUrlBytes(dataUrl);
+        bytes = parsed.bytes;
+        const parsedDimensions = readImageDimensions(new Uint8Array(bytes));
+        const fallbackScale = Math.max(1, payload.page.devicePixelRatio);
+        width =
+          parsedDimensions?.width ??
+          Math.round(payload.page.viewport.width * fallbackScale);
+        height =
+          parsedDimensions?.height ??
+          Math.round(payload.page.viewport.height * fallbackScale);
+      }
+
       const assetId = crypto.randomUUID();
       const assetWrite = await db.saveEvidenceAssetWithinBudget({
         id: assetId,
@@ -388,12 +634,8 @@ export class IssueSceneCapture {
         kind: "issue-original",
         mimeType: "image/jpeg",
         bytes,
-        width:
-          parsedDimensions?.width ??
-          Math.round(payload.page.viewport.width * fallbackScale),
-        height:
-          parsedDimensions?.height ??
-          Math.round(payload.page.viewport.height * fallbackScale),
+        width,
+        height,
         createdAtEpochMs: Date.now(),
       });
       const next = await db.updateIssueScene(sceneId, (current) =>

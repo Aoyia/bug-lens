@@ -16,6 +16,14 @@ import {
   installWindowFocusShield,
 } from "../../../shared/dom/focus-shield";
 import { escapeHtml } from "../../../shared/html-escape";
+import {
+  MOBILE_EMULATION_ATTR,
+  isMobileEmulationViewport,
+  syncMobileEmulationAttribute,
+  observeMobileEmulationMode,
+  clampPositionToViewport,
+  getViewportMetrics,
+} from "../../../shared/ui/mobile-emulation-mode";
 
 type ActiveDrawing = {
   type: "rect" | "arrow";
@@ -95,7 +103,7 @@ export function isEnterCommitKey(e: {
 export class IssueEditor {
   private editorElement: HTMLDivElement | undefined;
   private keydownListener: ((e: KeyboardEvent) => void) | undefined;
-  private resizeListener: (() => void) | undefined;
+  private unobserveMobile: (() => void) | undefined;
   private removeFocusShield: (() => void) | undefined;
 
   constructor(private readonly deps: IssueEditorDeps) {}
@@ -112,9 +120,9 @@ export class IssueEditor {
       window.removeEventListener("keydown", this.keydownListener, true);
       this.keydownListener = undefined;
     }
-    if (this.resizeListener) {
-      window.removeEventListener?.("resize", this.resizeListener);
-      this.resizeListener = undefined;
+    if (this.unobserveMobile) {
+      this.unobserveMobile();
+      this.unobserveMobile = undefined;
     }
     if (this.removeFocusShield) {
       this.removeFocusShield();
@@ -153,6 +161,8 @@ export class IssueEditor {
       justifyContent: "center",
       fontFamily: `-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif`,
     });
+    const isMobileInitial = isMobileEmulationViewport(window);
+    syncMobileEmulationAttribute(root, isMobileInitial);
     root.innerHTML = `<style>
       ${ANNOTATION_TOOLBAR_CSS}
       #__wbr_issue_editor__ .toolbar {
@@ -216,6 +226,106 @@ export class IssueEditor {
         opacity: 0.5;
         cursor: not-allowed;
       }
+
+      /* 移动仿真态三段式无遮挡 Flex 布局 */
+      #__wbr_issue_editor__[data-wbr-mobile-mode="true"] {
+        display: flex !important;
+        flex-direction: column !important;
+        height: 100vh !important;
+        width: 100vw !important;
+        overflow: hidden !important;
+        align-items: stretch !important;
+        justify-content: flex-start !important;
+        padding: 0 !important;
+        box-sizing: border-box !important;
+      }
+      #__wbr_issue_editor__[data-wbr-mobile-mode="true"] .toolbar {
+        position: relative !important;
+        top: auto !important;
+        left: auto !important;
+        transform: none !important;
+        flex-shrink: 0 !important;
+        margin: 8px auto !important;
+        width: max-content !important;
+        max-width: calc(100vw - 16px) !important;
+        flex-wrap: nowrap !important;
+        justify-content: center !important;
+        z-index: 30 !important;
+        box-sizing: border-box !important;
+      }
+      @media (max-width: 340px) {
+        #__wbr_issue_editor__[data-wbr-mobile-mode="true"] .toolbar {
+          overflow-x: auto !important;
+          justify-content: flex-start !important;
+          padding: 0 4px !important;
+        }
+      }
+      #__wbr_issue_editor__[data-wbr-mobile-mode="true"] [data-issue-canvas-container] {
+        flex: 1 1 0% !important;
+        min-height: 0 !important;
+        width: 100% !important;
+        height: auto !important;
+        overflow: hidden !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        padding: 8px !important;
+        box-sizing: border-box !important;
+        position: relative !important;
+        container-type: size !important;
+      }
+      #__wbr_issue_editor__[data-wbr-mobile-mode="true"] [data-issue-canvas] {
+        position: relative !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: auto !important;
+        height: auto !important;
+        max-width: 100% !important;
+        max-height: 100% !important;
+        border-radius: 2px !important;
+        overflow: hidden !important;
+        box-sizing: border-box !important;
+      }
+      #__wbr_issue_editor__[data-wbr-mobile-mode="true"] [data-issue-image] {
+        display: block !important;
+        width: auto !important;
+        height: auto !important;
+        max-width: calc(100cqw - 16px) !important;
+        max-height: calc(100cqh - 16px) !important;
+        object-fit: contain !important;
+      }
+      #__wbr_issue_editor__[data-wbr-mobile-mode="true"] [data-issue-svg] {
+        position: absolute !important;
+        inset: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+      }
+      #__wbr_issue_editor__[data-wbr-mobile-mode="true"] [data-issue-control-card] {
+        position: relative !important;
+        flex-shrink: 0 !important;
+        width: calc(100% - 16px) !important;
+        max-width: calc(100vw - 16px) !important;
+        margin: 0 8px 8px !important;
+        left: auto !important;
+        top: auto !important;
+        transform: none !important;
+        transition: none !important;
+        box-sizing: border-box !important;
+      }
+      #__wbr_issue_editor__[data-wbr-mobile-mode="true"] [data-issue-drag-handle] {
+        display: none !important;
+      }
+      #__wbr_issue_editor__[data-wbr-mobile-mode="true"] [data-issue-expected-pill] {
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+      }
+      #__wbr_issue_editor__[data-wbr-mobile-mode="true"] [data-issue-expected-text] {
+        min-width: 0 !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        white-space: nowrap !important;
+      }
     </style>
     <div class="toolbar">
       <button data-issue-tool="none" class="active" title="${t("issueToolBrowse")}">
@@ -245,7 +355,7 @@ export class IssueEditor {
         ${ANNOTATION_TOOLBAR_ICONS.cancel}
       </button>
     </div>
-    <div style="width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;padding:52px 12px 24px;box-sizing:border-box;overflow:hidden;position:relative">
+    <div data-issue-canvas-container style="width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;padding:52px 12px 24px;box-sizing:border-box;overflow:hidden;position:relative">
       <div data-issue-canvas style="position:relative;display:inline-block;max-width:100%;max-height:100%;border-radius:2px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.15);background:#06080c">
         <img data-issue-image alt="${t("issueOriginalImageAlt")}" style="display:block;max-width:calc(100vw - 24px);max-height:calc(100vh - 80px);object-fit:contain" draggable="false">
         <svg data-issue-svg viewBox="0 0 1000 1000" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;touch-action:none"></svg>
@@ -362,7 +472,13 @@ export class IssueEditor {
     dragHandle?.addEventListener("pointercancel", finishCardDrag);
 
     const positionControlCard = () => {
-      if (!controlCard || !svg || userMovedCard) return;
+      if (!controlCard || !svg) return;
+      if (isMobileEmulationViewport(window)) {
+        controlCard.style.left = "";
+        controlCard.style.top = "";
+        return;
+      }
+      if (userMovedCard) return;
       const rect = svg.getBoundingClientRect();
       const box = annotation.targetBox || annotation.targetBoxes?.[0];
       const targetX = box
@@ -394,7 +510,14 @@ export class IssueEditor {
       image.addEventListener("load", positionControlCard);
     }
     const handleViewportResize = () => {
-      if (!this.isOpen) return;
+      if (!this.isOpen || !this.editorElement) return;
+      const isMobile = isMobileEmulationViewport(window);
+      syncMobileEmulationAttribute(this.editorElement, isMobile);
+      if (isMobile) {
+        controlCard.style.left = "";
+        controlCard.style.top = "";
+        return;
+      }
       if (userMovedCard) {
         const currentLeft = Number.parseFloat(controlCard.style.left);
         const currentTop = Number.parseFloat(controlCard.style.top);
@@ -412,11 +535,13 @@ export class IssueEditor {
       }
       positionControlCard();
     };
-    if (this.resizeListener) {
-      window.removeEventListener?.("resize", this.resizeListener);
+    if (this.unobserveMobile) {
+      this.unobserveMobile();
     }
-    this.resizeListener = handleViewportResize;
-    window.addEventListener?.("resize", this.resizeListener);
+    this.unobserveMobile = observeMobileEmulationMode(
+      handleViewportResize,
+      window
+    );
     requestAnimationFrame(positionControlCard);
 
     const actualInput = root.querySelector<HTMLInputElement>(
@@ -663,10 +788,39 @@ export class IssueEditor {
         const input = document.createElement("input");
         input.type = "text";
         input.placeholder = t("issueTextAnnotationPlaceholder");
+        const rootRect = root.getBoundingClientRect();
+        const rawX = event.clientX - rootRect.left;
+        const rawY = event.clientY - rootRect.top - 14;
+        const estimatedWidth = 168;
+        const estimatedHeight = 28;
+        const { x: clampedX, y: clampedY } = clampPositionToViewport(
+          rawX,
+          rawY,
+          estimatedWidth,
+          estimatedHeight,
+          8,
+          window
+        );
+        const { width: vw } = getViewportMetrics(window);
+        const maxAvailableWidth = Math.max(120, vw - clampedX - 8);
+
+        // 垂直画布边界钳制：读取 svg 真实渲染边界，将输入框严格限制在画布内部，避免点击底缘压到控制卡
+        const svgTopLimit = Math.max(8, rect.top - rootRect.top + 4);
+        const svgBottomLimit = Math.max(
+          svgTopLimit,
+          rect.bottom - rootRect.top - estimatedHeight - 4
+        );
+        const finalY = Math.min(
+          svgBottomLimit,
+          Math.max(svgTopLimit, clampedY)
+        );
+
         Object.assign(input.style, {
           position: "absolute",
-          left: `${event.clientX - root.getBoundingClientRect().left}px`,
-          top: `${event.clientY - root.getBoundingClientRect().top - 14}px`,
+          left: `${clampedX}px`,
+          top: `${finalY}px`,
+          maxWidth: `${maxAvailableWidth}px`,
+          boxSizing: "border-box",
           zIndex: "40",
           background: "rgba(255, 255, 255, 0.95)",
           color: "#165dff",

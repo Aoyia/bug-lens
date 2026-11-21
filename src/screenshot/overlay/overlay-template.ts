@@ -109,6 +109,13 @@ export function createOverlayMarkup(): string {
           line-height: 1.4;
           font-family: monospace;
         }
+        .mag-tag {
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          max-width: 100%;
+          box-sizing: border-box;
+        }
         .size-badge {
           position: absolute;
           top: -26px;
@@ -143,7 +150,7 @@ export function createOverlayMarkup(): string {
         <div class="magnifier-info">
           <div class="mag-color">#FFFFFF</div>
           <div class="mag-pos">X: 0, Y: 0</div>
-          <div class="mag-tag" style="color: #38bdf8; font-weight: bold;"></div>
+          <div class="mag-tag" style="color: #38bdf8; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;"></div>
         </div>
       </div>
       <div class="selection-box" style="display: none;">

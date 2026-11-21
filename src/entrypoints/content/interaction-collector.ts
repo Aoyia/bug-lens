@@ -205,6 +205,14 @@ if (typeof window !== "undefined") {
     let monitor: InactivityMonitor | undefined;
     let isRemotePaused = false;
     let iframeReporter: IframeActivityReporter | undefined;
+    let screenshotPollTimer: number | undefined;
+
+    const clearScreenshotPolling = (): void => {
+      if (screenshotPollTimer !== undefined) {
+        window.clearInterval(screenshotPollTimer);
+        screenshotPollTimer = undefined;
+      }
+    };
 
     const syncHostPlatform = (): void => {
       void hostPlatformResolver.resolveOnce().then((hostIsMac) => {
@@ -536,15 +544,23 @@ if (typeof window !== "undefined") {
       editor = new IssueEditor({
         getSession: () => session,
         onClose(restoreWidget) {
-          widget.setIssueSelecting(false);
-          if (restoreWidget && session) widget.mount();
+          try {
+            widget.setIssueSelecting(false);
+          } finally {
+            widget.setSuppressedForSubflow(false);
+            if (restoreWidget && session) widget.mount();
+          }
         },
         onReselect() {
           beginIssueSelection();
         },
         onStopAfterCommit() {
-          widget.setIssueSelecting(false);
-          widget.unmount();
+          try {
+            widget.setIssueSelecting(false);
+          } finally {
+            widget.setSuppressedForSubflow(false);
+            widget.unmount();
+          }
         },
         get isMac() {
           return isMac;
@@ -557,13 +573,26 @@ if (typeof window !== "undefined") {
         getPendingExpected: () => pendingExpected,
         onCaptureComplete(scene, dataUrl) {
           pendingExpected = undefined;
+          widget.setSuppressedForSubflow(true);
           widget.unmount();
-          editor?.open(scene, dataUrl);
+          try {
+            editor?.open(scene, dataUrl);
+          } catch (error) {
+            widget.setSuppressedForSubflow(false);
+            throw error;
+          }
         },
         onCancel() {
-          widget.setIssueSelecting(false);
+          try {
+            widget.setIssueSelecting(false);
+          } finally {
+            widget.setSuppressedForSubflow(false);
+          }
         },
-        onError: (message) => widget.showToast(message, 5_500, "error"),
+        onError: (message) => {
+          widget.setSuppressedForSubflow(false);
+          widget.showToast(message, 5_500, "error");
+        },
         getEditorElement: () => editor?.element,
         get shortcutKeyText() {
           return widget.shortcutKeyText;
@@ -581,7 +610,11 @@ if (typeof window !== "undefined") {
           proceedToIssueSelection();
         },
         onCancel() {
-          widget.setIssueSelecting(false);
+          try {
+            widget.setIssueSelecting(false);
+          } finally {
+            widget.setSuppressedForSubflow(false);
+          }
         },
       });
 
@@ -708,7 +741,13 @@ if (typeof window !== "undefined") {
       if (!isTopFrame) return;
       if (mountedWidget?.isSaving || mountedWidget?.isClosing) return;
       if (overlay?.isActive || editor?.isOpen || expectedCard?.isOpen) return;
-      expectedCard?.open(anchor);
+      mountedWidget?.setSuppressedForSubflow(true);
+      try {
+        expectedCard?.open(anchor);
+      } catch (error) {
+        mountedWidget?.setSuppressedForSubflow(false);
+        throw error;
+      }
     }
 
     // 速记卡确认/跳过后进入元素选择，并采集当前框架状态作为问题上下文
@@ -716,17 +755,27 @@ if (typeof window !== "undefined") {
       if (!isTopFrame) return;
       if (mountedWidget?.isSaving || mountedWidget?.isClosing) return;
       if (overlay?.isActive || editor?.isOpen) return;
+      mountedWidget?.setSuppressedForSubflow(true);
       mountedWidget?.setIssueSelecting(true);
-      overlay?.open();
-      captureFrameworkTick("issue-scene");
+      try {
+        overlay?.open();
+        captureFrameworkTick("issue-scene");
+      } catch (error) {
+        mountedWidget?.setSuppressedForSubflow(false);
+        throw error;
+      }
     }
 
     function removeIssueUi(): void {
       if (isTopFrame) {
-        overlay?.close();
-        editor?.close(false);
-        expectedCard?.close();
-        mountedWidget?.setIssueSelecting(false);
+        try {
+          overlay?.close();
+          editor?.close(false);
+          expectedCard?.close();
+        } finally {
+          mountedWidget?.setIssueSelecting(false);
+          mountedWidget?.setSuppressedForSubflow(false);
+        }
       }
     }
 
@@ -737,7 +786,10 @@ if (typeof window !== "undefined") {
       health?: import("../../shared/protocol").RecordingHealthInfo
     ): void {
       observer.clearPending();
-      if (!next) removeIssueUi();
+      if (!next) {
+        removeIssueUi();
+        clearScreenshotPolling();
+      }
       // 记录进入本函数前的会话状态：用于区分"真正开始新会话"与"同一会话内重挂载"
       const hadSession = Boolean(session);
       if (next) {
@@ -825,7 +877,41 @@ if (typeof window !== "undefined") {
     }
 
     window.__WEB_BUG_RECORDER_CONTROLLER__ = { refresh: refreshSession };
+
+    const isTriggerScreenshotMsg = (
+      msg: unknown
+    ): msg is { type: "TRIGGER_SCREENSHOT_OVERLAY" } => {
+      return (
+        typeof msg === "object" &&
+        msg !== null &&
+        (msg as { type?: unknown }).type === "TRIGGER_SCREENSHOT_OVERLAY"
+      );
+    };
+
     chrome.runtime.onMessage.addListener((raw: unknown) => {
+      if (isTopFrame && isTriggerScreenshotMsg(raw)) {
+        clearScreenshotPolling();
+        mountedWidget?.setSuppressedForSubflow(true);
+        const startTime = Date.now();
+        let overlayEverObserved = false;
+        screenshotPollTimer = window.setInterval(() => {
+          const overlayExists = Boolean(
+            window.__WEB_BUG_RECORDER_SCREENSHOT_OVERLAY__
+          );
+          if (overlayExists) {
+            overlayEverObserved = true;
+          }
+          const elapsed = Date.now() - startTime;
+          // 已观测到遮罩且现已关闭，或启动宽限期（1500ms）超时未挂载，则恢复挂件并退出轮询
+          if (
+            (overlayEverObserved && !overlayExists) ||
+            (!overlayEverObserved && elapsed >= 1500)
+          ) {
+            clearScreenshotPolling();
+            mountedWidget?.setSuppressedForSubflow(false);
+          }
+        }, 150);
+      }
       if (!isEnvelope(raw)) return;
       if (raw.target && raw.target !== "content") return;
       if (raw.type === "content/reset") {

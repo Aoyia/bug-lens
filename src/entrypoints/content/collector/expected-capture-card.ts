@@ -46,6 +46,7 @@ export class ExpectedCaptureCard {
   private countdownInterval: number | undefined;
   private countdownElement: HTMLDivElement | undefined;
   private keydownListener: ((e: KeyboardEvent) => void) | undefined;
+  private resizeListener: (() => void) | undefined;
   private removeFocusShield: (() => void) | undefined;
   private submitted = false;
 
@@ -74,6 +75,9 @@ export class ExpectedCaptureCard {
       transform: "translateX(-50%)",
       zIndex: "2147483647",
       width: "min(calc(100vw - 32px), 460px)",
+      maxHeight: "calc(100vh - 32px)",
+      overflowY: "auto",
+      boxSizing: "border-box",
       background: "rgba(255,255,255,0.98)",
       border: "1px solid #e5e6eb",
       borderRadius: "8px",
@@ -84,7 +88,6 @@ export class ExpectedCaptureCard {
       display: "flex",
       flexDirection: "column",
       gap: "10px",
-      boxSizing: "border-box",
     });
 
     const title = document.createElement("div");
@@ -222,6 +225,9 @@ export class ExpectedCaptureCard {
     this.countdownElement = countdown;
     this.positionCard(anchor);
 
+    this.resizeListener = () => this.positionCard();
+    window.addEventListener?.("resize", this.resizeListener);
+
     setTimeout(() => input.focus(), 30);
     this.resetAutoSkipTimer();
     this.keydownListener = (e: KeyboardEvent) => {
@@ -248,6 +254,10 @@ export class ExpectedCaptureCard {
       window.removeEventListener("keydown", this.keydownListener, true);
       this.keydownListener = undefined;
     }
+    if (this.resizeListener) {
+      window.removeEventListener?.("resize", this.resizeListener);
+      this.resizeListener = undefined;
+    }
     if (this.removeFocusShield) {
       this.removeFocusShield();
       this.removeFocusShield = undefined;
@@ -263,14 +273,19 @@ export class ExpectedCaptureCard {
   /**
    * 视窗黄金分割处居中定位（Spotlight 风格）：
    * 统一在屏幕上方黄金视线（约 22vh）居中弹出，确保焦点居中且绝对不与右下角录制挂件重叠遮挡。
+   * 极矮视口（vh <= 420）收紧 top 居中，防底部按钮越界裁切。
    */
   private positionCard(_anchor?: { x: number; y: number }): void {
     const root = this.cardElement;
     if (!root) return;
+    const vh = typeof window !== "undefined" ? window.innerHeight || 768 : 768;
     Object.assign(root.style, {
-      top: "clamp(72px, 22vh, 180px)",
+      top: vh <= 420 ? "16px" : "clamp(72px, 22vh, 180px)",
       left: "50%",
       transform: "translateX(-50%)",
+      maxHeight: "calc(100vh - 32px)",
+      overflowY: "auto",
+      boxSizing: "border-box",
     });
   }
 

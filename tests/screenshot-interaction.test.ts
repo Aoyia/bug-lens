@@ -90,6 +90,23 @@ function createElementStub(tag: string): Stub {
     style: {} as Record<string, any>,
     getContext: () => createCtxStub(canvasStub),
   };
+  const magBoxStub = {
+    style: { display: "none", left: "0px", top: "0px" } as Record<string, any>,
+    offsetWidth: 130,
+    offsetHeight: 174,
+    getBoundingClientRect: () => ({
+      left: 0,
+      top: 0,
+      width: 130,
+      height: 174,
+    }),
+  };
+  const magCanvasStub: any = {
+    width: 130,
+    height: 100,
+    style: {} as Record<string, any>,
+    getContext: () => createCtxStub(),
+  };
   const stub: Stub = {
     tagName: tag.toUpperCase(),
     id: "",
@@ -129,6 +146,8 @@ function createElementStub(tag: string): Stub {
       if (sel === ".selection-box") return selectionBoxStub as any;
       if (sel === ".toolbar") return toolbarStub as any;
       if (sel === ".canvas-layer") return canvasStub as any;
+      if (sel === ".magnifier-box") return magBoxStub as any;
+      if (sel === ".magnifier-canvas") return magCanvasStub as any;
       return null;
     },
     querySelectorAll() {
@@ -184,6 +203,7 @@ class ImageStub {
 interface Harness {
   overlay: ScreenshotOverlay;
   wrapper: Stub;
+  magBox: any;
   mouseDown: (x: number, y: number, target?: any) => void;
   mouseMove: (x: number, y: number) => void;
   mouseUp: (x: number, y: number) => void;
@@ -275,6 +295,7 @@ function createHarness(): Harness {
   return {
     overlay,
     wrapper,
+    magBox: (overlay as any).shadowRoot?.querySelector?.(".magnifier-box"),
     mouseDown: (x, y, target = plainTarget) => pointerDown(x, y, target),
     mouseMove: (x, y) => pointerMove(x, y),
     mouseUp: (x, y) => pointerUp(x, y),
@@ -2005,5 +2026,81 @@ describe("移动端窄视口与触控 Pointer Events 适配", () => {
 
     h.overlay.destroy();
     assert.equal(listeners["resize"]?.length ?? 0, 0);
+  });
+});
+
+describe("放大镜交互：释手/取消立即强制隐藏，选区锁定后残留指针移动不重显", () => {
+  test("拉框过程中移动指针显示放大镜，释手 (pointerup) 立即强制隐藏，工具栏遮挡为 0 px²", () => {
+    const h = createHarness();
+    const anyOv = h.overlay as any;
+    const magBox = h.magBox;
+
+    // 重置初始预选为未锁定，开始拉框
+    anyOv.selectionController.isSelectionLocked = false;
+    anyOv.selectionController.selection = null;
+
+    h.pointerDown(50, 50);
+    h.pointerMove(150, 150);
+    assert.equal(magBox.style.display, "flex", "拉框进行中放大镜应显示");
+
+    h.pointerUp(150, 150);
+    assert.equal(
+      magBox.style.display,
+      "none",
+      "释手 (pointerup) 必须立即强制隐藏放大镜"
+    );
+
+    // 触控合成或移动端残留的指针移动，选区锁定状态下绝不重新唤醒放大镜
+    h.pointerMove(160, 160);
+    assert.equal(
+      magBox.style.display,
+      "none",
+      "选区锁定后残留指针移动必须被拦截，放大镜保持隐藏"
+    );
+  });
+
+  test("手柄调整过程中移动显示放大镜，释手立即强制隐藏", () => {
+    const h = createHarness();
+    const anyOv = h.overlay as any;
+    const magBox = h.magBox;
+
+    // 预选态下命中 8 点手柄
+    const seHandleTarget = {
+      closest: (sel: string) =>
+        sel.includes(".handle")
+          ? { dataset: { handle: "se" }, closest: () => null }
+          : null,
+    };
+
+    h.pointerDown(1280, 800, seHandleTarget);
+    h.pointerMove(1200, 750);
+    assert.equal(magBox.style.display, "flex", "手柄拉伸进行中放大镜应显示");
+
+    h.pointerUp(1200, 750);
+    assert.equal(
+      magBox.style.display,
+      "none",
+      "手柄释手后放大镜必须立即强制隐藏"
+    );
+  });
+
+  test("pointercancel 触发时立即强制隐藏放大镜", () => {
+    const h = createHarness();
+    const anyOv = h.overlay as any;
+    const magBox = h.magBox;
+
+    anyOv.selectionController.isSelectionLocked = false;
+    anyOv.selectionController.selection = null;
+
+    h.pointerDown(30, 30);
+    h.pointerMove(80, 80);
+    assert.equal(magBox.style.display, "flex");
+
+    h.pointerCancel(80, 80);
+    assert.equal(
+      magBox.style.display,
+      "none",
+      "pointercancel 必须立即强制隐藏放大镜"
+    );
   });
 });

@@ -97,8 +97,30 @@ function createEditorDomMock() {
       offsetHeight: 300,
       offsetLeft: 50,
       offsetTop: 50,
+      classList: {
+        classes: new Set<string>(),
+        add(c: string) {
+          this.classes.add(c);
+        },
+        remove(c: string) {
+          this.classes.delete(c);
+        },
+        contains(c: string) {
+          return this.classes.has(c);
+        },
+      },
+      closest(sel: string) {
+        if (sel.startsWith("[")) {
+          const attr = sel.replace(/[\[\]]/g, "");
+          if (attr in this.attrs) return this;
+        }
+        return null;
+      },
       setAttribute(name: string, val: string) {
         this.attrs[name] = val;
+      },
+      removeAttribute(name: string) {
+        delete this.attrs[name];
       },
       hasAttribute(name: string) {
         return name in this.attrs;
@@ -200,6 +222,17 @@ function createEditorDomMock() {
       windowListeners[type] = (windowListeners[type] || []).filter(
         (f) => f !== fn
       );
+    },
+    matchMedia: (query: string) => ({
+      matches: false,
+      addEventListener() {},
+      removeEventListener() {},
+      addListener() {},
+      removeListener() {},
+    }),
+    visualViewport: {
+      addEventListener() {},
+      removeEventListener() {},
     },
     setTimeout: (fn: Function) => {
       fn();
@@ -439,7 +472,7 @@ test("issue-editor: 方案A 预期展示为胶囊 Pill 并支持一键移除", a
   }
 });
 
-test("issue-editor: 375px 窄视口下工具栏与控制卡片自适应换行且定位/拖拽/resize 均在 [8, 367] 边界内", async () => {
+test("issue-editor: 移动仿真态三段式无遮挡与行内文本批注钳制", async () => {
   const { IssueEditor } =
     await import("../src/entrypoints/content/collector/issue-editor.ts");
   const dom = createEditorDomMock();
@@ -462,9 +495,8 @@ test("issue-editor: 375px 窄视口下工具栏与控制卡片自适应换行且
       isMac: true,
     });
 
-    // 目标标注靠近屏幕最右边缘（xRatio: 0.95）
     editor.open({
-      id: "scene-narrow",
+      id: "scene-mobile",
       page: { viewport: { width: 375, height: 667 } },
       annotation: {
         point: { xRatio: 0.95, yRatio: 0.3 },
@@ -475,117 +507,289 @@ test("issue-editor: 375px 窄视口下工具栏与控制卡片自适应换行且
           heightRatio: 0.08,
         },
       },
+      narrative: {
+        expected: { text: "页面应显示成功提示", confidence: "explicit" },
+      },
     });
 
     const root = editor.element!;
-    assert.ok(root.innerHTML.includes("max-width: calc(100vw - 16px)"));
-    assert.ok(root.innerHTML.includes("flex-wrap: wrap"));
-    assert.ok(root.innerHTML.includes("justify-content: center"));
-    assert.ok(root.innerHTML.includes("flex-wrap:wrap;row-gap:8px"));
-    assert.ok(root.innerHTML.includes("flex:1 1 180px;min-width:140px"));
-    assert.ok(root.innerHTML.includes("white-space:nowrap;flex-shrink:0"));
+    assert.equal(
+      root.getAttribute("data-wbr-mobile-mode"),
+      "true",
+      "375px 窄屏应自动同步 data-wbr-mobile-mode='true'"
+    );
+
+    // 校验 CSS 三段式关键规则与容器标记
+    assert.ok(
+      root.innerHTML.includes(
+        '#__wbr_issue_editor__[data-wbr-mobile-mode="true"]'
+      ),
+      "样式中应包含移动仿真态根节点覆盖"
+    );
+    assert.ok(
+      root.innerHTML.includes("[data-issue-canvas-container]"),
+      "样式中应包含中段画布容器定义"
+    );
+    assert.ok(
+      root.innerHTML.includes("container-type: size !important;"),
+      "画布容器应使用 container-type: size 尺寸查询容器"
+    );
+    assert.ok(
+      root.innerHTML.includes("display: inline-flex !important;"),
+      "画布应使用 inline-flex 1:1 包裹图片真实像素尺寸"
+    );
+    assert.ok(
+      root.innerHTML.includes("max-width: calc(100cqw - 16px) !important;"),
+      "图片应使用 100cqw 与 100cqh 容器查询尺寸适配"
+    );
+    assert.ok(
+      !root.innerHTML.includes(
+        "height: 100% !important;\n        width: auto !important;\n        border-radius: 2px !important;"
+      ),
+      "移动态画布不得再写死 height: 100% 避免上下黑边与 SVG 错位"
+    );
+    assert.ok(
+      root.innerHTML.includes("[data-issue-control-card]"),
+      "样式中应包含底段控制卡自然贴底定义"
+    );
+    assert.ok(
+      root.innerHTML.includes("[data-issue-drag-handle]"),
+      "样式中应隐藏移动仿真态拖拽手柄"
+    );
+
+    const controlCard = dom.created.find(
+      (el) => "data-issue-control-card" in el.attrs
+    );
+    assert.ok(controlCard, "应存在控制卡片");
+    // 移动仿真态下控制卡靠 flex 自然贴底，不设置悬浮 left/top
+    assert.equal(
+      controlCard.style.left ?? "",
+      "",
+      "移动仿真态控制卡不应写入绝对浮动 left"
+    );
+    assert.equal(
+      controlCard.style.top ?? "",
+      "",
+      "移动仿真态控制卡不应写入绝对浮动 top"
+    );
+
+    // 验证文本批注工具在 375px 视口右边缘点击时的钳制
+    const textToolBtn = dom.created.find(
+      (el) => el.attrs["data-issue-tool"] === "text"
+    );
+    assert.ok(textToolBtn, "应存在文本批注工具按钮");
+    textToolBtn.listeners["click"]?.[0]?.({
+      stopPropagation: () => {},
+      preventDefault: () => {},
+    });
 
     const svg = dom.created.find((el) => "data-issue-svg" in el.attrs);
     svg.getBoundingClientRect = () => ({
       left: 0,
       top: 52,
       width: 375,
-      height: 220,
+      height: 480,
       right: 375,
-      bottom: 272,
+      bottom: 532,
     });
+
+    // 用户在接近右边缘 x=360 点击画布
+    svg.listeners["pointerdown"]?.[0]?.({
+      pointerId: 1,
+      clientX: 360,
+      clientY: 180,
+      target: svg,
+      preventDefault: () => {},
+    });
+
+    // 查找生成的文本批注输入框
+    const textInput = dom.created.find(
+      (el) =>
+        el.tagName === "INPUT" &&
+        !("data-issue-actual" in el.attrs) &&
+        !("data-expected-input" in el.attrs)
+    );
+    assert.ok(textInput, "点击文本工具应生成文本批注 input");
+    const inputLeft = Number.parseFloat(textInput.style.left);
+    assert.ok(
+      inputLeft <= 375 - 168 - 8,
+      `文本输入框 left (${inputLeft}) 应被向左钳制，预留至少 168px 宽度与 8px 右边距`
+    );
+    const maxW = Number.parseFloat(textInput.style.maxWidth);
+    assert.ok(
+      inputLeft + maxW <= 375,
+      `文本输入框右侧 (left=${inputLeft} + maxWidth=${maxW}) 绝对不超出 375px 视口`
+    );
+
+    // 用户在接近底边缘 clientY=530 点击画布（svg.bottom=532）
+    svg.listeners["pointerdown"]?.[0]?.({
+      pointerId: 2,
+      clientX: 100,
+      clientY: 530,
+      target: svg,
+      preventDefault: () => {},
+    });
+
+    const textInputs = dom.created.filter(
+      (el) =>
+        el.tagName === "INPUT" &&
+        !("data-issue-actual" in el.attrs) &&
+        !("data-expected-input" in el.attrs)
+    );
+    const bottomInput = textInputs[textInputs.length - 1];
+    assert.ok(bottomInput, "底缘点击应生成文本批注 input");
+    const inputTop = Number.parseFloat(bottomInput.style.top);
+    // svg bottom 为 532，估计高度 28，下边距至少 4px，所以 top 最大不得超过 532 - 28 - 4 = 500
+    assert.ok(
+      inputTop <= 532 - 28 - 4,
+      `底缘点击生成的文本输入框 top (${inputTop}) 应被画布底边界钳制 (<= 500)，避免压到底部控制卡`
+    );
+    assert.ok(
+      inputTop >= 52 + 4,
+      `文本输入框 top (${inputTop}) 应在 svg.top (52) 之内`
+    );
+
+    editor.close(false);
+  } finally {
+    (globalThis as any).document = prevDoc;
+    (globalThis as any).window = prevWin;
+    (globalThis as any).requestAnimationFrame = prevRaf;
+  }
+});
+
+test("issue-editor: PC 桌面端保持 100% 原样悬浮定位与拖拽钳制", async () => {
+  const { IssueEditor } =
+    await import("../src/entrypoints/content/collector/issue-editor.ts");
+  const dom = createEditorDomMock();
+  dom.window.innerWidth = 1200;
+  dom.window.innerHeight = 800;
+
+  const prevDoc = (globalThis as any).document;
+  const prevWin = (globalThis as any).window;
+  const prevRaf = (globalThis as any).requestAnimationFrame;
+  (globalThis as any).document = dom.document;
+  (globalThis as any).window = dom.window;
+  (globalThis as any).requestAnimationFrame = (fn: any) => fn();
+
+  try {
+    const editor = new IssueEditor({
+      getSession: () => ({ sessionId: "test-session", nonce: "nonce-1" }),
+      onClose: () => {},
+      onReselect: () => {},
+      onStopAfterCommit: () => {},
+      isMac: true,
+    });
+
+    editor.open({
+      id: "scene-desktop",
+      page: { viewport: { width: 1200, height: 800 } },
+      annotation: {
+        point: { xRatio: 0.5, yRatio: 0.5 },
+        targetBox: {
+          xRatio: 0.45,
+          yRatio: 0.45,
+          widthRatio: 0.1,
+          heightRatio: 0.1,
+        },
+      },
+    });
+
+    const root = editor.element!;
+    assert.equal(
+      root.getAttribute("data-wbr-mobile-mode"),
+      null,
+      "PC 桌面端不得挂载 data-wbr-mobile-mode"
+    );
 
     const controlCard = dom.created.find(
       (el) => "data-issue-control-card" in el.attrs
     );
     assert.ok(controlCard, "应存在控制卡片");
 
-    // 1. 模拟卡片真实窄屏宽度 300px 时，positionControlCard 应将 left 钳制在 [8, 367] 内且右缘不越界
-    controlCard.offsetWidth = 300;
-    controlCard.offsetHeight = 96;
+    const svg = dom.created.find((el) => "data-issue-svg" in el.attrs);
+    svg.getBoundingClientRect = () => ({
+      left: 100,
+      top: 50,
+      width: 1000,
+      height: 700,
+      right: 1100,
+      bottom: 750,
+    });
+
+    // 桌面端卡片宽度 500px 时定位
+    controlCard.offsetWidth = 500;
+    controlCard.offsetHeight = 52;
     dom.windowListeners["resize"]?.[0]?.();
 
-    const initialLeft = Number.parseFloat(controlCard.style.left);
+    const desktopLeft = Number.parseFloat(controlCard.style.left);
     assert.ok(
-      initialLeft >= 8 && initialLeft <= 367,
-      `initialLeft (${initialLeft}) 应在 [8, 367] 范围内`
-    );
-    assert.ok(
-      initialLeft + 300 <= 367,
-      `卡片右缘 (${initialLeft + 300}) 不得超出 367`
+      Number.isFinite(desktopLeft) && desktopLeft > 8,
+      `PC 端应根据目标元素就近计算悬浮 left: ${desktopLeft}`
     );
 
-    // 2. 模拟 offsetWidth=0（尚未布局兜底）时，不回退 560px，仍保证在 [8, 367] 内
-    controlCard.offsetWidth = 0;
-    dom.windowListeners["resize"]?.[0]?.();
-    const fallbackLeft = Number.parseFloat(controlCard.style.left);
-    assert.ok(
-      fallbackLeft >= 8 && fallbackLeft <= 367,
-      `fallbackLeft (${fallbackLeft}) 应在 [8, 367] 范围内`
-    );
-
-    // 3. 模拟用户向右大幅拖拽及向左大幅拖拽，均应钳制在 [8, 367]
-    controlCard.offsetWidth = 300;
+    // 模拟桌面端用户拖拽手柄
     const dragHandle = dom.created.find(
       (el) => "data-issue-drag-handle" in el.attrs
     );
-    assert.ok(dragHandle, "应存在拖拽手柄");
+    assert.ok(dragHandle, "PC 端应存在拖拽手柄");
 
     dragHandle.listeners["pointerdown"]?.[0]?.({
       pointerId: 1,
-      clientX: 100,
-      clientY: 200,
+      clientX: 600,
+      clientY: 400,
       preventDefault() {},
     });
     dragHandle.listeners["pointermove"]?.[0]?.({
       pointerId: 1,
-      clientX: 600,
-      clientY: 200,
+      clientX: 1500,
+      clientY: 400,
     });
-    const draggedRightLeft = Number.parseFloat(controlCard.style.left);
-    assert.equal(draggedRightLeft, 67, "向右拖到极限应停在 375 - 300 - 8 = 67");
-    assert.ok(draggedRightLeft >= 8 && draggedRightLeft + 300 <= 367);
+    const maxAllowedLeft = 1200 - 500 - 8; // 692
+    const draggedRight = Number.parseFloat(controlCard.style.left);
+    assert.equal(
+      draggedRight,
+      maxAllowedLeft,
+      "向右拖出屏幕应受视口右边距 8px 钳制"
+    );
 
     dragHandle.listeners["pointermove"]?.[0]?.({
       pointerId: 1,
-      clientX: -500,
-      clientY: 200,
+      clientX: -200,
+      clientY: 400,
     });
     const draggedLeft = Number.parseFloat(controlCard.style.left);
-    assert.equal(draggedLeft, 8, "向左拖到极限应停在 8");
+    assert.equal(draggedLeft, 8, "向左拖出屏幕应受视口左边距 8px 钳制");
 
     dragHandle.listeners["pointerup"]?.[0]?.({ pointerId: 1 });
 
-    // 4. 模拟横屏宽屏拖到右侧后切回 375px 竖屏触发 resize，应重新钳制到 [8, 367]
-    dom.window.innerWidth = 812;
-    dragHandle.listeners["pointerdown"]?.[0]?.({
-      pointerId: 2,
-      clientX: 10,
-      clientY: 200,
-      preventDefault() {},
-    });
-    dragHandle.listeners["pointermove"]?.[0]?.({
-      pointerId: 2,
-      clientX: 450,
-      clientY: 200,
-    });
-    dragHandle.listeners["pointerup"]?.[0]?.({ pointerId: 2 });
-    assert.ok(Number.parseFloat(controlCard.style.left) > 367);
-
+    // 动态 resize 切换测试：从 1200px 缩小至 375px
     dom.window.innerWidth = 375;
+    dom.window.innerHeight = 667;
     dom.windowListeners["resize"]?.[0]?.();
-    const reclampedLeft = Number.parseFloat(controlCard.style.left);
-    assert.ok(
-      reclampedLeft >= 8 && reclampedLeft + 300 <= 367,
-      `resize 回 375px 后卡片左缘 (${reclampedLeft}) 与右缘 (${reclampedLeft + 300}) 均应在 [8, 367] 内`
+
+    assert.equal(
+      root.getAttribute("data-wbr-mobile-mode"),
+      "true",
+      "动态 resize 至 375px 应自动切换为移动仿真态"
+    );
+    assert.equal(
+      controlCard.style.left ?? "",
+      "",
+      "切换至移动仿真态后应清理悬浮 left"
+    );
+
+    // 再次 resize 回 1200px
+    dom.window.innerWidth = 1200;
+    dom.window.innerHeight = 800;
+    dom.windowListeners["resize"]?.[0]?.();
+
+    assert.equal(
+      root.getAttribute("data-wbr-mobile-mode"),
+      null,
+      "resize 回 1200px 应自动移除移动仿真标记"
     );
 
     editor.close(false);
-    assert.equal(
-      dom.windowListeners["resize"]?.length ?? 0,
-      0,
-      "关闭编辑器后应清理 resize 监听器"
-    );
   } finally {
     (globalThis as any).document = prevDoc;
     (globalThis as any).window = prevWin;

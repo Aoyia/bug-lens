@@ -1,13 +1,81 @@
 import { unzipSync } from "fflate";
 import fs from "node:fs";
-import type {
-  BrowserContext,
-  CDPSession,
-  Locator,
-  Page,
-  Worker,
+import {
+  type BrowserContext,
+  type CDPSession,
+  type Locator,
+  type Page,
+  type Worker,
 } from "@playwright/test";
-import { test, expect, safeUrlForLog } from "./fixtures/extension.ts";
+import {
+  test as baseTest,
+  expect,
+  safeUrlForLog,
+} from "./fixtures/extension.ts";
+
+const test = baseTest.extend({
+  nativeShortcutDriver: async ({ context }, use) => {
+    let browserPid: number | undefined;
+    try {
+      const browser = context.browser();
+      if (browser) {
+        const cdp = await browser.newBrowserCDPSession();
+        const info = (await cdp.send("SystemInfo.getProcessInfo")) as {
+          processInfo: Array<{ type: string; id: number }>;
+        };
+        const proc = info.processInfo.find((p) => p.type === "browser");
+        browserPid = proc?.id;
+        await cdp.detach();
+      }
+    } catch {}
+
+    const { execFile } = await import("node:child_process");
+
+    const driver = {
+      preflight: async () => ({
+        platform: process.platform,
+        browserAppName: "Google Chrome for Testing",
+      }),
+      press: async () => {
+        if (browserPid) {
+          const jxa = `ObjC.import("AppKit"); var app = $.NSRunningApplication.runningApplicationWithProcessIdentifier(${browserPid}); if (app && !app.isNil()) { app.activateWithOptions($.NSApplicationActivateIgnoringOtherApps); }`;
+          await new Promise<void>((resolve) => {
+            execFile(
+              "/usr/bin/osascript",
+              ["-l", "JavaScript", "-e", jxa],
+              () => resolve()
+            );
+          });
+        }
+        const script = [
+          'tell application "System Events"',
+          "  delay 0.2",
+          '  keystroke "y" using {shift down, command down}',
+          "  return name of first application process whose frontmost is true",
+          "end tell",
+        ].join("\n");
+        const focusedWindow = await new Promise<string>((resolve, reject) => {
+          execFile(
+            "/usr/bin/osascript",
+            ["-e", script],
+            { timeout: 15_000 },
+            (err, stdout) => {
+              if (err) reject(err);
+              else resolve(stdout.trim());
+            }
+          );
+        });
+        return {
+          platform: process.platform,
+          browserAppName: "Google Chrome for Testing",
+          focusedWindow,
+          sentAtEpochMs: Date.now(),
+        };
+      },
+    };
+    await use(driver);
+  },
+});
 
 function logE2e(message: string, details?: unknown): void {
   const suffix = details === undefined ? "" : ` ${JSON.stringify(details)}`;
@@ -411,7 +479,7 @@ class MobileShadowProbe {
 }
 
 test.describe("Bug Lens Chrome Extension E2E MOBILE-EMULATION: Chrome DevTools 移动端模拟全链路验证", () => {
-  test("MOBILE-001: RecordingWidget 在 375x667 触控模拟下不自动折叠、按钮全可见、可折叠/拖拽、横屏重钳制及宿主 isMac 识别", async ({
+  test("MOBILE-001: RecordingWidget 在移动仿真下为贴边胶囊：轻点侧边菜单、拖拽左右磁吸、一键换边、横屏/320 重钳制、底部保护区零遮挡及宿主 isMac 识别", async ({
     context,
     openActionPopup,
     mediaProbe,
@@ -487,134 +555,213 @@ test.describe("Bug Lens Chrome Extension E2E MOBILE-EMULATION: Chrome DevTools �
 
     const widget = targetPage.locator("#__wbr_recording_widget__");
     await expect(widget).toBeVisible({ timeout: 5_000 });
+    await expect(widget).toHaveAttribute("data-wbr-mobile-mode", "true");
 
-    // 若弹出引导气泡，校验其在 375x667 内并关闭后再开始 1600ms 不自动折叠验证
+    // 引导气泡（若出现）：移动态紧凑、在视口内、不压底部 76px 保护区
     const bubble = targetPage.locator("#__wbr_widget_bubble__");
     if ((await bubble.count()) > 0) {
-      await assertLocatorInsideViewport(bubble, 375, 667, "widget-bubble");
+      const bubbleBox = await assertLocatorInsideViewport(
+        bubble,
+        375,
+        667,
+        "widget-bubble"
+      );
+      expect(bubbleBox.width).toBeLessThanOrEqual(240.5);
+      expect(bubbleBox.y + bubbleBox.height).toBeLessThanOrEqual(
+        667 - 76 + 0.5
+      );
       await tapLocator(cdp, bubble.locator(".__wbr_bubble_got_it__"));
       await expect(bubble).toBeHidden({ timeout: 2_000 });
     }
 
-    // 确认 >1600ms 后仍未自动折叠
-    await delay(1750);
-    const collapsedAfterWait = await widget.evaluate((el) =>
-      el.classList.contains("__wbr_collapsed__")
+    // 默认态：右缘贴边胶囊，不自动折叠，底部 76px 保护区 0 遮挡，PC 折叠按钮不可见
+    const pillBox = await assertLocatorInsideViewport(
+      widget,
+      375,
+      667,
+      "mobile pill"
     );
-    expect(collapsedAfterWait).toBe(false);
+    expect(pillBox.height).toBeLessThanOrEqual(34);
+    expect(pillBox.width).toBeLessThanOrEqual(90);
+    expect(pillBox.x + pillBox.width).toBeGreaterThanOrEqual(375 - 0.5);
+    expect(pillBox.y + pillBox.height).toBeLessThanOrEqual(667 - 76 + 0.5);
+    expect(pillBox.y).toBeGreaterThanOrEqual(56 - 0.5);
+    await expect(widget).toHaveAttribute("data-wbr-edge", "right");
+    await expect(
+      targetPage.locator("#__wbr_collapse_toggle_btn__")
+    ).toBeHidden();
+    await expect(targetPage.locator("#__wbr_issue_btn__")).toBeHidden();
 
-    // 校验宿主真实平台 isMac 穿透 Android UA 模拟生效
+    // 轻点胶囊 -> 侧边轻量紧凑菜单（方案 A）：宽 148~168、高 125~145、内侧贴边、不越界、不压底部 76px、4 项 24~26px 轻量操作项
+    await tapLocator(cdp, widget);
+    const menu = targetPage.locator("#__wbr_mobile_menu__");
+    await expect(menu).toBeVisible({ timeout: 2_000 });
+    const menuBox = await assertLocatorInsideViewport(
+      menu,
+      375,
+      667,
+      "mobile menu"
+    );
+    expect(menuBox.width).toBeGreaterThanOrEqual(147.5);
+    expect(menuBox.width).toBeLessThanOrEqual(168);
+    expect(menuBox.height).toBeGreaterThanOrEqual(130);
+    expect(menuBox.height).toBeLessThanOrEqual(165);
+    expect(menuBox.y + menuBox.height).toBeLessThanOrEqual(667 - 76 + 0.5);
+    expect(menuBox.x + menuBox.width).toBeLessThanOrEqual(pillBox.x - 5);
     const expectedShortcut = process.platform === "darwin" ? "⌥S" : "Alt+S";
-    await expect(targetPage.locator("#__wbr_issue_btn__")).toContainText(
+    await expect(targetPage.locator("#__wbr_mobile_issue_btn__")).toContainText(
       expectedShortcut
     );
-
-    // 校验 375x667 下挂件及全体按钮均不越界且无零宽裁切
-    const allWidgetIds = [
-      "#__wbr_recording_widget__",
-      "#__wbr_issue_btn__",
-      "#__wbr_ticket_btn__",
-      "#__wbr_stop_btn__",
-      "#__wbr_discard_btn__",
-      "#__wbr_collapse_toggle_btn__",
-    ];
-    for (const id of allWidgetIds) {
-      await assertLocatorInsideViewport(
+    for (const id of [
+      "#__wbr_mobile_issue_btn__",
+      "#__wbr_mobile_ticket_btn__",
+      "#__wbr_mobile_stop_btn__",
+      "#__wbr_mobile_discard_btn__",
+    ]) {
+      const b = await assertLocatorInsideViewport(
         targetPage.locator(id),
         375,
         667,
-        `375x667 ${id}`
+        `menu ${id}`
       );
+      expect(b.height).toBeGreaterThanOrEqual(23);
+      expect(b.height).toBeLessThanOrEqual(27);
     }
 
-    // 点击折叠开关 -> 折叠胶囊态，仅 stop 与展开开关可见且在视口内
-    const toggleBtn = targetPage.locator("#__wbr_collapse_toggle_btn__");
-    await tapLocator(cdp, toggleBtn);
-    await expect(widget).toHaveClass(/__wbr_collapsed__/);
-    await expect(targetPage.locator("#__wbr_issue_btn__")).toBeHidden();
-    await assertLocatorInsideViewport(widget, 375, 667, "collapsed widget");
-    await assertLocatorInsideViewport(
-      targetPage.locator("#__wbr_stop_btn__"),
+    // 菜单内一键换边：右 -> 左，菜单仍在视口内且不压底部保护区
+    await tapLocator(cdp, targetPage.locator("#__wbr_mobile_dock_btn__"));
+    await expect(widget).toHaveAttribute("data-wbr-edge", "left");
+    const leftPillBox = await assertLocatorInsideViewport(
+      widget,
       375,
       667,
-      "collapsed stop btn"
+      "left-docked pill"
     );
-    await assertLocatorInsideViewport(
-      toggleBtn,
+    expect(leftPillBox.x).toBeLessThanOrEqual(0.5);
+    const leftMenuBox = await assertLocatorInsideViewport(
+      menu,
       375,
       667,
-      "collapsed toggle btn"
+      "left-docked menu"
+    );
+    expect(leftMenuBox.x).toBeGreaterThanOrEqual(
+      leftPillBox.x + leftPillBox.width + 5
     );
 
-    // 再次点击折叠开关 -> 恢复完整操作态
-    await tapLocator(cdp, toggleBtn);
-    await expect(widget).not.toHaveClass(/__wbr_collapsed__/);
-    for (const id of allWidgetIds) {
-      await assertLocatorInsideViewport(
-        targetPage.locator(id),
-        375,
-        667,
-        `expanded ${id}`
-      );
-    }
+    // Esc 收起菜单（Light Dismiss）
+    await targetPage.keyboard.press("Escape");
+    await expect(menu).toBeHidden({ timeout: 2_000 });
 
-    // 触控/Pointer 拖拽移动挂件
-    const dragHandle = targetPage.locator(".__wbr_drag_handle");
-    const beforeWidgetBox = await widget.boundingBox();
-    const handleBox = await dragHandle.boundingBox();
-    expect(beforeWidgetBox).toBeTruthy();
-    expect(handleBox).toBeTruthy();
-
-    const startX = handleBox!.x + handleBox!.width / 2;
-    const startY = handleBox!.y + handleBox!.height / 2;
+    // 全胶囊拖拽：>=6px 进入拖拽，松手磁吸最近边缘
+    const beforeDrag = await widget.boundingBox();
+    expect(beforeDrag).toBeTruthy();
     await touchDrag(
       cdp,
-      startX,
-      startY,
-      startX - 40,
-      Math.max(40, startY - 180),
+      beforeDrag!.x + beforeDrag!.width / 2,
+      beforeDrag!.y + beforeDrag!.height / 2,
+      330,
+      beforeDrag!.y - 120,
       8
     );
-    await delay(150);
+    await delay(300);
+    await expect(widget).toHaveAttribute("data-wbr-edge", "right");
+    const afterDragRight = await assertLocatorInsideViewport(
+      widget,
+      375,
+      667,
+      "dragged pill (right)"
+    );
+    expect(afterDragRight.x + afterDragRight.width).toBeGreaterThanOrEqual(
+      375 - 0.5
+    );
+    expect(Math.abs(afterDragRight.y - beforeDrag!.y)).toBeGreaterThan(20);
+    await expect(menu).toBeHidden();
+    await touchDrag(
+      cdp,
+      afterDragRight.x + afterDragRight.width / 2,
+      afterDragRight.y + afterDragRight.height / 2,
+      50,
+      afterDragRight.y + 20,
+      8
+    );
+    await delay(300);
+    await expect(widget).toHaveAttribute("data-wbr-edge", "left");
 
-    const afterDragBox = await widget.boundingBox();
-    assertInsideViewport(afterDragBox, 375, 667, "dragged widget 375x667");
-    expect(Math.abs(afterDragBox!.y - beforeWidgetBox!.y)).toBeGreaterThan(20);
-
-    // 切换横屏 667x375 并校验重钳制不越界
+    // 横屏 667x375：仍为贴边胶囊，不越界，不压底部保护区
     await enableMobileEmulation(cdp, 667, 375, 3);
-    await delay(250);
-    for (const id of allWidgetIds) {
-      await assertLocatorInsideViewport(
-        targetPage.locator(id),
-        667,
-        375,
-        `landscape 667x375 ${id}`
-      );
-    }
+    await delay(300);
+    await expect(widget).toHaveAttribute("data-wbr-mobile-mode", "true");
+    const landscapeBox = await assertLocatorInsideViewport(
+      widget,
+      667,
+      375,
+      "landscape pill"
+    );
+    expect(landscapeBox.y + landscapeBox.height).toBeLessThanOrEqual(
+      375 - 76 + 0.5
+    );
 
-    // 切回竖屏 375x667 再次确认不越界
+    // 切回竖屏
     await enableMobileEmulation(cdp, 375, 667, 3);
-    await delay(200);
+    await delay(250);
     await assertLocatorInsideViewport(widget, 375, 667, "portrait restored");
 
-    // 极限窄屏 320x568 校验挂件与全体按钮仍不越界
+    // 极限窄屏 320x568：胶囊不折行不越界；展开菜单后仍在视口内
     await enableMobileEmulation(cdp, 320, 568, 2);
-    await delay(250);
-    for (const id of allWidgetIds) {
-      await assertLocatorInsideViewport(
-        targetPage.locator(id),
-        320,
-        568,
-        `narrow 320x568 ${id}`
-      );
-    }
+    await delay(300);
+    const narrowBox = await assertLocatorInsideViewport(
+      widget,
+      320,
+      568,
+      "narrow pill"
+    );
+    expect(narrowBox.height).toBeLessThanOrEqual(34);
+    expect(narrowBox.y + narrowBox.height).toBeLessThanOrEqual(568 - 76 + 0.5);
+    await tapLocator(cdp, widget);
+    await assertLocatorInsideViewport(menu, 320, 568, "narrow menu");
+    await expect(menu).toBeVisible();
 
-    // 放弃录制清理现场
-    const discardBtn = targetPage.locator("#__wbr_discard_btn__");
-    await tapLocator(cdp, discardBtn);
+    // 关闭菜单
+    await targetPage.keyboard.press("Escape");
+    await expect(menu).toBeHidden({ timeout: 2_000 });
+
+    // 切回 PC 桌面端 (1280x800)：彻底清除移动端 inline 贴边坐标，恢复右下角默认定位与 PC 桌面形态
+    await cdp.send("Emulation.clearDeviceMetricsOverride");
+    await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+    await cdp.send("Emulation.setEmitTouchEventsForMouse", { enabled: false });
+    await cdp.send("Emulation.setDeviceMetricsOverride", {
+      width: 1280,
+      height: 800,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+    await delay(500);
+
+    await expect(widget).not.toHaveAttribute("data-wbr-mobile-mode");
+    await expect(widget).not.toHaveAttribute("data-wbr-edge");
+    await expect(targetPage.locator("#__wbr_mobile_menu__")).toBeHidden();
+    await expect(
+      targetPage.locator("#__wbr_collapse_toggle_btn__")
+    ).toBeHidden();
+
+    // PC 挂件恢复到右下角 (right: 24px, bottom: 24px)
+    const pcBox = await widget.boundingBox();
+    expect(pcBox).toBeTruthy();
+    expect(pcBox!.x + pcBox!.width).toBeGreaterThanOrEqual(1280 - 60);
+    expect(pcBox!.y + pcBox!.height).toBeGreaterThanOrEqual(800 - 80);
+
+    // 切回移动仿真模式 (375x667) 继续收尾
+    await enableMobileEmulation(cdp, 375, 667, 3);
+    await delay(300);
+    await expect(widget).toHaveAttribute("data-wbr-mobile-mode", "true");
+    await tapLocator(cdp, widget);
+    await expect(menu).toBeVisible();
+
+    // 菜单内丢弃（3s 二次确认）清理现场
+    const menuDiscard = targetPage.locator("#__wbr_mobile_discard_btn__");
+    await tapLocator(cdp, menuDiscard);
     await delay(100);
-    await tapLocator(cdp, discardBtn);
+    await tapLocator(cdp, menuDiscard);
     await expect(widget).toBeHidden({ timeout: 5_000 });
     await cdp.detach().catch(() => undefined);
     logE2e("MOBILE-001 passed");
@@ -684,6 +831,12 @@ test.describe("Bug Lens Chrome Extension E2E MOBILE-EMULATION: Chrome DevTools �
     expect(selBox!.width).toBeGreaterThanOrEqual(75);
     expect(selBox!.width).toBeLessThanOrEqual(90);
 
+    // 释手后放大镜必须隐藏（避免盖住工具栏）
+    expect(
+      await probe.getRect("div.magnifier-box"),
+      "magnifier hidden after release"
+    ).toBeNull();
+
     // 核心断言：窄选区靠左时，工具栏左右边界必须全部位于 [0, 375] 内未飞出左屏外
     const narrowToolbar = await probe.getRect("div.toolbar");
     assertInsideViewport(
@@ -747,6 +900,41 @@ test.describe("Bug Lens Chrome Extension E2E MOBILE-EMULATION: Chrome DevTools �
     await touchDrag(cdp, 10, 120, 90, 260, 8);
     await delay(120);
 
+    // 拖动 SE 手柄到底边：放大镜不溢底、不采样自身宿主；移回原位释手后放大镜隐藏
+    const seHandle = await probe.getRect('div[data-handle="se"]');
+    expect(seHandle).toBeTruthy();
+    const seX = Math.round(seHandle!.x + seHandle!.width / 2);
+    const seY = Math.round(seHandle!.y + seHandle!.height / 2);
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [{ x: seX, y: seY, id: 0 }],
+    });
+    await delay(30);
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      touchPoints: [{ x: seX, y: 640, id: 0 }],
+    });
+    await delay(120);
+    const magBottom = await probe.getRect("div.magnifier-box");
+    expect(magBottom, "magnifier visible while dragging handle").toBeTruthy();
+    expect(magBottom!.y + magBottom!.height).toBeLessThanOrEqual(667 + 0.5);
+    expect(magBottom!.x + magBottom!.width).toBeLessThanOrEqual(375 + 0.5);
+    expect(magBottom!.y).toBeGreaterThanOrEqual(-0.5);
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      touchPoints: [{ x: seX, y: seY, id: 0 }],
+    });
+    await delay(80);
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchEnd",
+      touchPoints: [],
+    });
+    await delay(150);
+    expect(
+      await probe.getRect("div.magnifier-box"),
+      "magnifier hidden after handle release"
+    ).toBeNull();
+
     const mismatchDownloadPromise = page.waitForEvent("download");
     await probe.click('button[data-action="confirm"]');
     await expect(host).toBeHidden({ timeout: 5_000 });
@@ -807,9 +995,25 @@ test.describe("Bug Lens Chrome Extension E2E MOBILE-EMULATION: Chrome DevTools �
       await expect(bubble).toBeHidden({ timeout: 2_000 });
     }
 
-    const issueBtn = targetPage.locator("#__wbr_issue_btn__");
-    await expect(issueBtn).toBeVisible({ timeout: 5_000 });
+    // 页面注入长占位以便验证选择遮罩下的滚动放行
+    await targetPage.evaluate(() => {
+      const spacer = document.createElement("div");
+      spacer.setAttribute("data-e2e-spacer", "true");
+      spacer.style.cssText = "height:3000px;width:1px;";
+      document.body.appendChild(spacer);
+    });
+
+    const widget = targetPage.locator("#__wbr_recording_widget__");
+    await expect(widget).toBeVisible({ timeout: 5_000 });
+    await expect(widget).toHaveAttribute("data-wbr-mobile-mode", "true");
+    await tapLocator(cdp, widget);
+    const issueBtn = targetPage.locator("#__wbr_mobile_issue_btn__");
+    await expect(issueBtn).toBeVisible({ timeout: 3_000 });
     await tapLocator(cdp, issueBtn);
+
+    // 进入子流程：录制胶囊与菜单必须隐身，不占底部
+    await expect(widget).toBeHidden({ timeout: 2_000 });
+    await expect(targetPage.locator("#__wbr_mobile_menu__")).toBeHidden();
 
     // 1) 期望速记卡在 375x667 内
     const expectedCard = targetPage.locator("#__wbr_expected_card__");
@@ -842,7 +1046,7 @@ test.describe("Bug Lens Chrome Extension E2E MOBILE-EMULATION: Chrome DevTools �
       const shadow = host?.shadowRoot;
       if (!shadow) return null;
       const hint = Array.from(shadow.children).find(
-        (el) => el.querySelectorAll("button").length === 3
+        (el) => el.querySelectorAll("button").length >= 3
       ) as HTMLElement | undefined;
       if (!hint) return null;
       const hr = hint.getBoundingClientRect();
@@ -866,6 +1070,48 @@ test.describe("Bug Lens Chrome Extension E2E MOBILE-EMULATION: Chrome DevTools �
     for (const btn of hintRects!.buttons) {
       assertInsideViewport(btn, 375, 667, `SelectionOverlay btn ${btn.text}`);
     }
+    // 移动态默认贴底（释放顶部导航区），单行紧凑
+    expect(hintRects!.hint.y).toBeGreaterThan(667 / 2);
+    expect(hintRects!.hint.y + hintRects!.hint.height).toBeGreaterThanOrEqual(
+      667 - 20
+    );
+    expect(hintRects!.hint.height).toBeLessThanOrEqual(48);
+    await expect(widget).toBeHidden();
+
+    // 滚轮放行：选择遮罩期间仍可用滚轮滚动页面
+    const scrollBefore = await targetPage.evaluate(() => window.scrollY);
+    await targetPage.mouse.move(180, 200);
+    await targetPage.mouse.wheel(0, 300);
+    await delay(300);
+    const scrollAfterWheel = await targetPage.evaluate(() => window.scrollY);
+    expect(scrollAfterWheel).toBeGreaterThan(scrollBefore);
+    await targetPage.evaluate(() => window.scrollTo(0, 0));
+    await delay(150);
+
+    // 一键换位 ⇅：贴底 -> 贴顶 -> 贴底
+    const flipPos = async () =>
+      targetPage.evaluate(() => {
+        const host = document.querySelector("#__wbr_issue_selection__");
+        const flip = Array.from(
+          host!.shadowRoot!.querySelectorAll("button")
+        ).find((b) => b.textContent?.trim() === "⇅");
+        const hint = flip?.closest("div")?.parentElement as HTMLElement | null;
+        const fr = flip?.getBoundingClientRect();
+        return {
+          flipX: fr ? fr.left + fr.width / 2 : 0,
+          flipY: fr ? fr.top + fr.height / 2 : 0,
+          hintTop: hint ? hint.getBoundingClientRect().top : -1,
+        };
+      });
+    const flip1 = await flipPos();
+    expect(flip1.hintTop).toBeGreaterThan(667 / 2);
+    await touchTap(cdp, flip1.flipX, flip1.flipY);
+    await delay(250);
+    const flip2 = await flipPos();
+    expect(flip2.hintTop).toBeLessThan(60);
+    await touchTap(cdp, flip2.flipX, flip2.flipY);
+    await delay(250);
+    expect((await flipPos()).hintTop).toBeGreaterThan(667 / 2);
 
     // 触控点击目标元素（无 hover 提前预览）
     const targetEl = targetPage.locator('[data-testid="issue-target"]');
@@ -881,8 +1127,10 @@ test.describe("Bug Lens Chrome Extension E2E MOBILE-EMULATION: Chrome DevTools �
     await targetPage.waitForFunction(
       () => {
         const selection = document.querySelector("#__wbr_issue_selection__");
-        const finishBtn = selection?.shadowRoot?.querySelector("button");
-        return Boolean(finishBtn?.textContent?.includes("(1)"));
+        const finishBtn = Array.from(
+          selection?.shadowRoot?.querySelectorAll("button") ?? []
+        ).find((b) => b.textContent?.includes("(1)"));
+        return Boolean(finishBtn);
       },
       undefined,
       { timeout: 3_000 }
@@ -895,6 +1143,29 @@ test.describe("Bug Lens Chrome Extension E2E MOBILE-EMULATION: Chrome DevTools �
       )
     ).toBe(0);
 
+    // 选区联动滚屏：高亮框位置随页面滚动同步，滚出视口外设为 display: none，滚回恢复 display: block
+    const getSelectedBoxDisplay = async () =>
+      targetPage.evaluate(() => {
+        const host = document.querySelector("#__wbr_issue_selection__");
+        const removeBtn = host?.shadowRoot?.querySelector(
+          ".wbr-selection-remove-btn"
+        );
+        const box = removeBtn?.parentElement as HTMLElement | null;
+        return box ? box.style.display : null;
+      });
+    expect(await getSelectedBoxDisplay()).not.toBe("none");
+
+    // 向上滚动页面使已选目标完全移出视口顶部
+    await targetPage.mouse.move(180, 200);
+    await targetPage.mouse.wheel(0, 600);
+    await delay(300);
+    expect(await getSelectedBoxDisplay()).toBe("none");
+
+    // 滚回原位，高亮框自动恢复显示
+    await targetPage.evaluate(() => window.scrollTo(0, 0));
+    await delay(300);
+    expect(await getSelectedBoxDisplay()).toBe("block");
+
     // 点击进入截图编辑器
     const finishBtn = selectionOverlay.locator("button", {
       hasText: "(1)",
@@ -904,7 +1175,66 @@ test.describe("Bug Lens Chrome Extension E2E MOBILE-EMULATION: Chrome DevTools �
     // 3) IssueEditor 在 375x667 下的工具栏、控制卡片、输入框与按钮全在 [0, 375] 内
     const issueEditor = targetPage.locator("#__wbr_issue_editor__");
     await expect(issueEditor).toBeVisible({ timeout: 5_000 });
-    await expect(issueEditor.locator("[data-issue-image]")).toBeVisible();
+    const issueImage = issueEditor.locator("[data-issue-image]");
+    await expect(issueImage).toBeVisible();
+
+    // 严密断言：底图宽高比必须紧密贴合移动端视口 (375/667 ≈ 0.562)，根绝 16:9 带空白横图
+    await targetPage.waitForFunction(() => {
+      const img = document.querySelector(
+        "#__wbr_issue_editor__ [data-issue-image]"
+      ) as HTMLImageElement | null;
+      return Boolean(
+        img && img.complete && img.naturalWidth > 0 && img.naturalHeight > 0
+      );
+    });
+    const imageNaturalMetrics = await targetPage.evaluate(() => {
+      const img = document.querySelector(
+        "#__wbr_issue_editor__ [data-issue-image]"
+      ) as HTMLImageElement;
+      return {
+        naturalWidth: img.naturalWidth,
+        naturalHeight: img.naturalHeight,
+        aspectRatio: img.naturalWidth / img.naturalHeight,
+      };
+    });
+    const expectedRatio = 375 / 667;
+    expect(
+      Math.abs(imageNaturalMetrics.aspectRatio - expectedRatio),
+      `image natural aspect ratio (${imageNaturalMetrics.aspectRatio}) should match viewport ratio (${expectedRatio})`
+    ).toBeLessThan(0.08);
+
+    // 严密断言：[data-issue-canvas]、[data-issue-image] 与 [data-issue-svg] 渲染宽高紧密贴合（差值 <= 3px），消除上下黑边与标注层漂移
+    const renderBoxes = await targetPage.evaluate(() => {
+      const canvas = document.querySelector(
+        "#__wbr_issue_editor__ [data-issue-canvas]"
+      )!;
+      const img = document.querySelector(
+        "#__wbr_issue_editor__ [data-issue-image]"
+      )!;
+      const svg = document.querySelector(
+        "#__wbr_issue_editor__ [data-issue-svg]"
+      )!;
+      const cr = canvas.getBoundingClientRect();
+      const ir = img.getBoundingClientRect();
+      const sr = svg.getBoundingClientRect();
+      return {
+        canvas: { width: cr.width, height: cr.height },
+        image: { width: ir.width, height: ir.height },
+        svg: { width: sr.width, height: sr.height },
+      };
+    });
+    expect(
+      Math.abs(renderBoxes.canvas.width - renderBoxes.image.width)
+    ).toBeLessThanOrEqual(3);
+    expect(
+      Math.abs(renderBoxes.canvas.height - renderBoxes.image.height)
+    ).toBeLessThanOrEqual(3);
+    expect(
+      Math.abs(renderBoxes.svg.width - renderBoxes.image.width)
+    ).toBeLessThanOrEqual(3);
+    expect(
+      Math.abs(renderBoxes.svg.height - renderBoxes.image.height)
+    ).toBeLessThanOrEqual(3);
 
     const toolbar = issueEditor.locator(".toolbar");
     await assertLocatorInsideViewport(toolbar, 375, 667, "IssueEditor toolbar");
@@ -921,12 +1251,36 @@ test.describe("Bug Lens Chrome Extension E2E MOBILE-EMULATION: Chrome DevTools �
     }
 
     const controlCard = issueEditor.locator("[data-issue-control-card]");
-    await assertLocatorInsideViewport(
+    const controlCardBox = await assertLocatorInsideViewport(
       controlCard,
       375,
       667,
       "IssueEditor control card"
     );
+    // 三段式：控制卡与截图画布重叠面积 = 0，且贴底；编辑器期间无录制胶囊
+    const canvasBox = await issueEditor
+      .locator("[data-issue-canvas]")
+      .boundingBox();
+    expect(canvasBox).toBeTruthy();
+    const overlapW = Math.max(
+      0,
+      Math.min(
+        canvasBox!.x + canvasBox!.width,
+        controlCardBox.x + controlCardBox.width
+      ) - Math.max(canvasBox!.x, controlCardBox.x)
+    );
+    const overlapH = Math.max(
+      0,
+      Math.min(
+        canvasBox!.y + canvasBox!.height,
+        controlCardBox.y + controlCardBox.height
+      ) - Math.max(canvasBox!.y, controlCardBox.y)
+    );
+    expect(overlapW * overlapH, "card/canvas overlap px²").toBe(0);
+    expect(controlCardBox.y + controlCardBox.height).toBeGreaterThanOrEqual(
+      667 - 16
+    );
+    await expect(widget).toBeHidden();
 
     const actualInput = issueEditor.locator("[data-issue-actual]");
     const actualBox = await assertLocatorInsideViewport(
@@ -975,6 +1329,33 @@ test.describe("Bug Lens Chrome Extension E2E MOBILE-EMULATION: Chrome DevTools �
       "IssueEditor control card portrait restored"
     );
 
+    // 文本批注：靠右边缘点击，输入框不得向右溢出视口
+    await tapLocator(cdp, issueEditor.locator('[data-issue-tool="text"]'));
+    const svgForText = await issueEditor
+      .locator("[data-issue-svg]")
+      .boundingBox();
+    expect(svgForText).toBeTruthy();
+    await touchTap(
+      cdp,
+      svgForText!.x + svgForText!.width - 6,
+      svgForText!.y + svgForText!.height * 0.3
+    );
+    await delay(250);
+    const textInputBox = await targetPage.evaluate(() => {
+      const ed = document.querySelector("#__wbr_issue_editor__");
+      const inputs = Array.from(ed!.querySelectorAll("input")).filter(
+        (i) => !i.hasAttribute("data-issue-actual")
+      );
+      const ti = inputs[inputs.length - 1];
+      if (!ti) return null;
+      const r = ti.getBoundingClientRect();
+      return { x: r.left, y: r.top, width: r.width, height: r.height };
+    });
+    expect(textInputBox, "text annotation input").toBeTruthy();
+    assertInsideViewport(textInputBox, 375, 667, "text annotation input");
+    await targetPage.keyboard.press("Escape");
+    await delay(150);
+
     // 绘制矩形批注、填写实际现象并保存问题现场
     await tapLocator(cdp, issueEditor.locator('[data-issue-tool="rect"]'));
     const svgLocator = issueEditor.locator("[data-issue-svg]");
@@ -995,7 +1376,8 @@ test.describe("Bug Lens Chrome Extension E2E MOBILE-EMULATION: Chrome DevTools �
 
     await expect(issueEditor).toBeHidden({ timeout: 5_000 });
     await expect(selectionOverlay).toBeHidden({ timeout: 5_000 });
-    await expect(issueBtn).toBeVisible();
+    // 子流程结束：录制胶囊恢复
+    await expect(widget).toBeVisible({ timeout: 3_000 });
 
     await mediaProbe.waitForEvidenceCounts(session.id, { issueSceneCount: 1 });
     const evidence = await mediaProbe.persistedFullEvidence(session.id);
@@ -1010,13 +1392,12 @@ test.describe("Bug Lens Chrome Extension E2E MOBILE-EMULATION: Chrome DevTools �
     );
 
     // 清理录制会话
-    const discardBtn = targetPage.locator("#__wbr_discard_btn__");
-    await tapLocator(cdp, discardBtn);
+    await tapLocator(cdp, widget);
+    const menuDiscardBtn = targetPage.locator("#__wbr_mobile_discard_btn__");
+    await tapLocator(cdp, menuDiscardBtn);
     await delay(100);
-    await tapLocator(cdp, discardBtn);
-    await expect(targetPage.locator("#__wbr_recording_widget__")).toBeHidden({
-      timeout: 5_000,
-    });
+    await tapLocator(cdp, menuDiscardBtn);
+    await expect(widget).toBeHidden({ timeout: 5_000 });
     await cdp.detach().catch(() => undefined);
     logE2e("MOBILE-003 passed");
   });

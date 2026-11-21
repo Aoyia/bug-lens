@@ -57,6 +57,14 @@ function createElementMock(tag: string, created: any[]) {
     textContent: "",
     title: "",
     type: "",
+    _id: "",
+    get id() {
+      return this._id;
+    },
+    set id(val: string) {
+      this._id = val;
+      this.attrs["id"] = val;
+    },
     offsetWidth: undefined as number | undefined,
     offsetHeight: undefined as number | undefined,
     setAttribute(name: string, value: string) {
@@ -124,6 +132,7 @@ function createDomMock() {
     created,
     document,
     window,
+    windowListeners,
     dispatchKey(key: string) {
       (windowListeners["keydown"] || []).forEach((fn) =>
         fn({ key, preventDefault() {}, stopPropagation() {} })
@@ -354,5 +363,56 @@ test("速记卡：焦点隔离与防劫持屏障（阻止外部模态夺焦并�
     assert.equal(inputMousedownStopped, true, "鼠标事件应阻止向宿主冒泡");
   } finally {
     ctx.restore();
+  }
+});
+
+test("速记卡：矮屏兜底（maxHeight 与 overflowY）与极矮视口收紧 top 防底部溢出", () => {
+  const dom = createDomMock();
+  dom.window.innerHeight = 375; // 仿真横屏或极矮视口
+  dom.window.innerWidth = 667;
+  const prevDoc = (globalThis as any).document;
+  const prevWin = (globalThis as any).window;
+  (globalThis as any).document = dom.document;
+  (globalThis as any).window = dom.window;
+
+  try {
+    const card = new ExpectedCaptureCard({
+      onSubmit: () => {},
+      onSkip: () => {},
+      onCancel: () => {},
+    });
+    card.open();
+
+    const root = dom.findByAttr("id", "__wbr_expected_card__");
+    assert.ok(root, "应成功创建速记卡根元素");
+    assert.equal(
+      root.style.maxHeight,
+      "calc(100vh - 32px)",
+      "速记卡应具备 maxHeight 兜底"
+    );
+    assert.equal(
+      root.style.overflowY,
+      "auto",
+      "速记卡应具备 overflowY: auto 滚动保护"
+    );
+    assert.equal(
+      root.style.top,
+      "16px",
+      "极矮视口 (vh <= 420) 下 top 应收紧为 16px 避免底部溢出"
+    );
+
+    // 模拟 resize 到常规桌面大屏 (vh = 800)
+    dom.window.innerHeight = 800;
+    dom.windowListeners["resize"]?.[0]?.({});
+    assert.equal(
+      root.style.top,
+      "clamp(72px, 22vh, 180px)",
+      "恢复常规大屏后 top 应还原为黄金视线 clamp"
+    );
+
+    card.close();
+  } finally {
+    (globalThis as any).document = prevDoc;
+    (globalThis as any).window = prevWin;
   }
 });

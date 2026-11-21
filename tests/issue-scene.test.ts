@@ -655,3 +655,515 @@ test("IssueSceneCapture.capture stores real image dimensions from JPEG bytes ins
     }
   }
 });
+
+test("IssueSceneCapture.capture 优先调用 chrome.debugger.sendCommand 获取精准视口截图", async () => {
+  const session: RecordingSession = {
+    id: "sess-cdp-1",
+    status: "RECORDING",
+    target: {
+      tabId: 61,
+      windowId: 3,
+      initialUrl: "https://example.com/mobile",
+      initialTitle: "Mobile Example",
+    },
+    targets: [
+      {
+        tabId: 61,
+        windowId: 3,
+        url: "https://example.com/mobile",
+        title: "Mobile Example",
+        isPrimary: true,
+      },
+    ],
+    options: {
+      privacyMode: "safe",
+      captureConsole: false,
+      captureNetwork: false,
+      captureFrameworkState: false,
+      autoTrackDerivedTabs: true,
+    },
+    timeline: {
+      createdAtEpochMs: 2000,
+      startedAtEpochMs: 2000,
+    },
+    quality: {
+      interactionCount: 0,
+      confirmedInteractionCount: 0,
+      primaryScreenshotCount: 0,
+      fallbackScreenshotCount: 0,
+      unavailableScreenshotCount: 0,
+      consoleEntryCount: 0,
+      networkEntryCount: 0,
+    },
+    nonce: "nonce-cdp-1",
+  };
+  const existing = await db.getActiveSession();
+  if (existing) {
+    await db.clearActive(existing.id);
+  }
+  const claimed = await db.claimSession(session);
+  assert.equal(claimed.claimed, true);
+
+  // 构造 375x667 的最小 JPEG
+  const jpegBytes = new Uint8Array([
+    0xff,
+    0xd8,
+    0xff,
+    0xc0,
+    0x00,
+    0x0b,
+    0x08,
+    0x02,
+    0x9b, // height = 667
+    0x01,
+    0x77, // width = 375
+    0x01,
+    0x01,
+    0x11,
+    0x00,
+    0xff,
+    0xd9,
+  ]);
+  const cdpBase64 = Buffer.from(jpegBytes).toString("base64");
+
+  let cdpCalled = false;
+  let cdpParams: any = null;
+  let fallbackCalled = false;
+
+  const originalChrome = (globalThis as { chrome?: unknown }).chrome;
+  (globalThis as { chrome?: unknown }).chrome = {
+    debugger: {
+      sendCommand: async (target: any, method: string, params: any) => {
+        if (method === "Page.captureScreenshot") {
+          cdpCalled = true;
+          cdpParams = { target, method, params };
+          return { data: cdpBase64 };
+        }
+        throw new Error(`Unknown method: ${method}`);
+      },
+    },
+    tabs: {
+      query: async () => [{ id: 61, active: true, windowId: 3 }],
+      captureVisibleTab: async () => {
+        fallbackCalled = true;
+        throw new Error(
+          "captureVisibleTab should not be called when CDP succeeds"
+        );
+      },
+    },
+    windows: {
+      WINDOW_ID_CURRENT: -2,
+    },
+  };
+
+  try {
+    const captureService = new IssueSceneCapture(() => false);
+    const { scene } = await captureService.capture(
+      {
+        nonce: "nonce-cdp-1",
+        observedAtEpochMs: Date.now(),
+        page: {
+          url: "https://example.com/mobile",
+          title: "Mobile Example",
+          frameId: 0,
+          viewport: { width: 375, height: 667 },
+          devicePixelRatio: 3,
+        },
+        target: {
+          capturedAtEpochMs: Date.now(),
+          element: {
+            tagName: "button",
+            classNames: [],
+            attributes: {},
+            locators: [],
+          },
+          ancestors: [],
+          computedStyle: {},
+        },
+      },
+      { tab: { id: 61, windowId: 3 } as chrome.tabs.Tab, frameId: 0 }
+    );
+
+    assert.equal(scene.screenshot.status, "captured");
+    assert.equal(cdpCalled, true, "应优先调用 chrome.debugger.sendCommand");
+    assert.deepEqual(cdpParams?.target, { tabId: 61 });
+    assert.equal(cdpParams?.method, "Page.captureScreenshot");
+    assert.equal(cdpParams?.params?.format, "jpeg");
+    assert.equal(
+      fallbackCalled,
+      false,
+      "CDP 成功时不应调用 captureVisibleTab 降级"
+    );
+
+    const asset = await db.getEvidenceAsset(scene.screenshot.originalAssetId!);
+    assert.ok(asset);
+    assert.equal(asset.width, 375);
+    assert.equal(asset.height, 667);
+  } finally {
+    await db.clearActive(session.id);
+    if (originalChrome === undefined) {
+      delete (globalThis as { chrome?: unknown }).chrome;
+    } else {
+      (globalThis as { chrome?: unknown }).chrome = originalChrome;
+    }
+  }
+});
+
+test("IssueSceneCapture.capture 在 chrome.debugger 报错时无缝降级走 captureVisibleTab", async () => {
+  const session: RecordingSession = {
+    id: "sess-cdp-fallback",
+    status: "RECORDING",
+    target: {
+      tabId: 62,
+      windowId: 4,
+      initialUrl: "https://example.com/fallback",
+      initialTitle: "Fallback Example",
+    },
+    targets: [
+      {
+        tabId: 62,
+        windowId: 4,
+        url: "https://example.com/fallback",
+        title: "Fallback Example",
+        isPrimary: true,
+      },
+    ],
+    options: {
+      privacyMode: "safe",
+      captureConsole: false,
+      captureNetwork: false,
+      captureFrameworkState: false,
+      autoTrackDerivedTabs: true,
+    },
+    timeline: {
+      createdAtEpochMs: 3000,
+      startedAtEpochMs: 3000,
+    },
+    quality: {
+      interactionCount: 0,
+      confirmedInteractionCount: 0,
+      primaryScreenshotCount: 0,
+      fallbackScreenshotCount: 0,
+      unavailableScreenshotCount: 0,
+      consoleEntryCount: 0,
+      networkEntryCount: 0,
+    },
+    nonce: "nonce-cdp-fallback",
+  };
+  const existing = await db.getActiveSession();
+  if (existing) {
+    await db.clearActive(existing.id);
+  }
+  const claimed = await db.claimSession(session);
+  assert.equal(claimed.claimed, true);
+
+  const jpegBytes = new Uint8Array([
+    0xff,
+    0xd8,
+    0xff,
+    0xc0,
+    0x00,
+    0x0b,
+    0x08,
+    0x03,
+    0x20, // height = 800
+    0x04,
+    0xb0, // width = 1200
+    0x01,
+    0x01,
+    0x11,
+    0x00,
+    0xff,
+    0xd9,
+  ]);
+  const fallbackDataUrl = `data:image/jpeg;base64,${Buffer.from(jpegBytes).toString("base64")}`;
+
+  let cdpAttempted = false;
+  let fallbackCalled = false;
+
+  const originalChrome = (globalThis as { chrome?: unknown }).chrome;
+  (globalThis as { chrome?: unknown }).chrome = {
+    debugger: {
+      sendCommand: async () => {
+        cdpAttempted = true;
+        throw new Error("Debugger is not attached to the tab with id: 62");
+      },
+    },
+    tabs: {
+      query: async () => [{ id: 62, active: true, windowId: 4 }],
+      captureVisibleTab: async () => {
+        fallbackCalled = true;
+        return fallbackDataUrl;
+      },
+    },
+    windows: {
+      WINDOW_ID_CURRENT: -2,
+    },
+  };
+
+  try {
+    const captureService = new IssueSceneCapture(() => false);
+    const { scene } = await captureService.capture(
+      {
+        nonce: "nonce-cdp-fallback",
+        observedAtEpochMs: Date.now(),
+        page: {
+          url: "https://example.com/fallback",
+          title: "Fallback Example",
+          frameId: 0,
+          viewport: { width: 1200, height: 800 },
+          devicePixelRatio: 1,
+        },
+        target: {
+          capturedAtEpochMs: Date.now(),
+          element: {
+            tagName: "button",
+            classNames: [],
+            attributes: {},
+            locators: [],
+          },
+          ancestors: [],
+          computedStyle: {},
+        },
+      },
+      { tab: { id: 62, windowId: 4 } as chrome.tabs.Tab, frameId: 0 }
+    );
+
+    assert.equal(scene.screenshot.status, "captured");
+    assert.equal(cdpAttempted, true, "应先尝试 CDP");
+    assert.equal(
+      fallbackCalled,
+      true,
+      "CDP 失败后应成功调用 captureVisibleTab 降级"
+    );
+
+    const asset = await db.getEvidenceAsset(scene.screenshot.originalAssetId!);
+    assert.ok(asset);
+    assert.equal(asset.width, 1200);
+    assert.equal(asset.height, 800);
+  } finally {
+    await db.clearActive(session.id);
+    if (originalChrome === undefined) {
+      delete (globalThis as { chrome?: unknown }).chrome;
+    } else {
+      (globalThis as { chrome?: unknown }).chrome = originalChrome;
+    }
+  }
+});
+
+test("IssueSceneCapture.cropViewportIfAspectMismatch 精确缩放比裁剪验证 (tab=1280x723, bitmap=3200x1808, viewport=375x667 => crop 938x1668)", async () => {
+  const captureService = new IssueSceneCapture();
+
+  const originalFetch = globalThis.fetch;
+  const originalCreateImageBitmap = (
+    globalThis as unknown as { createImageBitmap?: unknown }
+  ).createImageBitmap;
+  const originalOffscreenCanvas = (
+    globalThis as unknown as { OffscreenCanvas?: unknown }
+  ).OffscreenCanvas;
+
+  let capturedCanvasW = 0;
+  let capturedCanvasH = 0;
+  let drawnArgs: number[] = [];
+
+  try {
+    (globalThis as unknown as { fetch: unknown }).fetch = async () => ({
+      blob: async () => ({}),
+    });
+    (
+      globalThis as unknown as { createImageBitmap: unknown }
+    ).createImageBitmap = async () => ({
+      width: 3200,
+      height: 1808,
+      close: () => {},
+    });
+    class MockOffscreenCanvas {
+      width: number;
+      height: number;
+      constructor(w: number, h: number) {
+        this.width = w;
+        this.height = h;
+        capturedCanvasW = w;
+        capturedCanvasH = h;
+      }
+      getContext() {
+        return {
+          drawImage: (...args: unknown[]) => {
+            drawnArgs = args.filter((a): a is number => typeof a === "number");
+          },
+        };
+      }
+      async convertToBlob() {
+        return {
+          arrayBuffer: async () =>
+            new Uint8Array([0xff, 0xd8, 0xff, 0xd9]).buffer,
+        };
+      }
+    }
+    (globalThis as unknown as { OffscreenCanvas: unknown }).OffscreenCanvas =
+      MockOffscreenCanvas;
+
+    // 1. 移动端仿真环境：tab=1280x723, bitmap=3200x1808, viewport=375x667
+    // scaleX = 3200/1280 = 2.5 => cropW = round(375 * 2.5) = 938
+    // scaleY = 1808/723 = 2.50069... => cropH = round(667 * 2.50069...) = 1668
+    const mobileResult = await captureService.cropViewportIfAspectMismatch(
+      "data:image/jpeg;base64,/9j/4AAQSkZJRg==",
+      { width: 375, height: 667 },
+      { width: 1280, height: 723 }
+    );
+
+    assert.ok(mobileResult, "应返回裁剪结果");
+    assert.equal(mobileResult.width, 938, "cropW 应为 938");
+    assert.equal(mobileResult.height, 1668, "cropH 应为 1668");
+    assert.equal(capturedCanvasW, 938);
+    assert.equal(capturedCanvasH, 1668);
+    // drawImage(bitmap, 0, 0, cropW, cropH, 0, 0, cropW, cropH)
+    assert.deepEqual(drawnArgs, [0, 0, 938, 1668, 0, 0, 938, 1668]);
+
+    // 2. PC 桌面端：tab=1280x800, bitmap=1280x800, viewport=1280x800
+    // 尺寸严格匹配，不触发裁剪，零重编码返回 null
+    const pcResult = await captureService.cropViewportIfAspectMismatch(
+      "data:image/jpeg;base64,/9j/4AAQSkZJRg==",
+      { width: 1280, height: 800 },
+      { width: 1280, height: 800 }
+    );
+    assert.equal(pcResult, null, "PC 桌面端无需裁剪直接返回 null");
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalCreateImageBitmap === undefined) {
+      delete (globalThis as unknown as { createImageBitmap?: unknown })
+        .createImageBitmap;
+    } else {
+      (
+        globalThis as unknown as { createImageBitmap: unknown }
+      ).createImageBitmap = originalCreateImageBitmap;
+    }
+    if (originalOffscreenCanvas === undefined) {
+      delete (globalThis as unknown as { OffscreenCanvas?: unknown })
+        .OffscreenCanvas;
+    } else {
+      (globalThis as unknown as { OffscreenCanvas: unknown }).OffscreenCanvas =
+        originalOffscreenCanvas;
+    }
+  }
+});
+
+test("IssueSceneCapture.capture 成功后在 finally 中及时清除 CDP 超时定时器防泄漏", async () => {
+  const session: RecordingSession = {
+    id: "sess-cdp-timer-leak",
+    status: "RECORDING",
+    target: {
+      tabId: 65,
+      windowId: 5,
+      initialUrl: "https://example.com/timer",
+      initialTitle: "Timer Leak Example",
+    },
+    targets: [
+      {
+        tabId: 65,
+        windowId: 5,
+        url: "https://example.com/timer",
+        title: "Timer Leak Example",
+        isPrimary: true,
+      },
+    ],
+    options: {
+      privacyMode: "safe",
+      captureConsole: false,
+      captureNetwork: false,
+      captureFrameworkState: false,
+      autoTrackDerivedTabs: true,
+    },
+    timeline: {
+      createdAtEpochMs: 5000,
+      startedAtEpochMs: 5000,
+    },
+    quality: {
+      interactionCount: 0,
+      confirmedInteractionCount: 0,
+      primaryScreenshotCount: 0,
+      fallbackScreenshotCount: 0,
+      unavailableScreenshotCount: 0,
+      consoleEntryCount: 0,
+      networkEntryCount: 0,
+    },
+    nonce: "nonce-cdp-timer-leak",
+  };
+  const existing = await db.getActiveSession();
+  if (existing) {
+    await db.clearActive(existing.id);
+  }
+  const claimed = await db.claimSession(session);
+  assert.equal(claimed.claimed, true);
+
+  const jpegBytes = new Uint8Array([
+    0xff, 0xd8, 0xff, 0xc0, 0x00, 0x0b, 0x08, 0x02, 0x9b, 0x01, 0x77, 0x01,
+    0x01, 0x11, 0x00, 0xff, 0xd9,
+  ]);
+  const cdpData = Buffer.from(jpegBytes).toString("base64");
+
+  let timeoutCleared = false;
+  const originalClearTimeout = globalThis.clearTimeout;
+  (globalThis as any).clearTimeout = (id: any) => {
+    timeoutCleared = true;
+    originalClearTimeout(id);
+  };
+
+  const originalChrome = (globalThis as { chrome?: unknown }).chrome;
+  (globalThis as { chrome?: unknown }).chrome = {
+    debugger: {
+      sendCommand: async () => ({ data: cdpData }),
+    },
+    tabs: {
+      query: async () => [{ id: 65, active: true, windowId: 5 }],
+      get: async () => ({ id: 65, width: 375, height: 667 }),
+    },
+    windows: {
+      WINDOW_ID_CURRENT: -2,
+    },
+  };
+
+  try {
+    const captureService = new IssueSceneCapture(() => false);
+    const { scene } = await captureService.capture(
+      {
+        nonce: "nonce-cdp-timer-leak",
+        observedAtEpochMs: Date.now(),
+        page: {
+          url: "https://example.com/timer",
+          title: "Timer Leak Example",
+          frameId: 0,
+          viewport: { width: 375, height: 667 },
+          devicePixelRatio: 1,
+        },
+        target: {
+          capturedAtEpochMs: Date.now(),
+          element: {
+            tagName: "button",
+            classNames: [],
+            attributes: {},
+            locators: [],
+          },
+          ancestors: [],
+          computedStyle: {},
+        },
+      },
+      { tab: { id: 65, windowId: 5 } as chrome.tabs.Tab, frameId: 0 }
+    );
+
+    assert.equal(scene.screenshot.status, "captured");
+    assert.equal(
+      timeoutCleared,
+      true,
+      "CDP 截图完成后应及时 clearTimeout 防泄漏"
+    );
+  } finally {
+    globalThis.clearTimeout = originalClearTimeout;
+    await db.clearActive(session.id);
+    if (originalChrome === undefined) {
+      delete (globalThis as { chrome?: unknown }).chrome;
+    } else {
+      (globalThis as { chrome?: unknown }).chrome = originalChrome;
+    }
+  }
+});

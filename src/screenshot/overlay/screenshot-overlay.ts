@@ -606,6 +606,9 @@ export class ScreenshotOverlay {
 
     this.releasePointerCaptureSafely(e.pointerId);
 
+    // 释放指针时强制隐藏放大镜，消除触控/拖拽释手后滞留遮挡工具栏
+    this.magnifier?.hide();
+
     // 批注域：拖拽复位 → 手柄复位 → 绘制提交/text 输入
     const annUp = this.annotationController.onMouseUp(e);
     if (annUp) {
@@ -626,6 +629,7 @@ export class ScreenshotOverlay {
 
   private handlePointerCancel(e: PointerEvent): void {
     this.releasePointerCaptureSafely(e.pointerId);
+    this.magnifier?.hide();
     const phase = this.stateMachine.phase;
     if (phase === "drawing") {
       this.annotationController.activeTempAnnotation = null;
@@ -678,6 +682,14 @@ export class ScreenshotOverlay {
 
   private renderMagnifier(x: number, y: number): void {
     if (!this.magnifier) return;
+    // 选区锁定且未处于拉框/拉伸等活动交互时，强制隐藏放大镜，拦截触控合成等残留指针事件误显
+    if (
+      this.selectionController.isSelectionLocked &&
+      !this.selectionController.isActiveInteraction
+    ) {
+      this.magnifier.hide();
+      return;
+    }
     this.magnifier.render(x, y);
   }
 
@@ -885,6 +897,7 @@ export class ScreenshotOverlay {
 
   cancel(): void {
     this.removeEventListeners();
+    this.magnifier?.hide();
     if (this.onCancelCallback) {
       this.onCancelCallback();
     }
@@ -904,6 +917,7 @@ export class ScreenshotOverlay {
 
   destroy(): void {
     this.removeEventListeners();
+    this.magnifier?.hide();
     if (this.container && this.container.parentElement) {
       this.container.parentElement.removeChild(this.container);
     }

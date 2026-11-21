@@ -14,6 +14,10 @@ import {
   TEXT_MAX_WIDTH,
 } from "../annotations/text-layout";
 import { t } from "../../shared/i18n";
+import {
+  clampPositionToViewport,
+  getViewportMetrics,
+} from "../../shared/ui/mobile-emulation-mode";
 
 /**
  * 截图 Overlay 的两个独立 UI 小组件：
@@ -30,6 +34,50 @@ export interface MagnifierRendererOptions {
   shouldHide: () => boolean;
 }
 
+function findInspectedElement(x: number, y: number): Element | null {
+  if (typeof document.elementsFromPoint === "function") {
+    const list = document.elementsFromPoint(x, y);
+    for (const el of list) {
+      if (!el) continue;
+      if (
+        el.id === "bug-lens-screenshot-host" ||
+        el.closest("#bug-lens-screenshot-host")
+      ) {
+        continue;
+      }
+      if (
+        el.getAttribute?.("data-wbr-ignore") === "true" ||
+        el.closest?.('[data-wbr-ignore="true"]')
+      ) {
+        continue;
+      }
+      if (el.id?.startsWith?.("__wbr_")) {
+        continue;
+      }
+      if (el === document.documentElement || el === document.body) {
+        continue;
+      }
+      return el;
+    }
+    return null;
+  }
+
+  const el = document.elementFromPoint(x, y);
+  if (
+    !el ||
+    el === document.documentElement ||
+    el === document.body ||
+    el.id === "bug-lens-screenshot-host" ||
+    el.closest("#bug-lens-screenshot-host") ||
+    el.getAttribute?.("data-wbr-ignore") === "true" ||
+    el.closest?.('[data-wbr-ignore="true"]') ||
+    el.id?.startsWith?.("__wbr_")
+  ) {
+    return null;
+  }
+  return el;
+}
+
 export class MagnifierRenderer {
   private readonly shadowRoot: ShadowRoot;
   private readonly getViewportImage: () => HTMLImageElement | null;
@@ -39,6 +87,14 @@ export class MagnifierRenderer {
     this.shadowRoot = options.shadowRoot;
     this.getViewportImage = options.getViewportImage;
     this.shouldHide = options.shouldHide;
+  }
+
+  hide(): void {
+    const magBox =
+      this.shadowRoot.querySelector<HTMLDivElement>(".magnifier-box");
+    if (magBox) {
+      magBox.style.display = "none";
+    }
   }
 
   render(x: number, y: number): void {
@@ -61,30 +117,54 @@ export class MagnifierRenderer {
 
     magBox.style.display = "flex";
 
-    // 边界自适应翻转避让逻辑
-    const magW = 130;
-    const magH = 130;
+    // 先写入坐标与标签文本，确保在读取 getBoundingClientRect() 时 DOM 几何尺寸已包含最新文本行高度
+    // 彻底根除首帧先测量再写文字导致底边微量溢出 ~15px 的问题
+    if (magPos) magPos.textContent = `X: ${Math.round(x)}, Y: ${Math.round(y)}`;
+
+    const el = findInspectedElement(x, y);
+    if (magTag) {
+      if (el) {
+        const tag = el.tagName.toLowerCase();
+        const idStr = el.id ? `#${el.id}` : "";
+        magTag.textContent = `${tag}${idStr}`.slice(0, 18);
+      } else {
+        magTag.textContent = "";
+      }
+    }
+
+    // 动态读取真实尺寸（包含刚写入的 magPos/magTag 最新布局高度，未渲染或离屏时按 130×174 兜底估算）
+    const rect = magBox.getBoundingClientRect();
+    const realW = rect.width > 0 ? rect.width : magBox.offsetWidth || 130;
+    const realH = rect.height > 0 ? rect.height : magBox.offsetHeight || 174;
+
+    const { width: vw, height: vh } = getViewportMetrics(window);
+
     let posX = x + 15;
     let posY = y + 15;
 
-    if (posX + magW > window.innerWidth) {
-      posX = x - magW - 15;
+    // 拖拽靠近右边时优先向左翻转
+    if (posX + realW > vw - 8) {
+      posX = x - realW - 15;
     }
-    if (posY + magH > window.innerHeight) {
-      posY = y - magH - 15;
+    // 拖拽靠近底边时优先向上翻转
+    if (posY + realH > vh - 8) {
+      posY = y - realH - 15;
     }
+
+    // 视口边界 [8, vw - realW - 8] 与 [8, vh - realH - 8] 双向精准钳制（确保首帧起任何坐标下放大镜溢底 = 0 px）
+    const clamped = clampPositionToViewport(
+      posX,
+      posY,
+      realW,
+      realH,
+      8,
+      window
+    );
+    posX = clamped.x;
+    posY = clamped.y;
 
     magBox.style.left = `${posX}px`;
     magBox.style.top = `${posY}px`;
-
-    if (magPos) magPos.textContent = `X: ${Math.round(x)}, Y: ${Math.round(y)}`;
-
-    const el = document.elementFromPoint(x, y);
-    if (magTag && el) {
-      const tag = el.tagName.toLowerCase();
-      const idStr = el.id ? `#${el.id}` : "";
-      magTag.textContent = `${tag}${idStr}`.slice(0, 18);
-    }
 
     const ctx = magCanvas.getContext("2d", { willReadFrequently: true });
     const viewportImage = this.getViewportImage();
