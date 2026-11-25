@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { mock } from "node:test";
 
 import { strFromU8, strToU8, unzipSync } from "fflate";
 
@@ -8,6 +8,7 @@ import {
   type ArchiveSink,
   type BinaryChunk,
 } from "../src/export/export-pipeline.ts";
+import { Sha256, sha256Sync } from "../src/export/sha256.ts";
 import type { MediaChunkRecord } from "../src/storage/db.ts";
 
 test("streaming export writes report files and ordered media without a full archive buffer", async () => {
@@ -508,15 +509,16 @@ test("precomputedMediaIntegrity 长度与实际回读媒体字节不一致时安
   };
 
   const actualMediaContent = strToU8("actual-media-stream-from-db");
-  const actualSha256 =
-    "66f44383a1d9501a44e59049a4a7541249fa0208ce8f28ffea4c944369a47321"; // Dummy sha, will be checked against real computed
+  const expectedRealSha256 = sha256Sync(actualMediaContent);
   let manifestIntegrity: any;
+  let iterateCalls = 0;
 
   await writeEvidenceArchive({
     files: [{ name: "info.txt", data: strToU8("ok") }],
     sessionId: "mismatch-integrity-test",
     mediaSource: {
       async iterateMediaChunks(_sessionId, visitor) {
+        iterateCalls += 1;
         await visitor({
           id: "chunk:0",
           sessionId: "mismatch-integrity-test",
@@ -545,19 +547,16 @@ test("precomputedMediaIntegrity 长度与实际回读媒体字节不一致时安
   });
 
   // 必须降级为实际回读的媒体长度与哈希，绝不轻信错误的 precomputedMediaIntegrity
+  assert.equal(iterateCalls, 2, "长度不匹配时应回读一次分片以补算真实 SHA-256");
   assert.equal(
     manifestIntegrity["media/recording.webm"].byteLength,
     actualMediaContent.byteLength,
     "manifest 记录的媒体长度必须与实际写入 ZIP 的字节数一致"
   );
-  assert.notEqual(
+  assert.equal(
     manifestIntegrity["media/recording.webm"].sha256,
-    "0000000000000000000000000000000000000000000000000000000000000000",
-    "长度不匹配时预计算哈希必须被丢弃并重新采用流式实时哈希"
-  );
-  assert.match(
-    manifestIntegrity["media/recording.webm"].sha256,
-    /^[a-f0-9]{64}$/
+    expectedRealSha256,
+    "长度不匹配时预计算哈希必须被丢弃并严格等于实际流式 SHA-256"
   );
 
   // 解压并验证文件真实哈希与 manifest 记录一致
@@ -573,4 +572,141 @@ test("precomputedMediaIntegrity 长度与实际回读媒体字节不一致时安
     unzipped["media/recording.webm"].byteLength,
     actualMediaContent.byteLength
   );
+});
+
+test("precomputedMediaIntegrity 命中时跳过导出期冗余纯 JS Sha256 计算且仅遍历媒体分片一次", async () => {
+  const output: BinaryChunk[] = [];
+  const sink: ArchiveSink = {
+    async write(chunk) {
+      output.push(chunk);
+    },
+    async close() {},
+    async abort() {},
+  };
+
+  const chunkA = strToU8("video-chunk-alpha-");
+  const chunkB = strToU8("video-chunk-beta");
+  const combined = new Uint8Array(chunkA.byteLength + chunkB.byteLength);
+  combined.set(chunkA, 0);
+  combined.set(chunkB, chunkA.byteLength);
+  const precomputedSha256 = sha256Sync(combined);
+
+  let iterateCalls = 0;
+  let manifestIntegrity: any;
+  let perfReport: any;
+
+  const updateSpy = mock.method(Sha256.prototype, "update");
+  try {
+    await writeEvidenceArchive({
+      files: [{ name: "info.txt", data: strToU8("ok") }],
+      sessionId: "precomputed-hit-test",
+      mediaSource: {
+        async iterateMediaChunks(_sessionId, visitor) {
+          iterateCalls += 1;
+          await visitor({
+            id: "chunk:0",
+            sessionId: "precomputed-hit-test",
+            sequence: 0,
+            recordedAt: 0,
+            mimeType: "video/webm",
+            chunk: chunkA.buffer as ArrayBuffer,
+          });
+          await visitor({
+            id: "chunk:1",
+            sessionId: "precomputed-hit-test",
+            sequence: 1,
+            recordedAt: 1,
+            mimeType: "video/webm",
+            chunk: chunkB.buffer as ArrayBuffer,
+          });
+          return 2;
+        },
+      },
+      precomputedMediaIntegrity: {
+        byteLength: combined.byteLength,
+        sha256: precomputedSha256,
+      },
+      sink,
+      onPerfReport(report) {
+        perfReport = report;
+      },
+      createManifest(integrity) {
+        manifestIntegrity = integrity;
+        return {
+          name: "manifest.json",
+          data: strToU8(JSON.stringify({ files: integrity })),
+        };
+      },
+    });
+
+    assert.equal(
+      updateSpy.mock.callCount(),
+      0,
+      "命中预计算完整性时不应执行冗余的 Sha256.update"
+    );
+    assert.equal(iterateCalls, 1, "命中预计算时只需单遍遍历媒体分片");
+    assert.deepEqual(manifestIntegrity["media/recording.webm"], {
+      byteLength: combined.byteLength,
+      sha256: precomputedSha256,
+    });
+    const mediaMetric = perfReport?.metrics?.find((item: any) =>
+      String(item.step).includes("视频分片流式封包")
+    );
+    assert.ok(mediaMetric?.note?.includes("[预计算命中]"));
+  } finally {
+    updateSpy.mock.restore();
+  }
+});
+
+test("precomputedMediaIntegrity 格式非法时首遍直接走流式哈希，避免二次回读", async () => {
+  const output: BinaryChunk[] = [];
+  const sink: ArchiveSink = {
+    async write(chunk) {
+      output.push(chunk);
+    },
+    async close() {},
+    async abort() {},
+  };
+
+  const mediaBytes = strToU8("invalid-precomputed-format-media");
+  const expectedSha = sha256Sync(mediaBytes);
+  let iterateCalls = 0;
+  let manifestIntegrity: any;
+
+  await writeEvidenceArchive({
+    files: [],
+    sessionId: "invalid-precomputed-test",
+    mediaSource: {
+      async iterateMediaChunks(_sessionId, visitor) {
+        iterateCalls += 1;
+        await visitor({
+          id: "chunk:0",
+          sessionId: "invalid-precomputed-test",
+          sequence: 0,
+          recordedAt: 0,
+          mimeType: "video/webm",
+          chunk: mediaBytes.buffer as ArrayBuffer,
+        });
+        return 1;
+      },
+    },
+    precomputedMediaIntegrity: {
+      byteLength: mediaBytes.byteLength,
+      sha256: "too-short",
+    },
+    sink,
+    createManifest(integrity) {
+      manifestIntegrity = integrity;
+      return {
+        name: "manifest.json",
+        data: strToU8(JSON.stringify({ files: integrity })),
+      };
+    },
+  });
+
+  assert.equal(iterateCalls, 1, "非法预计算格式应首遍直接计算，不触发二次回读");
+  assert.deepEqual(manifestIntegrity["media/recording.webm"], {
+    byteLength: mediaBytes.byteLength,
+    sha256: expectedSha,
+  });
 });

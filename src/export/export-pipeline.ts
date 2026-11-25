@@ -195,6 +195,15 @@ export async function writeEvidenceArchive(input: {
 
     let mediaFilename = "media/recording.webm";
 
+    // 格式合法的预计算媒体完整性可直接作为候选：首遍打包跳过纯 JS SHA-256，
+    // 仅在罕见字节数不一致时回读分片补算哈希，避免录制与导出重复做全量视频哈希
+    const hasCandidatePrecomputed =
+      input.precomputedMediaIntegrity !== undefined &&
+      Number.isInteger(input.precomputedMediaIntegrity.byteLength) &&
+      input.precomputedMediaIntegrity.byteLength > 0 &&
+      typeof input.precomputedMediaIntegrity.sha256 === "string" &&
+      input.precomputedMediaIntegrity.sha256.length === 64;
+
     await input.mediaSource.iterateMediaChunks(
       input.sessionId,
       async (record) => {
@@ -217,7 +226,9 @@ export async function writeEvidenceArchive(input: {
           mediaEntry = new ZipPassThrough(mediaFilename);
           zip.add(mediaEntry);
           progress.entriesWritten += 1;
-          mediaHash = new Sha256();
+          if (!hasCandidatePrecomputed) {
+            mediaHash = new Sha256();
+          }
         }
         const bytes = new Uint8Array(record.chunk);
         mediaEntry.push(bytes, false); // 非末片，暂不结束条目
@@ -229,19 +240,37 @@ export async function writeEvidenceArchive(input: {
     );
     mediaEntry?.push(new Uint8Array(), true); // 空块收尾，通知 fflate 结束媒体条目
     await flushOutput();
-    const mediaPackDurationMs = performance.now() - mediaStartTime;
+    let mediaPackDurationMs = performance.now() - mediaStartTime;
     if (mediaEntry) {
       const isPrecomputedValid =
-        input.precomputedMediaIntegrity !== undefined &&
-        input.precomputedMediaIntegrity.byteLength === mediaBytes &&
-        typeof input.precomputedMediaIntegrity.sha256 === "string" &&
-        input.precomputedMediaIntegrity.sha256.length === 64;
-      integrity[mediaFilename] = isPrecomputedValid
-        ? input.precomputedMediaIntegrity!
-        : {
-            byteLength: mediaBytes,
-            sha256: mediaHash ? mediaHash.digestHex() : "",
-          };
+        hasCandidatePrecomputed &&
+        input.precomputedMediaIntegrity!.byteLength === mediaBytes;
+      let resolvedMediaSha256: string;
+      if (isPrecomputedValid) {
+        resolvedMediaSha256 = input.precomputedMediaIntegrity!.sha256;
+      } else if (mediaHash) {
+        resolvedMediaSha256 = mediaHash.digestHex();
+      } else {
+        // 降级兜底：预计算字节数与实际落盘分片不一致，重新流式回读计算真实 SHA-256
+        const fallbackHash = new Sha256();
+        await input.mediaSource.iterateMediaChunks(
+          input.sessionId,
+          async (record) => {
+            if (
+              !(record.chunk instanceof ArrayBuffer) ||
+              record.chunk.byteLength === 0
+            )
+              return;
+            fallbackHash.update(new Uint8Array(record.chunk));
+          }
+        );
+        resolvedMediaSha256 = fallbackHash.digestHex();
+      }
+      mediaPackDurationMs = performance.now() - mediaStartTime;
+      integrity[mediaFilename] = {
+        byteLength: mediaBytes,
+        sha256: resolvedMediaSha256,
+      };
       perfMetrics.push({
         step: "3. 视频分片流式封包与哈希",
         durationMs: mediaPackDurationMs,
