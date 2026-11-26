@@ -104,9 +104,10 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
           TAG: ${{ github.ref_name }}
         run: |
-          if ! gh release view "$TAG" >/dev/null 2>&1; then
-            gh release create "$TAG" --title "Bug Lens $TAG" --generate-notes || gh release view "$TAG" >/dev/null 2>&1
+          if ! gh release view "$TAG" --repo "$GH_REPO" >/dev/null 2>&1; then
+            gh release create "$TAG" --repo "$GH_REPO" --title "Bug Lens $TAG" --generate-notes || gh release view "$TAG" --repo "$GH_REPO" >/dev/null 2>&1
           fi
-          gh release upload "$TAG" all-assets/* --clobber
+          gh release upload "$TAG" all-assets/* --repo "$GH_REPO" --clobber
