@@ -181,18 +181,20 @@ fn canonicalize_best_effort(path: &Path) -> PathBuf {
 
 /// 判断两个路径是否指向同一磁盘文件（同时校验规范路径与 Unix inode，防止符号链接/硬链接自拷贝清零）。
 fn is_same_file_or_path(a: &Path, b: &Path) -> bool {
-    if canonicalize_best_effort(a) == canonicalize_best_effort(b) {
-        return true;
-    }
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::MetadataExt;
-        if let (Ok(ma), Ok(mb)) = (fs::metadata(a), fs::metadata(b)) {
-            if ma.dev() == mb.dev() && ma.ino() == mb.ino() {
-                return true;
-            }
-        }
-    }
+    canonicalize_best_effort(a) == canonicalize_best_effort(b) || is_same_unix_inode(a, b)
+}
+
+#[cfg(unix)]
+fn is_same_unix_inode(a: &Path, b: &Path) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    matches!(
+        (fs::metadata(a), fs::metadata(b)),
+        (Ok(ma), Ok(mb)) if ma.dev() == mb.dev() && ma.ino() == mb.ino()
+    )
+}
+
+#[cfg(not(unix))]
+fn is_same_unix_inode(_a: &Path, _b: &Path) -> bool {
     false
 }
 
