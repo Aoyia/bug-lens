@@ -45,11 +45,16 @@
 
 ## 🤖 AI 助手深度接入（`bug-lens-triage` 诊断 Skill）
 
-Bug Lens 提供官方 [`bug-lens-triage`](.agents/skills/bug-lens-triage/SKILL.md) 诊断技能（内置零依赖检索脚本 `scripts/bug-lens-cli.mjs`），支持 AI 助手将 `.zip` 证据包幂等解压至隔离工作区、自动剥离生成标准 `data/*.json` 与字段地图 `INDEX.md`，结合 CLI 宏观定位与 `jq` / `ffmpeg` 深度下钻，彻底告别临时解析脚本。
+Bug Lens 提供官方 [`bug-lens-triage`](.agents/skills/bug-lens-triage/SKILL.md) 诊断技能（由原生 Rust 二进制 `bin/bug-lens-cli` 驱动），支持 AI 助手以低峰值内存将 `.zip` 证据包流式幂等解压至隔离工作区、自动剥离生成标准 `data/*.json` 与字段地图 `INDEX.md`，结合 CLI 宏观定位与 `jq` / `ffmpeg` 深度下钻，彻底告别临时解析脚本。
 
 ```bash
 # 全局安装（支持 Claude Code / Cursor / Antigravity 等）
 npx skills add Aoyia/bug-lens-skill -g -y
+
+# 一次性安装原生 Rust CLI 二进制（从 GitHub Releases 下载并校验 SHA-256）
+bash ~/.agents/skills/bug-lens-triage/scripts/install.sh
+# Windows (PowerShell):
+# powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\bug-lens-triage\scripts\install.ps1"
 
 # 或仅安装到当前业务工程目录
 npx skills add Aoyia/bug-lens-skill -y

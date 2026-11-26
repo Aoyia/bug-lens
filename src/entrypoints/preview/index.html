@@ -213,6 +213,55 @@
         </div>
       </header>
 
+      <!-- 渐进式快捷导出推荐横幅（默认隐藏，命中行为信号后展示） -->
+      <section
+        id="quick-export-upgrade-banner"
+        class="quick-export-upgrade-banner"
+        role="region"
+        aria-live="polite"
+        hidden
+      >
+        <div class="quick-export-upgrade-content">
+          <span
+            class="quick-export-upgrade-badge"
+            data-i18n="quickExportBannerBadge"
+            >快捷方式推荐</span
+          >
+          <span
+            id="quick-export-upgrade-text"
+            class="quick-export-upgrade-text"
+          ></span>
+        </div>
+        <div class="quick-export-upgrade-actions">
+          <button
+            id="quick-export-enable-btn"
+            class="primary quick-export-enable-btn"
+            type="button"
+            data-i18n="quickExportEnableBtn"
+          >
+            开启直接导出
+          </button>
+          <button
+            id="quick-export-keep-btn"
+            class="ghost quick-export-keep-btn"
+            type="button"
+            data-i18n="quickExportKeepPreviewBtn"
+          >
+            保持打开预览
+          </button>
+          <button
+            id="quick-export-close-btn"
+            class="ghost quick-export-close-btn"
+            type="button"
+            data-i18n-title="close"
+            title="关闭"
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
+      </section>
+
       <!-- 桌面一体化主工作区 -->
       <main class="zen-workspace">
         <!-- 左侧主区：视轨播放器 + Metrics -->
@@ -1098,8 +1147,7 @@
               工单草稿预览
             </h2>
             <span class="ticket-modal-subtitle" data-i18n="ticketModalSubtitle"
-              >提工单时将自动复制此内容，支持直接粘贴到 TAPD、飞书、Jira
-              等工单系统</span
+              >支持直接粘贴至 TAPD、飞书、Jira</span
             >
           </div>
           <div class="ticket-modal-tabs">
@@ -1109,7 +1157,7 @@
               type="button"
               data-i18n="viewRichText"
             >
-              富文本预览 (含图)
+              预览
             </button>
             <button
               id="ticket-tab-plain"
@@ -1117,7 +1165,7 @@
               type="button"
               data-i18n="viewMarkdown"
             >
-              Markdown 源码
+              Markdown
             </button>
           </div>
           <button
@@ -1142,7 +1190,7 @@
               type="button"
               data-i18n="copyTicketContent"
             >
-              复制工单内容
+              复制工单
             </button>
             <button
               id="ticket-modal-create-btn"
@@ -1150,7 +1198,7 @@
               type="button"
               data-i18n="createTicketAndDownload"
             >
-              立即提工单并下载
+              提工单并下载
             </button>
             <button
               id="ticket-modal-close-btn"

@@ -25,6 +25,11 @@ import {
 import { formatBytes } from "../../domain/byte-format.ts";
 import { useRpc } from "../../hooks/useRpc.ts";
 import { copyTextToClipboard } from "../../shared/clipboard";
+import {
+  DEFAULT_APP_SETTINGS,
+  loadAppSettings,
+} from "../../shared/settings.ts";
+import { getSilentExportFailure } from "../../domain/silent-export.ts";
 import { incrementPromptCopyCount } from "../../diagnostics/diagnostics-store";
 import { useSessionState } from "../../hooks/useSessionState.ts";
 import { bindConfirmDialogDismiss } from "../../shared/confirm-dialog";
@@ -548,13 +553,25 @@ export function PopupApp() {
   const handleStop = useCallback(async () => {
     setErrorText("");
     try {
+      const appSettings = await loadAppSettings().catch(
+        () => DEFAULT_APP_SETTINGS
+      );
+      const shouldAutoCopy = appSettings.workflow.autoCopyPrompt !== false;
       const result = await send("session/stop", {
         commandId: crypto.randomUUID(),
         silentExport: true,
       });
       if (!result.ok) throw new Error(result.error || t("stopFailed"));
+      const exportFailure = getSilentExportFailure(
+        { ok: result.ok, session: result.data?.session },
+        t("stopFailed")
+      );
+      if (exportFailure) {
+        updateSessionState(result.data?.session);
+        throw new Error(exportFailure);
+      }
       const prompt = result.data?.session?.silentPrompt;
-      if (prompt) {
+      if (prompt && shouldAutoCopy) {
         try {
           await copyTextToClipboard(prompt);
           void incrementPromptCopyCount().catch(() => undefined);
@@ -563,6 +580,14 @@ export function PopupApp() {
         }
       }
       updateSessionState(result.data?.session);
+      const stoppedSessionId = result.data?.session?.id;
+      if (appSettings.workflow.stopAction === "preview" && stoppedSessionId) {
+        await send("session/open-preview", {
+          sessionId: stoppedSessionId,
+          fromStopExport: true,
+          exportMode: "ai",
+        });
+      }
     } catch (error) {
       setErrorText(String(error));
     }

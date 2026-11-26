@@ -38,6 +38,24 @@ const targets = [
       ),
   },
   {
+    relPath: "crates/bug-lens-cli/Cargo.toml",
+    replace: (content) =>
+      content.replace(
+        new RegExp(`(^version\\s*=\\s*")${escapeRegExp(oldVersion)}(")`, "m"),
+        `$1${newVersion}$2`
+      ),
+  },
+  {
+    relPath: "crates/bug-lens-cli/Cargo.lock",
+    replace: (content) =>
+      content.replace(
+        new RegExp(
+          `(name = "bug-lens-cli"\\r?\\nversion = ")${escapeRegExp(oldVersion)}(")`
+        ),
+        `$1${newVersion}$2`
+      ),
+  },
+  {
     relPath: "src/manifest.json",
     replace: (content) =>
       content.replace(
@@ -155,7 +173,7 @@ try {
 
   if (dryRun) {
     console.log(
-      "Verified in-memory replacement for all 6 files: 0 unexpected residuals (only CHROMEWEBSTORE.md historical table row preserved)."
+      `Verified in-memory replacement for all ${targets.length} files: 0 unexpected residuals (only CHROMEWEBSTORE.md historical table row preserved).`
     );
   } else {
     const unexpected = grepOut
@@ -168,7 +186,9 @@ try {
       );
       process.exit(1);
     }
-    console.log("All 6 files updated cleanly. Historical row preserved:");
+    console.log(
+      `All ${targets.length} files updated cleanly. Historical row preserved:`
+    );
     console.log("  " + grepOut);
   }
 } catch (err) {

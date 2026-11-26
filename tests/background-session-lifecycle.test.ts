@@ -202,6 +202,11 @@ test("stopSession: silentExport 成功时清 active 且返回结果", async () =
   assert.equal(result.silentExportResult?.ok, true);
   // silentExport 成功时也应清 active（见 performStopSession 逻辑）
   assert.equal(db.activeSessionId, undefined);
+  // 应同步落盘 ExportArtifact 供预览页直接回显已导出状态
+  const artifact = db.exportArtifacts.get("sess-silent");
+  assert.ok(artifact);
+  assert.equal(artifact.state, "complete");
+  assert.equal(artifact.filename, "/tmp/evidence.zip");
 });
 
 test("stopSession: silentExport 首次失败后再次重试可顺利导出并清理 active", async () => {

@@ -41,6 +41,19 @@ async function queryHostPlatformInfo(): Promise<{
   }
 }
 
+function isPreviewTabForSession(
+  tabUrl: string | undefined,
+  previewBaseUrl: string,
+  sessionId: string
+): boolean {
+  if (!tabUrl || !tabUrl.startsWith(previewBaseUrl)) return false;
+  try {
+    return new URL(tabUrl).searchParams.get("sessionId") === sessionId;
+  } catch {
+    return false;
+  }
+}
+
 /** 消息路由服务：承载 content script / popup / offscreen 的所有消息分发。 */
 export interface MessageRouter {
   handle(raw: unknown, sender: chrome.runtime.MessageSender): Promise<unknown>;
@@ -257,14 +270,59 @@ export function createMessageRouter(
             ok: true,
             deletedSessionIds: await db.clearAllHistory(),
           };
-        // 直接打开指定会话的 preview 页
-        case "session/open-preview":
-          await chrome.tabs.create({
-            url: chrome.runtime.getURL(
-              `preview.html?sessionId=${incoming.payload.sessionId}`
-            ),
-          });
+        // 直接打开指定会话的 preview 页（同一会话已打开则复用并激活）
+        case "session/open-preview": {
+          const sessionId =
+            typeof incoming.payload?.sessionId === "string"
+              ? incoming.payload.sessionId.trim()
+              : "";
+          if (!sessionId) {
+            return { ok: false, error: "MISSING_SESSION_ID" };
+          }
+          const query = new URLSearchParams({ sessionId });
+          if (incoming.payload.fromStopExport) {
+            query.set("fromStopExport", "1");
+          }
+          if (incoming.payload.exportMode) {
+            query.set("exportMode", incoming.payload.exportMode);
+          }
+          const previewBaseUrl = chrome.runtime.getURL("preview.html");
+          const previewUrl = `${previewBaseUrl}?${query.toString()}`;
+          const tabs = await chrome.tabs.query({}).catch(() => []);
+          const existingTab = tabs.find((tab) =>
+            isPreviewTabForSession(tab.url, previewBaseUrl, sessionId)
+          );
+          let activated = false;
+          if (existingTab && typeof existingTab.id === "number") {
+            activated = await Promise.resolve(
+              chrome.tabs.update?.(existingTab.id, { active: true })
+            )
+              .then(() => true)
+              .catch(() => false);
+            if (activated && typeof existingTab.windowId === "number") {
+              await Promise.resolve(
+                chrome.windows?.update?.(existingTab.windowId, {
+                  focused: true,
+                })
+              ).catch(() => undefined);
+            }
+          }
+          if (!activated) {
+            const opened = await chrome.tabs
+              .create({ url: previewUrl })
+              .then(() => true)
+              .catch(async () =>
+                chrome.windows
+                  ?.create?.({ url: previewUrl })
+                  .then(() => true)
+                  .catch(() => false)
+              );
+            if (!opened) {
+              return { ok: false, error: "OPEN_PREVIEW_FAILED" };
+            }
+          }
           return { ok: true };
+        }
         case "session/add-tab": {
           const tabId = incoming.payload.tabId;
           const targets = (await ctx.multiTabManager?.addTab(tabId)) ?? [];

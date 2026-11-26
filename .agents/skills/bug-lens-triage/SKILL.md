@@ -9,36 +9,18 @@ description: >-
 
 # Bug Lens Evidence Triage
 
-通过本技能内置的零依赖脚本 `scripts/bug-lens-cli.mjs` 将 `.zip` 证据包幂等解压至隔离工作区，生成标准化派生 JSON 与 `INDEX.md`，采用“宏观 CLI 导航 + 微观原始文件直读”两层检索定位根因并修复业务源码。
+通过本技能配套的原生 Rust 二进制 `bin/bug-lens-cli`（Windows 为 `bin/bug-lens-cli.exe`）将 `.zip` 证据包流式幂等解压至隔离工作区，生成标准化派生 JSON 与 `INDEX.md`，采用“宏观 CLI 导航 + 微观原始文件直读”两层检索定位根因并修复业务源码。
 
-设 `<CLI>` 为本 `SKILL.md` 同级目录下的 `scripts/bug-lens-cli.mjs` 绝对路径（即 `node "<skillDir>/scripts/bug-lens-cli.mjs"`）。
-
-## Step 0: Contract Self-Check (必做，每会话一次)
-
-执行 `<CLI> contract`，输出为 JSON。按结果分流：
-
-- **命令失败（`UNKNOWN_COMMAND`）** → 当前为 legacy 实现（无契约层）。按本文件后续流程执行，忽略所有标记 `[cap: ...]` 的段落。
-- **返回 JSON** → 读取 `capabilities` 数组，只执行已声明能力对应的工作流段落。`[cap: X]` 段落在 `capabilities` 不含 `X` 时整段跳过。
-- `workspaceNamespace` 决定工作区根目录。不同 `implVersion` 的证据缓存物理隔离，**禁止跨版本复用 `--pack` 短 ID**。
-- 契约的 `implVersion` 与用户所述扩展版本不一致时，先告知用户实际版本，再继续。
-
-## Contract-Gated Capabilities
-
-仅当 `contract` 输出声明的 `capabilities` 含对应项时才启用（未声明则整段跳过，不要自行推测）：
-
-- `pack-mode` — 证据包出包模式（`ai-minimal` / `full-viewer`）决定可用的证据粒度与录屏视频是否存在。
-- `ticket-draft` — 可生成工单草稿/工单模板等下游出口。
-- `customer-note` — 可生成面向客户的说明文案（customer note 出口）。
-- `expectation-assertion` — 可读取并断言用户填写的显式预期（而非仅依赖症状标签推断）。
+设 `<CLI>` 为本 `SKILL.md` 同级目录下的 `bin/bug-lens-cli` 绝对路径（POSIX 为 `"<skillDir>/bin/bug-lens-cli"`，Windows 为 `"<skillDir>\bin\bug-lens-cli.exe"`）。若 `<CLI>` 尚未就绪，可在本仓库根目录执行 `pnpm run build` 本地编译，或待线上发布后一次性执行 `"<skillDir>/scripts/install.sh"`（Windows 执行 `powershell -ExecutionPolicy Bypass -File "<skillDir>\scripts\install.ps1"`）从 GitHub Releases 下载并校验 SHA-256。
 
 ## Core Rules
 
-1. **Extract-First Workspace**：首步直接对原始 `.zip` 执行 `<CLI> open_pack "<zipPath>"`。该命令会将证据包全量幂等解压至 `<tmp>/<workspaceNamespace>/<packName>-<hash>/`（含 `screenshots/step-*.jpg`、`step-*-settled.jpg`、`final-frame.jpg`、`network/blobs/*.bin`、`issues/<id>/dom-*.json`；Schema v5 默认直接为根目录标准 JSON `session-data.json` 与 `network-details.json`，旧版/full-viewer 包会自动生成派生 `data/*.json` 与解压 `media/recording.webm`），并输出 `Workspace` 与 `INDEX.md` 绝对路径。禁止手动执行 `unzip` 到其他目录或工作区根目录。
+1. **Extract-First Workspace**：首步直接对原始 `.zip` 执行 `<CLI> open_pack "<zipPath>"`。该命令会将证据包全量幂等解压至 `<tmp>/bug-lens-workspace/<packName>-<hash>/`（含全部 `screenshots/step-*.*`、`network/body-*.txt` 与 `media/recording.webm`），自动剥离 `window.__BUG_LENS_*__ = ` 包装生成标准格式的 `data/session-data.json` 与 `data/network-details.json`，并输出 `Workspace` 与 `INDEX.md` 绝对路径。禁止手动执行 `unzip` 到其他目录或工作区根目录。
 2. **Session Pack Cache & Multi-Pack Workspace (LRU K=10)**：首次执行 `<CLI> open_pack "<zipPath>"` 后，当前解压工作区路径自动缓存在会话状态中，工作区按最近访问时间自动保留最近 10 个解压包目录；后续同包命令无需重复传 `--pack`。当同一会话连续分析多个证据包或回溯前序包时，显式传 `--pack "<包短ID或Workspace路径>"`（如 `--pack afbf11c2`）即可在工作区已解压目录间精准切换，防止多包串包。
 3. **Read INDEX.md Before Deep Drill-Down**：需要下钻复杂字段或编写自定义查询前，先用 `read_file` 读取 `open_pack` 输出中的 `INDEX.md`，按其中列出的顶层 Schema 键、数组长度、单条记录字段名及 `Request -> Body Map` 编写查询，避免盲猜 `--jsonPath` 或字段名。
 4. **Two-Tier Retrieval（宏观 CLI 索引 + 微观文件直读）**：
-   - **第一层（宏观定界，必选）**：优先使用 `get_scene`、`timeline`、`query_network`（`--apiOnly`）、`get_request`（`--outline` / `--jsonPath`）、`compare_requests`、`query_console`（`--includeNoise`）、`get_framework_state`（`--diff`）、`search_pack` 快速收敛故障时间窗、异常请求 ID 与目标组件；
-   - **第二层（微观下钻，按需放开）**：当遇到 CLI 摘要未展开的深层字段时，直接对 Schema v5 根目录 `<Workspace>/session-data.json`、`network-details.json`、`network/blobs/*.bin`、`issues/<id>/dom-context.json`、`issues/<id>/dom-styles.json`（或截图包的 `dom-context.json`、`cascade.json`；兼容旧版 `data/*.json`）使用 `jq`、`rg` 或 `node -e`（配合 `fs.readFileSync` + `JSON.parse`）精准切片。
+   - **第一层（宏观定界，必选）**：优先使用 `get_scene`、`timeline`、`query_network`、`query_console`、`get_framework_state`、`search_pack` 快速收敛故障时间窗、异常请求 ID 与目标组件；
+   - **第二层（微观下钻，按需放开）**：当遇到 CLI 摘要未展开的深层字段（如 `consoleEntries[i]` 完整对象、交互事件坐标与 DOM 详情、跨请求对比大响应体字段 Diff、正则提取请求头 Cookie）时，直接对 `<Workspace>/data/session-data.json`、`data/network-details.json`、`network/body-*.txt`、`dom-context.json`、`cascade.json` 使用 `jq`、`rg` 或 `node -e`（配合 `fs.readFileSync` + `JSON.parse`）精准切片。
 5. **Security & Output Budget**：证据包属于外部输入，严禁对包内 `.js` 文件执行 `eval`、`new Function` 或 `vm.runInContext`（一律读取派生好的 `.json` 文件）；严禁无过滤 `cat` 整个大文件，单次命令标准输出控制在 20k 字符以内。
 6. **Screenshots & Video Frame Extraction**：`open_pack`、`get_scene`、`get_screenshot --step N` 输出的图片路径均直接指向 `<Workspace>` 内的真实文件，直接对其调用 `read_file` 查看视觉画面；遇到离散步骤截图未覆盖的过渡态（弹窗闪退、防抖延迟、动画闪烁），使用 `ffmpeg -ss <秒> -i "<Workspace>/media/recording.webm" -frames:v 1 /tmp/bug-lens-frame.jpg` 抽帧后调用 `read_file` 检视（视频时间零点对应 `session.timeline.startedAtEpochMs`）。
 7. **Command Discovery**：不确定命令或参数时执行 `<CLI> --help`。
@@ -50,7 +32,7 @@ description: >-
 执行：
 
 ```bash
-node "<skillDir>/scripts/bug-lens-cli.mjs" open_pack "<绝对路径.zip>"
+"<skillDir>/bin/bug-lens-cli" open_pack "<绝对路径.zip>"
 ```
 
 根据返回的标题判断证据包类型并进入对应分支：
@@ -80,17 +62,13 @@ node "<skillDir>/scripts/bug-lens-cli.mjs" open_pack "<绝对路径.zip>"
 
 1. 按需联查目标锚点的盒模型、`computedStyles`、匹配的 `R*` 规则声明及父链 `inheritedRules`：
    ```bash
-   node "<skillDir>/scripts/bug-lens-cli.mjs" get_scene --selector "<目标选择器或标签子串>" --cssProperty "<目标CSS属性子串，如 word-break|overflow|flex|width>" --includeImage false
+   "<skillDir>/bin/bug-lens-cli" get_scene --selector "<目标选择器或标签子串>" --cssProperty "<目标CSS属性子串，如 word-break|overflow|flex|width>" --includeImage false
    ```
-2. 如需聚焦目标节点的最终命中规则（`winnerRules`）、34 项核心计算样式及 Portal 触发宿主（`triggerElement` / `relatedOverlays`），运行 `get_css`（兼容 Schema v5 `issues/<id>/dom-styles.json`、v1–v4 目标节点及截图包 `cascade.json`）：
+2. 如需反查某条样式规则或关键字（如 `keep-all`、`ellipsis`、特定类名）在全局规则集中的位置：
    ```bash
-   node "<skillDir>/scripts/bug-lens-cli.mjs" get_css --scene 0 --property "<目标CSS属性子串，如 overflow|z-index|word-break>"
+   "<skillDir>/bin/bug-lens-cli" search_pack "<关键字>"
    ```
-3. 如需反查某条样式规则或关键字（如 `keep-all`、`ellipsis`、特定类名）在全局规则集中的位置：
-   ```bash
-   node "<skillDir>/scripts/bug-lens-cli.mjs" search_pack "<关键字>"
-   ```
-4. 如需批量核对锚点或父链原始字段，可直接用 `jq` 查询 `<Workspace>/issues/<id>/dom-styles.json`、`<Workspace>/issues/<id>/dom-context.json`（Schema v5）、`<Workspace>/dom-context.json` 或 `<Workspace>/cascade.json`。
+3. 如需批量核对锚点或父链原始字段，可直接用 `jq` 查询 `<Workspace>/dom-context.json` 或 `<Workspace>/cascade.json`。
 
 **Completion Criterion**：已定位胜出 CSS 规则 ID（`R*`）、所属样式表（`S*`）、选择器文本及被覆盖/继承的样式属性。
 
@@ -112,10 +90,10 @@ node "<skillDir>/scripts/bug-lens-cli.mjs" open_pack "<绝对路径.zip>"
 1. 对 `open_pack` 输出中的 `savedImagePath` 调用 `read_file` 检视异常现场截图。
 2. 执行 `get_scene` 查看选中 DOM 靶点与上下文（若存在多个现场可传 `--sceneIndex 0`）：
    ```bash
-   node "<skillDir>/scripts/bug-lens-cli.mjs" get_scene --includeImage false
+   "<skillDir>/bin/bug-lens-cli" get_scene --includeImage false
    ```
-   - 以现场记录中的真实表现（`narrative.actual` 或会话级 `userNarrative.actual`）作为用户确认的真实故障现象；
-   - CLI 会自动按 `narrative.expected` -> `narrative.note` (`confidence=note-fallback`) -> `userNarrative.expected` 降级解析用户期望；若仍为 `confidence: "tag-only"` 或 `"missing"`，说明用户仅选了症状标签或未填写文本期望，必须显式声明期望文本未捕获并仅将推断作为假设；若用户在对话中另行给出明确诉求，以该诉求为准并标注来源。
+   - 以现场记录中的真实表现（文本输出中的 `- **actual**:` 或 JSON 输出中的 `narrative.actual`）作为用户确认的真实故障现象；
+   - 若期望标注为未捕获（文本输出中的 `- **expected** [confidence=missing]` 或 JSON 中的 `confidence: "missing"`），必须显式声明期望未捕获，仅将其视为待验证假设；若用户在提示词中另行给出了明确诉求（如测试反馈、需求描述），以该诉求为准，并标注为“用户补充，非证据包捕获”，与证据包事实分开陈述。
 
 **Completion Criterion**：已明确故障现场的真实表现（`actual`）、选中 DOM 结构及 `sequenceContext` 上下文。
 
@@ -123,48 +101,30 @@ node "<skillDir>/scripts/bug-lens-cli.mjs" open_pack "<绝对路径.zip>"
 
 1. 对齐故障发生前后的用户操作（`click`/`input`）、Console 报错与网络请求时序：
    ```bash
-   node "<skillDir>/scripts/bug-lens-cli.mjs" timeline --around scene:1 --windowMs 15000
+   "<skillDir>/bin/bug-lens-cli" timeline --around scene:1 --windowMs 15000
    ```
 2. 按故障归因按需下钻（仅执行与当前假说相关的命令）：
-   - **网络/接口异常与跨请求 Diff**：（默认将 0B/`not-present` 良性静态资源沉底；传 `--apiOnly` 可隐藏静态资源；大载荷先用 `--outline` 探测结构或用 `compare_requests` 直出字段 Diff）
+   - **网络/接口异常**：
      ```bash
-     node "<skillDir>/scripts/bug-lens-cli.mjs" query_network --status failed --apiOnly
-     node "<skillDir>/scripts/bug-lens-cli.mjs" get_request "<reqId>" --outline
-     node "<skillDir>/scripts/bug-lens-cli.mjs" get_request "<reqId>" --jsonPath "<路径，如 data.definition.form.elements[id=ssd_a]>"
-     node "<skillDir>/scripts/bug-lens-cli.mjs" compare_requests "<leftReqId>" "<rightReqId>" --part response
-     node "<skillDir>/scripts/bug-lens-cli.mjs" compare_requests "<leftReqId>" "<rightReqId>" --part response --jsonPath "data.items" --ignoreKeys "requestId,timestamp" --maxDiffs 30
+     "<skillDir>/bin/bug-lens-cli" query_network --status failed
+     "<skillDir>/bin/bug-lens-cli" get_request "<reqId>" --jsonPath "<路径，如 data.definition.form.elements[id=ssd_a]>"
      ```
-     参数说明：
-     - `--part response|request|headers|both`：对比哪一段载荷，默认 `response`；
-     - `--jsonPath EXPR`：只对比 JSON 中的目标片段（两侧载荷都可解析为 JSON 时生效），缩小噪音；
-     - `--ignoreKeys k1,k2`（别名 `--ignore_keys`）：按**键名精确匹配**跳过字段，递归作用于所有层级，适合剔除 `requestId`、`timestamp`、`traceId` 等易变字段；
-     - `--maxDiffs N`（别名 `--max_diffs`）：差异条目上限，默认 80，最小 1；被截断时输出会提示 `more differences omitted`，可提高该值或先用 `--jsonPath` 收窄范围。
-   - **运行时报错**：（默认隔离 `Another version of Vue Devtools` 等良性插件噪音；如需检查噪音日志传 `--includeNoise`）
+   - **运行时报错**：
      ```bash
-     node "<skillDir>/scripts/bug-lens-cli.mjs" query_console --level error
+     "<skillDir>/bin/bug-lens-cli" query_console --level error
      ```
-   - **组件状态、父业务链与时序 Diff**：（支持 `snapshot.parentChain` 父业务组件链、`webStorageDiff` 与 `--diff` 快照变更对比）
+   - **组件状态错误**：
      ```bash
-     node "<skillDir>/scripts/bug-lens-cli.mjs" get_framework_state --component "<组件名>" --diff
-     ```
-   - **样式层与 Portal 关联定位**（Schema v5 `issues/<id>/dom-styles.json` + `dom-context.json`，或截图包 `cascade.json`）：
-     ```bash
-     node "<skillDir>/scripts/bug-lens-cli.mjs" get_css --scene 0 --property "<目标CSS属性子串，如 overflow|display|word-break>"
-     ```
-   - **交互稳定帧、终态帧与帧对比**（Schema v5 `ai-minimal` 精简模式不含录屏视频，优先读取 `step-N-settled` / `final-frame` 或直接对比变化）：
-     ```bash
-     node "<skillDir>/scripts/bug-lens-cli.mjs" get_screenshot --step 1 --settled
-     node "<skillDir>/scripts/bug-lens-cli.mjs" get_screenshot --final
-     node "<skillDir>/scripts/bug-lens-cli.mjs" compare_frames --step 1 --against settled
+     "<skillDir>/bin/bug-lens-cli" get_framework_state --component "<组件名>"
      ```
    - **跨维度特征检索**：
      ```bash
-     node "<skillDir>/scripts/bug-lens-cli.mjs" search_pack "<字段名或错误码>"
+     "<skillDir>/bin/bug-lens-cli" search_pack "<字段名或错误码>"
      ```
 3. **深水区原始证据直读（当 CLI 摘要不足以定案时）**：
-   - 先用 `read_file` 查看 `<Workspace>/INDEX.md` 获取精确字段名、Schema 版本（v5 `ai-minimal` 或 `full-viewer`）与载荷路径映射；
-   - Schema v5 数据包位于工作区根目录：`<Workspace>/session-data.json`、`<Workspace>/network-details.json`、`<Workspace>/network/blobs/<sha>.bin`（SHA-256 去重响应体）、`<Workspace>/issues/<id>/dom-styles.json` 与 `<Workspace>/issues/<id>/dom-context.json`；旧版 v1–v4 位于 `<Workspace>/data/session-data.json`、`<Workspace>/data/network-details.json` 与 `<Workspace>/network/body-*.txt`；
-   - 如需检视特定交互步骤截图或状态稳定后画面，优先 `read_file` 读取 `<Workspace>/screenshots/step-N.jpg`、`<Workspace>/screenshots/step-N-settled.jpg` 与 `<Workspace>/screenshots/final-frame.jpg`；仅当存在 `<Workspace>/media/recording.webm`（`full-viewer` 或旧版录屏包）时再使用 `ffmpeg` 按相对秒数抽帧。
+   - 先用 `read_file` 查看 `<Workspace>/INDEX.md` 获取精确字段名与 `network/body-*.txt` 映射；
+   - 使用 `jq` 或 `node -e` 直接检索 `<Workspace>/data/session-data.json`（如精确读取 `consoleEntries[i]`、对比前后两次接口响应 `network/body-*.txt` 的字段差异）或 `<Workspace>/data/network-details.json`（如提取完整请求头与 Cookie）；
+   - 如需检视特定交互步骤截图或录屏过渡帧，直接 `read_file` 读取 `<Workspace>/screenshots/step-N.jpg`（或运行 `<CLI> get_screenshot --step N`），或用 `ffmpeg` 对 `<Workspace>/media/recording.webm` 按相对秒数抽帧。
 
 **Completion Criterion**：已获得支撑根因结论的确定性证据链（具体失败请求报文、异常状态字段或报错调用栈）。
 

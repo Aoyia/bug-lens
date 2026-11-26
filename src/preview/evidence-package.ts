@@ -3,6 +3,7 @@ import { strToU8 } from "fflate";
 import {
   getSessionTitle,
   type ConsoleEntry,
+  type CustomTicketNarrative,
   type FrameworkStateEvidence,
   type InteractionRecord,
   type IssueScene,
@@ -12,6 +13,11 @@ import {
 import { getLocale, isEn, t } from "../shared/i18n.ts";
 import { resolveTicketTargetZipName } from "../shared/export-filename.ts";
 import { generatePlaywrightScript } from "./playwright-generator.ts";
+import { escapeHtml } from "../shared/html-escape.ts";
+import {
+  groupInteractions,
+  type TranslateFn,
+} from "../domain/interaction-grouping.ts";
 import {
   describeBrowserFromUserAgent,
   describeOsFromUserAgent,
@@ -37,12 +43,20 @@ export type EvidencePackageSnapshot = {
     interactionId: string;
     bytes: Uint8Array;
     mimeType: "image/png" | "image/jpeg" | "image/webp";
+    width?: number;
+    height?: number;
   }>;
   excluded: {
     interaction: number;
     console: number;
     network: number;
     issueScene?: number;
+  };
+  /** 工单草稿定制状态：截图隐藏、步骤文案覆写、问题说明覆写 */
+  ticketCuration?: {
+    excludedScreenshotInteractionIds: Set<string>;
+    customStepDescriptions: Record<string, string>;
+    customTicketNarrative?: CustomTicketNarrative;
   };
   hasMedia: boolean;
 };
@@ -161,6 +175,17 @@ export function buildAiPrompt(
     ? `powershell -Command "New-Item -ItemType Directory -Force -Path $env:TEMP\\bug-lens-workspace; Expand-Archive -Force -Path ${targetZipPathPs} -DestinationPath $env:TEMP\\bug-lens-workspace"`
     : `mkdir -p /tmp/bug-lens-workspace && unzip -o -q ${targetZipPathEn} -d /tmp/bug-lens-workspace`;
 
+  // 配套原生 Rust CLI 可执行路径及首次安装引导（按宿主操作系统区分）
+  const cliBinCmd = isWindows
+    ? `"<skillDir>\\bin\\bug-lens-cli.exe"`
+    : `"<skillDir>/bin/bug-lens-cli"`;
+  const cliInstallHintEn = isWindows
+    ? `if missing, run \`powershell -ExecutionPolicy Bypass -File "<skillDir>\\scripts\\install.ps1"\` once`
+    : `if missing, run \`bash "<skillDir>/scripts/install.sh"\` once`;
+  const cliInstallHintZh = isWindows
+    ? `若二进制尚未安装，先一次性执行 \`powershell -ExecutionPolicy Bypass -File "<skillDir>\\scripts\\install.ps1"\``
+    : `若二进制尚未安装，先一次性执行 \`bash "<skillDir>/scripts/install.sh"\``;
+
   if (en) {
     const path = zipPath
       ? `File Path:\n${zipPath}`
@@ -195,7 +220,7 @@ Metadata Summary:
 ${environmentLine}${sourceMappedErrorsText}
 
 [Workspace Setup (Do NOT extract into active project directory; overwrite singleton directory for O(1) storage)]
-- Preferred (when \`bug-lens-triage\` Skill is installed): Run the bundled \`node "<skillDir>/scripts/bug-lens-cli.mjs" open_pack ${targetZipPathEn}\` to idempotently extract the pack to an isolated workspace directory, generate plain \`data/session-data.json\` & \`data/network-details.json\` plus \`INDEX.md\`, and print the overview. Then use \`get_scene\`, \`timeline\`, \`query_network\`, \`get_request\`, \`get_framework_state\`, and \`get_screenshot\` for macro indexing, and query \`INDEX.md\` / \`data/*.json\` / \`network/body-*.txt\` directly with \`jq\` or \`JSON.parse\` for deep field inspection (never \`eval\` / \`new Function\` on \`.js\` files). Skip manual \`unzip\` below.
+- Preferred (when \`bug-lens-triage\` Skill is installed): Run the native \`${cliBinCmd} open_pack ${targetZipPathEn}\` (${cliInstallHintEn}) to idempotently extract the pack to an isolated workspace directory, generate plain \`data/session-data.json\` & \`data/network-details.json\` plus \`INDEX.md\`, and print the overview. Then use \`get_scene\`, \`timeline\`, \`query_network\`, \`get_request\`, \`get_framework_state\`, and \`get_screenshot\` for macro indexing, and query \`INDEX.md\` / \`data/*.json\` / \`network/body-*.txt\` directly with \`jq\` or \`JSON.parse\` for deep field inspection (never \`eval\` / \`new Function\` on \`.js\` files). Skip manual \`unzip\` below.
 - Fallback Extraction Command (only when \`bug-lens-triage\` Skill is unavailable; install via \`npx skills add Aoyia/bug-lens-skill -g -y\`):
   ${unzipCmdEn}
 - Workspace Path: \`${workspacePath}\` (Evidence files, session data, and Playwright scripts reside here)
@@ -253,7 +278,7 @@ ${path}
 ${environmentLine}${sourceMappedErrorsText}
 
 【工作区准备（严禁解压在当前代码工程目录内，使用固定单例目录覆盖以实现 O(1) 存储占用）】
-- 首选方式（已安装 \`bug-lens-triage\` Skill 时）：直接使用该技能内置的 \`node "<skillDir>/scripts/bug-lens-cli.mjs" open_pack ${targetZipPathZh}\` 将证据包幂等解压至隔离工作区，自动生成标准格式的 \`data/session-data.json\`、\`data/network-details.json\` 与 \`INDEX.md\`；先用 \`get_scene\`、\`timeline\`、\`query_network\`、\`get_request\`、\`get_framework_state\`、\`get_screenshot\` 宏观定位，深水区结合 \`INDEX.md\` 直接对 \`data/*.json\` 与 \`network/body-*.txt\` 使用 \`jq\` 或 \`JSON.parse\` 切片下钻（跳过下方手动 \`unzip\`，严禁对 \`.js\` 文件使用 \`eval\` / \`new Function\`）。
+- 首选方式（已安装 \`bug-lens-triage\` Skill 时）：直接使用该技能配套的原生 \`${cliBinCmd} open_pack ${targetZipPathZh}\`（${cliInstallHintZh}）将证据包幂等解压至隔离工作区，自动生成标准格式的 \`data/session-data.json\`、\`data/network-details.json\` 与 \`INDEX.md\`；先用 \`get_scene\`、\`timeline\`、\`query_network\`、\`get_request\`、\`get_framework_state\`、\`get_screenshot\` 宏观定位，深水区结合 \`INDEX.md\` 直接对 \`data/*.json\` 与 \`network/body-*.txt\` 使用 \`jq\` 或 \`JSON.parse\` 切片下钻（跳过下方手动 \`unzip\`，严禁对 \`.js\` 文件使用 \`eval\` / \`new Function\`）。
 - 降级解压命令（仅当未安装 \`bug-lens-triage\` Skill 时执行；可先执行 \`npx skills add Aoyia/bug-lens-skill -g -y\` 一键安装）：
   ${unzipCmdZh}
 - 工作区路径：\`${workspacePath}\`（解压与后续排查均以此目录为准）
@@ -441,217 +466,175 @@ function formatIsoDateTime(epochMs: number): string {
   return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`;
 }
 
+const base64BufferCache = new WeakMap<ArrayBufferLike, string>();
+
 export function uint8ArrayToBase64(bytes: Uint8Array): string {
+  const canCache =
+    bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength;
+  if (canCache) {
+    const cached = base64BufferCache.get(bytes.buffer);
+    if (cached !== undefined) return cached;
+  }
+  let encoded: string;
   const g = typeof globalThis !== "undefined" ? (globalThis as any) : undefined;
   if (g?.Buffer) {
-    return g.Buffer.from(
+    encoded = g.Buffer.from(
       bytes.buffer,
       bytes.byteOffset,
       bytes.byteLength
     ).toString("base64");
+  } else {
+    let binary = "";
+    const len = bytes.byteLength;
+    const chunkSize = 8192;
+    for (let i = 0; i < len; i += chunkSize) {
+      const chunk = bytes.subarray(i, Math.min(i + chunkSize, len));
+      binary += String.fromCharCode(...chunk);
+    }
+    encoded = btoa(binary);
   }
-  let binary = "";
-  const len = bytes.byteLength;
-  const chunkSize = 8192;
-  for (let i = 0; i < len; i += chunkSize) {
-    const chunk = bytes.subarray(i, Math.min(i + chunkSize, len));
-    binary += String.fromCharCode(...chunk);
-  }
-  return btoa(binary);
+  if (canCache) base64BufferCache.set(bytes.buffer, encoded);
+  return encoded;
 }
 
 export interface FormattedTicketStep {
   stepNum: number;
+  /** 最终展示文案（用户覆写优先，否则为默认推导文案） */
   actionDesc: string;
+  /** 机器推导的默认文案 */
+  defaultActionDesc: string;
+  isCustomDesc: boolean;
+  /** 主记录 ID（挂载截图、索引文案覆写） */
   interactionId: string;
+  /** 该展示步骤聚合的全部底层交互 ID（含被合并的聚焦点击与子微事件） */
+  interactionIds: string[];
+  /** 分组内最适合展示的截图对应交互 ID */
+  screenshotInteractionId?: string;
+}
+
+const TICKET_STEP_MESSAGES = {
+  zh: {
+    stepClick: "点击",
+    stepInput: "输入",
+    stepShortcut: "快捷键 $1",
+    stepKey: "按键 $1",
+    stepNavigation: "页面导航 ($1)",
+    stepAtomicTitle: "$1 $2",
+    stepFormSubmitTitle: "输入并回车提交 $1",
+    stepFormInputTitle: "输入 $1",
+    stepContinuousClickTitle: "连续点击 $1 次 $2",
+    stepCompositeTitle: "操作 $1",
+    stepInputValue: '输入: "$1"',
+    stepInputRedacted: "输入: $1 字符 (脱敏)",
+    stepInputTextValue: '输入文本: "$1"',
+    stepInputTextRedacted: "输入文本 ($1 字符脱敏)",
+    stepEnterSubmit: "回车提交",
+    stepTypingEvents: "$1 次打字",
+    stepPhysicalEvents: "$1 次动作",
+  },
+  en: {
+    stepClick: "Click",
+    stepInput: "Input",
+    stepShortcut: "Shortcut $1",
+    stepKey: "Key $1",
+    stepNavigation: "Page navigation ($1)",
+    stepAtomicTitle: "$1 $2",
+    stepFormSubmitTitle: "Input & Enter submit $1",
+    stepFormInputTitle: "Input on $1",
+    stepContinuousClickTitle: "Clicked $1 times $2",
+    stepCompositeTitle: "Interact with $1",
+    stepInputValue: 'Input: "$1"',
+    stepInputRedacted: "Input: $1 chars (redacted)",
+    stepInputTextValue: 'Input text: "$1"',
+    stepInputTextRedacted: "Input text ($1 chars redacted)",
+    stepEnterSubmit: "Enter submit",
+    stepTypingEvents: "$1 typing events",
+    stepPhysicalEvents: "$1 physical events",
+  },
+} as const;
+
+function createTicketStepTranslator(isEnglish: boolean): TranslateFn {
+  const dict: Record<string, string> = isEnglish
+    ? TICKET_STEP_MESSAGES.en
+    : TICKET_STEP_MESSAGES.zh;
+  return (key, substitutions) => {
+    let msg = dict[key] ?? key;
+    const subs = Array.isArray(substitutions)
+      ? substitutions
+      : substitutions !== undefined
+        ? [substitutions]
+        : [];
+    subs.forEach((val, idx) => {
+      msg = msg.replace(`$${idx + 1}`, val);
+    });
+    return msg;
+  };
+}
+
+const escapeText = (value: unknown): string =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
+/** 用工单定制覆写机器推导的【问题说明】；expected 为空字符串表示显式清空。 */
+function resolveTicketNarrative(
+  base: { actual: string; expected: string },
+  custom?: CustomTicketNarrative
+): {
+  actual: string;
+  expected: string;
+  actualCustom: boolean;
+  expectedCustom: boolean;
+} {
+  const actualCustom = Boolean(custom?.actual?.trim());
+  const expectedCustom = custom?.expected !== undefined;
+  return {
+    actual: actualCustom ? oneLine(custom!.actual) : base.actual,
+    expected: expectedCustom ? oneLine(custom!.expected) : base.expected,
+    actualCustom,
+    expectedCustom,
+  };
+}
+
+function isSafeHttpUrl(raw: string): boolean {
+  try {
+    const parsed = new URL(raw);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 export function formatTicketInteractions(
   interactions: InteractionRecord[],
-  isEnglish: boolean
+  isEnglish: boolean,
+  customDescs?: Record<string, string>
 ): FormattedTicketStep[] {
   if (!interactions || interactions.length === 0) return [];
 
-  // 1. 交互时序合并（Coalescing）
-  // 识别连续对同一 input/textarea 元素的 [聚焦点击] + [输入内容]，合并为单一 [输入] 步骤
-  const coalesced: InteractionRecord[] = [];
-  for (let i = 0; i < interactions.length; i++) {
-    const current = interactions[i];
-    const next = interactions[i + 1];
+  const cards = groupInteractions(
+    interactions,
+    createTicketStepTranslator(isEnglish),
+    3000,
+    isEnglish
+  );
 
-    if (
-      current.kind === "click" &&
-      next &&
-      next.kind === "input" &&
-      current.element &&
-      next.element
-    ) {
-      const curTag = current.element.tagName?.toLowerCase();
-      const nextTag = next.element.tagName?.toLowerCase();
-      const isInputElem = (tag?: string) =>
-        tag === "input" || tag === "textarea";
-
-      const sameElement =
-        (current.element.id && current.element.id === next.element.id) ||
-        (isInputElem(curTag) && isInputElem(nextTag)) ||
-        (current.element.locators?.[0]?.expression &&
-          current.element.locators[0].expression ===
-            next.element.locators?.[0]?.expression);
-
-      const withinTime = Math.abs(next.createdAt - current.createdAt) <= 5000;
-
-      if (sameElement && withinTime) {
-        // 跳过输入框聚焦点击，保留紧随其后的实际输入
-        continue;
-      }
-    }
-
-    coalesced.push(current);
-  }
-
-  // 2. 步骤语义描述格式化
-  return coalesced.map((item, index) => {
-    const stepNum = index + 1;
-    const rawTag = item.element?.tagName
-      ? item.element.tagName.toLowerCase()
-      : "element";
-    const el = item.element;
-    const classes = el?.classNames || [];
-    const classStr = classes.join(" ").toLowerCase();
-
-    // 获取并清洗文本
-    let rawText = el?.accessibleName || el?.text || "";
-    rawText = oneLine(rawText).trim();
-
-    // 占位符清洗：字体图标字号 "i"/"I" 或重复 tag 名
-    const isIconTag =
-      rawTag === "i" ||
-      rawTag === "svg" ||
-      classes.some((c) => /icon|ico\b/i.test(c));
-    if (isIconTag && (rawText.toLowerCase() === "i" || rawText.length <= 1)) {
-      rawText = "";
-    }
-    if (rawTag === "input" && rawText.toLowerCase() === "input") {
-      rawText = "";
-    }
-
-    // 特殊符号业务意图解析
-    if (
-      rawText === "《" ||
-      rawText === "<" ||
-      rawText === "‹" ||
-      rawText === "«"
-    ) {
-      rawText = isEnglish
-        ? `Collapse / Back ("${rawText}")`
-        : `折叠/返回 "${rawText}"`;
-    } else if (
-      rawText === "》" ||
-      rawText === ">" ||
-      rawText === "›" ||
-      rawText === "»"
-    ) {
-      rawText = isEnglish
-        ? `Expand / Next ("${rawText}")`
-        : `展开/前进 "${rawText}"`;
-    } else if (
-      rawText === "×" ||
-      rawText === "X" ||
-      rawText === "x" ||
-      rawText === "✕" ||
-      rawText === "✖"
-    ) {
-      rawText = isEnglish ? `Close ("${rawText}")` : `关闭 "${rawText}"`;
-    }
-
-    // 图标语义回退嗅探
-    if (isIconTag && !rawText) {
-      if (/close|cancel/i.test(classStr)) {
-        rawText = isEnglish ? "Close icon" : "关闭图标";
-      } else if (/arrow-left|prev|back|fold|collapse/i.test(classStr)) {
-        rawText = isEnglish ? "Back / Collapse icon" : "返回/折叠图标";
-      } else if (/arrow-right|next|expand|unfold/i.test(classStr)) {
-        rawText = isEnglish ? "Next / Expand icon" : "前进/展开图标";
-      } else if (/arrow-down|caret-down/i.test(classStr)) {
-        rawText = isEnglish ? "Dropdown icon" : "下拉图标";
-      } else if (/arrow-up|caret-up/i.test(classStr)) {
-        rawText = isEnglish ? "Collapse icon" : "收起图标";
-      } else if (/delete|remove|trash/i.test(classStr)) {
-        rawText = isEnglish ? "Delete icon" : "删除图标";
-      } else if (/edit|pencil/i.test(classStr)) {
-        rawText = isEnglish ? "Edit icon" : "编辑图标";
-      } else if (/search/i.test(classStr)) {
-        rawText = isEnglish ? "Search icon" : "搜索图标";
-      } else if (/refresh|reload/i.test(classStr)) {
-        rawText = isEnglish ? "Refresh icon" : "刷新图标";
-      } else if (/info|help|question/i.test(classStr)) {
-        rawText = isEnglish ? "Details / Help icon" : "详情/提示图标";
-      } else if (/check|success/i.test(classStr)) {
-        rawText = isEnglish ? "Confirm icon" : "确认图标";
-      } else if (/more/i.test(classStr)) {
-        rawText = isEnglish ? "More icon" : "更多操作图标";
-      } else {
-        rawText = isEnglish ? "Icon button" : "图标按钮";
-      }
-    }
-
-    let actionDesc = "";
-
-    // (A) 纯布局/无语义行内标签 (span, div, p, font, b, strong, em)：去除底层无意义标签暴露
-    const isLayoutTag = /^(span|div|p|font|b|strong|em)$/.test(rawTag);
-    if (isLayoutTag) {
-      if (rawText) {
-        const cleanText =
-          rawText.startsWith(isEnglish ? "Collapse" : "折叠") ||
-          rawText.startsWith(isEnglish ? "Expand" : "展开") ||
-          rawText.startsWith(isEnglish ? "Close" : "关闭")
-            ? rawText
-            : `"${rawText.slice(0, 30)}"`;
-        actionDesc = isEnglish ? `Click ${cleanText}` : `点击 ${cleanText}`;
-      } else {
-        actionDesc = isEnglish ? `Click ${rawTag}` : `点击 ${rawTag}`;
-      }
-    } else if (rawTag === "i" || rawTag === "svg") {
-      // (B) 独立图标标签 (i, svg)
-      if (rawText) {
-        if (
-          rawText.includes("图标") ||
-          rawText.includes("icon") ||
-          rawText.includes("Icon")
-        ) {
-          actionDesc = isEnglish ? `Click ${rawText}` : `点击 ${rawText}`;
-        } else {
-          actionDesc = isEnglish
-            ? `Click "${rawText.slice(0, 30)}"`
-            : `点击 "${rawText.slice(0, 30)}"`;
-        }
-      } else {
-        actionDesc = isEnglish ? "Click icon button" : "点击 图标按钮";
-      }
-    } else {
-      // (C) 标准控件 (button, a, li, input 等)
-      const cleanText = rawText ? `"${rawText.slice(0, 30)}"` : "";
-      if (item.kind === "click") {
-        if (rawTag === "input" && !cleanText) {
-          actionDesc = isEnglish ? "Click input" : "点击 input";
-        } else {
-          actionDesc = isEnglish
-            ? `Click ${rawTag} ${cleanText}`.trim()
-            : `点击 ${rawTag} ${cleanText}`.trim();
-        }
-      } else if (item.kind === "input") {
-        actionDesc = isEnglish
-          ? `Input on ${rawTag} ${cleanText}`.trim()
-          : `输入 ${rawTag} ${cleanText}`.trim();
-      } else {
-        actionDesc = `${item.kind} ${rawTag} ${cleanText}`.trim();
-      }
-    }
-
+  return cards.map((card, index) => {
+    const interactionIds = card.children.map((c) => c.id);
+    const customDescRaw =
+      customDescs?.[card.id] ||
+      card.children.map((c) => customDescs?.[c.id]).find(Boolean) ||
+      "";
+    const customDesc = oneLine(customDescRaw);
     return {
-      stepNum,
-      actionDesc,
-      interactionId: item.id,
+      stepNum: index + 1,
+      actionDesc: customDesc || card.aggregatedMeta.title,
+      defaultActionDesc: card.aggregatedMeta.title,
+      isCustomDesc: Boolean(customDesc),
+      interactionId: card.id,
+      interactionIds,
+      screenshotInteractionId: card.aggregatedMeta.primaryScreenshotRecord?.id,
     };
   });
 }
@@ -698,9 +681,19 @@ export function buildTicketTemplate(
   }
 
   // 2. 关键操作步骤（全量已生效步骤）
+  const narrative = resolveTicketNarrative(
+    { actual: actualDesc, expected: expectedDesc },
+    snapshot.ticketCuration?.customTicketNarrative
+  );
+  actualDesc = narrative.actual;
+  expectedDesc = narrative.expected;
   const interactions = snapshot.interactions ?? [];
   const stepLines: string[] = [];
-  const formattedSteps = formatTicketInteractions(interactions, isEnglish);
+  const formattedSteps = formatTicketInteractions(
+    interactions,
+    isEnglish,
+    snapshot.ticketCuration?.customStepDescriptions
+  );
   if (formattedSteps.length === 0) {
     stepLines.push(
       isEnglish ? "- No click interactions recorded" : "- 未记录点击交互"
@@ -858,10 +851,23 @@ export function buildTicketHtml(
     }
   }
 
+  const baseActual = actualDesc;
+  const baseExpected = expectedDesc;
+  const narrative = resolveTicketNarrative(
+    { actual: baseActual, expected: baseExpected },
+    snapshot.ticketCuration?.customTicketNarrative
+  );
+  const actualIsPlaceholder = !narrative.actual;
+  actualDesc = narrative.actual;
+  expectedDesc = narrative.expected;
+  const hiddenShots =
+    snapshot.ticketCuration?.excludedScreenshotInteractionIds ??
+    new Set<string>();
+
   // 建立步骤截图查找映射
   const assetByInteractionId = new Map<
     string,
-    { bytes: Uint8Array; mimeType: string }
+    { bytes: Uint8Array; mimeType: string; width?: number; height?: number }
   >();
   if (snapshot.interactionAssets) {
     for (const asset of snapshot.interactionAssets) {
@@ -877,22 +883,42 @@ export function buildTicketHtml(
   // 2. 关键操作步骤列表与内嵌截图
   const interactions = snapshot.interactions ?? [];
   const stepItemsHtml: string[] = [];
-  const formattedSteps = formatTicketInteractions(interactions, isEnglish);
+  const formattedSteps = formatTicketInteractions(
+    interactions,
+    isEnglish,
+    snapshot.ticketCuration?.customStepDescriptions
+  );
   if (formattedSteps.length === 0) {
     stepItemsHtml.push(
-      `<li>${isEnglish ? "No click interactions recorded" : "未记录点击交互"}</li>`
+      `<p data-ticket-empty="steps" style="margin: 6px 0; color: #86909c;">${isEnglish ? "No click interactions recorded" : "未记录点击交互"}</p>`
     );
   } else {
     formattedSteps.forEach((step) => {
-      const asset = assetByInteractionId.get(step.interactionId);
+      const candidateIds = step.screenshotInteractionId
+        ? [
+            step.screenshotInteractionId,
+            ...step.interactionIds.filter(
+              (id) => id !== step.screenshotInteractionId
+            ),
+          ]
+        : step.interactionIds;
+      const isShotHidden = step.interactionIds.some((id) =>
+        hiddenShots.has(id)
+      );
+      const assetId = candidateIds.find((id) => assetByInteractionId.has(id));
+      const asset = assetId ? assetByInteractionId.get(assetId) : undefined;
       let imgTag = "";
-      if (asset && asset.bytes.byteLength > 0) {
+      if (asset && asset.bytes.byteLength > 0 && !isShotHidden && assetId) {
         const base64 = uint8ArrayToBase64(asset.bytes);
-        imgTag = `<div style="margin: 6px 0 10px 0;"><img src="data:${asset.mimeType};base64,${base64}" data-interaction-id="${step.interactionId}" style="max-width: 520px; width: 100%; height: auto; border: 1px solid #dcdfe6; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); display: block; cursor: zoom-in;" alt="Step ${step.stepNum} screenshot" title="${isEnglish ? "Click to enlarge" : "点击放大查看大图"}" /><div style="margin-top: 4px; font-size: 12px; color: #86909c;"><em>[${isEnglish ? `Step ${step.stepNum} Screenshot` : `步骤 ${step.stepNum} 截图`}]</em></div></div>`;
+        const sizeAttrs =
+          asset.width && asset.height
+            ? ` width="${asset.width}" height="${asset.height}"`
+            : "";
+        imgTag = `<div style="margin: 6px 0 10px 0;"><img src="data:${asset.mimeType};base64,${base64}"${sizeAttrs} data-interaction-id="${escapeHtml(assetId)}" style="max-width: 520px; width: 100%; height: auto; border: 1px solid #dcdfe6; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); display: block; cursor: zoom-in;" alt="Step ${step.stepNum} screenshot" title="${isEnglish ? "Click to enlarge" : "点击放大查看大图"}" /><div style="margin-top: 4px; font-size: 12px; color: #86909c;"><em>[${isEnglish ? `Step ${step.stepNum} Screenshot` : `步骤 ${step.stepNum} 截图`}]</em></div></div>`;
       }
 
       stepItemsHtml.push(
-        `<p style="margin: 8px 0 3px 0; line-height: 1.5;"><strong>${step.stepNum}.</strong> ${step.actionDesc}</p>${imgTag}`
+        `<div data-ticket-block="step" data-interaction-id="${escapeHtml(step.interactionId)}" data-step-ids="${escapeHtml(step.interactionIds.join(","))}" data-default-desc="${escapeHtml(step.defaultActionDesc)}" data-custom="${step.isCustomDesc}"><p style="margin: 8px 0 3px 0; line-height: 1.5;"><strong>${step.stepNum}.</strong> <span data-ticket-slot="step-desc">${escapeText(step.actionDesc)}</span></p>${imgTag}</div>`
       );
     });
   }
@@ -921,7 +947,7 @@ export function buildTicketHtml(
         const duration = req.durationMs
           ? ` (${Math.round(req.durationMs)}ms)`
           : "";
-        return `<p style="margin: 2px 0 2px 14px; line-height: 1.4;">• <code>${method}</code> ${req.url} -&gt; <span style="color: #cf1322;">${statusStr}${statusText}</span>${duration}</p>`;
+        return `<p data-ticket-block="network" data-entry-id="${escapeHtml(req.id)}" style="margin: 2px 0 2px 14px; line-height: 1.4;">• <code>${escapeText(method)}</code> ${escapeText(req.url)} -&gt; <span style="color: #cf1322;">${escapeText(statusStr)}${escapeText(statusText)}</span>${duration}</p>`;
       })
       .join("");
     const moreReq =
@@ -939,7 +965,7 @@ export function buildTicketHtml(
       .slice(0, maxErrors)
       .map(
         (err) =>
-          `<p style="margin: 2px 0 2px 14px; line-height: 1.4;"><code style="color: #cf1322;">${oneLine(err.text).slice(0, 200)}</code></p>`
+          `<p data-ticket-block="console" data-entry-id="${escapeHtml(err.id)}" style="margin: 2px 0 2px 14px; line-height: 1.4;"><code style="color: #cf1322;">${escapeText(oneLine(err.text).slice(0, 200))}</code></p>`
       )
       .join("");
     const moreErr =
@@ -963,25 +989,33 @@ export function buildTicketHtml(
     (isEnglish
       ? "[Please specify the reported issue behavior here]"
       : "[请在此补充客户反馈的问题现象]");
+  const expectedClearedAttr =
+    baseExpected && narrative.expectedCustom && !expectedDesc
+      ? ` data-base-expected="${escapeHtml(baseExpected)}" data-expected-cleared="true"`
+      : "";
   const expectedHtml = expectedDesc
-    ? `<p style="margin: 4px 0 8px 0;"><strong>${isEnglish ? "Expected:" : "预期表现："}</strong>${expectedDesc}</p>`
+    ? `<p data-custom="${narrative.expectedCustom}" data-default-text="${escapeHtml(baseExpected)}" style="margin: 4px 0 8px 0;"><strong>${isEnglish ? "Expected:" : "预期表现："}</strong><span data-ticket-slot="narrative-expected">${escapeText(expectedDesc)}</span></p>`
     : "";
+
+  const pageUrlHtml = isSafeHttpUrl(pageUrl)
+    ? `<a href="${escapeHtml(pageUrl)}" target="_blank" rel="noopener noreferrer">${escapeText(pageUrl)}</a>`
+    : escapeText(pageUrl);
 
   return `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; color: #1f2329; line-height: 1.6;">
   <h3 style="margin: 10px 0 6px 0; font-size: 15px; font-weight: 600; color: #1f2329;">${isEnglish ? "【Problem Description】" : "【问题说明】"}</h3>
-  <p style="margin: 4px 0 8px 0;"><strong>${isEnglish ? "Actual:" : "实际表现："}</strong>${actualText}</p>${expectedHtml}
+  <p data-custom="${narrative.actualCustom}" data-default-text="${escapeHtml(baseActual)}"${expectedClearedAttr} style="margin: 4px 0 8px 0;"><strong>${isEnglish ? "Actual:" : "实际表现："}</strong><span data-ticket-slot="narrative-actual"${actualIsPlaceholder ? ' data-placeholder="true"' : ""}>${escapeText(actualText)}</span></p>${expectedHtml}
 
   <h3 style="margin: 14px 0 6px 0; font-size: 15px; font-weight: 600; color: #1f2329;">${isEnglish ? "【Environment】" : "【复现环境】"}</h3>
-  <p style="margin: 3px 0; line-height: 1.5;">• <strong>${isEnglish ? "Page:" : "页面："}</strong>${pageTitle} (<a href="${pageUrl}" target="_blank" rel="noopener noreferrer">${pageUrl}</a>)</p>
+  <p style="margin: 3px 0; line-height: 1.5;">• <strong>${isEnglish ? "Page:" : "页面："}</strong>${escapeText(pageTitle)} (${pageUrlHtml})</p>
   <p style="margin: 3px 0; line-height: 1.5;">• <strong>${isEnglish ? "Time:" : "时间："}</strong>${formattedDateTime} (${isEnglish ? "Duration: " : "录制时长 "}${durationSec}s)</p>
-  <p style="margin: 3px 0; line-height: 1.5;">• <strong>${isEnglish ? "Environment:" : "环境："}</strong>${envSummary}</p>${anomalySectionHtml}
+  <p style="margin: 3px 0; line-height: 1.5;">• <strong>${isEnglish ? "Environment:" : "环境："}</strong>${escapeText(envSummary)}</p>${anomalySectionHtml}
 
   <h3 style="margin: 14px 0 6px 0; font-size: 15px; font-weight: 600; color: #1f2329;">${isEnglish ? "【Key Steps】" : "【关键操作步骤】"}</h3>
   ${stepItemsHtml.join("\n  ")}
 
   <h3 style="margin: 14px 0 6px 0; font-size: 15px; font-weight: 600; color: #1f2329;">${isEnglish ? "【Evidence Package】" : "【证据包附件】"}</h3>
-  <p style="margin: 3px 0; line-height: 1.5;">• <strong>${isEnglish ? "Attachment:" : "附件文件名："}</strong><code>${targetZipName}</code> (${isEnglish ? "Includes recording video, network traffic, DOM snapshots, and AI_PROMPT.md" : "含完整录屏、网络报文、DOM 快照与 AI_PROMPT.md"})</p>
-  <p style="margin: 3px 0; line-height: 1.5;">• <strong>${isEnglish ? "AI Diagnostics:" : "研发 AI 排障："}</strong><code>${isEnglish ? `Please analyze ~/Downloads/${targetZipName} using bug-lens-triage skill or according to AI_PROMPT.md` : `请使用 bug-lens-triage 技能或按包内 AI_PROMPT.md 分析 ~/Downloads/${targetZipName}`}</code></p>
+  <p style="margin: 3px 0; line-height: 1.5;">• <strong>${isEnglish ? "Attachment:" : "附件文件名："}</strong><code>${escapeText(targetZipName)}</code> (${isEnglish ? "Includes recording video, network traffic, DOM snapshots, and AI_PROMPT.md" : "含完整录屏、网络报文、DOM 快照与 AI_PROMPT.md"})</p>
+  <p style="margin: 3px 0; line-height: 1.5;">• <strong>${isEnglish ? "AI Diagnostics:" : "研发 AI 排障："}</strong><code>${escapeText(isEnglish ? `Please analyze ~/Downloads/${targetZipName} using bug-lens-triage skill or according to AI_PROMPT.md` : `请使用 bug-lens-triage 技能或按包内 AI_PROMPT.md 分析 ~/Downloads/${targetZipName}`)}</code></p>
 </div>`;
 }
 
@@ -1023,7 +1057,7 @@ This is a local Web bug evidence package generated by Bug Lens Chrome extension,
 
 ## Suggested Reading Order
 
-1. Read this file first to understand package structure and evidence completeness (if \`bug-lens-triage\` skill is installed, run \`bug-lens-cli.mjs open_pack\` on the ZIP archive to extract it into an isolated workspace with \`INDEX.md\`, \`data/session-data.json\`, and \`data/network-details.json\`, then run \`get_scene\`).
+1. Read this file first to understand package structure and evidence completeness (if \`bug-lens-triage\` skill is installed, run \`bug-lens-cli open_pack\` on the ZIP archive to extract it into an isolated workspace with \`INDEX.md\`, \`data/session-data.json\`, and \`data/network-details.json\`, then run \`get_scene\`).
 2. Read \`data/session-data.json\` (generated by \`open_pack\`) or \`data/session-data.js\` (which sets \`window.__BUG_LENS_DATA__\` for the offline HTML report) — the core data file containing session, interaction, console, and network details.
 3. Double-click \`report.html\` in browser for interactive reading.
 4. Calculate video timestamps by subtracting session \`startedAtEpochMs\` from interaction \`createdAt\`.
@@ -1107,7 +1141,7 @@ ${issueLines}
 
 ## 建议读取顺序
 
-1. 先阅读本文件，了解包结构和证据完整性（若已安装 \`bug-lens-triage\` 技能，用内置 \`bug-lens-cli.mjs open_pack\` 将 ZIP 幂等解压至隔离工作区并自动生成 \`INDEX.md\`、\`data/session-data.json\` 与 \`data/network-details.json\`，再配合 \`get_scene\` 等命令与 \`jq\` 排查）。
+1. 先阅读本文件，了解包结构和证据完整性（若已安装 \`bug-lens-triage\` 技能，用配套原生 \`bug-lens-cli open_pack\` 将 ZIP 幂等解压至隔离工作区并自动生成 \`INDEX.md\`、\`data/session-data.json\` 与 \`data/network-details.json\`，再配合 \`get_scene\` 等命令与 \`jq\` 排查）。
 2. 读取 \`data/session-data.json\`（由 \`open_pack\` 生成的标准 JSON）或 \`data/session-data.js\`（设置 \`window.__BUG_LENS_DATA__\` 供离线报告使用），这是包含完整证据与 AI 诊断摘要的核心数据文件，包含会话、交互、Console 和 Network 上下文（较长的响应正文已独立保存至 \`network/body-*.txt\`）。如需深挖某个请求的完整头信息和调用栈，请读取 \`data/network-details.json\`（或 \`data/network-details.js\`，按条目 ID 索引）。
 3. 用浏览器双击 \`report.html\`，进行人工交互式查看（同样自动加载 \`data/session-data.js\`）。
 4. 根据交互记录的 \`createdAt\` 与会话 \`startedAtEpochMs\` 计算录像时间点；两者相减即约为录像内毫秒位置。
@@ -1245,7 +1279,14 @@ function buildSessionPayloadWithBodySplitting(
         : undefined,
     };
   });
+  const hiddenShots = snapshot.ticketCuration?.excludedScreenshotInteractionIds;
   const interactions = snapshot.interactions.map((interaction, index) => {
+    if (hiddenShots?.has(interaction.id)) {
+      return {
+        ...interaction,
+        screenshot: { status: "disabled" as const, dataUrl: undefined },
+      };
+    }
     const asset = interactionAssetById.get(interaction.id);
     const hasBinaryAsset = Boolean(asset);
     const hasDataUrl = Boolean(interaction.screenshot?.dataUrl);
@@ -1625,8 +1666,13 @@ export function buildEvidencePackage(
       interactionAssetById.set(asset.interactionId, asset);
     }
   }
+  const hiddenShots = snapshot.ticketCuration?.excludedScreenshotInteractionIds;
   snapshot.interactions.forEach((interaction, index) => {
-    if (interaction.screenshot?.status !== "captured") return;
+    if (
+      interaction.screenshot?.status !== "captured" ||
+      hiddenShots?.has(interaction.id)
+    )
+      return;
     const asset = interactionAssetById.get(interaction.id);
     const dataUrl = interaction.screenshot?.dataUrl;
     const isJpeg = dataUrl

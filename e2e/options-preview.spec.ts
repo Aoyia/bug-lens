@@ -34,7 +34,10 @@ test.describe("Options Page 端到端自动化测试覆盖体系", () => {
     );
 
     await page.waitForSelector(".segmented-control");
-    const segmentedButtons = page.locator(".segmented-control .segmented-btn");
+    const segmentedButtons = page
+      .locator(".segmented-control")
+      .first()
+      .locator(".segmented-btn");
     await expect(segmentedButtons).toHaveCount(3);
     await expect(segmentedButtons.nth(0)).toHaveClass(/active/);
 

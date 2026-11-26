@@ -112,8 +112,9 @@ export function mergeAppSettings(
           ? srcWorkflow.language
           : target.workflow.language,
       stopAction:
-        srcWorkflow.stopAction === "silentExport"
-          ? "silentExport"
+        srcWorkflow.stopAction === "silentExport" ||
+        srcWorkflow.stopAction === "preview"
+          ? srcWorkflow.stopAction
           : target.workflow.stopAction,
       autoCopyPrompt:
         typeof srcWorkflow.autoCopyPrompt === "boolean"
@@ -157,7 +158,8 @@ export function mergeAppSettings(
           : target.defaultRecording.captureFrameworkState,
       privacyMode:
         srcDefaultRec.privacyMode === "raw" ||
-        srcDefaultRec.privacyMode === "strict"
+        srcDefaultRec.privacyMode === "strict" ||
+        srcDefaultRec.privacyMode === "safe"
           ? srcDefaultRec.privacyMode
           : target.defaultRecording.privacyMode,
     },
@@ -165,7 +167,8 @@ export function mergeAppSettings(
       targetAssistant:
         srcAi.targetAssistant === "cursor" ||
         srcAi.targetAssistant === "claude-code" ||
-        srcAi.targetAssistant === "antigravity"
+        srcAi.targetAssistant === "antigravity" ||
+        srcAi.targetAssistant === "generic"
           ? srcAi.targetAssistant
           : target.ai.targetAssistant,
       promptLanguage:
@@ -208,7 +211,8 @@ export function mergeAppSettings(
           : target.storage.retentionDays,
       compressionLevel:
         srcStorage.compressionLevel === "quality" ||
-        srcStorage.compressionLevel === "small"
+        srcStorage.compressionLevel === "small" ||
+        srcStorage.compressionLevel === "balanced"
           ? srcStorage.compressionLevel
           : target.storage.compressionLevel,
       maxSessionBytes:

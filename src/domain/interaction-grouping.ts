@@ -56,19 +56,74 @@ export interface GroupedInteractionCard {
 }
 
 /**
+ * 智能裁剪超长标签文本：
+ * - <= maxLen 完整保留；
+ * - 含 `/` 的多段面包屑优先中间省略（保留首段与末端核心节点）；
+ * - 普通文本末尾截断并补 `…`。
+ */
+export function compactSemanticLabel(text: string, maxLen = 60): string {
+  const normalized = String(text ?? "")
+    .replace(/[\r\n]+/g, " ")
+    .trim();
+  if (normalized.length <= maxLen) return normalized;
+
+  if (normalized.includes("/")) {
+    const parts = normalized
+      .split("/")
+      .map((part) => part.trim())
+      .filter(Boolean);
+    if (parts.length >= 3) {
+      const first = parts[0];
+      const last = parts[parts.length - 1];
+      const prefix = `${first} / … / `;
+      if (prefix.length + last.length <= maxLen) {
+        return `${prefix}${last}`;
+      }
+      if (last.length + 4 <= maxLen) {
+        const headBudget = maxLen - last.length - 8;
+        if (headBudget >= 4) {
+          return `${first.slice(0, headBudget)}… / … / ${last}`;
+        }
+        return `… / ${last}`;
+      }
+      return `… / ${last.slice(-(maxLen - 4))}`;
+    }
+  }
+
+  return `${normalized.slice(0, maxLen - 1)}…`;
+}
+
+function isStableUniqueLocator(
+  loc: ElementDescriptor["locators"][number] | undefined
+): boolean {
+  if (!loc?.expression) return false;
+  return (
+    loc.kind === "testId" ||
+    loc.kind === "id" ||
+    (loc.kind === "attribute" && loc.matchCount === 1)
+  );
+}
+
+/**
  * 判断两个元素描述符是否指向同一个 DOM 元素
  */
 export function isSameElement(
   a: ElementDescriptor,
   b: ElementDescriptor
 ): boolean {
-  if (a.id && b.id && a.id === b.id) return true;
+  if (a.id && b.id) return a.id === b.id;
 
-  const locA = a.locators?.[0]?.expression;
-  const locB = b.locators?.[0]?.expression;
-  if (locA && locB && locA === locB) return true;
+  const firstLocA = a.locators?.[0];
+  const firstLocB = b.locators?.[0];
+  if (isStableUniqueLocator(firstLocA) && isStableUniqueLocator(firstLocB)) {
+    return firstLocA!.expression === firstLocB!.expression;
+  }
+  const locA = firstLocA?.expression;
+  const locB = firstLocB?.expression;
 
-  if (a.tagName !== b.tagName) return false;
+  const tagA = (a.tagName ?? "").toLowerCase();
+  const tagB = (b.tagName ?? "").toLowerCase();
+  if (tagA !== tagB) return false;
 
   const classA = a.classNames?.join(" ") ?? "";
   const classB = b.classNames?.join(" ") ?? "";
@@ -77,7 +132,18 @@ export function isSameElement(
   if (a.boundingBox && b.boundingBox) {
     const dx = Math.abs(a.boundingBox.x - b.boundingBox.x);
     const dy = Math.abs(a.boundingBox.y - b.boundingBox.y);
-    if (dx <= 5 && dy <= 5) return true;
+    return dx <= 5 && dy <= 5;
+  }
+
+  // 无坐标与定位器时，仅允许同为纯输入控件且文本一致时合并，避免跨元素误合并
+  if (
+    (tagA === "input" || tagA === "textarea") &&
+    !a.id &&
+    !b.id &&
+    !locA &&
+    !locB
+  ) {
+    return (a.text ?? "") === (b.text ?? "");
   }
 
   return false;
@@ -98,9 +164,12 @@ function isFormOrInputKind(kind: InteractionRecord["kind"]): boolean {
 export function groupInteractions(
   records: InteractionRecord[],
   translate: TranslateFn,
-  windowMs: number = 3000
+  windowMs: number = 3000,
+  isEnglish?: boolean
 ): GroupedInteractionCard[] {
   if (!records || records.length === 0) return [];
+
+  const resolvedIsEnglish = isEnglish ?? translate("stepClick") === "Click";
 
   // 按时间升序排序
   const sorted = [...records].sort((a, b) => a.createdAt - b.createdAt);
@@ -117,9 +186,12 @@ export function groupInteractions(
     const first = currentGroup[0];
     const dt = record.createdAt - previous.createdAt;
     const samePage =
-      record.page.url === previous.page.url &&
-      record.page.frameId === previous.page.frameId;
-    const sameElem = isSameElement(first.element, record.element);
+      record.page?.url === previous.page?.url &&
+      record.page?.frameId === previous.page?.frameId;
+    const sameElem =
+      first.element && record.element
+        ? isSameElement(first.element, record.element)
+        : false;
 
     const canGroup =
       samePage &&
@@ -140,13 +212,15 @@ export function groupInteractions(
     groups.push(currentGroup);
   }
 
-  return groups.map((children) => buildCard(children, translate));
+  return groups.map((children) =>
+    buildCard(children, translate, resolvedIsEnglish)
+  );
 }
 
-/**
- * 解析并提升元素的业务/语义名称，杜绝将 "i"、"span" 等无语义标签裸露在卡片标题中
- */
-export function resolveSemanticElementName(element: ElementDescriptor): string {
+function resolveSemanticTarget(
+  element: ElementDescriptor,
+  isEnglish = false
+): { name: string; quoted: boolean } {
   const rawTag = element.tagName ? element.tagName.toLowerCase() : "element";
   const classes = element.classNames || [];
   const classStr = classes.join(" ").toLowerCase();
@@ -177,7 +251,12 @@ export function resolveSemanticElementName(element: ElementDescriptor): string {
     rawText === "‹" ||
     rawText === "«"
   ) {
-    return `折叠/返回 "${rawText}"`;
+    return {
+      name: isEnglish
+        ? `Collapse / Back ("${rawText}")`
+        : `折叠/返回 "${rawText}"`,
+      quoted: false,
+    };
   }
   if (
     rawText === "》" ||
@@ -185,7 +264,12 @@ export function resolveSemanticElementName(element: ElementDescriptor): string {
     rawText === "›" ||
     rawText === "»"
   ) {
-    return `展开/前进 "${rawText}"`;
+    return {
+      name: isEnglish
+        ? `Expand / Next ("${rawText}")`
+        : `展开/前进 "${rawText}"`,
+      quoted: false,
+    };
   }
   if (
     rawText === "×" ||
@@ -194,58 +278,104 @@ export function resolveSemanticElementName(element: ElementDescriptor): string {
     rawText === "✕" ||
     rawText === "✖"
   ) {
-    return `关闭 "${rawText}"`;
+    return {
+      name: isEnglish ? `Close ("${rawText}")` : `关闭 "${rawText}"`,
+      quoted: false,
+    };
   }
 
-  // 4. 若已有清洗后的有效文本，优先使用
+  // 4. 若已有清洗后的有效文本，隐藏底层 HTML 标签并用引号包裹
   if (rawText) {
-    return rawText;
+    return { name: compactSemanticLabel(rawText), quoted: true };
   }
 
   // 5. 图标类元素：从类名中推导意图，杜绝暴露裸标签 "i"
   if (isIconTag) {
-    if (/close|cancel/i.test(classStr)) return "关闭图标";
+    if (/close|cancel/i.test(classStr))
+      return { name: isEnglish ? "Close icon" : "关闭图标", quoted: false };
     if (/arrow-left|prev|back|fold|collapse/i.test(classStr))
-      return "返回/折叠";
-    if (/arrow-right|next|expand|unfold/i.test(classStr)) return "前进/展开";
-    if (/arrow-down|caret-down/i.test(classStr)) return "下拉";
-    if (/arrow-up|caret-up/i.test(classStr)) return "收起";
-    if (/delete|remove|trash/i.test(classStr)) return "删除";
-    if (/edit|pencil/i.test(classStr)) return "编辑";
-    if (/search/i.test(classStr)) return "搜索";
-    if (/refresh|reload/i.test(classStr)) return "刷新";
-    if (/info|help|question/i.test(classStr)) return "详情/提示";
-    if (/check|success/i.test(classStr)) return "确认";
-    if (/more/i.test(classStr)) return "更多";
-    return "图标按钮";
+      return {
+        name: isEnglish ? "Back / Collapse icon" : "返回/折叠图标",
+        quoted: false,
+      };
+    if (/arrow-right|next|expand|unfold/i.test(classStr))
+      return {
+        name: isEnglish ? "Next / Expand icon" : "前进/展开图标",
+        quoted: false,
+      };
+    if (/arrow-down|caret-down/i.test(classStr))
+      return {
+        name: isEnglish ? "Dropdown icon" : "下拉图标",
+        quoted: false,
+      };
+    if (/arrow-up|caret-up/i.test(classStr))
+      return {
+        name: isEnglish ? "Collapse icon" : "收起图标",
+        quoted: false,
+      };
+    if (/delete|remove|trash/i.test(classStr))
+      return { name: isEnglish ? "Delete icon" : "删除图标", quoted: false };
+    if (/edit|pencil/i.test(classStr))
+      return { name: isEnglish ? "Edit icon" : "编辑图标", quoted: false };
+    if (/search/i.test(classStr))
+      return { name: isEnglish ? "Search icon" : "搜索图标", quoted: false };
+    if (/refresh|reload/i.test(classStr))
+      return { name: isEnglish ? "Refresh icon" : "刷新图标", quoted: false };
+    if (/info|help|question/i.test(classStr))
+      return {
+        name: isEnglish ? "Details / Help icon" : "详情/提示图标",
+        quoted: false,
+      };
+    if (/check|success/i.test(classStr))
+      return { name: isEnglish ? "Confirm icon" : "确认图标", quoted: false };
+    if (/more/i.test(classStr))
+      return {
+        name: isEnglish ? "More icon" : "更多操作图标",
+        quoted: false,
+      };
+    return { name: isEnglish ? "Icon button" : "图标按钮", quoted: false };
   }
 
-  // 6. 其他元素：优先使用 ID
+  // 6. 其他无文本元素：优先使用 #ID
   if (element.id) {
-    return element.id;
+    return { name: `#${element.id}`, quoted: false };
   }
 
   // 7. 布局类包装标签（span, div），如果没有任何文本和类名意图
   if (rawTag === "span" || rawTag === "div") {
-    return "页面区域";
+    return { name: isEnglish ? "Page area" : "页面区域", quoted: false };
   }
 
-  return rawTag;
+  return { name: rawTag, quoted: false };
+}
+
+function formatTargetLabel(target: { name: string; quoted: boolean }): string {
+  return target.quoted ? `"${target.name}"` : target.name;
+}
+
+/**
+ * 解析并提升元素的业务/语义名称，杜绝将 "i"、"span" 等无语义标签裸露在卡片标题中
+ */
+export function resolveSemanticElementName(
+  element: ElementDescriptor,
+  isEnglish = false
+): string {
+  return resolveSemanticTarget(element, isEnglish).name;
 }
 
 function buildCard(
   children: InteractionRecord[],
-  translate: TranslateFn
+  translate: TranslateFn,
+  isEnglish: boolean
 ): GroupedInteractionCard {
   const first = children[0];
   const last = children[children.length - 1];
 
   if (children.length === 1) {
     const record = children[0];
-    const elemName =
-      record.element.id && !record.element.text
-        ? record.element.id
-        : resolveSemanticElementName(record.element);
+    const elemLabel = formatTargetLabel(
+      resolveSemanticTarget(record.element, isEnglish)
+    );
     const actionLabel =
       record.kind === "click"
         ? translate("stepClick")
@@ -267,7 +397,7 @@ function buildCard(
       primaryRecord: record,
       children,
       aggregatedMeta: {
-        title: translate("stepAtomicTitle", [actionLabel, elemName]),
+        title: translate("stepAtomicTitle", [actionLabel, elemLabel]),
         description:
           record.kind === "navigation"
             ? (record.metadata?.toUrl ?? record.page.url)
@@ -288,7 +418,7 @@ function buildCard(
           record.metadata?.inputEventCount ?? (record.kind === "input" ? 1 : 0),
         isCompositionInput: record.metadata?.inputType?.includes("Composition"),
         primaryScreenshotRecord:
-          record.screenshot.status === "captured" ? record : undefined,
+          record.screenshot?.status === "captured" ? record : undefined,
       },
     };
   }
@@ -341,9 +471,9 @@ function buildCard(
   // 最佳主记录与最佳截图记录
   const screenshotRecord =
     children.find(
-      (c) => c.screenshot.status === "captured" && c.screenshot.dataUrl
+      (c) => c.screenshot?.status === "captured" && c.screenshot?.dataUrl
     ) ||
-    children.find((c) => c.screenshot.status === "captured") ||
+    children.find((c) => c.screenshot?.status === "captured") ||
     children.find((c) => c.kind === "keydown" && c.metadata?.key === "Enter") ||
     children[0];
 
@@ -354,22 +484,22 @@ function buildCard(
     ) ||
     screenshotRecord;
 
-  const elemIdentifier = first.element.id
-    ? `#${first.element.id}`
-    : resolveSemanticElementName(first.element);
+  const elemLabel = formatTargetLabel(
+    resolveSemanticTarget(primaryRecord.element ?? first.element, isEnglish)
+  );
 
   let title = "";
   if (kind === "form_input_submit") {
     title = hasEnterSubmit
-      ? translate("stepFormSubmitTitle", elemIdentifier)
-      : translate("stepFormInputTitle", elemIdentifier);
+      ? translate("stepFormSubmitTitle", elemLabel)
+      : translate("stepFormInputTitle", elemLabel);
   } else if (kind === "continuous_click") {
     title = translate("stepContinuousClickTitle", [
       String(children.length),
-      elemIdentifier,
+      elemLabel,
     ]);
   } else {
-    title = translate("stepCompositeTitle", elemIdentifier);
+    title = translate("stepCompositeTitle", elemLabel);
   }
 
   const descParts: string[] = [];
@@ -407,7 +537,7 @@ function buildCard(
       totalInputEvents,
       isCompositionInput,
       primaryScreenshotRecord:
-        screenshotRecord.screenshot.status === "captured"
+        screenshotRecord.screenshot?.status === "captured"
           ? screenshotRecord
           : undefined,
     },

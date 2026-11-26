@@ -2,6 +2,7 @@ import fixWebmDuration from "fix-webm-duration";
 import { migrateSessionForExport } from "../export/export-manifest";
 import type {
   ConsoleEntry,
+  CustomTicketNarrative,
   EvidenceAsset,
   FrameworkStateEvidence,
   InteractionRecord,
@@ -351,11 +352,25 @@ export class PreviewSessionRuntime {
     ) {
       return this.cachedReportSnapshot;
     }
+    const includedInteractions = this.selection
+      .includedInteractions(this.interactions)
+      .map((item) =>
+        this.selection.isScreenshotExcluded(item.id)
+          ? {
+              ...item,
+              screenshot: {
+                ...item.screenshot,
+                status: "disabled" as const,
+                dataUrl: undefined,
+              },
+            }
+          : item
+      );
     this.cachedReportSnapshot = {
       session: this.session,
       interactions: {
         all: this.interactions,
-        included: this.selection.includedInteractions(this.interactions),
+        included: includedInteractions,
       },
       consoleEntries: {
         all: this.consoleEntries,
@@ -370,6 +385,8 @@ export class PreviewSessionRuntime {
         included: this.selection.includedIssueScenes(this.issueScenePreviews),
       },
       frameworkStates: this.frameworkStates,
+      customStepDescriptions:
+        this.selection.ticketCuration().customStepDescriptions,
       hasMedia: Boolean(this.mediaUrl),
     };
     this.cachedReportSnapshotVersion = this.snapshotVersion;
@@ -417,12 +434,15 @@ export class PreviewSessionRuntime {
         .filter(
           (asset) =>
             Boolean(asset.interactionId) &&
-            includedInteractionIds.has(asset.interactionId!)
+            includedInteractionIds.has(asset.interactionId!) &&
+            !this.selection.isScreenshotExcluded(asset.interactionId!)
         )
         .map((asset) => ({
           interactionId: asset.interactionId!,
           bytes: new Uint8Array(asset.bytes),
           mimeType: asset.mimeType,
+          width: asset.width,
+          height: asset.height,
         })),
       excluded: {
         interaction: this.selection.excludedCount("interaction"),
@@ -430,6 +450,7 @@ export class PreviewSessionRuntime {
         network: this.selection.excludedCount("network"),
         issueScene: this.selection.excludedCount("issueScene"),
       },
+      ticketCuration: this.selection.ticketCuration(),
       hasMedia: this.mediaChunkCount > 0,
     };
   }
@@ -453,6 +474,72 @@ export class PreviewSessionRuntime {
     this.selection.exclude("issueScene", id);
     this.snapshotVersion += 1;
     await this.saveSelection();
+  }
+
+  // ---------- 工单草稿定制（删除 / 改写 / 撤回） ----------
+
+  private async commitSelection(): Promise<void> {
+    this.snapshotVersion += 1;
+    await this.saveSelection();
+  }
+
+  async excludeInteractions(ids: string[]): Promise<void> {
+    this.selection.excludeMany("interaction", ids);
+    await this.commitSelection();
+  }
+
+  async excludeStepScreenshot(interactionId: string): Promise<void> {
+    await this.excludeStepScreenshots([interactionId]);
+  }
+
+  async excludeStepScreenshots(ids: string[]): Promise<void> {
+    this.selection.excludeScreenshots(ids);
+    await this.commitSelection();
+  }
+
+  async setStepDescription(
+    interactionId: string,
+    desc: string | undefined
+  ): Promise<void> {
+    this.selection.setStepDescription(interactionId, desc);
+    await this.commitSelection();
+  }
+
+  async setTicketNarrative(
+    patch: CustomTicketNarrative,
+    defaults?: { actual?: string; expected?: string }
+  ): Promise<void> {
+    this.selection.setTicketNarrative(patch, defaults);
+    await this.commitSelection();
+  }
+
+  async undoSelection(): Promise<boolean> {
+    if (!this.selection.undo()) return false;
+    await this.commitSelection();
+    return true;
+  }
+
+  async redoSelection(): Promise<boolean> {
+    if (!this.selection.redo()) return false;
+    await this.commitSelection();
+    return true;
+  }
+
+  async resetTicketCuration(): Promise<void> {
+    this.selection.resetTicketCuration();
+    await this.commitSelection();
+  }
+
+  get selectionHistory(): {
+    canUndo: boolean;
+    canRedo: boolean;
+    hasAnyCuration: boolean;
+  } {
+    return {
+      canUndo: this.selection.canUndo,
+      canRedo: this.selection.canRedo,
+      hasAnyCuration: this.selection.hasAnyCuration(),
+    };
   }
 
   async renameSession(title: string): Promise<void> {

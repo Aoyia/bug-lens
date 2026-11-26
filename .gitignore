@@ -38,4 +38,6 @@ playwright-report/
 videos/
 /tools/
 site/*-prototypes.html
+.agents/skills/bug-lens-triage/bin/
+crates/*/target/
 openspec/

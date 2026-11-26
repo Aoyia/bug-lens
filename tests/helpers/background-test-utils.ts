@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
-import type { RecordingSession } from "../src/shared/protocol.ts";
+import type {
+  ExportArtifact,
+  RecordingSession,
+} from "../src/shared/protocol.ts";
 
 /** 会话工厂：构造一个可用的 RecordingSession（默认 RECORDING 状态）。 */
 export function makeSession(
@@ -65,6 +68,14 @@ export class MemoryDb {
   issueScenes: unknown[] = [];
   deleted: string[] = [];
   clearedActive: string[] = [];
+  exportArtifacts = new Map<string, ExportArtifact>();
+
+  async saveExportArtifact(artifact: ExportArtifact) {
+    this.exportArtifacts.set(artifact.sessionId, artifact);
+  }
+  async getExportArtifact(sessionId: string) {
+    return this.exportArtifacts.get(sessionId);
+  }
 
   async getSession(id: string) {
     return this.sessions.get(id);

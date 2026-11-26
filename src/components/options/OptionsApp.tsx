@@ -35,6 +35,10 @@ import {
   applyRecordingOptionPatch,
   normalizeResponseBodyPolicy,
 } from "../../domain/recording-options-patch";
+import {
+  recordManualStopActionChange,
+  updateQuickExportGuideState,
+} from "../../domain/quick-export-guide";
 
 type NavTab =
   | "workflow"
@@ -805,15 +809,24 @@ export function OptionsApp() {
                           label: t("stopActionSilentExport"),
                         },
                       ]}
-                      onChange={(val) =>
-                        triggerAutoSave({
+                      onChange={(val) => {
+                        const prevAction = settings.workflow.stopAction;
+                        const nextAction = val as "preview" | "silentExport";
+                        void triggerAutoSave({
                           ...settings,
                           workflow: {
                             ...settings.workflow,
-                            stopAction: val as any,
+                            stopAction: nextAction,
                           },
-                        })
-                      }
+                        });
+                        void updateQuickExportGuideState((s) =>
+                          recordManualStopActionChange(
+                            s,
+                            prevAction,
+                            nextAction
+                          )
+                        ).catch(() => undefined);
+                      }}
                     />
                   </div>
                 </div>

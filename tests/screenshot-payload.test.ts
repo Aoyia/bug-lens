@@ -310,7 +310,7 @@ describe("Screenshot Payload Formatter", () => {
     assert.match(mdWithZip, /【工作区准备（严禁解压在当前代码工程目录内/);
     assert.match(
       mdWithZip,
-      /首选方式（已安装 `bug-lens-triage` Skill 时）：直接使用该技能内置的 `node "<skillDir>\/scripts\/bug-lens-cli\.mjs" open_pack/
+      /首选方式（已安装 `bug-lens-triage` Skill 时）：直接使用该技能配套的原生 `"<skillDir>\/bin\/bug-lens-cli" open_pack/
     );
     assert.match(
       mdWithZip,

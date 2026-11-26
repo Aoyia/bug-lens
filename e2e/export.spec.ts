@@ -3,6 +3,8 @@ import { execFileSync } from "node:child_process";
 import path from "node:path";
 import fs from "node:fs";
 import os from "node:os";
+// @ts-ignore scripts/build.mjs has no .d.ts declaration file
+import { getTriageCliBinaryPath } from "../scripts/build.mjs";
 import { unzipSync, strFromU8 } from "fflate";
 import { verifyExportIntegrity } from "../src/export/export-manifest.ts";
 import { openPack } from "../src/triage-cli/pack/open.ts";
@@ -262,54 +264,46 @@ async function verifyZipAndOfflineReport(
     expect(cliExcludedSearch.totalHits).toBe(0);
   }
 
-  // 验证用户实际执行的技能独立打包产物 bug-lens-cli.mjs 子进程直读契约与排障级联工作流
-  const skillCliPath = path.resolve(
-    import.meta.dirname,
-    "../.agents/skills/bug-lens-triage/scripts/bug-lens-cli.mjs"
+  // 验证用户实际执行的原生 Rust CLI 二进制产物直读契约与排障级联工作流
+  const skillCliPath: string = getTriageCliBinaryPath();
+  expect(fs.existsSync(skillCliPath)).toBe(true);
+  // 1. open_pack
+  const cliOutput = execFileSync(skillCliPath, ["open_pack", zipPath], {
+    encoding: "utf8",
+  });
+  expect(cliOutput).toContain("# Bug Lens Evidence Pack (kind: session)");
+  expect(cliOutput).toContain(session.id);
+
+  // 2. query_network 级联排障查询
+  const cliNetOutput = execFileSync(
+    skillCliPath,
+    ["query_network", "--limit", "5"],
+    { encoding: "utf8" }
   );
-  if (fs.existsSync(skillCliPath)) {
-    // 1. open_pack
-    const cliOutput = execFileSync(
-      process.execPath,
-      [skillCliPath, "open_pack", zipPath],
-      { encoding: "utf8" }
-    );
-    expect(cliOutput).toContain("# Bug Lens Evidence Pack (kind: session)");
-    expect(cliOutput).toContain(session.id);
+  expect(cliNetOutput).toContain("Network Requests");
 
-    // 2. query_network 级联排障查询
-    const cliNetOutput = execFileSync(
-      process.execPath,
-      [skillCliPath, "query_network", "--limit", "5"],
-      { encoding: "utf8" }
-    );
-    expect(cliNetOutput).toContain("Network Requests");
+  // 3. query_console 级联排障查询
+  const cliConsoleOutput = execFileSync(
+    skillCliPath,
+    ["query_console", "--limit", "5"],
+    { encoding: "utf8" }
+  );
+  expect(cliConsoleOutput).toContain("Console Logs");
 
-    // 3. query_console 级联排障查询
-    const cliConsoleOutput = execFileSync(
-      process.execPath,
-      [skillCliPath, "query_console", "--limit", "5"],
-      { encoding: "utf8" }
-    );
-    expect(cliConsoleOutput).toContain("Console Logs");
+  // 4. timeline 统一时序线查询
+  const cliTimelineOutput = execFileSync(
+    skillCliPath,
+    ["timeline", "--limit", "10"],
+    { encoding: "utf8" }
+  );
+  expect(cliTimelineOutput).toContain("Timeline");
 
-    // 4. timeline 统一时序线查询
-    const cliTimelineOutput = execFileSync(
-      process.execPath,
-      [skillCliPath, "timeline", "--limit", "10"],
-      { encoding: "utf8" }
-    );
-    expect(cliTimelineOutput).toContain("Timeline");
-
-    // 5. search_pack 跨域排障检索
-    const cliSearchOutput = execFileSync(
-      process.execPath,
-      [skillCliPath, "search_pack", keptStr],
-      { encoding: "utf8" }
-    );
-    expect(cliSearchOutput).toContain("Search Hits");
-    expect(cliSearchOutput).toContain(keptStr);
-  }
+  // 5. search_pack 跨域排障检索
+  const cliSearchOutput = execFileSync(skillCliPath, ["search_pack", keptStr], {
+    encoding: "utf8",
+  });
+  expect(cliSearchOutput).toContain("Search Hits");
+  expect(cliSearchOutput).toContain(keptStr);
   logE2e(`${scenarioId}: Triage CLI consumer contract verified on real ZIP`);
 
   // 解压到临时目录并验证离线报告（file:/// 且无外部请求）

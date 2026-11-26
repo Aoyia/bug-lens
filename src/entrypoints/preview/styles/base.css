@@ -548,3 +548,80 @@ button:focus-visible {
   outline: 2px solid var(--zen-primary);
   outline-offset: -2px;
 }
+
+/* =====================================================
+       渐进式快捷导出推荐横幅 Quick Export Upgrade Banner
+       ===================================================== */
+.quick-export-upgrade-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  padding: 7px 14px;
+  background: var(--zen-primary-light);
+  border-bottom: 1px solid var(--zen-border-accent);
+  font-size: var(--font-sm);
+}
+
+.quick-export-upgrade-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 320px;
+}
+
+.quick-export-upgrade-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(22, 93, 255, 0.14);
+  color: var(--zen-primary);
+  font-size: var(--font-xs);
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.quick-export-upgrade-text {
+  color: var(--zen-text-main);
+  line-height: 1.4;
+}
+
+.quick-export-upgrade-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.quick-export-enable-btn {
+  background: linear-gradient(135deg, #165dff 0%, #0e42d2 100%);
+  color: #ffffff;
+  font-size: var(--font-xs);
+  height: 26px;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.quick-export-enable-btn:hover {
+  background: linear-gradient(135deg, #3676ff 0%, #165dff 100%);
+}
+
+.quick-export-keep-btn {
+  font-size: var(--font-xs);
+  height: 26px;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.quick-export-close-btn {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1;
+}

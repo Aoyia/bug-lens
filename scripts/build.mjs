@@ -1,4 +1,5 @@
 import { build, context, transform } from "esbuild";
+import { execFileSync } from "node:child_process";
 import {
   chmod,
   cp,
@@ -8,8 +9,9 @@ import {
   writeFile,
   readdir,
 } from "node:fs/promises";
-import { realpathSync, watch as watchFS } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { existsSync, realpathSync, watch as watchFS } from "node:fs";
+import { homedir } from "node:os";
+import { delimiter, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocketServer } from "ws";
 
@@ -215,33 +217,79 @@ async function copyStaticAssets() {
   await buildMergedPreviewCss();
 }
 
-export async function buildTriageSkillCli(customOutfile) {
-  const skillCliOut =
-    customOutfile ??
-    resolve(root, ".agents/skills/bug-lens-triage/scripts/bug-lens-cli.mjs");
-  await mkdir(dirname(skillCliOut), { recursive: true });
-  await build({
-    entryPoints: [resolve(root, "src/triage-cli/cli.ts")],
-    outfile: skillCliOut,
-    bundle: true,
-    platform: "node",
-    target: "node20",
-    format: "esm",
-    sourcemap: false,
-    minify: true,
-    banner: {
-      js: "#!/usr/bin/env node\nimport { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);",
-    },
-  });
-  try {
-    const code = await readFile(skillCliOut, "utf-8");
-    const prettier = await import("prettier");
-    const formatted = await prettier.format(code, { filepath: skillCliOut });
-    await writeFile(skillCliOut, formatted, "utf-8");
-  } catch {
-    // fallback if prettier is not available
+export function getTriageCliBinaryName() {
+  return process.platform === "win32" ? "bug-lens-cli.exe" : "bug-lens-cli";
+}
+
+export function getTriageCliBinaryPath() {
+  return resolve(
+    root,
+    ".agents/skills/bug-lens-triage/bin",
+    getTriageCliBinaryName()
+  );
+}
+
+/** 解析本机 Cargo 可执行路径（自动兼容默认 PATH 与 ~/.cargo/bin）。 */
+function resolveCargoExecutable() {
+  const cargoBinDir = join(homedir(), ".cargo", "bin");
+  const candidate = join(
+    cargoBinDir,
+    process.platform === "win32" ? "cargo.exe" : "cargo"
+  );
+  if (existsSync(candidate)) {
+    return {
+      cargoCmd: candidate,
+      env: {
+        ...process.env,
+        PATH: `${cargoBinDir}${delimiter}${process.env.PATH ?? ""}`,
+      },
+    };
   }
-  await chmod(skillCliOut, 0o755);
+  return { cargoCmd: "cargo", env: process.env };
+}
+
+/** 编译原生 Rust CLI（release 模式）并输出到 Skill bin 目录。 */
+export async function buildTriageSkillCli(customOutfile) {
+  const binName = getTriageCliBinaryName();
+  const skillCliOut = customOutfile ?? getTriageCliBinaryPath();
+  const manifestPath = resolve(root, "crates/bug-lens-cli/Cargo.toml");
+  const builtBinaryPath = resolve(
+    root,
+    "crates/bug-lens-cli/target/release",
+    binName
+  );
+  const { cargoCmd, env } = resolveCargoExecutable();
+
+  try {
+    execFileSync(
+      cargoCmd,
+      ["build", "--release", "--manifest-path", manifestPath],
+      {
+        cwd: root,
+        env,
+        stdio: "inherit",
+      }
+    );
+  } catch (err) {
+    if (
+      err &&
+      typeof err === "object" &&
+      "code" in err &&
+      err.code === "ENOENT"
+    ) {
+      throw new Error(
+        `Rust toolchain (cargo) not found while building crates/bug-lens-cli. Install Rust via https://rustup.rs and ensure "$HOME/.cargo/bin" is available in PATH.`
+      );
+    }
+    throw err;
+  }
+
+  await mkdir(dirname(skillCliOut), { recursive: true });
+  await cp(builtBinaryPath, skillCliOut, { force: true });
+  if (process.platform !== "win32") {
+    await chmod(skillCliOut, 0o755);
+  }
+  return skillCliOut;
 }
 
 async function runMain() {
@@ -340,9 +388,9 @@ async function runMain() {
       });
     }
     await copyStaticAssets();
-    await buildTriageSkillCli();
+    const cliOut = await buildTriageSkillCli();
     console.log(
-      `Built extension to ${outdir}${isE2e ? " (with E2E pre-granted host permissions)" : ""} and triage CLI to .agents/skills/bug-lens-triage/scripts/bug-lens-cli.mjs`
+      `Built extension to ${outdir}${isE2e ? " (with E2E pre-granted host permissions)" : ""} and native Rust triage CLI to ${cliOut}`
     );
   }
 }

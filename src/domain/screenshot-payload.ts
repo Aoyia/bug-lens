@@ -681,6 +681,14 @@ ${fileListEn}
       ? `powershell -Command "New-Item -ItemType Directory -Force -Path $env:TEMP\\bug-lens-workspace; Expand-Archive -Force -Path ${targetZipPathPs} -DestinationPath $env:TEMP\\bug-lens-workspace"`
       : `mkdir -p /tmp/bug-lens-workspace && unzip -o -q ${targetZipPathEn} -d /tmp/bug-lens-workspace`;
 
+    // 配套原生 Rust CLI 可执行路径及首次安装引导
+    const cliBinCmdEn = isWindows
+      ? `"<skillDir>\\bin\\bug-lens-cli.exe"`
+      : `"<skillDir>/bin/bug-lens-cli"`;
+    const cliInstallHintEn = isWindows
+      ? `if missing, run \`powershell -ExecutionPolicy Bypass -File "<skillDir>\\scripts\\install.ps1"\` once`
+      : `if missing, run \`bash "<skillDir>/scripts/install.sh"\` once`;
+
     return `Please act as a Senior Frontend/Fullstack Debugging Expert and analyze the following local Bug Lens screenshot evidence package (Note: always inspect the screenshot image \`screenshot.jpg\` alongside code and DOM logic):
 
 ${pathLine}
@@ -691,7 +699,7 @@ Metadata Summary:
 - Anomalies: ${errCount} console error(s) | ${reqCount} failed network request(s)${sourceLocationSectionEn}${cascadeHint}${squeezeWarning}
 
 [Workspace Setup (Do NOT extract into active project directory; overwrite singleton directory for O(1) storage)]
-- Preferred (when \`bug-lens-triage\` Skill is installed): Run the bundled \`node "<skillDir>/scripts/bug-lens-cli.mjs" open_pack ${targetZipPathEn}\` to idempotently extract the pack to an isolated workspace directory and generate \`INDEX.md\`, then run \`get_scene --selector "..."\`, \`search_pack\`, and \`get_framework_state\` (call \`read_file\` on the printed \`screenshot.jpg\` path to view it visually; query \`dom-context.json\` / \`cascade.json\` directly with \`jq\` when needed). Skip manual \`unzip\` below.
+- Preferred (when \`bug-lens-triage\` Skill is installed): Run the native \`${cliBinCmdEn} open_pack ${targetZipPathEn}\` (${cliInstallHintEn}) to idempotently extract the pack to an isolated workspace directory and generate \`INDEX.md\`, then run \`get_scene --selector "..."\`, \`search_pack\`, and \`get_framework_state\` (call \`read_file\` on the printed \`screenshot.jpg\` path to view it visually; query \`dom-context.json\` / \`cascade.json\` directly with \`jq\` when needed). Skip manual \`unzip\` below.
 - Fallback Extraction Command (only when \`bug-lens-triage\` Skill is unavailable; install via \`npx skills add Aoyia/bug-lens-skill -g -y\`):
   ${unzipCmdEn}
 - Workspace Path: \`${workspacePath}\` (Evidence files screenshot.jpg and JSON context reside here)
@@ -787,6 +795,14 @@ Please follow the Dual-Track Intent Analysis Framework:
     ? `powershell -Command "New-Item -ItemType Directory -Force -Path $env:TEMP\\bug-lens-workspace; Expand-Archive -Force -Path ${targetZipPathPs} -DestinationPath $env:TEMP\\bug-lens-workspace"`
     : `mkdir -p /tmp/bug-lens-workspace && unzip -o -q ${targetZipPathZh} -d /tmp/bug-lens-workspace`;
 
+  // 配套原生 Rust CLI 可执行路径及首次安装引导
+  const cliBinCmdZh = isWindows
+    ? `"<skillDir>\\bin\\bug-lens-cli.exe"`
+    : `"<skillDir>/bin/bug-lens-cli"`;
+  const cliInstallHintZh = isWindows
+    ? `若二进制尚未安装，先一次性执行 \`powershell -ExecutionPolicy Bypass -File "<skillDir>\\scripts\\install.ps1"\``
+    : `若二进制尚未安装，先一次性执行 \`bash "<skillDir>/scripts/install.sh"\``;
+
   return `请作为高级 Frontend/Fullstack 调试专家，分析以下本地 Bug Lens 截图证据包（注意：必须结合查看截图图片 \`screenshot.jpg\` 进行视觉画面与逻辑对比）：
 
 ${pathLine}
@@ -797,7 +813,7 @@ ${pathLine}
 - 异常日志：${errCount} 条 Console 报错 | ${reqCount} 个失败网络请求${sourceLocationSectionZh}${cascadeHint}${squeezeWarning}
 
 【工作区准备（严禁解压在当前代码工程目录内，使用固定单例目录覆盖以实现 O(1) 存储占用）】
-- 首选方式（已安装 \`bug-lens-triage\` Skill 时）：直接使用该技能内置的 \`node "<skillDir>/scripts/bug-lens-cli.mjs" open_pack ${targetZipPathZh}\` 将证据包幂等解压至隔离工作区并生成 \`INDEX.md\`，配合 \`get_scene --selector "..."\`、\`search_pack\` 与 \`get_framework_state\` 分析（直接对打印出的 \`screenshot.jpg\` 路径调用 \`read_file\` 查看视觉画面；按需用 \`jq\` 直读工作区内的 \`dom-context.json\` 与 \`cascade.json\`），跳过下方手动 \`unzip\`。
+- 首选方式（已安装 \`bug-lens-triage\` Skill 时）：直接使用该技能配套的原生 \`${cliBinCmdZh} open_pack ${targetZipPathZh}\`（${cliInstallHintZh}）将证据包幂等解压至隔离工作区并生成 \`INDEX.md\`，配合 \`get_scene --selector "..."\`、\`search_pack\` 与 \`get_framework_state\` 分析（直接对打印出的 \`screenshot.jpg\` 路径调用 \`read_file\` 查看视觉画面；按需用 \`jq\` 直读工作区内的 \`dom-context.json\` 与 \`cascade.json\`），跳过下方手动 \`unzip\`。
 - 降级解压命令（仅当未安装 \`bug-lens-triage\` Skill 时执行；可先执行 \`npx skills add Aoyia/bug-lens-skill -g -y\` 一键安装）：
   ${unzipCmdZh}
 - 工作区路径：\`${workspacePath}\`（解压与后续排查均以此目录为准）

@@ -37,6 +37,7 @@ export type EvidenceReportSnapshot = {
   networkEntries: EvidenceCollection<NetworkEntry>;
   issueScenes?: EvidenceCollection<IssueScenePreview>;
   frameworkStates?: FrameworkStateEvidence[];
+  customStepDescriptions?: Record<string, string>;
   hasMedia: boolean;
 };
 
@@ -50,6 +51,7 @@ type EditableReportAdapter = {
   getSnapshot(): EvidenceReportSnapshot | undefined;
   renameSession?(title: string): Promise<void>;
   excludeInteraction(interactionId: string): Promise<void>;
+  excludeInteractions?(interactionIds: string[]): Promise<void>;
   excludeDiagnostic(kind: "console" | "network", id: string): Promise<void>;
   excludeIssueScene?(issueSceneId: string): Promise<void>;
   restore(
@@ -403,6 +405,7 @@ export class EvidenceReportView {
               included: snapshot.interactions.included,
               hasMedia: snapshot.hasMedia,
               startedAtEpochMs: snapshot.session.timeline.startedAtEpochMs,
+              customStepDescriptions: snapshot.customStepDescriptions,
             },
             editable,
             onExclude: editable
@@ -411,6 +414,21 @@ export class EvidenceReportView {
                   void this.adapter
                     .excludeInteraction(id)
                     .then(() => this.render(["steps", "stream"]));
+                }
+              : undefined,
+            onExcludeMany: editable
+              ? (ids: string[]) => {
+                  if (this.adapter.mode !== "editable") return;
+                  const run = this.adapter.excludeInteractions
+                    ? this.adapter.excludeInteractions(ids)
+                    : Promise.all(
+                        ids.map((id) =>
+                          (
+                            this.adapter as EditableReportAdapter
+                          ).excludeInteraction(id)
+                        )
+                      ).then(() => undefined);
+                  void run.then(() => this.render(["steps", "stream"]));
                 }
               : undefined,
             onOpenImage: (interactionId: string) => {

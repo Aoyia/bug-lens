@@ -12,7 +12,7 @@ metadata:
 
 按顺序执行以下 5 个阶段。每个阶段必须满足其 **Completion Criterion** 后再进入下一阶段。
 
-## Step 1: 同步 6 处版本元数据
+## Step 1: 同步 8 处版本元数据
 
 运行版本同步脚本（先 `--dry-run` 预览，确认无误后正式写入）：
 
@@ -24,13 +24,15 @@ node scripts/release-bump.mjs <version>
 同步范围：
 
 - `package.json` (`version`)
+- `crates/bug-lens-cli/Cargo.toml` (`version`)
+- `crates/bug-lens-cli/Cargo.lock` (`bug-lens-cli` `version`)
 - `src/manifest.json` (`version`)
 - `src/components/options/OptionsApp.tsx` (`.sidebar-footer` 兜底版本号)
 - `CHROMEWEBSTORE.md` (`Version Alignment` 与 `dist-zip/bug-lens-v<version>.zip`)
 - `README.md` (`bug-lens-v<version>.zip` 下载链接)
 - `README_zh.md` (`bug-lens-v<version>.zip` 下载链接)
 
-**Completion Criterion**: `node scripts/release-bump.mjs <version>` 退出码为 `0`，且 `git grep` 校验 6 个文件中除 `CHROMEWEBSTORE.md` 历史版本表外无旧版本号残留。
+**Completion Criterion**: `node scripts/release-bump.mjs <version>` 退出码为 `0`，且 `git grep` 校验 8 个文件中除 `CHROMEWEBSTORE.md` 历史版本表外无旧版本号残留。
 
 ## Step 2: 更新官网与商店 Changelog
 
@@ -63,26 +65,35 @@ pnpm package
 
 ## Step 4: Git Tag、GitHub Release 与 Pages 部署
 
-仅在用户明确指令发布/推送时执行（遵循 Conventional Commits 英文规范）：
+仅在用户明确指令发布/推送时执行（遵循 Conventional Commits 英文规范；先检查 Release 是否已由 `release-cli.yml` 创建，做到并发幂等）：
 
 ```bash
 git add -A
 git commit -m "chore(release): v<version>"
 git tag v<version>
 git push origin main --tags
-gh release create v<version> "dist-zip/bug-lens-v<version>.zip" \
-  --title "Bug Lens v<version>" \
-  --notes "<Release Notes>"
+if gh release view v<version> >/dev/null 2>&1; then
+  gh release edit v<version> --title "Bug Lens v<version>" --notes "<Release Notes>"
+  gh release upload v<version> "dist-zip/bug-lens-v<version>.zip" --clobber
+else
+  gh release create v<version> "dist-zip/bug-lens-v<version>.zip" \
+    --title "Bug Lens v<version>" \
+    --notes "<Release Notes>" || {
+    gh release edit v<version> --title "Bug Lens v<version>" --notes "<Release Notes>"
+    gh release upload v<version> "dist-zip/bug-lens-v<version>.zip" --clobber
+  }
+fi
 ```
 
-验证 GitHub Pages 工作流状态并同步 Skill 镜像：
+验证 GitHub Pages 与 `release-cli.yml`（多平台 Rust 二进制 + `SHA256SUMS.txt`）工作流全部完成后，再同步 Skill 镜像：
 
 ```bash
-gh run list --limit 3
+gh run list --limit 5
+gh release view v<version> --json assets --jq '.assets[].name'
 node scripts/publish-skill.mjs
 ```
 
-**Completion Criterion**: `v<version>` Tag 与 GitHub Release（含 `bug-lens-v<version>.zip` 资产）已创建，GitHub Pages 部署工作流触发成功，且 `Aoyia/bug-lens-skill` 镜像仓库已同步更新。
+**Completion Criterion**: `v<version>` Tag 与 GitHub Release（含 `bug-lens-v<version>.zip`、各平台 `bug-lens-cli-*` 压缩包与 `SHA256SUMS.txt`）已就绪，GitHub Pages 部署成功，且 `Aoyia/bug-lens-skill` 镜像仓库已同步更新。
 
 ## Step 5: Chrome Web Store 自动化提审 (`chrome-devtools` MCP)
 

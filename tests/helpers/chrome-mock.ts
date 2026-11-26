@@ -17,6 +17,7 @@ export type ChromeMock = {
     get: (tabId: number) => Promise<unknown>;
     query: (queryInfo: unknown) => Promise<unknown[]>;
     create: (createProperties: unknown) => Promise<unknown>;
+    update: (tabId: number, updateProperties: unknown) => Promise<unknown>;
     captureVisibleTab: (windowId: number, options: unknown) => Promise<string>;
     sendMessage: (tabId: number, message: unknown) => Promise<unknown>;
   };
@@ -39,7 +40,8 @@ export type ChromeMock = {
       set: (value: Record<string, unknown>) => Promise<void>;
     };
     local: {
-      get: (key: string) => Promise<Record<string, unknown>>;
+      get: (key: string | string[]) => Promise<Record<string, unknown>>;
+      set: (value: Record<string, unknown>) => Promise<void>;
     };
   };
   debugger: {
@@ -63,6 +65,7 @@ export type ChromeMock = {
   };
   windows: {
     WINDOW_ID_CURRENT: number;
+    update: (windowId: number, updateInfo: unknown) => Promise<unknown>;
   };
 };
 
@@ -74,6 +77,7 @@ export type ChromeHandlers = {
   tabsGet?: (tabId: number) => Promise<unknown>;
   tabsQuery?: (queryInfo: unknown) => Promise<unknown[]>;
   tabsCreate?: (createProperties: unknown) => Promise<unknown>;
+  tabsUpdate?: (tabId: number, updateProperties: unknown) => Promise<unknown>;
   captureVisibleTab?: (windowId: number) => Promise<string>;
   tabsSendMessage?: (tabId: number, message: unknown) => Promise<unknown>;
   getMediaStreamId?: (
@@ -88,7 +92,11 @@ export type ChromeHandlers = {
   executeScript?: (details: unknown) => Promise<unknown[]>;
   storageSessionGet?: (key: string) => Promise<Record<string, unknown>>;
   storageSessionSet?: (value: Record<string, unknown>) => Promise<void>;
-  storageLocalGet?: (key: string) => Promise<Record<string, unknown>>;
+  storageLocalGet?: (
+    key: string | string[]
+  ) => Promise<Record<string, unknown>>;
+  storageLocalSet?: (value: Record<string, unknown>) => Promise<void>;
+  windowsUpdate?: (windowId: number, updateInfo: unknown) => Promise<unknown>;
 };
 
 /** 安装 chrome mock 到 globalThis；返回可覆写 handlers 与当前 mock 引用。 */
@@ -111,6 +119,7 @@ export function installChromeMock(handlers: ChromeHandlers = {}): {
       { id: 42, windowId: 1, url: "https://example.com/", title: "Example" },
     ],
     tabsCreate: async () => ({ id: 99 }),
+    tabsUpdate: async (tabId: number) => ({ id: tabId }),
     captureVisibleTab: async () => "data:image/png;base64,AAA",
     tabsSendMessage: async () => ({}),
     getMediaStreamId: (_options, callback) => callback("stream-1"),
@@ -121,6 +130,8 @@ export function installChromeMock(handlers: ChromeHandlers = {}): {
     storageSessionGet: async () => ({}),
     storageSessionSet: async () => {},
     storageLocalGet: async () => ({}),
+    storageLocalSet: async () => {},
+    windowsUpdate: async (windowId: number) => ({ id: windowId }),
     ...handlers,
   };
 
@@ -136,6 +147,8 @@ export function installChromeMock(handlers: ChromeHandlers = {}): {
       get: (tabId: number) => h.tabsGet!(tabId),
       query: (queryInfo: unknown) => h.tabsQuery!(queryInfo),
       create: (createProperties: unknown) => h.tabsCreate!(createProperties),
+      update: (tabId: number, updateProperties: unknown) =>
+        h.tabsUpdate!(tabId, updateProperties),
       captureVisibleTab: (windowId: number, _options: unknown) =>
         h.captureVisibleTab!(windowId),
       sendMessage: (tabId: number, message: unknown) =>
@@ -159,7 +172,8 @@ export function installChromeMock(handlers: ChromeHandlers = {}): {
         set: (value: Record<string, unknown>) => h.storageSessionSet!(value),
       },
       local: {
-        get: (key: string) => h.storageLocalGet!(key),
+        get: (key: string | string[]) => h.storageLocalGet!(key),
+        set: (value: Record<string, unknown>) => h.storageLocalSet!(value),
       },
     },
     debugger: {
@@ -183,6 +197,8 @@ export function installChromeMock(handlers: ChromeHandlers = {}): {
     },
     windows: {
       WINDOW_ID_CURRENT: -2,
+      update: (windowId: number, updateInfo: unknown) =>
+        h.windowsUpdate!(windowId, updateInfo),
     },
   };
 

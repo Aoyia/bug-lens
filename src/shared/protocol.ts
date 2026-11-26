@@ -826,12 +826,24 @@ export type IssueScene = {
   };
   issues: CaptureIssue[];
 };
+/** 用户在工单预览中对【问题说明】槽位的覆写；字段缺省表示使用机器推导值。 */
+export type CustomTicketNarrative = {
+  actual?: string;
+  /** 空字符串表示用户显式清空预期表现 */
+  expected?: string;
+};
+
 export type ExportSelection = {
   sessionId: string;
   excludedInteractionIds: string[];
   excludedConsoleEntryIds?: string[];
   excludedNetworkEntryIds?: string[];
   excludedIssueSceneIds?: string[];
+  /** 仅在工单中隐藏截图、保留步骤文字的 interactionId */
+  excludedScreenshotInteractionIds?: string[];
+  /** 单步操作文案覆写（key 为展示步骤的主 interactionId） */
+  customStepDescriptions?: Record<string, string>;
+  customTicketNarrative?: CustomTicketNarrative;
   updatedAtEpochMs: number;
 };
 export type ExportArtifact = {
@@ -918,7 +930,14 @@ export type RuntimeMessage =
   | Envelope<"session/list", { query?: string }>
   | Envelope<"session/rename", { sessionId: string; title: string }>
   | Envelope<"session/delete", { sessionId: string }>
-  | Envelope<"session/open-preview", { sessionId: string }>
+  | Envelope<
+      "session/open-preview",
+      {
+        sessionId: string;
+        fromStopExport?: boolean;
+        exportMode?: "ai" | "ticket";
+      }
+    >
   | Envelope<"session/resume", { sessionId: string; commandId: string }>
   | Envelope<"storage/get", Record<string, never>>
   | Envelope<"storage/update", { policy: Partial<StoragePolicy> }>

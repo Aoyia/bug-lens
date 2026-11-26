@@ -7,7 +7,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.38);
+  background: rgba(15, 23, 42, 0.42);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   animation: ticket-fade-in 0.15s cubic-bezier(0.16, 1, 0.3, 1);
@@ -26,18 +26,18 @@
   }
 }
 
-/* 弹窗主体：无冗余嵌套、通透克制的窗口外壳 */
+/* 弹窗主体：通透克制的窗口外壳 */
 .ticket-modal-content {
   background: #ffffff;
-  border: 1px solid var(--zen-border, rgba(0, 0, 0, 0.08));
-  border-radius: var(--bl-radius-md, 8px);
-  width: min(90vw, 860px);
+  border: 1px solid var(--zen-border, rgba(15, 23, 42, 0.08));
+  border-radius: 12px;
+  width: min(92vw, 880px);
   max-height: 85vh;
   display: flex;
   flex-direction: column;
   box-shadow:
-    0 24px 56px rgba(0, 0, 0, 0.18),
-    0 4px 14px rgba(0, 0, 0, 0.05);
+    0 24px 60px rgba(15, 23, 42, 0.18),
+    0 4px 16px rgba(15, 23, 42, 0.05);
   animation: ticket-slide-up 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   overflow: hidden;
 }
@@ -45,7 +45,7 @@
 @keyframes ticket-slide-up {
   from {
     opacity: 0;
-    transform: translateY(12px) scale(0.98);
+    transform: translateY(12px) scale(0.985);
   }
   to {
     opacity: 1;
@@ -58,8 +58,8 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 20px;
-  border-bottom: 1px solid var(--zen-border, rgba(0, 0, 0, 0.06));
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--zen-border, rgba(15, 23, 42, 0.06));
   flex-shrink: 0;
   background: #ffffff;
   user-select: none;
@@ -90,12 +90,12 @@
   white-space: nowrap;
 }
 
-/* 极简内嵌分段控件 (Segmented Control) */
+/* 内嵌分段控件 (Segmented Control) */
 .ticket-modal-tabs {
   display: inline-flex;
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(15, 23, 42, 0.045);
   padding: 2px;
-  border-radius: var(--zen-radius-btn, 4px);
+  border-radius: 6px;
   gap: 2px;
 }
 
@@ -106,7 +106,7 @@
   font-size: 12.5px;
   font-weight: 500;
   color: var(--zen-text-sub, #4e5969);
-  border-radius: 3px;
+  border-radius: 4px;
   cursor: pointer;
   height: 26px;
   line-height: 1;
@@ -121,7 +121,7 @@
   background: #ffffff;
   color: var(--zen-primary, #165dff);
   font-weight: 600;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
 }
 
 .ticket-close-btn {
@@ -134,7 +134,7 @@
   background: transparent;
   border: none;
   cursor: pointer;
-  border-radius: var(--zen-radius-btn, 4px);
+  border-radius: 6px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -144,34 +144,32 @@
 }
 
 .ticket-close-btn:hover {
-  background: rgba(0, 0, 0, 0.06);
+  background: rgba(15, 23, 42, 0.06);
   color: var(--zen-text-main, #1d2129);
 }
 
-/* 内容区域：扁平纯净、消除多层嵌套画板 */
+/* 内容区域：舒展阅读留白 */
 .ticket-modal-body {
   flex: 1;
   overflow-y: auto;
-  padding: 20px 24px;
+  padding: 20px 28px;
   background: #ffffff;
   min-height: 300px;
 }
 
-/* 系统级精细滚动条 */
 .ticket-modal-body::-webkit-scrollbar {
   width: 5px;
 }
 
 .ticket-modal-body::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.12);
+  background: rgba(15, 23, 42, 0.14);
   border-radius: 3px;
 }
 
 .ticket-modal-body::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.22);
+  background: rgba(15, 23, 42, 0.24);
 }
 
-/* 纯内容流容器，无多余白卡片边框与阴影 */
 .ticket-rich-view {
   background: transparent;
   border: none;
@@ -180,7 +178,6 @@
   box-shadow: none;
 }
 
-/* 视图模式切换平滑淡入动效 (模拟 macOS 面板切换质感) */
 .ticket-view-fade-in {
   animation: ticket-view-enter 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -197,11 +194,19 @@
 }
 
 .ticket-rich-view h3 {
-  font-size: 15px !important;
+  font-size: 14.5px !important;
   font-weight: 600 !important;
   color: var(--zen-text-main, #1d2129) !important;
   letter-spacing: -0.1px;
-  margin: 16px 0 8px 0 !important;
+  border-top: 1px solid rgba(15, 23, 42, 0.06);
+  padding-top: 16px;
+  margin: 20px 0 10px 0 !important;
+}
+
+.ticket-rich-view > div > h3:first-child {
+  border-top: none;
+  padding-top: 0;
+  margin-top: 0 !important;
 }
 
 .ticket-rich-view p,
@@ -226,10 +231,11 @@
 
 .ticket-rich-view code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 13px;
+  font-size: 12.5px;
   padding: 2px 6px;
-  background: rgba(0, 0, 0, 0.05);
-  border-radius: 4px;
+  background: #f1f5f9;
+  border: 1px solid rgba(15, 23, 42, 0.05);
+  border-radius: 5px;
   color: var(--zen-text-sub, #4e5969);
 }
 
@@ -244,17 +250,17 @@
   display: inline-block;
   max-width: 520px;
   width: 100%;
-  margin: 6px 0 10px 0;
-  border-radius: var(--zen-radius-btn, 4px);
+  margin: 4px 0 8px 0;
+  border-radius: 6px;
   overflow: visible;
 }
 
 .ticket-rich-view img {
-  border: 1px solid var(--zen-border, rgba(0, 0, 0, 0.08)) !important;
-  border-radius: var(--zen-radius-btn, 4px) !important;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03) !important;
+  border: 1px solid var(--zen-border, rgba(15, 23, 42, 0.08)) !important;
+  border-radius: 6px !important;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.04) !important;
   cursor: zoom-in !important;
-  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1) !important;
   display: block;
   max-width: 100% !important;
   width: 100% !important;
@@ -267,48 +273,64 @@
   box-shadow: 0 4px 14px rgba(22, 93, 255, 0.14) !important;
 }
 
-/* 步骤截图悬停快捷复制按钮 */
-.ticket-image-copy-btn {
+/* 步骤截图悬停快捷工具栏（移除此图 + 复制图片） */
+.ticket-image-actions {
   position: absolute;
   top: 8px;
   right: 8px;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  height: 24px;
-  padding: 0 8px;
-  font-size: 11px;
-  font-weight: 500;
-  color: #ffffff;
-  background: rgba(0, 0, 0, 0.68);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 4px;
-  cursor: pointer;
+  gap: 6px;
   opacity: 0;
   pointer-events: none;
   transform: translateY(-2px);
   transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
-  user-select: none;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
   z-index: 2;
-  line-height: 1;
 }
 
-.ticket-image-wrapper:hover .ticket-image-copy-btn {
+.ticket-image-wrapper:hover .ticket-image-actions,
+.ticket-image-actions:focus-within {
   opacity: 1;
   pointer-events: auto;
   transform: translateY(0);
 }
 
-.ticket-image-copy-btn:hover {
-  background: rgba(0, 0, 0, 0.85);
-  border-color: rgba(255, 255, 255, 0.4);
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+.ticket-image-copy-btn,
+.ticket-image-remove-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 9px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #ffffff;
+  background: rgba(15, 23, 42, 0.72);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 6px;
+  cursor: pointer;
+  user-select: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  line-height: 1;
+  transition:
+    background 0.15s ease,
+    transform 0.12s ease;
 }
 
-.ticket-image-copy-btn:active {
+.ticket-image-copy-btn:hover {
+  background: rgba(15, 23, 42, 0.88);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.ticket-image-remove-btn:hover {
+  background: rgba(207, 19, 34, 0.9);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.ticket-image-copy-btn:active,
+.ticket-image-remove-btn:active {
   transform: scale(0.96);
 }
 
@@ -318,7 +340,8 @@
   color: #ffffff;
 }
 
-.ticket-image-copy-btn svg {
+.ticket-image-copy-btn svg,
+.ticket-image-remove-btn svg {
   flex-shrink: 0;
   width: 12px;
   height: 12px;
@@ -333,8 +356,8 @@
   line-height: 1.65;
   color: var(--zen-text-sub, #4e5969);
   background: var(--bl-bg-surface, #f8f9fb);
-  border: 1px solid var(--zen-border, rgba(0, 0, 0, 0.06));
-  border-radius: var(--zen-radius-btn, 4px);
+  border: 1px solid var(--zen-border, rgba(15, 23, 42, 0.06));
+  border-radius: 8px;
   white-space: pre-wrap;
   word-break: break-all;
   box-shadow: none;
@@ -346,8 +369,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 20px;
-  border-top: 1px solid var(--zen-border, rgba(0, 0, 0, 0.06));
+  padding: 11px 24px;
+  border-top: 1px solid var(--zen-border, rgba(15, 23, 42, 0.06));
   background: #ffffff;
   flex-shrink: 0;
   user-select: none;
@@ -359,7 +382,8 @@
   font-weight: 500;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .ticket-modal-summary::before {
@@ -375,12 +399,13 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .ticket-modal-actions button {
   height: 32px;
   padding: 4px 14px;
-  border-radius: var(--zen-radius-btn, 4px);
+  border-radius: 6px;
   font-size: 13px;
   font-weight: 500;
   line-height: 1;
@@ -413,13 +438,13 @@
 }
 
 .ticket-modal-actions button.ghost {
-  background: rgba(0, 0, 0, 0.03);
+  background: rgba(15, 23, 42, 0.03);
   color: var(--zen-text-sub, #4e5969);
-  border: 1px solid var(--zen-border, rgba(0, 0, 0, 0.06));
+  border: 1px solid var(--zen-border, rgba(15, 23, 42, 0.06));
 }
 
 .ticket-modal-actions button.ghost:hover {
-  background: rgba(0, 0, 0, 0.06);
+  background: rgba(15, 23, 42, 0.06);
   color: var(--zen-text-main, #1d2129);
 }
 
@@ -442,4 +467,417 @@ button.preview-ticket-btn {
 button.preview-ticket-btn:hover {
   background: rgba(22, 93, 255, 0.12);
   border-color: rgba(22, 93, 255, 0.35);
+}
+
+/* ===== 工单结构化裁剪：柔和微卡片 / 悬浮胶囊工具栏 / 零换行内联编辑 ===== */
+
+.ticket-curation-block {
+  position: relative;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.ticket-curation-block[data-ticket-block="step"] {
+  padding: 10px 14px;
+  margin: 6px -14px;
+  border-radius: 10px;
+}
+
+.ticket-curation-block[data-ticket-block="step"]:not(.is-editing):hover {
+  background: #f8fafc;
+  border-color: rgba(22, 93, 255, 0.14);
+}
+
+.ticket-curation-block[data-ticket-block="step"].is-editing {
+  background: #ffffff;
+  border-color: rgba(22, 93, 255, 0.34);
+  box-shadow: 0 4px 18px rgba(22, 93, 255, 0.08);
+}
+
+/* 步骤头部：序号徽标与文本/输入框严格同行，绝不换行，0px 水平/垂直位移 */
+.ticket-curation-block[data-ticket-block="step"] > p:first-child {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 8px 0 !important;
+  padding-right: 70px;
+  min-height: 30px;
+  line-height: 1.5;
+}
+
+.ticket-curation-block[data-ticket-block="step"].is-editing > p:first-child {
+  padding-right: 0;
+}
+
+.ticket-curation-block[data-ticket-block="step"] > p:first-child > strong {
+  box-sizing: border-box;
+  flex-shrink: 0;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: rgba(22, 93, 255, 0.08);
+  color: var(--zen-primary, #165dff);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 步骤内截图容器：左缘与步骤文案轴线齐平 */
+.ticket-curation-block[data-ticket-block="step"]
+  > div:not(.ticket-block-actions) {
+  margin-left: 34px !important;
+}
+
+/* 异常条目的柔和悬停行 */
+.ticket-curation-block[data-ticket-block="network"],
+.ticket-curation-block[data-ticket-block="console"] {
+  padding: 4px 42px 4px 8px !important;
+  margin: 2px -8px 2px 6px !important;
+}
+
+.ticket-curation-block[data-ticket-block="network"]:hover,
+.ticket-curation-block[data-ticket-block="console"]:hover {
+  background: #f8fafc;
+  border-color: rgba(15, 23, 42, 0.07);
+}
+
+/* 问题说明行：标签与文本/多行编辑框对齐不换行 */
+.ticket-narrative-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 5px 8px;
+  margin: 4px -8px !important;
+  border-radius: 8px;
+  transition:
+    background 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.ticket-narrative-row:hover {
+  background: #f8fafc;
+}
+
+.ticket-narrative-row.is-editing {
+  background: #ffffff;
+  box-shadow:
+    0 0 0 1px rgba(22, 93, 255, 0.25),
+    0 4px 14px rgba(22, 93, 255, 0.06);
+}
+
+.ticket-narrative-row > strong {
+  flex-shrink: 0;
+  line-height: 30px;
+}
+
+/* 悬浮磨砂胶囊工具栏 */
+.ticket-block-actions {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 7px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-1px);
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
+  z-index: 3;
+}
+
+.ticket-curation-block[data-ticket-block="network"] > .ticket-block-actions,
+.ticket-curation-block[data-ticket-block="console"] > .ticket-block-actions {
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+}
+
+.ticket-curation-block:not(.is-editing):hover > .ticket-block-actions,
+.ticket-curation-block:not(.is-editing) > .ticket-block-actions:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.ticket-curation-block[data-ticket-block="step"]:not(.is-editing):hover
+  > .ticket-block-actions {
+  transform: translateY(0);
+}
+
+.ticket-block-divider {
+  width: 1px;
+  height: 12px;
+  background: rgba(15, 23, 42, 0.1);
+}
+
+.ticket-block-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 24px;
+  padding: 0;
+  color: var(--zen-text-sub, #4e5969);
+  background: transparent;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition:
+    background 0.14s ease,
+    color 0.14s ease;
+}
+
+.ticket-block-btn svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+
+.ticket-block-btn:hover {
+  color: var(--zen-primary, #165dff);
+  background: rgba(22, 93, 255, 0.08);
+}
+
+.ticket-block-btn.danger:hover {
+  color: #cf1322;
+  background: #fff1f0;
+}
+
+/* 可编辑槽位（与编辑态共享 border:1px + padding:3px 7px + margin-left:-8px 实现 0px 位移） */
+.ticket-slot-editable {
+  box-sizing: border-box;
+  flex: 0 1 auto;
+  min-width: 0;
+  cursor: text;
+  border: 1px solid transparent;
+  padding: 3px 7px;
+  margin: 0 0 0 -8px;
+  border-radius: 6px;
+  line-height: 22px;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.ticket-slot-editable:hover {
+  background: rgba(22, 93, 255, 0.06);
+  border-color: rgba(22, 93, 255, 0.16);
+}
+
+.ticket-slot-editable[data-placeholder="true"] {
+  color: var(--zen-primary, #165dff);
+  background: rgba(22, 93, 255, 0.04);
+  border: 1px dashed rgba(22, 93, 255, 0.35);
+  padding: 3px 7px;
+  margin: 0 0 0 -8px;
+  border-radius: 6px;
+}
+
+.ticket-slot-just-saved {
+  animation: ticket-save-flash 0.75s ease-out;
+}
+
+@keyframes ticket-save-flash {
+  0% {
+    background: rgba(16, 185, 129, 0.22);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+.ticket-slot-reset-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 6px;
+  margin-left: 4px;
+  font-size: 12px;
+  color: var(--zen-text-muted, #86909c);
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition:
+    background 0.14s ease,
+    color 0.14s ease;
+}
+
+.ticket-slot-reset-btn:hover {
+  color: var(--zen-primary, #165dff);
+  background: rgba(22, 93, 255, 0.08);
+}
+
+/* 零换行行内编辑器（左外边距 -8px 与 .ticket-slot-editable 像素对齐） */
+.ticket-inline-editor {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  margin: 0 0 0 -8px;
+}
+
+.ticket-inline-editor.is-multiline {
+  align-items: flex-start;
+}
+
+.ticket-inline-input {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 3px 7px;
+  min-height: 30px;
+  font: inherit;
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--zen-text-main, #1d2129);
+  background: #ffffff;
+  border: 1px solid var(--zen-primary, #165dff);
+  border-radius: 6px;
+  outline: none;
+  box-shadow: 0 0 0 2.5px rgba(22, 93, 255, 0.1);
+  resize: vertical;
+}
+
+input.ticket-inline-input {
+  height: 30px;
+}
+
+.ticket-inline-editor-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.ticket-inline-action {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: none;
+  transition:
+    background 0.14s ease,
+    transform 0.12s ease;
+}
+
+.ticket-inline-confirm {
+  background: var(--zen-primary, #165dff);
+  color: #ffffff;
+}
+
+.ticket-inline-confirm:hover {
+  background: #0e42d2;
+}
+
+.ticket-inline-cancel {
+  background: rgba(15, 23, 42, 0.06);
+  color: var(--zen-text-sub, #4e5969);
+}
+
+.ticket-inline-cancel:hover {
+  background: rgba(15, 23, 42, 0.12);
+  color: var(--zen-text-main, #1d2129);
+}
+
+.ticket-add-expected-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 8px 0;
+}
+
+.ticket-add-expected-btn {
+  padding: 3px 10px;
+  font-size: 12.5px;
+  color: var(--zen-primary, #165dff);
+  background: rgba(22, 93, 255, 0.03);
+  border: 1px dashed rgba(22, 93, 255, 0.35);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.ticket-add-expected-btn:hover {
+  background: rgba(22, 93, 255, 0.08);
+}
+
+.ticket-inline-link {
+  margin-left: 8px;
+  padding: 0;
+  font-size: 13px;
+  color: var(--zen-primary, #165dff);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.ticket-footer-divider {
+  width: 1px;
+  height: 14px;
+  background: rgba(15, 23, 42, 0.12);
+  margin: 0 2px;
+}
+
+.ticket-curation-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ticket-curation-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  color: var(--zen-text-sub, #4e5969);
+  background: rgba(15, 23, 42, 0.035);
+  border: 1px solid var(--zen-border, rgba(15, 23, 42, 0.08));
+  border-radius: 6px;
+  cursor: pointer;
+  transition:
+    background 0.14s ease,
+    color 0.14s ease,
+    border-color 0.14s ease;
+}
+
+.ticket-curation-btn svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.ticket-curation-btn:hover {
+  color: var(--zen-primary, #165dff);
+  background: rgba(22, 93, 255, 0.06);
+  border-color: var(--zen-border-accent, rgba(22, 93, 255, 0.35));
 }

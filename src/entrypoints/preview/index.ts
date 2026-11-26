@@ -14,12 +14,22 @@ import { bindTicketPreviewModal } from "../../preview/ticket-preview-modal";
 import { applyI18n, getLocale, initI18nPreference, t } from "../../shared/i18n";
 import {
   APP_SETTINGS_STORAGE_KEY,
+  DEFAULT_APP_SETTINGS,
   loadAppSettings,
+  saveAppSettings,
   type AiSettings,
 } from "../../shared/settings";
+import {
+  recordPreviewEdited,
+  recordStage1PreviewOpened,
+  recordUpgradeAccepted,
+  recordUpgradeDismissed,
+  resolveUpgradeBannerReason,
+  updateQuickExportGuideState,
+} from "../../domain/quick-export-guide";
 import "../../shared/components/truncated-text";
 
-void (async () => {
+const i18nReady = (async () => {
   await initI18nPreference();
   applyI18n();
   document.documentElement.lang = getLocale();
@@ -31,16 +41,75 @@ const params = new URLSearchParams(location.search);
 const sessionId = params.get("sessionId") ?? undefined;
 const autoExport = params.get("autoExport") === "1";
 const silentMode = params.get("silent") === "1";
+const fromStopExport = params.get("fromStopExport") === "1";
+const stopExportMode: "ai" | "ticket" =
+  params.get("exportMode") === "ticket" ? "ticket" : "ai";
 const runtime = new PreviewSessionRuntime(db);
+
+let currentSessionEdited = false;
+let activeUpgradeBannerReason: "strong" | "fallback" | null = null;
+
+function hideUpgradeBanner(): void {
+  const banner = document.getElementById("quick-export-upgrade-banner");
+  if (banner) {
+    banner.hidden = true;
+  }
+}
+
+function renderUpgradeBanner(): void {
+  const banner = document.getElementById("quick-export-upgrade-banner");
+  const textEl = document.getElementById("quick-export-upgrade-text");
+  if (!banner || !textEl) return;
+  if (!activeUpgradeBannerReason || currentSessionEdited) {
+    banner.hidden = true;
+    return;
+  }
+  textEl.textContent =
+    activeUpgradeBannerReason === "strong"
+      ? t("quickExportBannerStrong")
+      : t("quickExportBannerFallback");
+  banner.hidden = false;
+}
+
+function markPreviewEdited(): void {
+  currentSessionEdited = true;
+  activeUpgradeBannerReason = null;
+  hideUpgradeBanner();
+  if (sessionId) {
+    void updateQuickExportGuideState((s) =>
+      recordPreviewEdited(s, sessionId)
+    ).catch(() => undefined);
+  }
+}
 
 const reportView = new EvidenceReportView(document, {
   mode: "editable",
   getSnapshot: () => runtime.getReportSnapshot(),
-  renameSession: (title) => runtime.renameSession(title),
-  excludeInteraction: (id) => runtime.excludeInteraction(id),
-  excludeIssueScene: (id) => runtime.excludeIssueScene(id),
-  excludeDiagnostic: (kind, id) => runtime.excludeDiagnostic(kind, id),
-  restore: (kind) => runtime.restore(kind),
+  renameSession: async (title) => {
+    await runtime.renameSession(title);
+    markPreviewEdited();
+  },
+  excludeInteraction: async (id) => {
+    await runtime.excludeInteraction(id);
+    markPreviewEdited();
+  },
+  excludeInteractions: async (ids) => {
+    await runtime.excludeInteractions(ids);
+    markPreviewEdited();
+    aiHandoff.render();
+  },
+  excludeIssueScene: async (id) => {
+    await runtime.excludeIssueScene(id);
+    markPreviewEdited();
+  },
+  excludeDiagnostic: async (kind, id) => {
+    await runtime.excludeDiagnostic(kind, id);
+    markPreviewEdited();
+  },
+  restore: async (kind) => {
+    await runtime.restore(kind);
+    markPreviewEdited();
+  },
 });
 
 if (
@@ -54,6 +123,7 @@ if (
         await initI18nPreference();
         applyI18n();
         document.documentElement.lang = getLocale();
+        renderUpgradeBanner();
         aiHandoff.render();
         reportView.render();
       })();
@@ -95,6 +165,10 @@ const refreshClipboardPromptSettings = async (): Promise<void> => {
   try {
     const settings = await loadAppSettings();
     clipboardPromptSettings = settings.ai;
+    if (settings.workflow.stopAction === "silentExport") {
+      activeUpgradeBannerReason = null;
+      hideUpgradeBanner();
+    }
     aiHandoff.render();
   } catch {
     // 忽略异常，保留默认模板
@@ -153,6 +227,50 @@ bindTicketPreviewModal({
   exportTicketZip: () => {
     void exportController?.export("ticket", { skipClipboard: true });
   },
+  curation: (() => {
+    // 工单内的删改按影响范围定向刷新主界面，避免改写工单文案时整页无效重绘
+    const sync = async <T>(
+      action: () => Promise<T>,
+      tabs?: Array<"steps" | "console" | "network" | "stream">
+    ): Promise<T> => {
+      const result = await action();
+      if ((result as unknown) !== false) {
+        markPreviewEdited();
+      }
+      if (tabs === undefined) {
+        reportView.render();
+        aiHandoff.render();
+      } else if (tabs.length > 0) {
+        reportView.render(tabs);
+        aiHandoff.render();
+      }
+      return result;
+    };
+    return {
+      excludeInteractions: (ids: string[]) =>
+        sync(() => runtime.excludeInteractions(ids), ["steps", "stream"]),
+      excludeScreenshot: (id: string) =>
+        sync(() => runtime.excludeStepScreenshot(id), ["steps", "stream"]),
+      excludeScreenshots: (ids: string[]) =>
+        sync(() => runtime.excludeStepScreenshots(ids), ["steps", "stream"]),
+      excludeDiagnostic: (kind: "console" | "network", id: string) =>
+        sync(() => runtime.excludeDiagnostic(kind, id), [kind, "stream"]),
+      setStepDescription: (id: string, desc: string | undefined) =>
+        sync(() => runtime.setStepDescription(id, desc), ["steps"]),
+      setTicketNarrative: (
+        patch: { actual?: string; expected?: string },
+        defaults?: { actual?: string; expected?: string }
+      ) => sync(() => runtime.setTicketNarrative(patch, defaults), []),
+      restoreSteps: () =>
+        sync(() => runtime.restore("interaction"), ["steps", "stream"]),
+      undo: () => sync(() => runtime.undoSelection()),
+      redo: () => sync(() => runtime.redoSelection()),
+      resetAll: () => sync(() => runtime.resetTicketCuration()),
+      canUndo: () => runtime.selectionHistory.canUndo,
+      canRedo: () => runtime.selectionHistory.canRedo,
+      hasAnyCuration: () => runtime.selectionHistory.hasAnyCuration,
+    };
+  })(),
 });
 
 async function loadMediaPreview(): Promise<void> {
@@ -183,7 +301,49 @@ async function loadMediaPreview(): Promise<void> {
       : t("noMediaChunks");
 }
 
+function bindQuickExportUpgradeBanner(): void {
+  const enableBtn = document.getElementById(
+    "quick-export-enable-btn"
+  ) as HTMLButtonElement | null;
+  const keepBtn = document.getElementById(
+    "quick-export-keep-btn"
+  ) as HTMLButtonElement | null;
+  const closeBtn = document.getElementById(
+    "quick-export-close-btn"
+  ) as HTMLButtonElement | null;
+
+  enableBtn?.addEventListener("click", () => {
+    void (async () => {
+      await saveAppSettings((prev) => ({
+        ...prev,
+        workflow: {
+          ...prev.workflow,
+          stopAction: "silentExport",
+        },
+      }));
+      await updateQuickExportGuideState(recordUpgradeAccepted);
+      activeUpgradeBannerReason = null;
+      hideUpgradeBanner();
+      reportView.notify(t("quickExportEnabledToast"));
+    })();
+  });
+
+  const handleDismiss = () => {
+    activeUpgradeBannerReason = null;
+    hideUpgradeBanner();
+    void updateQuickExportGuideState(recordUpgradeDismissed).catch(
+      () => undefined
+    );
+  };
+
+  keepBtn?.addEventListener("click", handleDismiss);
+  closeBtn?.addEventListener("click", handleDismiss);
+}
+
+bindQuickExportUpgradeBanner();
+
 async function load(): Promise<void> {
+  await i18nReady;
   if (!sessionId) {
     $("#meta").textContent = t("missingSessionId");
     return;
@@ -222,6 +382,34 @@ async function load(): Promise<void> {
       reportView.render(["console", "network", "stream"]);
     }
   });
+
+  if (fromStopExport) {
+    const cleanUrl = new URL(location.href);
+    cleanUrl.searchParams.delete("fromStopExport");
+    cleanUrl.searchParams.delete("exportMode");
+    history.replaceState(null, "", cleanUrl.toString());
+
+    const appSettings = await loadAppSettings().catch(
+      () => DEFAULT_APP_SETTINGS
+    );
+    const shouldAutoCopy = appSettings.workflow.autoCopyPrompt !== false;
+    reportView.notify(
+      shouldAutoCopy
+        ? stopExportMode === "ticket"
+          ? t("exportSuccessTicketCopied")
+          : t("exportSuccessCopied")
+        : t("exportSuccessCanCopy")
+    );
+    const nextGuideState = await updateQuickExportGuideState((s) =>
+      recordStage1PreviewOpened(s, sessionId)
+    );
+    activeUpgradeBannerReason = resolveUpgradeBannerReason(nextGuideState, {
+      stopAction: appSettings.workflow.stopAction,
+      fromStopExport: true,
+      currentSessionEdited,
+    });
+    renderUpgradeBanner();
+  }
 
   if (autoExport) {
     if (exportController.currentArtifact?.state !== "complete") {

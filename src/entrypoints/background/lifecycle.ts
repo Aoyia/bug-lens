@@ -1,6 +1,7 @@
 import {
   message,
   type CaptureIssue,
+  type ExportArtifact,
   type RecordingSession,
   type RuntimeMessage,
 } from "../../shared/protocol";
@@ -872,6 +873,7 @@ export function createSessionLifecycle(
         };
 
         resolvedPath = packResult.filename;
+        let resolvedAbsolutePath: string | undefined;
         if (downloadId) {
           const absolutePath = await ctx.resolveDownloadedFilePath(
             downloadId,
@@ -885,6 +887,7 @@ export function createSessionLifecycle(
             }
           );
           if (absolutePath) {
+            resolvedAbsolutePath = absolutePath;
             resolvedPath = absolutePath;
             if (prompt) {
               prompt = injectAbsolutePathToPrompt(
@@ -893,6 +896,28 @@ export function createSessionLifecycle(
                 absolutePath
               );
             }
+          }
+        }
+        if (typeof db.saveExportArtifact === "function") {
+          const artifact: ExportArtifact | undefined = resolvedAbsolutePath
+            ? {
+                sessionId: session.id,
+                downloadId: downloadId ?? 0,
+                state: "complete",
+                filename: resolvedAbsolutePath,
+                updatedAtEpochMs: Date.now(),
+              }
+            : typeof downloadId === "number"
+              ? {
+                  sessionId: session.id,
+                  downloadId,
+                  state: "in_progress",
+                  filename: packResult.filename,
+                  updatedAtEpochMs: Date.now(),
+                }
+              : undefined;
+          if (artifact) {
+            await db.saveExportArtifact(artifact).catch(() => undefined);
           }
         }
 
@@ -1148,15 +1173,19 @@ export function createSessionLifecycle(
     const previewUrl = chrome.runtime.getURL(
       `preview.html?sessionId=${encodeURIComponent(session.id)}${autoExport ? "&autoExport=1" : ""}`
     );
+    const previewBaseUrl = chrome.runtime.getURL("preview.html");
     const existing = await chrome.tabs.query({}).then(
       (tabs) =>
-        tabs.some((tab) =>
-          Boolean(
-            tab.url &&
-            tab.url.startsWith(previewUrl.split("?")[0]) &&
-            tab.url.includes(`sessionId=${encodeURIComponent(session.id)}`)
-          )
-        ),
+        tabs.some((tab) => {
+          if (!tab.url || !tab.url.startsWith(previewBaseUrl)) return false;
+          try {
+            return (
+              new URL(tab.url).searchParams.get("sessionId") === session.id
+            );
+          } catch {
+            return false;
+          }
+        }),
       () => false
     );
     const opened =

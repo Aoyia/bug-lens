@@ -1847,7 +1847,7 @@
     }
   },
   "stepAtomicTitle": {
-    "message": "$ACTION$ ($ELEMENT$)",
+    "message": "$ACTION$ $ELEMENT$",
     "placeholders": {
       "action": { "content": "$1" },
       "element": { "content": "$2" }
@@ -1866,26 +1866,26 @@
     }
   },
   "stepFormSubmitTitle": {
-    "message": "Form input & Enter submit ($ELEMENT$)",
+    "message": "Input & Enter submit $ELEMENT$",
     "placeholders": {
       "element": { "content": "$1" }
     }
   },
   "stepFormInputTitle": {
-    "message": "Repeated form input & edits ($ELEMENT$)",
+    "message": "Input on $ELEMENT$",
     "placeholders": {
       "element": { "content": "$1" }
     }
   },
   "stepContinuousClickTitle": {
-    "message": "Clicked $COUNT$ times ($ELEMENT$)",
+    "message": "Clicked $COUNT$ times $ELEMENT$",
     "placeholders": {
       "count": { "content": "$1" },
       "element": { "content": "$2" }
     }
   },
   "stepCompositeTitle": {
-    "message": "Composite action ($ELEMENT$)",
+    "message": "Interact with $ELEMENT$",
     "placeholders": {
       "element": { "content": "$1" }
     }
@@ -2305,10 +2305,10 @@
     "message": "Default workflow after stopping a recording"
   },
   "stopActionPreview": {
-    "message": "Open Preview"
+    "message": "Export ZIP & Open Preview"
   },
   "stopActionSilentExport": {
-    "message": "Silent Export ZIP (Skip Preview)"
+    "message": "Direct Export ZIP (Skip Preview)"
   },
   "settingAutoCopyPrompt": {
     "message": "Auto-copy AI Prompt"
@@ -2485,26 +2485,26 @@
     "message": "Ticket Draft Preview"
   },
   "ticketModalSubtitle": {
-    "message": "This content will be copied to clipboard upon creating ticket, ready to paste into TAPD, Feishu, Jira, etc."
+    "message": "Paste directly into TAPD, Feishu, Jira"
   },
   "viewRichText": {
-    "message": "Rich Text (with Images)"
+    "message": "Preview"
   },
   "viewMarkdown": {
-    "message": "Markdown Source"
+    "message": "Markdown"
   },
   "ticketStepsSummary": {
-    "message": "$COUNT$ key steps · $IMAGES$ annotated screenshots",
+    "message": "$COUNT$ steps · $IMAGES$ images",
     "placeholders": {
       "count": { "content": "$1" },
       "images": { "content": "$2" }
     }
   },
   "copyTicketContent": {
-    "message": "Copy Ticket Content"
+    "message": "Copy Ticket"
   },
   "createTicketAndDownload": {
-    "message": "Create Ticket & Download"
+    "message": "Create & Download"
   },
   "stepImageCopied": {
     "message": "Screenshot copied, ready to paste directly into Feishu / chat"
@@ -2543,5 +2543,43 @@
   },
   "selectionMoveBottom": {
     "message": "Move to bottom"
+  },
+  "ticketDeleteStep": { "message": "Delete" },
+  "ticketRemoveImage": { "message": "Remove" },
+  "ticketRemoveItem": { "message": "Remove" },
+  "ticketEditStep": { "message": "Edit" },
+  "ticketAddExpected": { "message": "+ Add expected behavior" },
+  "ticketRestoreDefault": { "message": "Restore default" },
+  "ticketRestoreExpected": { "message": "Restore original expected" },
+  "ticketInlineEditHint": { "message": "Click to edit" },
+  "ticketUndo": { "message": "Undo" },
+  "ticketRedo": { "message": "Redo" },
+  "ticketResetDraft": { "message": "Reset draft" },
+  "ticketAllStepsHidden": { "message": "All steps are hidden." },
+  "ticketRestoreAllSteps": { "message": "Restore all steps" },
+  "ticketCurationFailed": {
+    "message": "Ticket update failed: $ERROR$",
+    "placeholders": { "error": { "content": "$1" } }
+  },
+  "quickExportBannerBadge": {
+    "message": "Shortcut Tip"
+  },
+  "quickExportBannerStrong": {
+    "message": "You have exported multiple times without editing. Enable Direct Export ZIP to download and copy the prompt immediately without opening preview."
+  },
+  "quickExportBannerFallback": {
+    "message": "Ready for a faster workflow? Enable Direct Export ZIP to download and copy the prompt right after stopping without jumping to preview."
+  },
+  "quickExportEnableBtn": {
+    "message": "Enable Direct Export"
+  },
+  "quickExportKeepPreviewBtn": {
+    "message": "Keep Opening Preview"
+  },
+  "quickExportEnabledToast": {
+    "message": "Direct export enabled: future stops will download ZIP directly. You can switch back in Settings anytime."
+  },
+  "stage2SilentExportToastHint": {
+    "message": "Click Open Preview on the right anytime, or switch back to auto-preview in Settings."
   }
 }

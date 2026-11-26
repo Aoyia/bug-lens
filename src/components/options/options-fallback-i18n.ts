@@ -28,12 +28,12 @@ export const OPTIONS_FALLBACK_MESSAGES: Record<
     en: "Default workflow after stopping a recording",
   },
   stopActionPreview: {
-    zh: "打开审查预览页",
-    en: "Open Preview",
+    zh: "导出 ZIP 并打开预览页",
+    en: "Export ZIP & Open Preview",
   },
   stopActionSilentExport: {
-    zh: "静默导出下载 ZIP（不打开预览）",
-    en: "Silent Export ZIP (Skip Preview)",
+    zh: "直接导出 ZIP（不打开预览）",
+    en: "Direct Export ZIP (Skip Preview)",
   },
   settingAutoCopyPrompt: {
     zh: "自动复制 AI Prompt",

@@ -331,11 +331,36 @@ test.describe("Bug Lens Chrome Extension recording lifecycle", () => {
     expect(exportedDownload.state).toBe("complete");
     expect(exportedDownload.totalBytes ?? 0).toBeGreaterThan(0);
 
-    // 静默导出不自动弹出标签页，按需主动打开 Preview 页面验证播放器与证据详情
-    const previewPage = await context.newPage();
-    await previewPage.goto(
-      `chrome-extension://${extensionId}/preview.html?sessionId=${initialSessionId}`
-    );
+    // 默认第一阶段导出后会自动打开 Preview 页面，等待并复用该标签页（若未自动打开则降级创建）
+    const previewUrlSubstring = `/preview.html?sessionId=${initialSessionId}`;
+    let foundPreviewPage = context
+      .pages()
+      .find((p) => p.url().includes(previewUrlSubstring));
+    if (!foundPreviewPage) {
+      try {
+        await expect
+          .poll(
+            () =>
+              context
+                .pages()
+                .find((p) => p.url().includes(previewUrlSubstring)),
+            { timeout: 10_000 }
+          )
+          .toBeDefined();
+        foundPreviewPage = context
+          .pages()
+          .find((p) => p.url().includes(previewUrlSubstring));
+      } catch {
+        foundPreviewPage = undefined;
+      }
+    }
+    const previewPage = foundPreviewPage ?? (await context.newPage());
+    if (!foundPreviewPage) {
+      await previewPage.goto(
+        `chrome-extension://${extensionId}/preview.html?sessionId=${initialSessionId}`
+      );
+    }
+    await previewPage.bringToFront();
     await previewPage.waitForLoadState("domcontentloaded");
     logE2e("Preview page opened for verification", {
       previewUrl: previewPage.url(),

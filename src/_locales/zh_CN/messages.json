@@ -1847,7 +1847,7 @@
     }
   },
   "stepAtomicTitle": {
-    "message": "$ACTION$ ($ELEMENT$)",
+    "message": "$ACTION$ $ELEMENT$",
     "placeholders": {
       "action": { "content": "$1" },
       "element": { "content": "$2" }
@@ -1866,26 +1866,26 @@
     }
   },
   "stepFormSubmitTitle": {
-    "message": "表单输入与回车提交 ($ELEMENT$)",
+    "message": "输入并回车提交 $ELEMENT$",
     "placeholders": {
       "element": { "content": "$1" }
     }
   },
   "stepFormInputTitle": {
-    "message": "表单连续输入与修改 ($ELEMENT$)",
+    "message": "输入 $ELEMENT$",
     "placeholders": {
       "element": { "content": "$1" }
     }
   },
   "stepContinuousClickTitle": {
-    "message": "连续点击 $COUNT$ 次 ($ELEMENT$)",
+    "message": "连续点击 $COUNT$ 次 $ELEMENT$",
     "placeholders": {
       "count": { "content": "$1" },
       "element": { "content": "$2" }
     }
   },
   "stepCompositeTitle": {
-    "message": "复合操作 ($ELEMENT$)",
+    "message": "操作 $ELEMENT$",
     "placeholders": {
       "element": { "content": "$1" }
     }
@@ -2305,10 +2305,10 @@
     "message": "点击结束录制后的默认处理流程"
   },
   "stopActionPreview": {
-    "message": "打开审查预览页"
+    "message": "导出 ZIP 并打开预览页"
   },
   "stopActionSilentExport": {
-    "message": "静默导出下载 ZIP（不打开预览）"
+    "message": "直接导出 ZIP（不打开预览）"
   },
   "settingAutoCopyPrompt": {
     "message": "自动复制 AI Prompt"
@@ -2485,26 +2485,26 @@
     "message": "工单草稿预览"
   },
   "ticketModalSubtitle": {
-    "message": "提工单时将自动复制此内容，支持直接粘贴到 TAPD、飞书、Jira 等工单系统"
+    "message": "支持直接粘贴至 TAPD、飞书、Jira"
   },
   "viewRichText": {
-    "message": "富文本预览 (含图)"
+    "message": "预览"
   },
   "viewMarkdown": {
-    "message": "Markdown 源码"
+    "message": "Markdown"
   },
   "ticketStepsSummary": {
-    "message": "共 $COUNT$ 步关键操作 · $IMAGES$ 张标注截图",
+    "message": "$COUNT$ 步 · $IMAGES$ 图",
     "placeholders": {
       "count": { "content": "$1" },
       "images": { "content": "$2" }
     }
   },
   "copyTicketContent": {
-    "message": "复制工单内容"
+    "message": "复制工单"
   },
   "createTicketAndDownload": {
-    "message": "立即提工单并下载"
+    "message": "提工单并下载"
   },
   "stepImageCopied": {
     "message": "步骤截图已复制，可直接在飞书聊天框按 Cmd+V 粘贴"
@@ -2543,5 +2543,43 @@
   },
   "selectionMoveBottom": {
     "message": "移至底部"
+  },
+  "ticketDeleteStep": { "message": "删除" },
+  "ticketRemoveImage": { "message": "移除" },
+  "ticketRemoveItem": { "message": "移除" },
+  "ticketEditStep": { "message": "编辑" },
+  "ticketAddExpected": { "message": "+ 补充预期表现" },
+  "ticketRestoreDefault": { "message": "还原默认" },
+  "ticketRestoreExpected": { "message": "还原原预期" },
+  "ticketInlineEditHint": { "message": "点击编辑" },
+  "ticketUndo": { "message": "撤回" },
+  "ticketRedo": { "message": "重做" },
+  "ticketResetDraft": { "message": "重置草稿" },
+  "ticketAllStepsHidden": { "message": "已隐藏全部操作步骤。" },
+  "ticketRestoreAllSteps": { "message": "恢复全部步骤" },
+  "ticketCurationFailed": {
+    "message": "工单修改失败：$ERROR$",
+    "placeholders": { "error": { "content": "$1" } }
+  },
+  "quickExportBannerBadge": {
+    "message": "快捷方式推荐"
+  },
+  "quickExportBannerStrong": {
+    "message": "已连续多次未修改直接导出。开启「直接导出 ZIP」后，结束录制将直接下载并复制 Prompt，不再打开预览页。"
+  },
+  "quickExportBannerFallback": {
+    "message": "已熟练使用 Bug Lens。开启「直接导出 ZIP」后，结束录制可直接下载并复制 Prompt，无需跳转预览页。"
+  },
+  "quickExportEnableBtn": {
+    "message": "开启直接导出"
+  },
+  "quickExportKeepPreviewBtn": {
+    "message": "保持打开预览"
+  },
+  "quickExportEnabledToast": {
+    "message": "已开启直接导出：下次结束录制将直接下载 ZIP，可在设置中随时改回"
+  },
+  "stage2SilentExportToastHint": {
+    "message": "可点击右侧「打开预览 ↗」随时查看详情，或在设置中切回自动预览"
   }
 }

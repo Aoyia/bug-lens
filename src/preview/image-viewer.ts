@@ -329,7 +329,7 @@ export class ImageViewer {
     window.addEventListener("keydown", (event) => {
       if (modal.hidden) return;
       if (event.key === "Escape") {
-        event.stopPropagation();
+        event.stopImmediatePropagation();
         this.close();
       } else if (["ArrowLeft", "a", "A"].includes(event.key)) this.previous();
       else if (["ArrowRight", "d", "D"].includes(event.key)) this.next();

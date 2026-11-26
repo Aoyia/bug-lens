@@ -280,3 +280,103 @@ test("路由: recording/pause-state 遇到已停止会话时返回 active:false 
   assert.equal(result.ok, true);
   assert.equal(result.active, false);
 });
+
+test("路由: session/open-preview 透传 fromStopExport 与 exportMode，且复用已打开预览标签页", async () => {
+  const { runtime } = createTestRuntime();
+  const createdUrls: string[] = [];
+  const updatedTabs: Array<{ tabId: number; props: unknown }> = [];
+  let queriedTabs: Array<{ id: number; windowId: number; url: string }> = [];
+
+  const { handlers } = installChromeMock();
+  handlers.tabsQuery = async () => queriedTabs;
+  handlers.tabsCreate = async (props: unknown) => {
+    const url = (props as { url: string }).url;
+    createdUrls.push(url);
+    return { id: 101, url };
+  };
+  handlers.tabsUpdate = async (tabId: number, props: unknown) => {
+    updatedTabs.push({ tabId, props });
+    return { id: tabId };
+  };
+
+  // 首次打开：无现有标签页 -> 创建新 tab 并附带 fromStopExport & exportMode
+  const firstRes = (await runtime.handleMessage(
+    message("session/open-preview", {
+      sessionId: "sess-preview-1",
+      fromStopExport: true,
+      exportMode: "ticket",
+    }),
+    sender(42)
+  )) as { ok: boolean };
+  assert.equal(firstRes.ok, true);
+  assert.equal(createdUrls.length, 1);
+  assert.ok(createdUrls[0].includes("sessionId=sess-preview-1"));
+  assert.ok(createdUrls[0].includes("fromStopExport=1"));
+  assert.ok(createdUrls[0].includes("exportMode=ticket"));
+
+  // 再次打开同会话：已有打开的预览页 -> 复用激活而不重复新建 tab
+  queriedTabs = [
+    {
+      id: 101,
+      windowId: 7,
+      url: "chrome-extension://test/preview.html?sessionId=sess-preview-1",
+    },
+  ];
+  const secondRes = (await runtime.handleMessage(
+    message("session/open-preview", {
+      sessionId: "sess-preview-1",
+    }),
+    sender(42)
+  )) as { ok: boolean };
+  assert.equal(secondRes.ok, true);
+  assert.equal(createdUrls.length, 1);
+  assert.equal(updatedTabs.length, 1);
+  assert.equal(updatedTabs[0].tabId, 101);
+
+  // 精确匹配：已打开 sess-preview-10 时请求打开 sess-preview-1 不会误匹配，而是新建 tab
+  queriedTabs = [
+    {
+      id: 202,
+      windowId: 7,
+      url: "chrome-extension://test/preview.html?sessionId=sess-preview-10",
+    },
+  ];
+  const prefixRes = (await runtime.handleMessage(
+    message("session/open-preview", {
+      sessionId: "sess-preview-1",
+    }),
+    sender(42)
+  )) as { ok: boolean };
+  assert.equal(prefixRes.ok, true);
+  assert.equal(createdUrls.length, 2);
+
+  // 复用 tabs.update 失败（tab 已刚关闭）时回退创建新 tab
+  queriedTabs = [
+    {
+      id: 303,
+      windowId: 7,
+      url: "chrome-extension://test/preview.html?sessionId=sess-preview-1",
+    },
+  ];
+  handlers.tabsUpdate = async () => {
+    throw new Error("No tab with id: 303");
+  };
+  const fallbackRes = (await runtime.handleMessage(
+    message("session/open-preview", {
+      sessionId: "sess-preview-1",
+    }),
+    sender(42)
+  )) as { ok: boolean };
+  assert.equal(fallbackRes.ok, true);
+  assert.equal(createdUrls.length, 3);
+
+  // 空 sessionId 返回明确错误
+  const emptyRes = (await runtime.handleMessage(
+    message("session/open-preview", {
+      sessionId: "   ",
+    }),
+    sender(42)
+  )) as { ok: boolean; error?: string };
+  assert.equal(emptyRes.ok, false);
+  assert.equal(emptyRes.error, "MISSING_SESSION_ID");
+});

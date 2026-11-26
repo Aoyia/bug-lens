@@ -18,6 +18,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
       - name: Install pnpm
         uses: pnpm/action-setup@v3
         with:
@@ -32,6 +37,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Rust Clippy & Unit Tests
+        run: |
+          cargo clippy --manifest-path crates/bug-lens-cli/Cargo.toml --all-targets -- -D warnings
+          cargo test --manifest-path crates/bug-lens-cli/Cargo.toml
+
+      - name: Build Native Triage CLI
+        run: node -e 'import("./scripts/build.mjs").then((m) => m.buildTriageSkillCli())'
+
       - name: TypeScript Check
         run: pnpm typecheck
 
@@ -45,6 +58,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Install pnpm
         uses: pnpm/action-setup@v3
@@ -71,7 +87,7 @@ jobs:
           retention-days: 14
 
   triage-cli:
-    name: Triage Skill CLI (${{ matrix.os }})
+    name: Native Rust Triage CLI (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -80,6 +96,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
 
       - name: Install pnpm
         uses: pnpm/action-setup@v3
@@ -94,6 +115,16 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Rust Clippy & Tests
+        shell: bash
+        run: |
+          cargo clippy --manifest-path crates/bug-lens-cli/Cargo.toml --all-targets -- -D warnings
+          cargo test --manifest-path crates/bug-lens-cli/Cargo.toml
+
+      - name: Build Native Triage CLI
+        shell: bash
+        run: node -e 'import("./scripts/build.mjs").then((m) => m.buildTriageSkillCli())'
 
       - name: Test Triage Skill CLI
         shell: bash

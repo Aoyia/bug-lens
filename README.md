@@ -45,11 +45,16 @@ Standalone screenshot capture with pixel dimension measurement, directional arro
 
 ## 🤖 AI Agent Integration (`bug-lens-triage` Skill)
 
-Bug Lens ships with an official [`bug-lens-triage`](.agents/skills/bug-lens-triage/SKILL.md) Agent Skill (bundled with a zero-dependency CLI `scripts/bug-lens-cli.mjs`), allowing AI assistants to idempotently extract `.zip` evidence packs into an isolated workspace, generate plain `data/*.json` and `INDEX.md`, and combine fast macro CLI queries with direct `jq` / `ffmpeg` inspection.
+Bug Lens ships with an official [`bug-lens-triage`](.agents/skills/bug-lens-triage/SKILL.md) Agent Skill powered by a native Rust CLI (`bin/bug-lens-cli`), allowing AI assistants to stream-extract `.zip` evidence packs into an isolated workspace with low peak memory, generate plain `data/*.json` and `INDEX.md`, and combine fast macro CLI queries with direct `jq` / `ffmpeg` inspection.
 
 ```bash
 # Install globally for Claude Code, Cursor, Antigravity, etc.
 npx skills add Aoyia/bug-lens-skill -g -y
+
+# One-time install of the native Rust CLI binary (SHA-256 verified from GitHub Releases)
+bash ~/.agents/skills/bug-lens-triage/scripts/install.sh
+# Windows (PowerShell):
+# powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\bug-lens-triage\scripts\install.ps1"
 
 # Or install into the current project workspace
 npx skills add Aoyia/bug-lens-skill -y

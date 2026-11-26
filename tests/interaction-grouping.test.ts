@@ -3,6 +3,7 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
+  compactSemanticLabel,
   groupInteractions,
   isSameElement,
   type TranslateFn,
@@ -161,7 +162,7 @@ test("5 条搜索相关交互 (click, input, input, keydown Enter, change) 被�
   assert.equal(card.children.length, 5);
   assert.equal(card.aggregatedMeta.hasEnterSubmit, true);
   assert.equal(card.aggregatedMeta.finalValueLength, 11);
-  assert.equal(card.aggregatedMeta.title.includes("表单输入与回车提交"), true);
+  assert.equal(card.aggregatedMeta.title.includes("输入并回车提交"), true);
 });
 
 test("超出的时间窗口（如间隔大于 3 秒）自动打断开辟新卡片", () => {
@@ -256,9 +257,9 @@ test("步骤卡片标题与描述随界面语言（翻译函数）输出中英�
   const zhCards = groupInteractions(records, zh, 3000);
   const enCards = groupInteractions(records, en, 3000);
 
-  // 单条 click 标题：跟随语言
-  assert.equal(zhCards[0].aggregatedMeta.title, "点击 (btn-submit)");
-  assert.equal(enCards[0].aggregatedMeta.title, "Click (btn-submit)");
+  // 单条 click 标题：跟随语言（无括号，ID 前置 #）
+  assert.equal(zhCards[0].aggregatedMeta.title, "点击 #btn-submit");
+  assert.equal(enCards[0].aggregatedMeta.title, "Click #btn-submit");
   // 输入脱敏描述：跟随语言
   assert.equal(zhCards[1].aggregatedMeta.description, "输入: 11 字符 (脱敏)");
   assert.equal(
@@ -330,12 +331,147 @@ test("操作时间轴（InteractionsTab）卡片标题意图优先语义提升�
 
   const cards = groupInteractions(records, zh, 3000);
 
-  // 1. 关闭图标消除 "点击 (i)"，升级为 "点击 (关闭图标)"
-  assert.equal(cards[0].aggregatedMeta.title, "点击 (关闭图标)");
-  // 2. 详情图标消除 "点击 (i)"，升级为 "点击 (详情/提示)"
-  assert.equal(cards[1].aggregatedMeta.title, "点击 (详情/提示)");
-  // 3. 文本卡片保持清晰文本
-  assert.equal(cards[2].aggregatedMeta.title, "点击 (单人验收)");
+  // 1. 关闭图标消除 "点击 (i)"，升级为 "点击 关闭图标"
+  assert.equal(cards[0].aggregatedMeta.title, "点击 关闭图标");
+  // 2. 详情图标消除 "点击 (i)"，升级为 "点击 详情/提示图标"
+  assert.equal(cards[1].aggregatedMeta.title, "点击 详情/提示图标");
+  // 3. 文本卡片统一双引号包裹且不暴露底层标签
+  assert.equal(cards[2].aggregatedMeta.title, '点击 "单人验收"');
   // 4. 特殊符号升级为意图
-  assert.equal(cards[3].aggregatedMeta.title, '点击 (折叠/返回 "《")');
+  assert.equal(cards[3].aggregatedMeta.title, '点击 折叠/返回 "《"');
+});
+
+test("超长面包屑智能裁剪：<=60 字符完整保留，>60 字符保留首段与末端核心节点", () => {
+  const shortBreadcrumb =
+    "应用详情 / 各种测试放这里 (bpm应用) / 单元管理 / 组件开发对照-H5";
+  assert.equal(compactSemanticLabel(shortBreadcrumb), shortBreadcrumb);
+
+  const longBreadcrumb =
+    "应用详情 / 各种测试放这里非常长非常长的中间层级业务目录模块名称 (bpm应用中心测试环境) / 单元管理 / 组件开发对照-H5";
+  const compacted = compactSemanticLabel(longBreadcrumb);
+  assert.ok(compacted.startsWith("应用详情 / … / "));
+  assert.ok(compacted.endsWith("组件开发对照-H5"));
+  assert.ok(compacted.length <= 60);
+
+  const rec = mockRecord({
+    id: "rec-h2",
+    kind: "click",
+    element: {
+      tagName: "H2",
+      text: shortBreadcrumb,
+      classNames: [],
+      attributes: {},
+      boundingBox: { x: 0, y: 0, width: 100, height: 20 },
+      locators: [],
+    },
+  });
+  assert.equal(
+    groupInteractions([rec], zh)[0].aggregatedMeta.title,
+    `点击 "${shortBreadcrumb}"`
+  );
+  assert.equal(
+    groupInteractions([rec], en)[0].aggregatedMeta.title,
+    `Click "${shortBreadcrumb}"`
+  );
+});
+
+test("isSameElement 与分组不误合并无 id 同 role 按钮，也不拆散定位器演变的同一无 id 输入框", () => {
+  const baseTime = 1785650250000;
+  // 1. 两个不同坐标的无 id <button>（均产生 role=button）不得合并
+  const saveBtn = mockRecord({
+    id: "btn-save",
+    kind: "click",
+    createdAt: baseTime,
+    element: {
+      tagName: "button",
+      classNames: ["primary"],
+      text: "保存",
+      attributes: {},
+      boundingBox: { x: 20, y: 20, width: 80, height: 32 },
+      locators: [
+        {
+          kind: "role",
+          expression: "role=button",
+          matchCount: 2,
+          stabilityScore: 0.86,
+          reasons: [],
+        },
+      ],
+    },
+  });
+  const cancelBtn = mockRecord({
+    id: "btn-cancel",
+    kind: "click",
+    createdAt: baseTime + 500,
+    element: {
+      tagName: "button",
+      classNames: ["default"],
+      text: "取消",
+      attributes: {},
+      boundingBox: { x: 120, y: 20, width: 80, height: 32 },
+      locators: [
+        {
+          kind: "role",
+          expression: "role=button",
+          matchCount: 2,
+          stabilityScore: 0.86,
+          reasons: [],
+        },
+      ],
+    },
+  });
+  assert.equal(isSameElement(saveBtn.element, cancelBtn.element), false);
+  const btnCards = groupInteractions([saveBtn, cancelBtn], zh, 3000);
+  assert.equal(btnCards.length, 2);
+
+  // 2. 同坐标无 id <input>：click 时为 css=input，input 后变成 text=hello，仍应合并为 1 步
+  const clickInput = mockRecord({
+    id: "inp-click",
+    kind: "click",
+    createdAt: baseTime + 5000,
+    element: {
+      tagName: "input",
+      classNames: ["el-input__inner"],
+      attributes: {},
+      boundingBox: { x: 40, y: 100, width: 200, height: 32 },
+      locators: [
+        {
+          kind: "css",
+          expression: "input",
+          matchCount: 3,
+          stabilityScore: 0.25,
+          reasons: [],
+        },
+      ],
+    },
+  });
+  const typeInput = mockRecord({
+    id: "inp-type",
+    kind: "input",
+    createdAt: baseTime + 5400,
+    element: {
+      tagName: "input",
+      classNames: ["el-input__inner"],
+      text: "hello",
+      attributes: {},
+      boundingBox: { x: 40, y: 100, width: 200, height: 32 },
+      locators: [
+        {
+          kind: "text",
+          expression: "hello",
+          matchCount: 1,
+          stabilityScore: 0.6,
+          reasons: [],
+        },
+      ],
+    },
+    metadata: { value: "hello", valueLength: 5 },
+  });
+  assert.equal(isSameElement(clickInput.element, typeInput.element), true);
+  const inputCards = groupInteractions([clickInput, typeInput], zh, 3000);
+  assert.equal(inputCards.length, 1);
+  assert.deepEqual(
+    inputCards[0].children.map((c) => c.id),
+    ["inp-click", "inp-type"]
+  );
 });

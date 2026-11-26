@@ -23,21 +23,22 @@ import {
   buildRealScreenshotZipBytes,
   buildRealSessionZipBytes,
 } from "./helpers/triage-cli-fixture.ts";
+// @ts-ignore scripts/build.mjs has no .d.ts declaration file
+import * as buildScript from "../scripts/build.mjs";
+
+const { buildTriageSkillCli, getTriageCliBinaryPath } = buildScript;
 
 const SKILL_MD_PATH = resolve(
   import.meta.dirname,
   "../.agents/skills/bug-lens-triage/SKILL.md"
 );
-const BUNDLE_PATH = resolve(
-  import.meta.dirname,
-  "../.agents/skills/bug-lens-triage/scripts/bug-lens-cli.mjs"
-);
+const BINARY_PATH: string = getTriageCliBinaryPath();
 
 function runCliCmd(
   cmdTokens: string[],
   workspaceDir: string
 ): { stdout: string; stderr: string; status: number } {
-  const res = spawnSync(process.execPath, [BUNDLE_PATH, ...cmdTokens], {
+  const res = spawnSync(BINARY_PATH, cmdTokens, {
     encoding: "utf8",
     env: {
       ...process.env,
@@ -47,11 +48,14 @@ function runCliCmd(
   return {
     stdout: res.stdout ?? "",
     stderr: res.stderr ?? "",
-    status: res.status ?? 0,
+    status: res.status ?? (res.error ? 1 : 0),
   };
 }
 
 test("Skill contract: all CLI commands referenced in SKILL.md execute successfully and match documented syntax", async () => {
+  if (!existsSync(BINARY_PATH)) {
+    await buildTriageSkillCli();
+  }
   const skillMarkdown = readFileSync(SKILL_MD_PATH, "utf8");
   const tempRoot = mkdtempSync(join(tmpdir(), "bug-lens-skill-contract-"));
   const workspaceDir = join(tempRoot, "workspace");
@@ -65,7 +69,7 @@ test("Skill contract: all CLI commands referenced in SKILL.md execute successful
     writeFileSync(sessionZipPath, buildRealSessionZipBytes());
     writeFileSync(screenshotZipPath, await buildRealScreenshotZipBytes());
 
-    // 1. 验证从 SKILL.md 中提取到的 bash 示例命令
+    // 1. 验证从 SKILL.md 中提取到的 bash 示例命令（纯 Rust 原生二进制路径）
     const codeBlockRegex = /```bash\s+([\s\S]*?)```/g;
     const extractedLines: string[] = [];
     let match: RegExpExecArray | null;
@@ -73,7 +77,7 @@ test("Skill contract: all CLI commands referenced in SKILL.md execute successful
       const block = match[1]!;
       for (const rawLine of block.split("\n")) {
         const line = rawLine.trim();
-        if (line.startsWith("node ") && line.includes("bug-lens-cli.mjs")) {
+        if (line.includes("bin/bug-lens-cli")) {
           extractedLines.push(line);
         }
       }
@@ -83,6 +87,49 @@ test("Skill contract: all CLI commands referenced in SKILL.md execute successful
       extractedLines.length >= 8,
       `Expected at least 8 CLI commands in SKILL.md, found ${extractedLines.length}`
     );
+
+    // 校验 SKILL.md 中所有示例命令均为当前 12 命令 CLI 已实现命令，不包含未合并的 v5 扩展命令或参数
+    const supportedCommands = new Set([
+      "open_pack",
+      "get_scene",
+      "get_screenshot",
+      "timeline",
+      "query_console",
+      "query_network",
+      "get_request",
+      "get_interactions",
+      "get_framework_state",
+      "search_pack",
+      "read_pack_file",
+      "extract_pack",
+    ]);
+    for (const line of extractedLines) {
+      const cmdMatch = /bin\/bug-lens-cli(?:\.exe)?"?\s+([a-z_]+)/.exec(line);
+      assert.ok(
+        cmdMatch,
+        `Failed to parse CLI command from SKILL.md line: ${line}`
+      );
+      assert.ok(
+        supportedCommands.has(cmdMatch[1]!),
+        `SKILL.md references unsupported CLI command "${cmdMatch[1]}" in line: ${line}`
+      );
+    }
+    for (const v5OnlyToken of [
+      "compare_requests",
+      "compare_frames",
+      "get_css",
+      "--apiOnly",
+      "--outline",
+      "--includeNoise",
+      "--settled",
+      "Contract-Gated Capabilities",
+    ]) {
+      assert.equal(
+        skillMarkdown.includes(v5OnlyToken),
+        false,
+        `SKILL.md must not reference unmerged v5 token "${v5OnlyToken}"`
+      );
+    }
 
     // 2. 依次测试 Branch B（Session 包工作流）
     // Step 1: open_pack "<绝对路径.zip>"

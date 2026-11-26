@@ -64,6 +64,24 @@ test.describe("Bug Lens Recording Widget Compact Controls E2E", () => {
     await expect(targetPage.locator("#__wbr_pause_btn__")).toHaveCount(0);
     await expect(targetPage.locator("#__wbr_stop_export_btn__")).toHaveCount(0);
 
+    // 显式切换为第二阶段静默导出模式，验证页内 Toast 与不自动打开预览页契约
+    await mediaProbe.evaluateWorker(async () => {
+      const stored = await chrome.storage.local.get("app-settings");
+      const prev =
+        (stored?.["app-settings"] as Record<string, unknown> | undefined) ?? {};
+      const prevWorkflow =
+        (prev.workflow as Record<string, unknown> | undefined) ?? {};
+      await chrome.storage.local.set({
+        "app-settings": {
+          ...prev,
+          workflow: {
+            ...prevWorkflow,
+            stopAction: "silentExport",
+          },
+        },
+      });
+    }, undefined);
+
     // 4. 点击【结束并导出】：停止录制并直出证据包下载（不打开预览页）
     logE2e("Clicking the compact stop-export control");
     await stopButton.click();

@@ -18,7 +18,8 @@ import { formatDateTime } from "../../shared/intl-formatter.ts";
 
 function formatStepForAi(
   card: GroupedInteractionCard,
-  stepIndex: number
+  stepIndex: number,
+  displayTitle = card.aggregatedMeta.title
 ): string {
   const primary = card.primaryRecord;
   const element = primary.element;
@@ -39,7 +40,7 @@ function formatStepForAi(
   const elementSnippet = `<${tagWithClass}${textVal ? ` ${textVal}` : ""}>`;
 
   const lines = [
-    t("aiStepTitle", [String(stepIndex), card.aggregatedMeta.title]),
+    t("aiStepTitle", [String(stepIndex), displayTitle]),
     t("aiStepUrl", primary.page.url),
   ];
 
@@ -65,9 +66,11 @@ export interface InteractionsTabProps {
     included: InteractionRecord[];
     hasMedia: boolean;
     startedAtEpochMs?: number;
+    customStepDescriptions?: Record<string, string>;
   };
   editable: boolean;
   onExclude?: (interactionId: string) => void;
+  onExcludeMany?: (interactionIds: string[]) => void;
   onOpenImage: (interactionId: string) => void;
   onSeekVideo?: (timestampMs: number) => void;
   onNotify?: (message: string) => void;
@@ -77,6 +80,7 @@ export const InteractionsTab = memo(function InteractionsTab({
   snapshot,
   editable,
   onExclude,
+  onExcludeMany,
   onOpenImage,
   onSeekVideo,
   onNotify,
@@ -115,8 +119,11 @@ export const InteractionsTab = memo(function InteractionsTab({
     <>
       {groupedCards.map((card, cardIndex) => {
         const primary = card.primaryRecord;
-        const primaryOriginalIndex = snapshot.all.indexOf(primary);
-        const isActive = activeIndex === primaryOriginalIndex;
+        const primaryOriginalIndex = snapshot.all.findIndex(
+          (item) => item.id === primary.id
+        );
+        const isActive =
+          primaryOriginalIndex >= 0 && activeIndex === primaryOriginalIndex;
         const isExpanded = !!expandedCardIds[card.id];
         const element = primary.element;
         const coordinates = primary.coordinates;
@@ -124,6 +131,11 @@ export const InteractionsTab = memo(function InteractionsTab({
         const screenshotRecord =
           card.aggregatedMeta.primaryScreenshotRecord || primary;
         const screenshotDataUrl = screenshotRecord.screenshot.dataUrl;
+        const customMap = snapshot.customStepDescriptions;
+        const displayTitle =
+          customMap?.[card.id] ||
+          card.children.map((c) => customMap?.[c.id]).find(Boolean) ||
+          card.aggregatedMeta.title;
 
         const size = element.boundingBox
           ? `${Math.round(element.boundingBox.width)}×${Math.round(element.boundingBox.height)} px`
@@ -204,9 +216,7 @@ export const InteractionsTab = memo(function InteractionsTab({
             }}
           >
             <div className="top">
-              <strong data-tooltip={card.aggregatedMeta.title}>
-                {card.aggregatedMeta.title}
-              </strong>
+              <strong data-tooltip={displayTitle}>{displayTitle}</strong>
               <div className="item-actions">
                 {inputLength !== undefined && (
                   <span
@@ -242,7 +252,11 @@ export const InteractionsTab = memo(function InteractionsTab({
                   title={t("copyStepText")}
                   onClick={(e) => {
                     e.stopPropagation();
-                    const text = formatStepForAi(card, cardIndex + 1);
+                    const text = formatStepForAi(
+                      card,
+                      cardIndex + 1,
+                      displayTitle
+                    );
                     void copyTextToClipboard(text)
                       .then(() => {
                         onNotify?.(t("stepCopied", String(cardIndex + 1)));
@@ -279,7 +293,12 @@ export const InteractionsTab = memo(function InteractionsTab({
                     title={t("deleteStep")}
                     onClick={(e) => {
                       e.stopPropagation();
-                      card.children.forEach((child) => onExclude?.(child.id));
+                      const ids = card.children.map((child) => child.id);
+                      if (onExcludeMany) {
+                        onExcludeMany(ids);
+                      } else {
+                        ids.forEach((id) => onExclude?.(id));
+                      }
                     }}
                   >
                     <svg

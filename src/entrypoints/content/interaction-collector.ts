@@ -18,6 +18,8 @@ import {
 } from "../../domain/framework-state-capture";
 import { captureEnvironment } from "../../domain/environment-capture";
 import { getSilentExportFailure } from "../../domain/silent-export";
+import { consumeStage2OnboardingToast } from "../../domain/quick-export-guide";
+import { DEFAULT_APP_SETTINGS, loadAppSettings } from "../../shared/settings";
 import type {
   ExpectedStatement,
   FrameworkStateTrigger,
@@ -294,11 +296,17 @@ if (typeof window !== "undefined") {
               return;
             }
 
+            const appSettings = await loadAppSettings().catch(
+              () => DEFAULT_APP_SETTINGS
+            );
+            const shouldAutoCopy =
+              appSettings.workflow.autoCopyPrompt !== false;
+
             const clipboardStart = performance.now();
             const prompt = res?.session?.silentPrompt;
             const ticketHtml = res?.session?.silentTicketHtml;
             let copiedPrompt = false;
-            if (prompt) {
+            if (prompt && shouldAutoCopy) {
               try {
                 if (ticketHtml) {
                   await copyRichTextToClipboard({
@@ -319,35 +327,67 @@ if (typeof window !== "undefined") {
             }
 
             const toastStart = performance.now();
-            try {
-              const targetSessionId =
-                res?.session?.id ??
-                (res?.session as { sessionId?: string })?.sessionId ??
-                session?.sessionId;
-              const isTicket =
-                (res?.session?.silentExportMode ?? exportMode) === "ticket";
-              const successMsg = isTicket
-                ? t("exportSuccessTicketCopied")
-                : t("exportSuccessCopied");
-              widget.showToast(
-                successMsg,
-                6000,
-                "normal",
-                targetSessionId
-                  ? {
-                      label: `${t("openPreview")} ↗`,
-                      onClick: () => {
-                        void chrome.runtime.sendMessage(
-                          message("session/open-preview", {
-                            sessionId: targetSessionId,
-                          })
-                        );
-                      },
-                    }
-                  : undefined
-              );
-            } catch {
-              // 忽略 Toast 展示异常
+            const targetSessionId =
+              res?.session?.id ??
+              (res?.session as { sessionId?: string })?.sessionId ??
+              session?.sessionId;
+            const effectiveExportMode =
+              res?.session?.silentExportMode ?? exportMode;
+            let openedStage1Preview = false;
+
+            if (
+              appSettings.workflow.stopAction === "preview" &&
+              targetSessionId
+            ) {
+              try {
+                const openRes = (await chrome.runtime.sendMessage(
+                  message("session/open-preview", {
+                    sessionId: targetSessionId,
+                    fromStopExport: true,
+                    exportMode: effectiveExportMode,
+                  })
+                )) as { ok?: boolean } | undefined;
+                openedStage1Preview = Boolean(openRes?.ok);
+              } catch {
+                openedStage1Preview = false;
+              }
+            }
+
+            if (!openedStage1Preview) {
+              try {
+                const isTicket = effectiveExportMode === "ticket";
+                const showStage2Hint =
+                  appSettings.workflow.stopAction === "silentExport"
+                    ? await consumeStage2OnboardingToast().catch(() => false)
+                    : false;
+                const baseMsg = copiedPrompt
+                  ? isTicket
+                    ? t("exportSuccessTicketCopied")
+                    : t("exportSuccessCopied")
+                  : t("exportSuccessCanCopy");
+                const successMsg = showStage2Hint
+                  ? `${baseMsg}\n${t("stage2SilentExportToastHint")}`
+                  : baseMsg;
+                widget.showToast(
+                  successMsg,
+                  6000,
+                  "normal",
+                  targetSessionId
+                    ? {
+                        label: `${t("openPreview")} ↗`,
+                        onClick: () => {
+                          void chrome.runtime.sendMessage(
+                            message("session/open-preview", {
+                              sessionId: targetSessionId,
+                            })
+                          );
+                        },
+                      }
+                    : undefined
+                );
+              } catch {
+                // 忽略 Toast 展示异常
+              }
             }
             const toastDurationMs = performance.now() - toastStart;
 

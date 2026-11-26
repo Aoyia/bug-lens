@@ -176,7 +176,7 @@ test("buildTicketTemplate: 包含标记问题、操作步骤、失败接口与�
   const result = buildTicketTemplate(snapshot);
   assert.ok(result.includes("- 实际表现：点击支付按钮无反应，提示网络错误"));
   assert.ok(result.includes("- 预期表现：应该正常跳转到支付完成页"));
-  assert.ok(result.includes('1. 点击 button "确认支付"'));
+  assert.ok(result.includes('1. 点击 "确认支付"'));
   assert.ok(result.includes("## 【自动捕获异常】"));
   assert.ok(result.includes("- 失败接口（1 个）："));
   assert.ok(
@@ -223,13 +223,13 @@ test("buildTicketTemplate: 交互全量保留不截断，且被删除步骤不�
   // 全量输出，不出现前略与时间戳
   assert.ok(!result.includes("前略"));
   assert.ok(!result.includes("[00:"));
-  assert.ok(result.includes('1. 点击 a "Link 1"'));
-  assert.ok(result.includes('2. 点击 a "Link 2"'));
+  assert.ok(result.includes('1. 点击 "Link 1"'));
+  assert.ok(result.includes('2. 点击 "Link 2"'));
   // 确认已删除的 Link 3 不在步骤中
-  assert.ok(!result.includes('点击 a "Link 3"'));
+  assert.ok(!result.includes('点击 "Link 3"'));
   // 后续步骤紧跟并重新连续编号
-  assert.ok(result.includes('3. 点击 a "Link 4"'));
-  assert.ok(result.includes('11. 点击 a "Link 12"'));
+  assert.ok(result.includes('3. 点击 "Link 4"'));
+  assert.ok(result.includes('11. 点击 "Link 12"'));
 });
 
 test("buildTicketHtml & buildTicketBundle: 包含内嵌 Base64 步骤截图富文本 HTML", async () => {
@@ -271,7 +271,7 @@ test("buildTicketHtml & buildTicketBundle: 包含内嵌 Base64 步骤截图富�
   };
 
   const bundle = buildTicketBundle(snapshot, "web-bug-report-abc.zip");
-  assert.ok(bundle.markdown.includes('1. 点击 button "Create New"'));
+  assert.ok(bundle.markdown.includes('1. 点击 "Create New"'));
   assert.ok(!bundle.markdown.includes("[00:"));
   assert.ok(!bundle.markdown.includes("【自动捕获异常】"));
 
@@ -464,20 +464,57 @@ test("buildTicketTemplate: 方案一（DOM 语义提升、动作合并、去除�
   assert.ok(!result.includes('点击 span "不通过"'));
 
   // 4. 对同一 input 的聚焦 click 与 input 操作被合并，只保留输入
-  assert.ok(!result.includes('点击 input "2"'));
-  assert.ok(result.includes('5. 输入 input "2"'));
+  assert.ok(!result.includes('点击 "2"'));
+  assert.ok(result.includes('5. 输入 "2"'));
 
-  // 5. 按钮与列表项正常保留
-  assert.ok(result.includes('6. 点击 button "确认离开"'));
-  assert.ok(result.includes('7. 点击 li "节点移交"'));
+  // 5. 按钮与列表项均隐藏机械 HTML 标签，统一双引号包裹
+  assert.ok(result.includes('6. 点击 "确认离开"'));
+  assert.ok(result.includes('7. 点击 "节点移交"'));
 
   // 6. 重复的 input 标签名被清洗
   assert.ok(result.includes("8. 点击 input"));
   assert.ok(!result.includes('点击 input "input"'));
 
-  assert.ok(result.includes('9. 点击 li "kentest41"'));
+  assert.ok(result.includes('9. 点击 "kentest41"'));
 
   // 7. 特殊符号 "《" 识别为折叠/返回
   assert.ok(result.includes('10. 点击 折叠/返回 "《"'));
   assert.ok(!result.includes('点击 div "《"'));
+});
+
+test("buildTicketHtml: 过滤非 http(s) 危险协议与空 URL，不生成可执行链接或死链", async () => {
+  await setUserLanguagePreference("zh-CN");
+  for (const unsafeUrl of [
+    "javascript:alert(1)",
+    "data:text/html,<script>alert(1)</script>",
+    "vbscript:msgbox(1)",
+    "",
+  ]) {
+    const session = createMockSession();
+    session.target.initialUrl = unsafeUrl;
+    const html = buildTicketHtml({
+      session,
+      interactions: [],
+      consoleEntries: [],
+      networkEntries: [],
+      excluded: { interaction: 0, console: 0, network: 0 },
+      hasMedia: false,
+    });
+    assert.ok(
+      !html.includes("<a href="),
+      `不应为危险或空 URL 生成链接: ${unsafeUrl}`
+    );
+  }
+
+  const safeSession = createMockSession();
+  safeSession.target.initialUrl = "https://example.com/orders?id=1";
+  const safeHtml = buildTicketHtml({
+    session: safeSession,
+    interactions: [],
+    consoleEntries: [],
+    networkEntries: [],
+    excluded: { interaction: 0, console: 0, network: 0 },
+    hasMedia: false,
+  });
+  assert.ok(safeHtml.includes('<a href="https://example.com/orders?id=1"'));
 });

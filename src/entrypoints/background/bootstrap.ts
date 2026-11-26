@@ -5,6 +5,7 @@ import {
   type RecordingSession,
 } from "../../shared/protocol";
 import { applySessionEvent as reduceSession } from "../../domain/recording-session";
+import { migrateLegacyStopActionIfNeeded } from "../../domain/quick-export-guide";
 import { t } from "../../shared/i18n";
 import type { BackgroundContext } from "./context";
 import { collectSessionTabIds, type SessionLifecycle } from "./lifecycle";
@@ -81,133 +82,146 @@ export function createBootstrapService(
    */
   async function bootstrapRuntimeState(): Promise<void> {
     await recordingCoordinator.restoreStoppingIds();
-    await db
-      .cleanupExpiredSessions()
-      .catch((error) =>
-        console.warn(`[Bug Lens] 过期会话清理失败：${String(error)}`)
-      );
-    const browserEpoch = await browserEpochPromise;
-    const session = await db.getActiveSession();
-    if (!session) return;
+    // 串行保证先执行老用户迁移再清理过期会话，同时放到 finally 等待，避免阻塞活动会话恢复的启动时序
+    const housekeepingPromise = (async () => {
+      await migrateLegacyStopActionIfNeeded(async () => {
+        const overviews = await db.listSessionOverviews();
+        return Array.isArray(overviews) ? overviews.length : 0;
+      }).catch(() => undefined);
+      await db
+        .cleanupExpiredSessions()
+        .catch((error) =>
+          console.warn(`[Bug Lens] 过期会话清理失败：${String(error)}`)
+        );
+    })();
+    try {
+      const browserEpoch = await browserEpochPromise;
+      const session = await db.getActiveSession();
+      if (!session) return;
 
-    if (!ACTIVE_STATUSES.includes(session.status)) {
-      if (session.previewPending) await lifecycle.openPendingPreview(session);
-      else await db.clearActive(session.id);
-      return;
-    }
+      if (!ACTIVE_STATUSES.includes(session.status)) {
+        if (session.previewPending) await lifecycle.openPendingPreview(session);
+        else await db.clearActive(session.id);
+        return;
+      }
 
-    if (!session.browserEpoch || session.browserEpoch !== browserEpoch) {
-      await recoverInterruptedSession(
-        session,
-        "SESSION_INTERRUPTED_BY_BROWSER_RESTART",
-        t("issueBrowserRestartInterrupted")
-      );
-      return;
-    }
+      if (!session.browserEpoch || session.browserEpoch !== browserEpoch) {
+        await recoverInterruptedSession(
+          session,
+          "SESSION_INTERRUPTED_BY_BROWSER_RESTART",
+          t("issueBrowserRestartInterrupted")
+        );
+        return;
+      }
 
-    if (session.status === "STOPPING") {
-      await lifecycle.stop(session.commandIds?.stop);
-      return;
-    }
+      if (session.status === "STOPPING") {
+        await lifecycle.stop(session.commandIds?.stop);
+        return;
+      }
 
-    if (session.status === "PREPARING") {
-      await recoverInterruptedSession(
-        session,
-        "SESSION_START_INTERRUPTED",
-        t("issueStartInterrupted")
-      );
-      return;
-    }
+      if (session.status === "PREPARING") {
+        await recoverInterruptedSession(
+          session,
+          "SESSION_START_INTERRUPTED",
+          t("issueStartInterrupted")
+        );
+        return;
+      }
 
-    const targetExists = await chrome.tabs
-      .get(session.target.tabId)
-      .then(() => true)
-      .catch(() => false);
-    if (!targetExists) {
-      await lifecycle.stop(`system:missing-tab:${session.id}`);
-      return;
-    }
+      const targetExists = await chrome.tabs
+        .get(session.target.tabId)
+        .then(() => true)
+        .catch(() => false);
+      if (!targetExists) {
+        await lifecycle.stop(`system:missing-tab:${session.id}`);
+        return;
+      }
 
-    ctx.multiTabManager?.initSession(session);
-    await contentScripts.restore(session.target.tabId);
-    if (Array.isArray(session.targets)) {
-      for (const target of session.targets) {
-        if (
-          typeof target?.tabId === "number" &&
-          target.tabId !== session.target.tabId
-        ) {
-          await contentScripts.restore(target.tabId).catch(() => undefined);
+      ctx.multiTabManager?.initSession(session);
+      await contentScripts.restore(session.target.tabId);
+      if (Array.isArray(session.targets)) {
+        for (const target of session.targets) {
+          if (
+            typeof target?.tabId === "number" &&
+            target.tabId !== session.target.tabId
+          ) {
+            await contentScripts.restore(target.tabId).catch(() => undefined);
+          }
         }
       }
-    }
 
-    streamHealthMonitor.initialize(session.target.tabId, session.id, {
-      captureVideo: session.options.captureVideo,
-      captureConsoleOrNetwork:
-        session.options.captureConsole || session.options.captureNetwork,
-    });
+      streamHealthMonitor.initialize(session.target.tabId, session.id, {
+        captureVideo: session.options.captureVideo,
+        captureConsoleOrNetwork:
+          session.options.captureConsole || session.options.captureNetwork,
+      });
 
-    const mediaWasExpected =
-      session.options.captureVideo &&
-      !session.quality.issues.some(
-        (entry) =>
-          entry.code === "MEDIA_STREAM_ID_FAILED" ||
-          entry.code === "MEDIA_RECORDER_FAILED"
-      );
-    if (mediaWasExpected) {
-      const contexts = await (
-        chrome.runtime.getContexts as unknown as (
-          filter: unknown
-        ) => Promise<chrome.runtime.ExtensionContext[]>
-      )({ contextTypes: ["OFFSCREEN_DOCUMENT"] }).catch(() => []);
-      const mediaStatus = contexts.length
-        ? await chrome.runtime
-            .sendMessage(
-              message(
-                "offscreen/status",
-                { sessionId: session.id },
-                session.id,
-                "offscreen"
-              )
-            )
-            .catch(() => undefined)
-        : undefined;
-      if (!mediaStatus?.active) {
-        await ctx.applySessionEvent(session.id, {
-          type: "capture-issue",
-          issue: ctx.issue(
-            "MEDIA_CONTEXT_LOST",
-            t("issueMediaContextLost"),
-            "media",
-            false
-          ),
-        });
-        streamHealthMonitor.updateStream("media", "disrupted");
-      }
-    }
-
-    if (session.options.captureConsole || session.options.captureNetwork) {
-      const isOwner = await cdpCollector.verifyOwnership(session.target.tabId);
-      if (isOwner) {
-        streamHealthMonitor.updateStream("cdp", "ok");
-      } else {
-        const debuggerIssue = await cdpCollector.attach(
-          session.target.tabId,
-          session
+      const mediaWasExpected =
+        session.options.captureVideo &&
+        !session.quality.issues.some(
+          (entry) =>
+            entry.code === "MEDIA_STREAM_ID_FAILED" ||
+            entry.code === "MEDIA_RECORDER_FAILED"
         );
-        if (debuggerIssue) {
+      if (mediaWasExpected) {
+        const contexts = await (
+          chrome.runtime.getContexts as unknown as (
+            filter: unknown
+          ) => Promise<chrome.runtime.ExtensionContext[]>
+        )({ contextTypes: ["OFFSCREEN_DOCUMENT"] }).catch(() => []);
+        const mediaStatus = contexts.length
+          ? await chrome.runtime
+              .sendMessage(
+                message(
+                  "offscreen/status",
+                  { sessionId: session.id },
+                  session.id,
+                  "offscreen"
+                )
+              )
+              .catch(() => undefined)
+          : undefined;
+        if (!mediaStatus?.active) {
           await ctx.applySessionEvent(session.id, {
             type: "capture-issue",
-            issue: debuggerIssue,
+            issue: ctx.issue(
+              "MEDIA_CONTEXT_LOST",
+              t("issueMediaContextLost"),
+              "media",
+              false
+            ),
           });
-          streamHealthMonitor.updateStream("cdp", "disrupted");
-        } else {
-          streamHealthMonitor.updateStream("cdp", "ok");
+          streamHealthMonitor.updateStream("media", "disrupted");
         }
       }
-    }
 
-    await streamHealthMonitor.sync();
+      if (session.options.captureConsole || session.options.captureNetwork) {
+        const isOwner = await cdpCollector.verifyOwnership(
+          session.target.tabId
+        );
+        if (isOwner) {
+          streamHealthMonitor.updateStream("cdp", "ok");
+        } else {
+          const debuggerIssue = await cdpCollector.attach(
+            session.target.tabId,
+            session
+          );
+          if (debuggerIssue) {
+            await ctx.applySessionEvent(session.id, {
+              type: "capture-issue",
+              issue: debuggerIssue,
+            });
+            streamHealthMonitor.updateStream("cdp", "disrupted");
+          } else {
+            streamHealthMonitor.updateStream("cdp", "ok");
+          }
+        }
+      }
+
+      await streamHealthMonitor.sync();
+    } finally {
+      await housekeepingPromise;
+    }
   }
 
   const bootstrapPromise = bootstrapRuntimeState().catch(() => undefined);

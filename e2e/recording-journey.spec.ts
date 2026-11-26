@@ -84,7 +84,25 @@ test.describe("Bug Lens Chrome Extension E2E User Journey", () => {
     await expect(stopButton).toBeVisible();
     await mediaProbe.waitForMediaChunkCountGreaterThan(session.id, 0, 5_000);
 
-    // 业务契约：点击「结束并导出」应直出证据包下载，不打开预览页
+    // 显式切换为第二阶段静默导出模式，验证静默直出契约（不打开预览页）
+    await mediaProbe.evaluateWorker(async () => {
+      const stored = await chrome.storage.local.get("app-settings");
+      const prev =
+        (stored?.["app-settings"] as Record<string, unknown> | undefined) ?? {};
+      const prevWorkflow =
+        (prev.workflow as Record<string, unknown> | undefined) ?? {};
+      await chrome.storage.local.set({
+        "app-settings": {
+          ...prev,
+          workflow: {
+            ...prevWorkflow,
+            stopAction: "silentExport",
+          },
+        },
+      });
+    }, undefined);
+
+    // 业务契约：静默导出模式下点击「结束并导出」应直出证据包下载，不打开预览页
     logE2e("Clicking the visible in-page stop control");
     await stopButton.click();
     // Playwright 捕获不到扩展后台发起的下载，改由 chrome.downloads API 轮询验证

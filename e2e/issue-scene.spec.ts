@@ -392,10 +392,35 @@ test.describe("Bug Lens Chrome Extension E2E ISSUE-001: Issue Scene Recording Jo
     const exportedDownload = await mediaProbe.waitForExportDownload();
     expect(exportedDownload.state).toBe("complete");
 
-    const previewPage = await context.newPage();
-    await previewPage.goto(
-      `chrome-extension://${extensionId}/preview.html?sessionId=${session.id}`
-    );
+    const previewUrlSubstring = `/preview.html?sessionId=${session.id}`;
+    let foundPreviewPage = context
+      .pages()
+      .find((p) => p.url().includes(previewUrlSubstring));
+    if (!foundPreviewPage) {
+      try {
+        await expect
+          .poll(
+            () =>
+              context
+                .pages()
+                .find((p) => p.url().includes(previewUrlSubstring)),
+            { timeout: 10_000 }
+          )
+          .toBeDefined();
+        foundPreviewPage = context
+          .pages()
+          .find((p) => p.url().includes(previewUrlSubstring));
+      } catch {
+        foundPreviewPage = undefined;
+      }
+    }
+    const previewPage = foundPreviewPage ?? (await context.newPage());
+    if (!foundPreviewPage) {
+      await previewPage.goto(
+        `chrome-extension://${extensionId}/preview.html?sessionId=${session.id}`
+      );
+    }
+    await previewPage.bringToFront();
     await previewPage.waitForLoadState("domcontentloaded");
 
     const finalEvidence = await mediaProbe.persistedEvidence(
