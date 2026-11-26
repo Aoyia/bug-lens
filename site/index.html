@@ -1,404 +1,610 @@
 <!doctype html>
-<html lang="zh-CN" data-theme="dark" class="">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Bug Lens — From Bug Scene to AI Fix in 3 Seconds</title>
+    <title>Bug Lens — 从 Bug 现场到 AI 修复，只需 3 秒</title>
+    <meta
+      name="description"
+      content="Bug Lens 是一款 100% 本地运行的 Chrome 扩展：一键录制或截图标注，自动捕获操作轨迹、React/Vue 组件状态、Console 报错与网络报文，生成可直接交付 AI 编程助手的结构化提示词与离线证据包。"
+    />
+    <link rel="canonical" href="https://aoyia.github.io/bug-lens/" />
+    <meta property="og:type" content="website" />
+    <meta
+      property="og:title"
+      content="Bug Lens — From Bug Scene to AI Fix in 3 Seconds"
+    />
+    <meta
+      property="og:description"
+      content="Capture browser interactions, React/Vue state, console stacks, and network payloads locally — export structured AI prompts and offline evidence packs in one click."
+    />
+    <meta property="og:url" content="https://aoyia.github.io/bug-lens/" />
+    <meta
+      property="og:image"
+      content="https://aoyia.github.io/bug-lens/assets/og-cover.jpg"
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta
+      name="twitter:title"
+      content="Bug Lens — From Bug Scene to AI Fix in 3 Seconds"
+    />
+    <meta
+      name="twitter:description"
+      content="One-click browser bug context recorder & screenshot annotator built for Cursor, Claude Code, Codex, and Antigravity."
+    />
+    <meta
+      name="twitter:image"
+      content="https://aoyia.github.io/bug-lens/assets/og-cover.jpg"
+    />
     <link rel="icon" type="image/png" href="assets/logo.png" />
     <link rel="shortcut icon" href="favicon.ico" />
     <link rel="apple-touch-icon" href="assets/logo.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;1,14..32,400&amp;family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&amp;display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="style.css" />
+    <script defer src="data/releases.js"></script>
+    <script defer src="data/i18n.js"></script>
+    <script defer src="app.js"></script>
   </head>
 
   <body>
-    <!-- Navigation -->
-    <div class="nav-bar">
+    <header class="nav-bar">
       <div class="nav-inner">
         <a href="#" class="nav-brand">
-          <img src="assets/logo.png" alt="Bug Lens" />
+          <img src="assets/logo.png" alt="Bug Lens" width="28" height="28" />
           <span>Bug Lens</span>
         </a>
-        <div class="nav-links">
+
+        <nav class="nav-links" aria-label="Primary Navigation">
           <a href="#workflow" data-l10n="navWorkflow">工作流</a>
-          <a href="#pillars" data-l10n="navFeatures">核心能力</a>
-          <a
-            href="#changelog"
-            class="nav-item-pill"
-            onclick="
-              openChangelogDrawer();
-              return false;
-            "
-          >
+          <a href="#capabilities" data-l10n="navCapabilities">核心能力</a>
+          <a href="#agent-skill" data-l10n="navAgentSkill">Agent Skill</a>
+          <a href="#changelog" class="nav-item-pill" data-open-changelog>
             <span data-l10n="navChangelog">更新日志</span>
-            <span class="aurora-new-pill">
+            <span class="aurora-new-pill" aria-hidden="true">
               <span class="pill-dot"></span>
               <span>NEW</span>
             </span>
           </a>
           <a href="#faq" data-l10n="navFaq">FAQ</a>
-          <button id="langSwitch" class="lang-switch" onclick="toggleLang()">
-            EN
+        </nav>
+
+        <div class="nav-actions">
+          <button id="langSwitch" type="button" class="lang-switch">EN</button>
+          <button
+            id="mobileMenuBtn"
+            type="button"
+            class="mobile-menu-btn"
+            aria-expanded="false"
+            aria-controls="mobileNavPanel"
+            aria-label="打开导航菜单"
+            data-l10n-aria="navMenuAria"
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
           </button>
         </div>
       </div>
-    </div>
 
-    <!-- Hero -->
-    <section class="grid">
-      <div class="hero">
-        <a
-          href="#changelog"
-          onclick="
-            openChangelogDrawer();
-            return false;
-          "
-          class="version-pill reveal visible"
-          aria-label="查看更新日志"
-        >
-          <span class="version-pill-tag">v0.7.44</span>
-          <span class="version-pill-text" data-l10n="heroVersionBadge"
-            >v0.7.44 现已上线 · 查看更新日志</span
+      <div id="mobileNavPanel" class="mobile-nav-panel" hidden>
+        <div class="mobile-nav-inner">
+          <a href="#workflow" data-l10n="navWorkflow">工作流</a>
+          <a href="#capabilities" data-l10n="navCapabilities">核心能力</a>
+          <a href="#agent-skill" data-l10n="navAgentSkill">Agent Skill</a>
+          <a href="#changelog" data-open-changelog data-l10n="navChangelog"
+            >更新日志</a
           >
-          <span class="version-pill-arrow" aria-hidden="true">→</span>
-        </a>
-        <h1 class="reveal visible" data-l10n="heroTitle">
-          从 Bug 复现到 <span class="hl">AI 修复</span><br />只需 3 秒，而非 5
-          分钟
-        </h1>
-        <p class="hero-lead reveal visible" data-l10n="heroSub">
-          Bug Lens 一键录制复现过程，自动收集点击轨迹、DOM 快照、Console 日志与
-          Network 报文，生成可直接粘贴给 Cursor 与 Claude Code 的规范提示词。
-        </p>
-
-        <!-- Efficiency Comparison -->
-        <div class="eff-compare reveal visible">
-          <div class="eff-card old">
-            <span class="eff-label">Old Way</span>
-            <span class="eff-time"
-              >5<span style="font-size: 1.5rem; font-weight: 500">
-                min</span
-              ></span
-            >
-            <span class="eff-desc" data-l10n="effOld"
-              >截屏 ➔ 打开 Jira ➔ 手敲日志 ➔ 编写 Prompt</span
-            >
-          </div>
-          <div class="eff-card new">
-            <span class="eff-label">Bug Lens</span>
-            <span class="eff-time" style="font-size: 53px; text-align: center"
-              >3<span style="font-size: 1.5rem; font-weight: 500">
-                sec</span
-              ></span
-            >
-            <span class="eff-desc" data-l10n="effNew"
-              >1-秒录制 ➔ 复制自动 Prompt ➔ 粘贴至 Cursor</span
-            >
-          </div>
+          <a href="#faq" data-l10n="navFaq">FAQ</a>
         </div>
+      </div>
+    </header>
 
-        <div class="cta-row reveal visible">
-          <a
-            href="https://github.com/Aoyia/bug-lens/releases"
-            target="_blank"
-            class="btn btn-primary"
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-              aria-hidden="true"
+    <main>
+      <!-- Hero -->
+      <section class="hero-section">
+        <div class="grid">
+          <div class="hero">
+            <a
+              id="heroVersionPill"
+              href="#changelog"
+              class="version-pill"
+              data-open-changelog
+              data-fallback-version="0.7.44"
             >
-              <path
-                d="M12 0C8.21 0 4.831 1.757 2.632 4.501l3.953 6.848A5.454 5.454 0 0 1 12 6.545h10.691A12 12 0 0 0 12 0zM1.931 5.47A11.943 11.943 0 0 0 0 12c0 6.012 4.42 10.991 10.189 11.864l3.953-6.847a5.45 5.45 0 0 1-6.865-2.29zm13.342 2.002a5.453 5.453 0 0 1 2.182 6.452l-3.953 6.848A11.996 11.996 0 0 0 24 12c0-.308-.012-.613-.035-.916H15.273zM12 7.636a4.364 4.364 0 1 0 0 8.728 4.364 4.364 0 0 0 0-8.728z"
-              ></path>
-            </svg>
-            <span data-l10n="ctaInstall">安装扩展</span></a
-          >
-          <a
-            href="https://github.com/Aoyia/bug-lens"
-            target="_blank"
-            class="btn btn-secondary"
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="currentColor"
-              aria-hidden="true"
-            >
-              <path
-                d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"
-              ></path>
-            </svg>
-            <span data-l10n="ctaSource">查看源码</span></a
-          >
-        </div>
+              <span id="heroVersionTag" class="version-pill-tag">v0.7.44</span>
+              <span id="heroVersionText" class="version-pill-text"
+                >v0.7.44 现已上线 · 查看更新日志</span
+              >
+              <span class="version-pill-arrow" aria-hidden="true">→</span>
+            </a>
 
-        <!-- End-to-End Workflow Video Player -->
-        <div class="demo-player-wrap reveal">
-          <div class="demo-player-topbar">
-            <div class="tl-dots">
-              <span class="tl-dot r"></span>
-              <span class="tl-dot y"></span>
-              <span class="tl-dot g"></span>
+            <h1 data-l10n="heroTitle">
+              从 Bug 复现到 <span class="hl">AI 修复</span><br />只需 3 秒
+            </h1>
+
+            <p class="hero-lead" data-l10n="heroSub">
+              一键录制或独立截图标注，自动捕获操作轨迹、React/Vue
+              组件状态、Console 报错与网络报文，生成可直接交付给 Cursor、Claude
+              Code 与 Antigravity 的结构化提示词与离线证据包。
+            </p>
+
+            <div class="eff-compare">
+              <div class="eff-card old">
+                <span class="eff-label" data-l10n="effOldLabel">传统排障</span>
+                <span class="eff-time" data-l10n="effOldTime">5 min</span>
+                <span class="eff-desc" data-l10n="effOldDesc"
+                  >截屏 ➔ 翻控制台 ➔ 复制报文 ➔ 手写长 Prompt</span
+                >
+              </div>
+              <div class="eff-card new">
+                <span class="eff-label" data-l10n="effNewLabel">Bug Lens</span>
+                <span class="eff-time" data-l10n="effNewTime">3 sec</span>
+                <span class="eff-desc" data-l10n="effNewDesc"
+                  >录制或截图 ➔ 导出并自动复制 ➔ 粘贴给 AI 秒修</span
+                >
+              </div>
             </div>
-            <span class="demo-player-tag" data-l10n="demoPlayerTag"
-              >20秒全闭环演示: 录制 ➔ 500报错 ➔ AI 修复</span
-            >
-          </div>
-          <div class="demo-video-box">
-            <video
-              id="heroDemoVideo"
-              poster="assets/demo/demo-poster.png"
-              autoplay
-              loop
-              muted
-              playsinline
-              controls
-              preload="metadata"
-            >
-              <source
-                src="assets/demo/bug-lens-demo-1080p.webm"
-                type="video/webm"
-              />
-              您的浏览器暂不支持 HTML5 视频播放。
-            </video>
-          </div>
-        </div>
 
-        <!-- Timeline -->
-        <div id="workflow" class="timeline-wrap reveal">
-          <div class="timeline-topbar">
-            <div class="tl-dots">
-              <span class="tl-dot r"></span>
-              <span class="tl-dot y"></span>
-              <span class="tl-dot g"></span>
+            <div class="cta-row">
+              <a
+                id="primaryInstallBtn"
+                href="https://chromewebstore.google.com/detail/bug-lens/mjfoododejekngekcmidcfagmmgabmjc"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="btn btn-primary"
+              >
+                <svg
+                  id="installIconChrome"
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <circle cx="12" cy="12" r="4"></circle>
+                  <line x1="21.17" y1="8" x2="12" y2="8"></line>
+                  <line x1="3.95" y1="6.06" x2="8.54" y2="14"></line>
+                  <line x1="10.88" y1="21.94" x2="15.46" y2="14"></line>
+                </svg>
+                <svg
+                  id="installIconEdge"
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                  hidden
+                >
+                  <path
+                    d="M 16.2 19.9 A 9 9 0 1 1 21 12 H 9 A 3.5 3.5 0 0 0 12.5 15.5"
+                  ></path>
+                </svg>
+                <span id="primaryInstallLabel" data-l10n="ctaStore"
+                  >安装 Chrome 扩展</span
+                >
+              </a>
+              <a
+                href="https://github.com/Aoyia/bug-lens"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="btn btn-secondary"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 16 16"
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"
+                  ></path>
+                </svg>
+                <span data-l10n="ctaSource">GitHub 源码</span>
+              </a>
             </div>
-            <span class="tl-tag" data-l10n="bmTag"
-              >全生命周期: Vue 3 TodoMVC 实操闭环</span
-            >
-          </div>
 
-          <div class="tl-body">
-            <!-- Step 1 -->
-            <div class="tl-step reveal">
-              <div class="tl-num">01</div>
-              <div>
-                <div class="tl-step-head">
-                  <h3 data-l10n="t1Title">Step 01. 问题复现与红圈轨迹捕获</h3>
-                  <span class="tl-step-tag" data-l10n="t1Badge">用户操作</span>
+            <div class="hero-sub-actions">
+              <p class="hero-alt-channels">
+                <a
+                  id="altStoreLink"
+                  href="https://microsoftedge.microsoft.com/addons/detail/cpkhddjakccclhdacmpiiajdlbfmldcj"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="hero-channel-link"
+                  data-l10n="altEdgeStore"
+                  >Microsoft Edge 商店</a
+                >
+                <span class="hero-alt-sep" aria-hidden="true">·</span>
+                <a
+                  href="https://github.com/Aoyia/bug-lens/releases/latest"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="hero-channel-link"
+                  data-l10n="altOfflineZip"
+                  >离线安装包 (.zip)</a
+                >
+              </p>
+            </div>
+
+            <!-- 20s Demo Video -->
+            <div class="demo-player-wrap reveal">
+              <div class="window-topbar">
+                <div class="tl-dots" aria-hidden="true">
+                  <span class="tl-dot r"></span>
+                  <span class="tl-dot y"></span>
+                  <span class="tl-dot g"></span>
                 </div>
-                <div class="tl-step-body">
-                  <div class="tl-video">
-                    <video
-                      src="assets/demo/todomvc-demo.webm"
-                      autoplay=""
-                      loop=""
-                      muted=""
-                      playsinline=""
-                      poster="assets/demo/todomvc-step2.png"
-                    ></video>
-                  </div>
-                  <div
-                    style="
-                      display: flex;
-                      flex-direction: column;
-                      gap: 12px;
-                      justify-content: center;
-                    "
+                <span class="demo-player-tag" data-l10n="demoPlayerTag"
+                  >20 秒全闭环演示：网页捕获 ➔ 500 报错现场 ➔ IDE
+                  直接采纳修复</span
+                >
+              </div>
+              <div class="demo-video-box">
+                <video
+                  id="heroDemoVideo"
+                  poster="assets/demo/demo-poster.jpg"
+                  autoplay
+                  loop
+                  muted
+                  playsinline
+                  controls
+                  preload="metadata"
+                >
+                  <source
+                    src="assets/demo/bug-lens-demo.mp4"
+                    type="video/mp4"
+                  />
+                  <source
+                    src="assets/demo/bug-lens-demo.webm"
+                    type="video/webm"
+                  />
+                  <span data-l10n="demoFallback"
+                    >您的浏览器暂不支持 HTML5 视频播放。</span
                   >
-                    <p class="tl-desc" data-l10n="t1Desc">
-                      开发者在 Vue 3 TodoMVC (http://localhost:5173/) 上点击勾选
-                      Todo 项复现 Bug。Bug Lens 自动捕获精确红圈轨迹。
-                    </p>
-                    <div class="tl-err">
-                      [Console Error] TypeError: Cannot read properties of
-                      undefined (reading 'lastUpdated') at App.vue:48:36
+                </video>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4-Step End-to-End Workflow -->
+      <section id="workflow" class="section section-alt">
+        <div class="grid">
+          <div class="section-header reveal">
+            <div class="section-eyebrow" data-l10n="wfEyebrow">
+              4-Step Workflow
+            </div>
+            <h2 class="section-title" data-l10n="wfTitle">
+              4 步完成从现场捕获到代码修复
+            </h2>
+            <p class="section-desc" data-l10n="wfSubtitle">
+              无需配置后端或额外 CLI，安装扩展即可开箱完成「录制 / 截图 →
+              预览策展 → 粘贴 Prompt → 采纳补丁」闭环。
+            </p>
+          </div>
+
+          <div class="timeline-wrap reveal">
+            <div class="window-topbar">
+              <div class="tl-dots" aria-hidden="true">
+                <span class="tl-dot r"></span>
+                <span class="tl-dot y"></span>
+                <span class="tl-dot g"></span>
+              </div>
+              <span class="tl-tag" data-l10n="bmTag">v0.7.44 实操闭环</span>
+            </div>
+
+            <div class="tl-body">
+              <!-- Step 1 -->
+              <article class="tl-step reveal">
+                <div class="tl-num">01</div>
+                <div class="tl-step-content">
+                  <div class="tl-step-head">
+                    <h3 data-l10n="t1Title">Step 01. 一键录制或独立截图标注</h3>
+                    <span class="tl-step-tag" data-l10n="t1Badge"
+                      >现场捕获</span
+                    >
+                  </div>
+                  <p class="tl-desc" data-l10n="t1Desc">
+                    录制模式下自动采集点击红圈、Console、网络请求与组件状态（Option/Alt+S
+                    快捷标记异常现场）；无需录屏时可用独立截图工具框选测量、画箭头并添加中英批注。
+                  </p>
+
+                  <div class="showcase-switcher">
+                    <div
+                      class="segmented-tabs"
+                      role="tablist"
+                      aria-label="Capture views"
+                    >
+                      <button
+                        type="button"
+                        class="seg-tab active"
+                        role="tab"
+                        aria-selected="true"
+                        data-shot-tab="annotation"
+                        data-l10n="tabShotAnnotation"
+                      >
+                        独立截图标注
+                      </button>
+                      <button
+                        type="button"
+                        class="seg-tab"
+                        role="tab"
+                        aria-selected="false"
+                        data-shot-tab="popup"
+                        data-l10n="tabShotPopup"
+                      >
+                        扩展录制配置面板
+                      </button>
+                    </div>
+
+                    <figure class="showcase-frame" data-shot-panel="annotation">
+                      <img
+                        src="assets/showcase/screenshot-annotation.png"
+                        alt="Bug Lens Screenshot Annotation"
+                        loading="lazy"
+                      />
+                      <figcaption data-l10n="shotCaptionAnnotation">
+                        框选像素尺寸测量、箭头指示与流式发光描边文字批注，直接描述前端视觉或交互修改诉求。
+                      </figcaption>
+                    </figure>
+
+                    <figure
+                      class="showcase-frame showcase-frame-compact"
+                      data-shot-panel="popup"
+                      hidden
+                    >
+                      <img
+                        src="assets/showcase/popup-panel.png"
+                        alt="Bug Lens Control Popup Panel"
+                        loading="lazy"
+                      />
+                      <figcaption data-l10n="shotCaptionPopup">
+                        一键启动录制或截图，按需勾选视频/控制台/网络/响应体/框架状态，默认开启安全脱敏模式。
+                      </figcaption>
+                    </figure>
+                  </div>
+                </div>
+              </article>
+
+              <!-- Step 2 -->
+              <article class="tl-step reveal">
+                <div class="tl-num">02</div>
+                <div class="tl-step-content">
+                  <div class="tl-step-head">
+                    <h3 data-l10n="t2Title">
+                      Step 02. 可视化预览策展与 ZIP 打包
+                    </h3>
+                    <span class="tl-step-tag" data-l10n="t2Badge"
+                      >离线归档</span
+                    >
+                  </div>
+                  <p class="tl-desc" data-l10n="t2Desc">
+                    在证据预览工作区审查时间轴、删改冗余步骤或截图、生成
+                    Playwright 复现脚本；点击导出自动下载离线 ZIP 并将 AI
+                    提示词写入剪贴板。
+                  </p>
+
+                  <div class="step2-grid">
+                    <figure class="showcase-frame">
+                      <img
+                        src="assets/showcase/evidence-preview-workspace.png"
+                        alt="Bug Lens Evidence Preview Workspace"
+                        loading="lazy"
+                      />
+                      <figcaption data-l10n="t2Caption">
+                        实机证据预览工作区：左侧视频/时间轴回放可拖拽分栏，右侧展示稳定度评分的
+                        Playwright 定位器与网络状态。
+                      </figcaption>
+                    </figure>
+
+                    <div class="tl-file-tree">
+                      <div class="ft-title">
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
+                          ></path>
+                        </svg>
+                        <span>web-bug-report-b3444f9a.zip</span>
+                      </div>
+                      <div class="ft-subtitle" data-l10n="treeLabel">
+                        导出离线证据包结构
+                      </div>
+                      <div class="tl-file-row">
+                        <span class="fn">AI_PROMPT.md</span>
+                        <span class="fd" data-l10n="ftPrompt"
+                          >结构化 AI 诊断提示词与工作区指引</span
+                        >
+                      </div>
+                      <div class="tl-file-row">
+                        <span class="fn">report.html</span>
+                        <span class="fd" data-l10n="ftReport"
+                          >严格 CSP 可双击打开的离线可交互报告</span
+                        >
+                      </div>
+                      <div class="tl-file-row">
+                        <span class="fn">data/session-data.js</span>
+                        <span class="fd" data-l10n="ftSession"
+                          >交互时间轴、Console、框架状态与问题现场</span
+                        >
+                      </div>
+                      <div class="tl-file-row">
+                        <span class="fn">data/network-details.js</span>
+                        <span class="fd" data-l10n="ftNetwork"
+                          >完整请求头、响应体与调用栈详情</span
+                        >
+                      </div>
+                      <div class="tl-file-row">
+                        <span class="fn">reproduce.spec.ts</span>
+                        <span class="fd" data-l10n="ftRepro"
+                          >带稳定性评分的 Playwright 自动复现脚本</span
+                        >
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            </div>
+              </article>
 
-            <!-- Step 2 -->
-            <div class="tl-step reveal">
-              <div class="tl-num">02</div>
-              <div>
-                <div class="tl-step-head">
-                  <h3 data-l10n="t2Title">Step 02. 凭据自动打包导出 ZIP</h3>
-                  <span class="tl-step-tag" data-l10n="t2Badge">自动导出</span>
-                </div>
-                <div class="tl-file-tree">
-                  <div class="ft-title">
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
+              <!-- Step 3 -->
+              <article class="tl-step reveal">
+                <div class="tl-num">03</div>
+                <div class="tl-step-content">
+                  <div class="tl-step-head">
+                    <h3 data-l10n="t3Title">
+                      Step 03. 自动复制双语 Prompt 交付大模型
+                    </h3>
+                    <span class="tl-step-tag" data-l10n="t3Badge"
+                      >AI 提示词</span
                     >
-                      <path
-                        d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
-                      ></path>
-                    </svg>
-                    web-bug-report-b3444f9a.zip
                   </div>
-                  <div class="tl-file-row">
-                    <span>📄</span><span class="fn">AI_PROMPT.md</span
-                    ><span class="fd">Structured Markdown for LLMs</span>
-                  </div>
-                  <div class="tl-file-row">
-                    <span>🌐</span><span class="fn">report.html</span
-                    ><span class="fd">Standalone Interactive Report</span>
-                  </div>
-                  <div class="tl-file-row">
-                    <span>📊</span><span class="fn">data/session-data.js</span
-                    ><span class="fd">12 Interactions, 25 Console Logs</span>
-                  </div>
-                  <div class="tl-file-row">
-                    <span>📡</span
-                    ><span class="fn">data/network-details.js</span
-                    ><span class="fd">HTTP Headers, Payloads, 404s</span>
-                  </div>
-                </div>
-              </div>
-            </div>
+                  <p class="tl-desc" data-l10n="t3Desc">
+                    支持精简路由（Compact，节省上下文
+                    Token）与完整指引（Full）两种模板，中英双语与宿主系统命令自动适配，导出即写入剪贴板。
+                  </p>
 
-            <!-- Step 3 -->
-            <div class="tl-step reveal">
-              <div class="tl-num">03</div>
-              <div>
-                <div class="tl-step-head">
-                  <h3 data-l10n="t3Title">
-                    Step 03. 复制 AI_PROMPT.md 交付大模型
-                  </h3>
-                  <span class="tl-step-tag" data-l10n="t3Badge">AI 提示词</span>
-                </div>
-                <div id="rawPromptDisplay" class="tl-code-block">
-                  请作为高级 Frontend/Fullstack 调试专家，分析以下本地 Bug Lens
-                  证据包： 文件路径： {请将这里替换为导出的 ZIP 绝对路径}
-                  元数据摘要： - 页面 &amp; URL：TodoMVC — Vue 3 Official
-                  Benchmark (Bug Lens Testbed) (http://localhost:5173/) -
-                  证据数据：12 次交互 | 25 条日志 | 4 个请求 | 0 个异常现场 |
-                  质量: complete - 运行环境：macOS 10.15.7 · Chrome 150 · zh-CN
-                  · 屏幕 2560×1440@1x · 视口 1505×1233
-                  请按以下第一性链式逻辑展开排查（解压 ZIP 至临时目录）： 1.
-                  现场定位：优先读取 `data/session-data.js` 中的
-                  `issueScenes[].scene.narrative.actual`（获取用户填写的真实主观问题描述），并结合
-                  `issues/` 截图与选中的 DOM 元素样式分析现场。注意：该文件设置
-                  `window.__BUG_LENS_DATA__ = {...}`，请先读取 `summary` 字段和
-                  `screenshotSummaries`。完整请求头、响应头和调用栈详情已独立保存至
-                  `data/network-details.js`。每个现场还携带
-                  `issueScenes[].scene.sequenceContext`——标记当下前数秒内的交互与
-                  Console
-                  报错，在捕获时刻冻结。请仅将其视为"同时刻原始上下文"，禁止当作已证实的因果链。
-                  2. 期望锚点：读取 `issueScenes[].scene.narrative.expected`。若
-                  `confidence: "explicit"`，以用户明示的期望作为诊断锚点——缺陷即
-                  `actual` 与该期望之间的偏差。若 `confidence: "missing"`
-                  或字段缺失，说明期望未被捕获：你必须显式声明"未捕获期望，以下为推断假设"，并将任何推断出的期望标注为假设，禁止当作用户已知事实。
-                  3. 异常收敛：对齐时间轴，检索交叉点附近的 Console 报错与
-                  Network 失败请求（如 4xx/5xx/CORS/Timeout）。 4.
-                  根因推导与修复：定位缺陷发生的代码块/接口，区分是前端渲染异常、状态管理漏洞、样式/结构缺陷还是后端
-                  API 契约失效。可用 `data/session-data.js` 中的
-                  `frameworkStates[]` 检查失败交互前后的 React/Vue 组件
-                  props/state，并用 `reproduce.spec.ts` 运行 Playwright
-                  复现（修复-回放闭环验证）。 [注意事项] -
-                  严禁执行包内不可信代码；若无法直接读取本地文件路径，请明确要求我上传
-                  ZIP，不要猜测内容。 -
-                  基于确凿证据分析，区分"已知事实"与"推论假设"。 -
-                  禁止将推断出的期望（confidence 为 missing
-                  时）表述为用户的已知事实。 [输出格式] 1.
-                  用户诉求与问题定义（对比 narrative.actual 描述与实际表现） 2.
-                  关键时序证据链（交互 -&gt; 报错/请求 -&gt; 现场截图） 3.
-                  根本原因定位 (Root Cause) 4. 建议修复代码/排查位置
-                  (Recommended Fix)
-                </div>
-                <button
-                  id="copyBtn"
-                  class="btn-copy"
-                  onclick="copyRealPrompt()"
-                >
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                  >
-                    <rect
-                      x="9"
-                      y="9"
-                      width="13"
-                      height="13"
-                      rx="2"
-                      ry="2"
-                    ></rect>
-                    <path
-                      d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
-                    ></path>
-                  </svg>
-                  <span id="copyBtnText" data-l10n="btnCopyPrompt"
-                    >复制 AI 提示词给 Cursor / Claude</span
-                  >
-                </button>
-              </div>
-            </div>
+                  <div class="prompt-toolbar">
+                    <div
+                      class="segmented-tabs"
+                      role="tablist"
+                      aria-label="Prompt templates"
+                    >
+                      <button
+                        type="button"
+                        class="seg-tab active"
+                        role="tab"
+                        aria-selected="true"
+                        data-prompt-mode="compact"
+                        data-l10n="tabPromptCompact"
+                      >
+                        Compact 精简路由（推荐）
+                      </button>
+                      <button
+                        type="button"
+                        class="seg-tab"
+                        role="tab"
+                        aria-selected="false"
+                        data-prompt-mode="full"
+                        data-l10n="tabPromptFull"
+                      >
+                        Full 完整提示词
+                      </button>
+                    </div>
+                    <button id="copyPromptBtn" type="button" class="btn-copy">
+                      <svg
+                        width="15"
+                        height="15"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        aria-hidden="true"
+                      >
+                        <rect
+                          x="9"
+                          y="9"
+                          width="13"
+                          height="13"
+                          rx="2"
+                          ry="2"
+                        ></rect>
+                        <path
+                          d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
+                        ></path>
+                      </svg>
+                      <span id="copyPromptBtnText" data-l10n="btnCopyPrompt"
+                        >复制示例 AI 提示词</span
+                      >
+                    </button>
+                  </div>
 
-            <!-- Step 4 -->
-            <div class="tl-step last reveal">
-              <div class="tl-num">04</div>
-              <div>
-                <div class="tl-step-head">
-                  <h3 data-l10n="t4Title">
-                    Step 04. 工程师核验方案与代码修复 Accept
-                  </h3>
-                  <span class="tl-step-tag" data-l10n="t4Badge"
-                    >问题已修复</span
-                  >
+                  <pre id="rawPromptDisplay" class="tl-code-block"></pre>
                 </div>
-                <p
-                  class="tl-desc"
-                  style="margin-bottom: 12px"
-                  data-l10n="t4Desc"
-                >
-                  AI 基于全量凭据定位出 src/App.vue 缺陷并输出修复补丁，工程师在
-                  Cursor 中核验并点击 Accept 应用修复：
-                </p>
-                <div class="tl-diff">
-                  <div class="del">
-                    - const timestamp = todo.storeMeta.lastUpdated.getTime()
+              </article>
+
+              <!-- Step 4 -->
+              <article class="tl-step last reveal">
+                <div class="tl-num">04</div>
+                <div class="tl-step-content">
+                  <div class="tl-step-head">
+                    <h3 data-l10n="t4Title">
+                      Step 04. 根因收敛与最小修复 Accept
+                    </h3>
+                    <span class="tl-step-tag" data-l10n="t4Badge"
+                      >精准修复</span
+                    >
                   </div>
-                  <div class="add">
-                    + const timestamp = todo.storeMeta?.lastUpdated?.getTime()
-                    ?? Date.now()
-                  </div>
+                  <p class="tl-desc" data-l10n="t4Desc">
+                    AI 依据时间戳交叉比对 500 响应报文、组件响应式状态与
+                    SourceMap 定位到
+                    src/components/BillingTable.vue:39，输出结论先行报告与最小化代码补丁：
+                  </p>
+                  <pre
+                    class="tl-diff"
+                  ><span class="diff-file">// src/components/BillingTable.vue:39</span>
+<span class="del">- const sessionId = resp.data.paymentGatewaySession.id;</span>
+<span class="add">+ if (!res.ok) throw new Error(`HTTP ${res.status}`);</span>
+<span class="add">+ const sessionId = resp?.data?.paymentGatewaySession?.id ?? null;</span></pre>
                 </div>
-              </div>
+              </article>
             </div>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <!-- Pillars -->
-    <section id="pillars" class="section">
-      <div class="grid">
-        <div>
-          <div class="section-eyebrow reveal">Capabilities</div>
-          <h2 class="section-title reveal" data-l10n="pillarTitle">核心能力</h2>
+      <!-- Capabilities Matrix -->
+      <section id="capabilities" class="section">
+        <div class="grid">
+          <div class="section-header reveal">
+            <div class="section-eyebrow" data-l10n="capEyebrow">
+              Capabilities
+            </div>
+            <h2 class="section-title" data-l10n="capTitle">
+              面向 AI 时代的完整前端现场能力
+            </h2>
+            <p class="section-desc" data-l10n="capSubtitle">
+              不仅是一键录屏，而是围绕「可复现、可定位、可策展、绝对私密」构建的全链路调试证据引擎。
+            </p>
+          </div>
+
           <div class="pillars-grid reveal">
-            <div class="pillar-card">
+            <article class="pillar-card">
               <div class="pillar-header">
-                <div class="pillar-icon">
+                <div class="pillar-icon" aria-hidden="true">
                   <svg
                     width="20"
                     height="20"
@@ -407,23 +613,106 @@
                     stroke="currentColor"
                     stroke-width="2"
                   >
-                    <path
-                      d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"
-                    ></path>
-                    <line x1="4" y1="22" x2="4" y2="15"></line>
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
                   </svg>
                 </div>
-                <span class="pillar-tag" data-l10n="p1Tag">全维度捕获</span>
+                <span class="pillar-tag" data-l10n="c1Tag">全维度对齐</span>
               </div>
-              <h3 data-l10n="p1t">全量证据链</h3>
-              <p data-l10n="p1d">
-                点击红圈轨迹、DOM 样式、Console
-                报错与网络请求一键归集至同一时序。
+              <h3 data-l10n="c1t">统一时序证据链</h3>
+              <p data-l10n="c1d">
+                将点击红圈截图、DOM 样式、Console 错误堆栈、XHR/Fetch 报文与 Tab
+                录屏精准对齐至同一毫秒级时间轴。
               </p>
-            </div>
-            <div class="pillar-card">
+            </article>
+
+            <article class="pillar-card">
               <div class="pillar-header">
-                <div class="pillar-icon">
+                <div class="pillar-icon" aria-hidden="true">
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <polyline points="16 18 22 12 16 6"></polyline>
+                    <polyline points="8 6 2 12 8 18"></polyline>
+                  </svg>
+                </div>
+                <span class="pillar-tag" data-l10n="c2Tag">框架源码探针</span>
+              </div>
+              <h3 data-l10n="c2t">React / Vue 源码与状态解包</h3>
+              <p data-l10n="c2d">
+                高精度还原 Vue 2、Vue 3 与 React
+                组件源码文件路径与行号，深度捕获触发异常前后的 Props 与响应式
+                State 快照。
+              </p>
+            </article>
+
+            <article class="pillar-card">
+              <div class="pillar-header">
+                <div class="pillar-icon" aria-hidden="true">
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path d="M12 20h9"></path>
+                    <path
+                      d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"
+                    ></path>
+                  </svg>
+                </div>
+                <span class="pillar-tag" data-l10n="c3Tag">无需录屏</span>
+              </div>
+              <h3 data-l10n="c3t">独立截图标注工具</h3>
+              <p data-l10n="c3d">
+                使用 Option/Alt+X
+                随时框选网页区域，支持像素尺寸测量、划线箭头与流式自动折行发光批注，快速向
+                AI 描述 UI 调整。
+              </p>
+            </article>
+
+            <article class="pillar-card">
+              <div class="pillar-header">
+                <div class="pillar-icon" aria-hidden="true">
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <rect
+                      x="5"
+                      y="2"
+                      width="14"
+                      height="20"
+                      rx="2"
+                      ry="2"
+                    ></rect>
+                    <line x1="12" y1="18" x2="12.01" y2="18"></line>
+                  </svg>
+                </div>
+                <span class="pillar-tag" data-l10n="c4Tag">移动端与跨 Tab</span>
+              </div>
+              <h3 data-l10n="c4t">DevTools 仿真与多标签追踪</h3>
+              <p data-l10n="c4d">
+                专门适配 Chrome DevTools
+                移动端模拟：贴边磁吸胶囊、真实缩放比裁剪与 Pointer
+                Events；录制期间自动追踪衍生新标签页。
+              </p>
+            </article>
+
+            <article class="pillar-card">
+              <div class="pillar-header">
+                <div class="pillar-icon" aria-hidden="true">
                   <svg
                     width="20"
                     height="20"
@@ -436,18 +725,22 @@
                       d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
                     ></path>
                     <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                    <line x1="16" y1="17" x2="8" y2="17"></line>
                   </svg>
                 </div>
-                <span class="pillar-tag" data-l10n="p2Tag">即贴即修</span>
+                <span class="pillar-tag" data-l10n="c5Tag">可控交付</span>
               </div>
-              <h3 data-l10n="p2t">AI 原生 Prompt</h3>
-              <p data-l10n="p2d">
-                专为大模型推理优化的结构化 Markdown，免去手工撰写 Bug 报告单。
+              <h3 data-l10n="c5t">工单交互策展与离线报告</h3>
+              <p data-l10n="c5d">
+                预览页支持删改步骤、移除截图、撤回重做、左右分栏拖拽持久化，以及在严格
+                CSP 下 file:// 双击即开的离线 HTML 报告。
               </p>
-            </div>
-            <div class="pillar-card">
+            </article>
+
+            <article class="pillar-card">
               <div class="pillar-header">
-                <div class="pillar-icon">
+                <div class="pillar-icon" aria-hidden="true">
                   <svg
                     width="20"
                     height="20"
@@ -467,24 +760,494 @@
                     <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                   </svg>
                 </div>
-                <span class="pillar-tag pillar-tag-highlight" data-l10n="p3Tag"
-                  >零外部中转</span
+                <span class="pillar-tag pillar-tag-highlight" data-l10n="c6Tag"
+                  >零外部上传</span
                 >
               </div>
-              <h3 data-l10n="p3t">100% 浏览器本地私密</h3>
-              <p data-l10n="p3d">
-                零后端服务器。所有录制、日志与截图均在本地处理，敏感凭据永不外泄。
+              <h3 data-l10n="c6t">100% 本地私密与自动脱敏</h3>
+              <p data-l10n="c6d">
+                无任何后端服务器。所有录制与打包均在本地浏览器完成，安全模式自动脱敏
+                Authorization、Cookie、密码框与敏感缓存。
               </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- Agent Skill & Native Rust CLI Highlight -->
+      <section id="agent-skill" class="section section-alt">
+        <div class="grid">
+          <div class="skill-showcase reveal">
+            <div class="skill-info">
+              <div class="section-eyebrow" data-l10n="skillEyebrow">
+                Agent Skill & Native CLI · 可选进阶
+              </div>
+              <h2 class="section-title" data-l10n="skillTitle">
+                为 AI Agent 打造的原生 Rust Triage 引擎
+              </h2>
+              <p class="skill-lead" data-l10n="skillDesc">
+                扩展本身已可独立运行；如果你使用 Claude Code、Cursor、Codex 或
+                Antigravity，只需安装官方 bug-lens-triage Skill 与原生 Rust
+                CLI，AI 即可直接流式解压并按需索引大型 ZIP
+                证据包，彻底告别临时解析脚本。
+              </p>
+              <ul class="skill-points">
+                <li data-l10n="skillP1">
+                  2.49 MB 单一原生二进制（零外部依赖），流式防 Zip Bomb
+                  与原子工作区切换
+                </li>
+                <li data-l10n="skillP2">
+                  自动生成标准 data/*.json 与 INDEX.md，完整提取顶层 requestBody
+                  与 error
+                </li>
+                <li data-l10n="skillP3">
+                  5 大桌面平台预编译分发（macOS / Linux / Windows），SHA-256
+                  校验安装
+                </li>
+              </ul>
+            </div>
+
+            <div class="skill-terminal-card">
+              <div class="skill-os-header">
+                <div
+                  class="segmented-tabs"
+                  role="tablist"
+                  aria-label="Operating system installer"
+                >
+                  <button
+                    type="button"
+                    class="seg-tab active"
+                    role="tab"
+                    aria-selected="true"
+                    data-os-tab="unix"
+                    data-l10n="skillOsMac"
+                  >
+                    macOS / Linux
+                  </button>
+                  <button
+                    type="button"
+                    class="seg-tab"
+                    role="tab"
+                    aria-selected="false"
+                    data-os-tab="windows"
+                    data-l10n="skillOsWin"
+                  >
+                    Windows (PowerShell)
+                  </button>
+                </div>
+              </div>
+
+              <div class="skill-cmd-group">
+                <div class="skill-cmd-label" data-l10n="skillStep1Label">
+                  1. 全局安装诊断 Skill（支持 Claude Code / Cursor / Antigravity
+                  等）
+                </div>
+                <div class="cli-capsule">
+                  <code class="cli-code"
+                    ><span class="cli-prefix">$</span
+                    ><span
+                      >npx skills add Aoyia/bug-lens-skill -g -y</span
+                    ></code
+                  >
+                  <button
+                    type="button"
+                    class="cli-copy-btn"
+                    data-copy-text="npx skills add Aoyia/bug-lens-skill -g -y"
+                  >
+                    <span data-l10n="cliCopy">复制</span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="skill-cmd-group">
+                <div class="skill-cmd-label" data-l10n="skillStep2Label">
+                  2. 一次性安装原生 Rust CLI（GitHub Releases 下载 + SHA-256
+                  校验）
+                </div>
+                <div class="cli-capsule" data-os-panel="unix">
+                  <code class="cli-code"
+                    ><span class="cli-prefix">$</span
+                    ><span
+                      >bash
+                      ~/.agents/skills/bug-lens-triage/scripts/install.sh</span
+                    ></code
+                  >
+                  <button
+                    type="button"
+                    class="cli-copy-btn"
+                    data-copy-text="bash ~/.agents/skills/bug-lens-triage/scripts/install.sh"
+                  >
+                    <span data-l10n="cliCopy">复制</span>
+                  </button>
+                </div>
+
+                <div class="cli-capsule" data-os-panel="windows" hidden>
+                  <code class="cli-code"
+                    ><span class="cli-prefix">&gt;</span
+                    ><span
+                      >powershell -ExecutionPolicy Bypass -File
+                      "$env:USERPROFILE\.agents\skills\bug-lens-triage\scripts\install.ps1"</span
+                    ></code
+                  >
+                  <button
+                    type="button"
+                    class="cli-copy-btn"
+                    data-copy-text='powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.agents\skills\bug-lens-triage\scripts\install.ps1"'
+                  >
+                    <span data-l10n="cliCopy">复制</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Native Rust CLI Dark Obsidian Engine Deck -->
+          <div class="perf-bench-wrap reveal">
+            <div class="perf-deck">
+              <div class="perf-deck-top">
+                <div class="perf-status-pill">
+                  <span class="perf-pulse-dot" aria-hidden="true"></span>
+                  <span data-l10n="perfStatusBadge"
+                    >BENCHMARK · NATIVE RUST TRIAGE ENGINE</span
+                  >
+                </div>
+                <p class="perf-deck-sample" data-l10n="perfFootnote">
+                  13.5 MB 真实录屏包 · 4,843 日志 · 522 请求 · 6.20 MB JSON · 5
+                  次中位数
+                </p>
+              </div>
+
+              <!-- 4-KPI Hero Strip -->
+              <div class="perf-kpi-strip">
+                <div class="perf-kpi-tile">
+                  <span
+                    class="perf-kpi-num"
+                    data-count-to="4.2"
+                    data-count-decimals="1"
+                    data-count-suffix="×"
+                    >4.2×</span
+                  >
+                  <span class="perf-kpi-title" data-l10n="perfKpi1Title"
+                    >网络下钻提速</span
+                  >
+                  <span class="perf-kpi-sub">13.5 ms vs 57.2 ms</span>
+                </div>
+                <div class="perf-kpi-tile">
+                  <span
+                    class="perf-kpi-num"
+                    data-count-to="3.4"
+                    data-count-decimals="1"
+                    data-count-suffix="×"
+                    >3.4×</span
+                  >
+                  <span class="perf-kpi-title" data-l10n="perfKpi2Title"
+                    >时序聚合提速</span
+                  >
+                  <span class="perf-kpi-sub">15.8 ms vs 54.2 ms</span>
+                </div>
+                <div class="perf-kpi-tile">
+                  <span
+                    class="perf-kpi-num"
+                    data-count-to="74"
+                    data-count-decimals="0"
+                    data-count-prefix="-"
+                    data-count-suffix="%"
+                    >-74%</span
+                  >
+                  <span class="perf-kpi-title" data-l10n="perfKpi3Title"
+                    >查询峰值内存</span
+                  >
+                  <span class="perf-kpi-sub">20.6 MB vs 79.3 MB</span>
+                </div>
+                <div class="perf-kpi-tile">
+                  <span
+                    class="perf-kpi-num"
+                    data-count-to="99.6"
+                    data-count-decimals="1"
+                    data-count-prefix="-"
+                    data-count-suffix="%"
+                    >-99.6%</span
+                  >
+                  <span class="perf-kpi-title" data-l10n="perfKpi4Title"
+                    >AI 上下文裁剪</span
+                  >
+                  <span class="perf-kpi-sub">6.20 MB ➔ 24.5 KB</span>
+                </div>
+              </div>
+
+              <!-- Lower 2-Column Stage -->
+              <div class="perf-deck-body">
+                <!-- Left Panel: Runtime Bars -->
+                <article class="perf-panel" aria-labelledby="perfRuntimeTitle">
+                  <div class="perf-panel-head">
+                    <h3
+                      id="perfRuntimeTitle"
+                      class="perf-panel-title"
+                      data-l10n="perfRuntimeTitle"
+                    >
+                      运行时对比 · Rust CLI vs Node.js
+                    </h3>
+                    <div class="perf-legend" aria-hidden="true">
+                      <span class="perf-legend-item">
+                        <span class="perf-dot perf-dot-rust"></span>
+                        <span data-l10n="perfLegendRust">Rust CLI</span>
+                      </span>
+                      <span class="perf-legend-item">
+                        <span class="perf-dot perf-dot-js"></span>
+                        <span data-l10n="perfLegendJs">Legacy JS</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  <div class="perf-bars-grid">
+                    <div class="perf-metric">
+                      <div class="perf-metric-head">
+                        <span class="perf-metric-name" data-l10n="perfM1Name"
+                          >解压建索引峰值内存 (open_pack RSS)</span
+                        >
+                        <span class="perf-gain-badge" data-l10n="perfM1Gain"
+                          >-70% RAM</span
+                        >
+                      </div>
+                      <div class="perf-bar-list">
+                        <div class="perf-bar-row">
+                          <div class="perf-bar-track">
+                            <div
+                              class="perf-bar-fill perf-bar-rust"
+                              style="--bar-pct: 30.1%"
+                            ></div>
+                          </div>
+                          <span class="perf-bar-val perf-val-rust"
+                            >56.3 MB</span
+                          >
+                        </div>
+                        <div class="perf-bar-row">
+                          <div class="perf-bar-track">
+                            <div
+                              class="perf-bar-fill perf-bar-js"
+                              style="--bar-pct: 100%"
+                            ></div>
+                          </div>
+                          <span class="perf-bar-val">186.8 MB</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="perf-metric">
+                      <div class="perf-metric-head">
+                        <span class="perf-metric-name" data-l10n="perfM2Name"
+                          >网络下钻耗时 (query_network)</span
+                        >
+                        <span class="perf-gain-badge" data-l10n="perfM2Gain"
+                          >4.2× 更快</span
+                        >
+                      </div>
+                      <div class="perf-bar-list">
+                        <div class="perf-bar-row">
+                          <div class="perf-bar-track">
+                            <div
+                              class="perf-bar-fill perf-bar-rust"
+                              style="--bar-pct: 23.6%"
+                            ></div>
+                          </div>
+                          <span class="perf-bar-val perf-val-rust"
+                            >13.5 ms</span
+                          >
+                        </div>
+                        <div class="perf-bar-row">
+                          <div class="perf-bar-track">
+                            <div
+                              class="perf-bar-fill perf-bar-js"
+                              style="--bar-pct: 100%"
+                            ></div>
+                          </div>
+                          <span class="perf-bar-val">57.2 ms</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="perf-metric">
+                      <div class="perf-metric-head">
+                        <span class="perf-metric-name" data-l10n="perfM3Name"
+                          >时间轴聚合耗时 (timeline)</span
+                        >
+                        <span class="perf-gain-badge" data-l10n="perfM3Gain"
+                          >3.4× 更快</span
+                        >
+                      </div>
+                      <div class="perf-bar-list">
+                        <div class="perf-bar-row">
+                          <div class="perf-bar-track">
+                            <div
+                              class="perf-bar-fill perf-bar-rust"
+                              style="--bar-pct: 29.2%"
+                            ></div>
+                          </div>
+                          <span class="perf-bar-val perf-val-rust"
+                            >15.8 ms</span
+                          >
+                        </div>
+                        <div class="perf-bar-row">
+                          <div class="perf-bar-track">
+                            <div
+                              class="perf-bar-fill perf-bar-js"
+                              style="--bar-pct: 100%"
+                            ></div>
+                          </div>
+                          <span class="perf-bar-val">54.2 ms</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="perf-metric">
+                      <div class="perf-metric-head">
+                        <span class="perf-metric-name" data-l10n="perfM4Name"
+                          >下钻查询峰值内存 (query_network RSS)</span
+                        >
+                        <span class="perf-gain-badge" data-l10n="perfM4Gain"
+                          >-74% RAM</span
+                        >
+                      </div>
+                      <div class="perf-bar-list">
+                        <div class="perf-bar-row">
+                          <div class="perf-bar-track">
+                            <div
+                              class="perf-bar-fill perf-bar-rust"
+                              style="--bar-pct: 26%"
+                            ></div>
+                          </div>
+                          <span class="perf-bar-val perf-val-rust"
+                            >20.6 MB</span
+                          >
+                        </div>
+                        <div class="perf-bar-row">
+                          <div class="perf-bar-track">
+                            <div
+                              class="perf-bar-fill perf-bar-js"
+                              style="--bar-pct: 100%"
+                            ></div>
+                          </div>
+                          <span class="perf-bar-val">79.3 MB</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+
+                <!-- Right Panel: Context Donut Gauge + 3-Step Stack -->
+                <article
+                  class="perf-panel perf-panel-context"
+                  aria-labelledby="perfContextTitle"
+                >
+                  <div class="perf-panel-head">
+                    <h3
+                      id="perfContextTitle"
+                      class="perf-panel-title"
+                      data-l10n="perfContextTitle"
+                    >
+                      分层索引上下文过滤率
+                    </h3>
+                  </div>
+
+                  <div class="perf-ring-layout">
+                    <div class="perf-gauge-box">
+                      <svg
+                        class="perf-gauge-svg"
+                        width="164"
+                        height="164"
+                        viewBox="0 0 164 164"
+                        aria-hidden="true"
+                      >
+                        <defs>
+                          <linearGradient
+                            id="perfRingGrad"
+                            x1="0"
+                            y1="0"
+                            x2="1"
+                            y2="1"
+                          >
+                            <stop offset="0%" stop-color="#38bdf8"></stop>
+                            <stop offset="100%" stop-color="#34d399"></stop>
+                          </linearGradient>
+                        </defs>
+                        <circle
+                          cx="82"
+                          cy="82"
+                          r="64"
+                          fill="none"
+                          stroke="rgba(148, 163, 184, 0.14)"
+                          stroke-width="14"
+                        ></circle>
+                        <circle
+                          class="perf-ring-progress"
+                          cx="82"
+                          cy="82"
+                          r="64"
+                          fill="none"
+                          stroke="url(#perfRingGrad)"
+                          stroke-width="14"
+                          stroke-linecap="round"
+                          stroke-dasharray="402.12"
+                          stroke-dashoffset="1.61"
+                          transform="rotate(-90 82 82)"
+                        ></circle>
+                      </svg>
+                      <div class="perf-gauge-center">
+                        <strong
+                          data-count-to="99.6"
+                          data-count-decimals="1"
+                          data-count-suffix="%"
+                          >99.6%</strong
+                        >
+                        <span data-l10n="perfRingSub">无关噪音已滤除</span>
+                      </div>
+                    </div>
+
+                    <div class="perf-step-stack">
+                      <div class="perf-stack-card">
+                        <div>
+                          <code>open_pack</code>
+                          <span data-l10n="perfBreakOpen">全局概览与索引</span>
+                        </div>
+                        <strong>5.6 KB</strong>
+                      </div>
+                      <div class="perf-stack-card">
+                        <div>
+                          <code>timeline</code>
+                          <span data-l10n="perfBreakTimeline"
+                            >核心时序主线</span
+                          >
+                        </div>
+                        <strong>8.7 KB</strong>
+                      </div>
+                      <div class="perf-stack-card">
+                        <div>
+                          <code>query_network</code>
+                          <span data-l10n="perfBreakNet">网络摘要切片</span>
+                        </div>
+                        <strong>10.2 KB</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="perf-context-footer">
+                    <span data-l10n="perfCtxBefore"
+                      >原始全量 JSON: 6.20 MB</span
+                    >
+                    <strong data-l10n="perfCtxAfter"
+                      >CLI 三步合计: 24.5 KB (0.39%)</strong
+                    >
+                  </div>
+                </article>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <!-- Changelog (Progressive Summary) -->
-    <section id="changelog" class="section">
-      <div class="grid">
-        <div>
+      <!-- Changelog Summary -->
+      <section id="changelog" class="section">
+        <div class="grid">
           <div class="section-eyebrow reveal" data-l10n="changelogEyebrow">
             Releases & Activity
           </div>
@@ -494,32 +1257,31 @@
                 版本演进与动态
               </h2>
               <p class="section-desc" data-l10n="changelogDesc">
-                持续保持高频迭代，保障在最新前端框架生态与 AI
-                编程环境下的极佳体验。
+                持续高频迭代，同步适配最新前端框架、移动端仿真调试与 AI Agent
+                工作流。
               </p>
             </div>
             <button
+              id="changelogViewAllBtn"
               type="button"
               class="changelog-open-drawer-btn"
-              onclick="openChangelogDrawer()"
-              data-l10n="changelogViewAll"
+              data-open-changelog
             >
               查看全部历史动态 (v0.7.33 ~ v0.7.44) →
             </button>
           </div>
 
-          <!-- 主屏最新版高亮单卡 -->
-          <div class="changelog-summary-card reveal">
+          <div id="changelogSummaryCard" class="changelog-summary-card reveal">
             <div class="changelog-header">
               <div class="changelog-meta">
                 <span class="changelog-ver">v0.7.44</span>
-                <span class="changelog-tag" data-l10n="tagLatest">Latest</span>
+                <span class="changelog-tag" data-l10n="tagLatest">最新</span>
                 <span class="changelog-date">2026-11-26</span>
               </div>
               <button
                 type="button"
                 class="changelog-summary-more-btn"
-                onclick="openChangelogDrawer()"
+                data-open-changelog
                 data-l10n="changelogHistoryText"
               >
                 查看全部版本
@@ -527,94 +1289,141 @@
             </div>
             <div class="changelog-content">
               <div class="changelog-feature">
-                <strong data-l10n="v44_f1_t"
-                  >原生 Rust Triage CLI 与跨平台安全分发：</strong
-                >
-                <span data-l10n="v44_f1_d"
+                <strong>原生 Rust Triage CLI 与跨平台安全分发：</strong>
+                <span
                   >以原生编译的 Rust 二进制（bin/bug-lens-cli）全面替代旧 JS
                   脚本，具备流式防 Zip Bomb
                   解压、原子目录切换、低内存无损分页与扩展顶层 requestBody/error
-                  完整提取，配套 5 平台 GitHub Releases 二进制与 SHA-256
-                  校验安装脚本。</span
-                >
-              </div>
-              <div class="changelog-feature">
-                <strong data-l10n="v44_f2_t"
-                  >工单交互策展与渐进式快捷导出引导：</strong
-                >
-                <span data-l10n="v44_f2_d"
-                  >重构图文预览弹窗，支持模块删除、截图移除、内联编辑、撤回重做、原子合并步骤排除及
-                  URL
-                  协议白名单加固；新增阶段式快捷导出引导与老用户平滑迁移，修复枚举配置回切缺陷并优化交互语义分组。</span
+                  完整提取。</span
                 >
               </div>
             </div>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <!-- FAQ -->
-    <section id="faq" class="section section-alt">
-      <div class="grid">
-        <div>
-          <div class="section-eyebrow reveal">FAQ</div>
-          <h2 class="section-title reveal" data-l10n="faqTitle">常见问题</h2>
+      <!-- FAQ -->
+      <section id="faq" class="section section-alt">
+        <div class="grid">
+          <div class="section-header reveal">
+            <div class="section-eyebrow" data-l10n="faqEyebrow">FAQ</div>
+            <h2 class="section-title" data-l10n="faqTitle">常见问题</h2>
+          </div>
+
           <div class="faq-list reveal">
-            <details class="faq-item">
+            <details class="faq-item" name="faq">
               <summary data-l10n="q1">
                 Bug Lens 会把我的数据上传到服务器吗？
               </summary>
               <p data-l10n="a1">
-                不会。Bug Lens 是一款 100%
-                本地运行的扩展，没有任何后端服务器。所有数据均在浏览器本地处理与打包导出。
+                不会。Bug Lens 是一款 100% 本地运行的 Chrome
+                扩展，没有任何后端服务器。所有录制、日志解析与打包导出均在本地浏览器内完成；开启安全模式后还会自动脱敏
+                Authorization、Cookie、密码字段与敏感本地存储。
               </p>
             </details>
-            <details class="faq-item">
-              <summary data-l10n="q2">导出的 ZIP 报告包含哪些内容？</summary>
+
+            <details class="faq-item" name="faq">
+              <summary data-l10n="q2">导出的 ZIP 证据包包含哪些内容？</summary>
               <p data-l10n="a2">
-                包含可直接交给 LLM 的 AI_PROMPT.md、离线可交互
-                report.html、点击红圈截图、DOM 快照、Console 日志、网络请求与
-                WebM 视频。
+                包含可直接粘贴给大模型的 AI_PROMPT.md、双击即可离线查看的
+                report.html、点击红圈及问题现场截图、DOM
+                样式与框架状态快照（data/session-data.js）、网络详情（data/network-details.js）、Playwright
+                复现脚本（reproduce.spec.ts）以及 WebM 录屏。
               </p>
             </details>
-            <details class="faq-item">
-              <summary data-l10n="q3">支持哪些 AI 工具？</summary>
+
+            <details class="faq-item" name="faq">
+              <summary data-l10n="q3">
+                一定要安装 bug-lens-triage Skill 或 Rust CLI 才能用吗？
+              </summary>
               <p data-l10n="a3">
-                支持任意 AI 编程工具或对话助手，包括 Cursor, Claude Code,
-                ChatGPT, DeepSeek, Windsurf 等。
+                不需要。安装 Chrome
+                扩展即可开箱使用全部录制、截图标注、离线报告与 AI Prompt
+                导出功能；bug-lens-triage Skill 与原生 Rust CLI
+                是可选的进阶加速组件，能让支持的 AI
+                编程助手更高效地流式索引大型证据包。
+              </p>
+            </details>
+
+            <details class="faq-item" name="faq">
+              <summary data-l10n="q4">支持哪些 AI 工具和前端技术栈？</summary>
+              <p data-l10n="a4">
+                导出提示词兼容任意 AI 编程工具与对话助手（Cursor、Claude
+                Code、Codex、Antigravity、Windsurf 等）；网页捕获适用于所有 Web
+                应用，并对 Vue 2、Vue 3 与 React
+                提供组件源码文件路径及响应式状态深度解析。
+              </p>
+            </details>
+
+            <details class="faq-item" name="faq">
+              <summary data-l10n="q5">
+                对浏览器版本有什么要求？常用快捷键是什么？
+              </summary>
+              <p data-l10n="a5">
+                最低要求 Chrome / Edge 125+（Manifest
+                V3）。默认快捷键：Cmd/Ctrl+Shift+Y 打开控制面板，Option/Alt+R
+                一键开始录制，Option/Alt+X 独立截图标注，录制中按 Option/Alt+S
+                快速标记异常现场（可在扩展设置页自定义）。
               </p>
             </details>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
+    </main>
 
     <!-- Footer -->
     <footer class="footer">
-      <div class="footer-links">
-        <a
-          href="https://github.com/Aoyia/bug-lens"
-          target="_blank"
-          data-l10n="footerSource"
-          >开源仓库</a
-        >
-        <a
-          href="https://github.com/Aoyia/bug-lens/issues"
-          target="_blank"
-          data-l10n="footerIssues"
-          >反馈问题</a
-        >
+      <div class="grid">
+        <div class="footer-links">
+          <a
+            href="https://github.com/Aoyia/bug-lens"
+            target="_blank"
+            rel="noopener noreferrer"
+            data-l10n="footerSource"
+            >GitHub 仓库</a
+          >
+          <a
+            href="https://github.com/Aoyia/bug-lens/blob/main/PRIVACY.md"
+            target="_blank"
+            rel="noopener noreferrer"
+            data-l10n="footerPrivacy"
+            >隐私政策</a
+          >
+          <a
+            href="https://github.com/Aoyia/bug-lens/discussions"
+            target="_blank"
+            rel="noopener noreferrer"
+            data-l10n="footerDiscussions"
+            >技术讨论</a
+          >
+          <a
+            href="https://github.com/Aoyia/bug-lens/issues"
+            target="_blank"
+            rel="noopener noreferrer"
+            data-l10n="footerIssues"
+            >反馈缺陷</a
+          >
+          <a
+            href="https://github.com/Aoyia/bug-lens/blob/main/README_zh.md#%E4%BA%A4%E6%B5%81%E7%BE%A4"
+            target="_blank"
+            rel="noopener noreferrer"
+            data-l10n="footerCommunity"
+            >微信交流群</a
+          >
+          <a
+            href="https://github.com/Aoyia/bug-lens/blob/main/LICENSE"
+            target="_blank"
+            rel="noopener noreferrer"
+            data-l10n="footerLicense"
+            >AGPL-3.0 开源协议</a
+          >
+        </div>
+        <p class="footer-copy">© 2026 Bug Lens · AGPL-3.0 Open Source</p>
       </div>
-      <p class="footer-copy">© 2026 Bug Lens. Built for the AI Era.</p>
     </footer>
 
-    <!-- Changelog Side Sheet (Clean Light Modern Design) -->
-    <div
-      id="changelogDrawerOverlay"
-      class="changelog-drawer-overlay"
-      onclick="closeChangelogDrawer()"
-    ></div>
+    <!-- Changelog Side Sheet -->
+    <div id="changelogDrawerOverlay" class="changelog-drawer-overlay"></div>
     <aside
       id="changelogDrawer"
       class="changelog-drawer"
@@ -637,10 +1446,10 @@
           </h3>
         </div>
         <button
+          id="changelogDrawerClose"
           type="button"
           class="changelog-drawer-close"
-          onclick="closeChangelogDrawer()"
-          aria-label="关闭"
+          aria-label="关闭更新日志"
           data-l10n-aria="closeAria"
         >
           <svg
@@ -652,6 +1461,7 @@
             stroke-width="2"
             stroke-linecap="round"
             stroke-linejoin="round"
+            aria-hidden="true"
           >
             <line x1="18" y1="6" x2="6" y2="18"></line>
             <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -659,461 +1469,22 @@
         </button>
       </div>
       <div class="changelog-drawer-body">
-        <!-- 最新版聚焦卡片 (Spotlight Card) -->
-        <div class="drawer-spotlight-card">
-          <div class="drawer-spotlight-header">
-            <div class="drawer-spotlight-meta">
-              <span class="drawer-spotlight-ver">v0.7.44</span>
-              <span class="drawer-spotlight-tag" data-l10n="tagLatest"
-                >LATEST</span
-              >
-              <span class="drawer-spotlight-date">2026-11-26</span>
-            </div>
-          </div>
-          <div class="drawer-spotlight-content">
-            <div class="drawer-spotlight-feature">
-              <strong data-l10n="v44_f1_t"
-                >原生 Rust Triage CLI 与跨平台安全分发：</strong
-              >
-              <span data-l10n="v44_f1_d"
-                >以原生编译的 Rust 二进制（bin/bug-lens-cli）全面替代旧 JS
-                脚本，具备流式防 Zip Bomb
-                解压、原子目录切换、低内存无损分页与扩展顶层 requestBody/error
-                完整提取，配套 5 平台 GitHub Releases 二进制与 SHA-256
-                校验安装脚本。</span
-              >
-            </div>
-            <div class="drawer-spotlight-feature">
-              <strong data-l10n="v44_f2_t"
-                >工单交互策展与渐进式快捷导出引导：</strong
-              >
-              <span data-l10n="v44_f2_d"
-                >重构图文预览弹窗，支持模块删除、截图移除、内联编辑、撤回重做、原子合并步骤排除及
-                URL
-                协议白名单加固；新增阶段式快捷导出引导与老用户平滑迁移，修复枚举配置回切缺陷并优化交互语义分组。</span
-              >
-            </div>
-            <div class="drawer-cli-capsule">
-              <div class="drawer-cli-code">
-                <span class="drawer-cli-prefix">$</span>
-                <span>npx skills add Aoyia/bug-lens-skill -g -y</span>
-              </div>
-              <button
-                type="button"
-                class="drawer-cli-copy-btn"
-                onclick="
-                  copyCliSnippet(
-                    this,
-                    'npx skills add Aoyia/bug-lens-skill -g -y'
-                  )
-                "
-              >
-                <svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                  <path
-                    d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
-                  ></path>
-                </svg>
-                <span data-l10n="cliCopy">复制</span>
-              </button>
-            </div>
-          </div>
-        </div>
+        <div id="drawerSpotlightMount"></div>
 
-        <!-- 历史版本分割线 -->
         <div class="drawer-history-divider">
-          <span class="drawer-history-title" data-l10n="drawerHistoryTitle"
+          <span id="drawerHistoryTitle" class="drawer-history-title"
             >历史迭代 (v0.7.43 ~ v0.7.33)</span
           >
           <div class="drawer-history-line"></div>
         </div>
 
-        <div class="changelog-timeline">
-          <!-- v0.7.43 -->
-          <div class="changelog-item">
-            <div class="changelog-marker">
-              <span class="changelog-dot"></span>
-            </div>
-            <div class="changelog-card">
-              <div class="changelog-header">
-                <div class="changelog-meta">
-                  <span class="changelog-ver">v0.7.43</span>
-                  <span class="changelog-date">2026-11-21</span>
-                </div>
-              </div>
-              <div class="changelog-content">
-                <div class="changelog-feature">
-                  <strong data-l10n="v43_f1_t"
-                    >移动端仿真交互与桌面端零回归重构：</strong
-                  >
-                  <span data-l10n="v43_f1_d"
-                    >全新贴边磁吸胶囊与桌面级紧凑侧边菜单（占屏面积直降
-                    44.7%），彻底消除移动端底部 TabBar
-                    遮挡；严格模式隔离机制保障 PC 桌面端 100%
-                    保持原样并完全移除多余折叠按钮。</span
-                  >
-                </div>
-                <div class="changelog-feature">
-                  <strong data-l10n="v43_f2_t"
-                    >问题现场与截图标注全链路修复：</strong
-                  >
-                  <span data-l10n="v43_f2_d"
-                    >IssueEditor 三段式零遮挡布局与 Service Worker
-                    视口物理缩放比精准裁剪（红框 0% 偏移）；SelectionOverlay
-                    选区联动滚屏与智能贴底换位；ScreenshotOverlay
-                    放大镜释手隐藏与防溢底增强。</span
-                  >
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- v0.7.42 -->
-          <div class="changelog-item">
-            <div class="changelog-marker">
-              <span class="changelog-dot"></span>
-            </div>
-            <div class="changelog-card">
-              <div class="changelog-header">
-                <div class="changelog-meta">
-                  <span class="changelog-ver">v0.7.42</span>
-                  <span class="changelog-date">2026-11-20</span>
-                </div>
-              </div>
-              <div class="changelog-content">
-                <div class="changelog-feature">
-                  <strong data-l10n="v42_f1_t"
-                    >移动端模拟全链路适配与工作区自由分栏：</strong
-                  >
-                  <span data-l10n="v42_f1_d"
-                    >全面适配桌面 Chrome DevTools
-                    移动端模拟：录制悬浮条、独立截图工具栏、选区提示条与问题编辑器支持窄屏折行、Pointer
-                    Events 触控交互、真实缩放比例裁剪及宿主 macOS
-                    快捷键识别；预览页与离线报告新增左右工作区可拖拽分隔栏并支持比例持久化。</span
-                  >
-                </div>
-                <div class="changelog-feature">
-                  <strong data-l10n="v42_f2_t"
-                    >离线报告严格 CSP 零报错与导出时间戳命名：</strong
-                  >
-                  <span data-l10n="v42_f2_d"
-                    >将离线报告 i18n 字典外链至 assets/i18n-data.js，并将
-                    truncated-text 组件切换为 Constructable Stylesheets，在严格
-                    CSP 下消除内联脚本与样式拦截（确保 file://
-                    双击离线报告正常渲染中文）；导出录制与截图 ZIP
-                    自动注入本地时间戳并对齐 Session ID 居中格式。</span
-                  >
-                </div>
-              </div>
-            </div>
-          </div>
-          <!-- v0.7.41 -->
-          <div class="changelog-item">
-            <div class="changelog-marker">
-              <span class="changelog-dot"></span>
-            </div>
-            <div class="changelog-card">
-              <div class="changelog-header">
-                <div class="changelog-meta">
-                  <span class="changelog-ver">v0.7.41</span>
-                  <span class="changelog-date">2026-11-12</span>
-                </div>
-              </div>
-              <div class="changelog-content">
-                <div class="changelog-feature">
-                  <strong data-l10n="v41_f1_t"
-                    >统一解压工作区与两层排查架构：</strong
-                  >
-                  <span data-l10n="v41_f1_d"
-                    >open_pack
-                    全量幂等解压至独立工作区并落盘录屏与完整截图，自动生成标准
-                    data/*.json 与 INDEX.md 索引，融合 CLI 宏观过滤与 jq/ffmpeg
-                    微观深潜；内置定长 LRU 自动淘汰机制。</span
-                  >
-                </div>
-                <div class="changelog-feature">
-                  <strong data-l10n="v41_f2_t"
-                    >结构化提示词路由与模块解耦重构：</strong
-                  >
-                  <span data-l10n="v41_f2_d"
-                    >新增精简（Compact）剪贴板提示词与自适应安装路由；独立工单与
-                    Playwright
-                    预览弹窗体验升级，收敛空间几何探测与焦点防护底层模块。</span
-                  >
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- v0.7.40 -->
-          <div class="changelog-item">
-            <div class="changelog-marker">
-              <span class="changelog-dot"></span>
-            </div>
-            <div class="changelog-card">
-              <div class="changelog-header">
-                <div class="changelog-meta">
-                  <span class="changelog-ver">v0.7.40</span>
-                  <span class="changelog-date">2026-11-06</span>
-                </div>
-              </div>
-              <div class="changelog-content">
-                <div class="changelog-feature">
-                  <strong data-l10n="v40_f1_t"
-                    >问题场景编辑器与工单系统升级：</strong
-                  >
-                  <span data-l10n="v40_f1_d"
-                    >深度优化缺陷标记与速记卡交互体验，支持富文本批注、DOM
-                    锚点高亮与多场景切换；结构化工单模态框适配全新设计系统
-                    Tokens。</span
-                  >
-                </div>
-                <div class="changelog-feature">
-                  <strong data-l10n="v40_f2_t"
-                    >隐私脱敏策略与端侧构建优化：</strong
-                  >
-                  <span data-l10n="v40_f2_d"
-                    >解耦 Content 注入脚本与冗余资源暴露，优化产物包体积；强化
-                    LocalStorage/Cookie
-                    脱敏与安全模式感知，完善交互聚合与回放性能。</span
-                  >
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- v0.7.39 -->
-          <div class="changelog-item">
-            <div class="changelog-marker">
-              <span class="changelog-dot"></span>
-            </div>
-            <div class="changelog-card">
-              <div class="changelog-header">
-                <div class="changelog-meta">
-                  <span class="changelog-ver">v0.7.39</span>
-                  <span class="changelog-date">2026-11-03</span>
-                </div>
-              </div>
-              <div class="changelog-content">
-                <div class="changelog-feature">
-                  <strong data-l10n="v39_f1_t"
-                    >零依赖 AI 诊断 Skill 与内置 CLI：</strong
-                  >
-                  <span data-l10n="v39_f1_d"
-                    >收敛 12 项内存直读与级联溯源能力至 bug-lens-triage Skill
-                    内置的零依赖 CLI（scripts/bug-lens-cli.mjs），支持一行 npx
-                    skills add 全局安装，彻底消除独立 MCP 配置门槛。</span
-                  >
-                </div>
-                <div class="changelog-feature">
-                  <strong data-l10n="v39_f2_t"
-                    >会话级包路径记忆与截图直出：</strong
-                  >
-                  <span data-l10n="v39_f2_d"
-                    >open_pack
-                    命令一步到位自动导出关键场景截图并建立会话状态缓存，后续下钻命令无需重复传包路径，极大减少终端交互与弹窗打断。</span
-                  >
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- v0.7.38 -->
-          <div class="changelog-item">
-            <div class="changelog-marker">
-              <span class="changelog-dot"></span>
-            </div>
-            <div class="changelog-card">
-              <div class="changelog-header">
-                <div class="changelog-meta">
-                  <span class="changelog-ver">v0.7.38</span>
-                  <span class="changelog-date">2026-11-03</span>
-                </div>
-              </div>
-              <div class="changelog-content">
-                <div class="changelog-feature">
-                  <strong data-l10n="v38_f1_t"
-                    >内存直读与专属诊断 Skill：</strong
-                  >
-                  <span data-l10n="v38_f1_d"
-                    >发布免解压直读架构与 bug-lens-triage Agent 技能，支持 AI
-                    免解压直读 ZIP
-                    证据包，自动分流视觉级联溯源（cascade.json）与运行时序下钻，实现从证据到源码修复的标准化闭环。</span
-                  >
-                </div>
-                <div class="changelog-feature">
-                  <strong data-l10n="v38_f2_t"
-                    >跨标签页无缝录制与并行解析：</strong
-                  >
-                  <span data-l10n="v38_f2_d"
-                    >支持衍生标签页自动追踪与分布式录制挂件状态同步，升级 Worker
-                    并行 SourceMap
-                    解析、全量黑匣子性能遥测与结构化缺陷工单导出。</span
-                  >
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- v0.7.37 -->
-          <div class="changelog-item">
-            <div class="changelog-marker">
-              <span class="changelog-dot"></span>
-            </div>
-            <div class="changelog-card">
-              <div class="changelog-header">
-                <div class="changelog-meta">
-                  <span class="changelog-ver">v0.7.37</span>
-                  <span class="changelog-date">2026-10-23</span>
-                </div>
-              </div>
-              <div class="changelog-content">
-                <div class="changelog-feature">
-                  <strong data-l10n="v37_f1_t"
-                    >Windows 与跨平台单例工作区：</strong
-                  >
-                  <span data-l10n="v37_f1_d"
-                    >原生支持 Windows PowerShell 与 POSIX
-                    终端环境自适应，提供强制覆写解压指令，保障 O(1)
-                    恒定最小存储占用。</span
-                  >
-                </div>
-                <div class="changelog-feature">
-                  <strong data-l10n="v37_f2_t"
-                    >绝对路径自动内联与安全转义：</strong
-                  >
-                  <span data-l10n="v37_f2_d"
-                    >下载完成后自动将本地真实路径转义注入解压命令，AI
-                    编程助手即拷即跑，彻底告别手动替换与工作区污染。</span
-                  >
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- v0.7.36 -->
-          <div class="changelog-item">
-            <div class="changelog-marker">
-              <span class="changelog-dot"></span>
-            </div>
-            <div class="changelog-card">
-              <div class="changelog-header">
-                <div class="changelog-meta">
-                  <span class="changelog-ver">v0.7.36</span>
-                  <span class="changelog-date">2026-10-22</span>
-                </div>
-              </div>
-              <div class="changelog-content">
-                <div class="changelog-feature">
-                  <strong data-l10n="v36_f1_t"
-                    >全新设置页毛玻璃分段控制：</strong
-                  >
-                  <span data-l10n="v36_f1_d"
-                    >采用 iOS 26 风格 Liquid Glass
-                    交互组件与防抖动排版，响应式体验更丝滑。</span
-                  >
-                </div>
-                <div class="changelog-feature">
-                  <strong data-l10n="v36_f2_t">截图文字标注体验重构：</strong>
-                  <span data-l10n="v36_f2_d"
-                    >引入流式自动折行（Flow Layout）、Halo
-                    发光描边与高辨识度配色（#FA5352），大幅提升批注可读性。</span
-                  >
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- v0.7.35 -->
-          <div class="changelog-item">
-            <div class="changelog-marker">
-              <span class="changelog-dot"></span>
-            </div>
-            <div class="changelog-card">
-              <div class="changelog-header">
-                <div class="changelog-meta">
-                  <span class="changelog-ver">v0.7.35</span>
-                  <span class="changelog-date">2026-09-28</span>
-                </div>
-              </div>
-              <div class="changelog-content">
-                <div class="changelog-feature">
-                  <strong data-l10n="v35_f1_t">Chrome 原生风格设置页：</strong>
-                  <span data-l10n="v35_f1_d"
-                    >支持独立选项页、快捷键自定义、自动化采集开关与存储策略管控。</span
-                  >
-                </div>
-                <div class="changelog-feature">
-                  <strong data-l10n="v35_f2_t">跨标签页录制体验：</strong>
-                  <span data-l10n="v35_f2_d"
-                    >增强跨 Tab 会话感知、录制暂停与恢复状态同步及预览 Toast
-                    便捷动作。</span
-                  >
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- v0.7.34 -->
-          <div class="changelog-item">
-            <div class="changelog-marker">
-              <span class="changelog-dot"></span>
-            </div>
-            <div class="changelog-card">
-              <div class="changelog-header">
-                <div class="changelog-meta">
-                  <span class="changelog-ver">v0.7.34</span>
-                  <span class="changelog-date">2026-09-05</span>
-                </div>
-              </div>
-              <div class="changelog-content">
-                <div class="changelog-feature">
-                  <strong data-l10n="v34_f1_t">前端框架源码探针：</strong>
-                  <span data-l10n="v34_f1_d"
-                    >支持 Vue 2、Vue 3 及 React
-                    源码路径与行号高精度解析，深度解包响应式状态。</span
-                  >
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- v0.7.33 -->
-          <div class="changelog-item">
-            <div class="changelog-marker">
-              <span class="changelog-dot"></span>
-            </div>
-            <div class="changelog-card">
-              <div class="changelog-header">
-                <div class="changelog-meta">
-                  <span class="changelog-ver">v0.7.33</span>
-                  <span class="changelog-date">2026-09-04</span>
-                </div>
-              </div>
-              <div class="changelog-content">
-                <div class="changelog-feature">
-                  <strong data-l10n="v33_f1_t">极限高频压力与导出性能：</strong>
-                  <span data-l10n="v33_f1_d"
-                    >优化后台 IndexedDB 批量事务与静默导出流水线，通过 21
-                    套端到端全量压力测试硬化。</span
-                  >
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <div id="drawerTimelineMount" class="changelog-timeline"></div>
 
         <div class="changelog-footer">
           <a
             href="https://github.com/Aoyia/bug-lens/releases"
             target="_blank"
+            rel="noopener noreferrer"
             class="changelog-more-link"
             data-l10n="changelogMore"
           >
@@ -1122,546 +1493,5 @@
         </div>
       </div>
     </aside>
-
-    <script>
-      var RAW_REAL_PROMPT = `请作为高级 Frontend/Fullstack 调试专家，分析以下本地 Bug Lens 证据包：
-
-文件路径：
-{请将这里替换为导出的 ZIP 绝对路径}
-
-元数据摘要：
-- 页面 & URL：TodoMVC — Vue 3 Official Benchmark (Bug Lens Testbed) (http://localhost:5173/)
-- 证据数据：12 次交互 | 25 条日志 | 4 个请求 | 0 个异常现场 | 质量: complete
-- 运行环境：macOS 10.15.7 · Chrome 150 · zh-CN · 屏幕 2560×1440@1x · 视口 1505×1233
-
-【工作区准备（严禁解压在当前代码工程目录内，使用固定单例目录覆盖以实现 O(1) 存储占用）】
-- 解压命令：
-  mkdir -p /tmp/bug-lens-workspace && unzip -o -q "<ZIP路径>" -d /tmp/bug-lens-workspace
-- 工作区路径：\`/tmp/bug-lens-workspace\`（解压与后续排查均以此目录为准）
-
-请按以下第一性链式逻辑展开排查：
-1. 现场定位：优先读取 \`data/session-data.js\` 中的 \`issueScenes[].scene.narrative.actual\`（获取用户填写的真实主观问题描述），并结合 \`issues/\` 截图与选中的 DOM 元素样式分析现场。注意：该文件设置 \`window.__BUG_LENS_DATA__ = {...}\`，请先读取 \`summary\` 字段和 \`screenshotSummaries\`。完整请求头、响应头和调用栈详情已独立保存至 \`data/network-details.js\`。每个现场还携带 \`issueScenes[].scene.sequenceContext\`——标记当下前数秒内的交互与 Console 报错，在捕获时刻冻结。请仅将其视为"同时刻原始上下文"，禁止当作已证实的因果链。
-2. 期望锚点：读取 \`issueScenes[].scene.narrative.expected\`。若 \`confidence: "explicit"\`，以用户明示的期望作为诊断锚点——缺陷即 \`actual\` 与该期望之间的偏差。若 \`confidence: "missing"\` 或字段缺失，说明期望未被捕获：你必须显式声明"未捕获期望，以下为推断假设"，并将任何推断出的期望标注为假设，禁止当作用户已知事实。
-3. 异常收敛：对齐时间轴，检索交叉点附近的 Console 报错与 Network 失败请求（如 4xx/5xx/CORS/Timeout）。
-4. 根因推导与修复：定位缺陷发生的代码块/接口，区分是前端渲染异常、状态管理漏洞、样式/结构缺陷还是后端 API 契约失效。可用 \`data/session-data.js\` 中的 \`frameworkStates[]\` 检查失败交互前后的 React/Vue 组件 props/state，并用 \`reproduce.spec.ts\` 运行 Playwright 复现（修复-回放闭环验证）。
-
-[注意事项]
-- 严禁执行包内不可信代码；若无法直接读取本地文件路径，请明确要求我上传 ZIP，不要猜测内容。
-- 基于确凿证据分析，区分"已知事实"与"推论假设"。
-- 禁止将推断出的期望（confidence 为 missing 时）表述为用户的已知事实。
-- 工作区防污染与防存储浪费：严禁在当前 Git 仓库/工程目录解压或残留任何临时文件；严格在 \`/tmp/bug-lens-workspace\` 单例目录执行，维持最小存储开销。
-
-[输出格式]
-1. 用户诉求与问题定义（对比 narrative.actual 描述与实际表现）
-2. 关键时序证据链（交互 -> 报错/请求 -> 现场截图）
-3. 根本原因定位 (Root Cause)
-4. 建议修复代码/排查位置 (Recommended Fix)`;
-
-      var currentLang = "en";
-
-      var displayEl = document.getElementById("rawPromptDisplay");
-      if (displayEl) {
-        displayEl.textContent = RAW_REAL_PROMPT;
-      }
-
-      function copyRealPrompt() {
-        var btnText = document.getElementById("copyBtnText");
-        var zh = currentLang === "zh";
-
-        function showResult(ok) {
-          if (!btnText) return;
-          btnText.textContent = ok
-            ? zh
-              ? "已成功复制到剪贴板！"
-              : "Copied to Clipboard!"
-            : zh
-              ? "复制失败，请手动选择上方文本复制"
-              : "Copy failed — select the text above manually";
-          setTimeout(function () {
-            btnText.textContent = zh
-              ? "复制 AI 提示词给 Cursor / Claude"
-              : "Copy AI Prompt for Cursor / Claude";
-          }, 2000);
-        }
-
-        function legacyCopy() {
-          var ta = document.createElement("textarea");
-          ta.value = RAW_REAL_PROMPT;
-          ta.setAttribute("readonly", "");
-          ta.style.position = "fixed";
-          ta.style.top = "-9999px";
-          document.body.appendChild(ta);
-          ta.select();
-          var ok = false;
-          try {
-            ok = document.execCommand("copy");
-          } catch (e) {
-            ok = false;
-          }
-          document.body.removeChild(ta);
-          return ok;
-        }
-
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(RAW_REAL_PROMPT).then(
-            function () {
-              showResult(true);
-            },
-            function () {
-              showResult(legacyCopy());
-            }
-          );
-        } else {
-          showResult(legacyCopy());
-        }
-      }
-
-      (function () {
-        var dict = {
-          zh: {
-            navWorkflow: "工作流",
-            navFeatures: "核心能力",
-            navFaq: "FAQ",
-            heroBadge: "CHROME 扩展 · AI 编程",
-            heroTitle:
-              '从 Bug 复现到 <span class="hl">AI 修复</span><br />只需 3 秒，而非 5 分钟',
-            heroSub:
-              "Bug Lens 一键录制复现过程，自动收集点击轨迹、DOM 快照、Console 日志与 Network 报文，生成可直接粘贴给 Cursor 与 Claude Code 的规范提示词。",
-            effOld: "截屏 ➔ 打开 Jira ➔ 手敲日志 ➔ 编写 Prompt",
-            effNew: "1-秒录制 ➔ 复制自动 Prompt ➔ 粘贴至 Cursor",
-            ctaInstall: "安装扩展",
-            ctaSource: "查看源码",
-            demoPlayerTag: "20秒全闭环演示: 录制 ➔ 500报错 ➔ AI 修复",
-            bmTag: "全生命周期: Vue 3 TodoMVC 实操闭环",
-            t1Title: "Step 01. 问题复现与红圈轨迹捕获",
-            t1Badge: "用户操作",
-            t1Desc:
-              "开发者在 Vue 3 TodoMVC (http://localhost:5173/) 上点击勾选 Todo 项复现 Bug。Bug Lens 自动捕获精确红圈轨迹。",
-            t2Title: "Step 02. 凭据自动打包导出 ZIP",
-            t2Badge: "自动导出",
-            t3Title: "Step 03. 复制 AI_PROMPT.md 交付大模型",
-            t3Badge: "AI 提示词",
-            t4Title: "Step 04. 工程师核验方案与代码修复 Accept",
-            t4Badge: "问题已修复",
-            t4Desc:
-              "AI 基于全量凭据定位出 src/App.vue 缺陷并输出修复补丁，工程师在 Cursor 中核验并点击 Accept 应用修复：",
-            btnCopyPrompt: "复制 AI 提示词给 Cursor / Claude",
-            wfTitle: "3 步实现精准 AI 修复",
-            wf1t: "一键录制",
-            wf1d: "点击录制并正常操作复现问题，点击红圈轨迹、DOM 快照、Console 报错与网络请求自动收集。",
-            wf2t: "自动导出凭据包",
-            wf2d: "停止录制即刻打包生成包含截图批注、原始日志与结构化 AI_PROMPT.md 的 ZIP 报告。",
-            wf3t: "直接粘贴给 AI",
-            wf3d: "提示词已自动复制到剪贴板，直接粘贴至 Cursor、Claude Code 或 ChatGPT 即可生成修复方案。",
-            pillarTitle: "核心能力",
-            p1Tag: "全维度捕获",
-            p1t: "全量证据链",
-            p1d: "点击红圈轨迹、DOM 样式、Console 报错与网络请求一键归集至同一时序。",
-            p2Tag: "即贴即修",
-            p2t: "AI 原生 Prompt",
-            p2d: "专为大模型推理优化的结构化 Markdown，免去手工撰写 Bug 报告单。",
-            p3Tag: "零外部中转",
-            p3t: "100% 浏览器本地私密",
-            p3d: "零后端服务器。所有录制、日志与截图均在本地处理，敏感凭据永不外泄。",
-            faqTitle: "常见问题",
-            q1: "Bug Lens 会把我的数据上传到服务器吗？",
-            a1: "不会。Bug Lens 是一款 100% 本地运行的扩展，没有任何后端服务器。所有数据均在浏览器本地处理与打包导出。",
-            q2: "导出的 ZIP 报告包含哪些内容？",
-            a2: "包含可直接交给 LLM 的 AI_PROMPT.md、离线可交互 report.html、点击红圈截图、DOM 快照、Console 日志、网络请求与 WebM 视频。",
-            q3: "支持哪些 AI 工具？",
-            a3: "支持任意 AI 编程工具或对话助手，包括 Cursor, Claude Code, ChatGPT, DeepSeek, Windsurf 等。",
-            footerSource: "开源仓库",
-            footerIssues: "反馈问题",
-            navChangelog: "更新日志",
-            heroVersionBadge: "v0.7.44 现已上线 · 查看更新日志",
-            changelogEyebrow: "Releases & Activity",
-            changelogTitle: "版本演进与动态",
-            changelogDesc:
-              "持续保持高频迭代，保障在最新前端框架生态与 AI 编程环境下的极佳体验。",
-            tagLatest: "最新",
-            v44_f1_t: "原生 Rust Triage CLI 与跨平台安全分发：",
-            v44_f1_d:
-              "以原生编译的 Rust 二进制（bin/bug-lens-cli）全面替代旧 JS 脚本，具备流式防 Zip Bomb 解压、原子目录切换、低内存无损分页与扩展顶层 requestBody/error 完整提取，配套 5 平台 GitHub Releases 二进制与 SHA-256 校验安装脚本。",
-            v44_f2_t: "工单交互策展与渐进式快捷导出引导：",
-            v44_f2_d:
-              "重构图文预览弹窗，支持模块删除、截图移除、内联编辑、撤回重做、原子合并步骤排除及 URL 协议白名单加固；新增阶段式快捷导出引导与老用户平滑迁移，修复枚举配置回切缺陷并优化交互语义分组。",
-            v43_f1_t: "移动端仿真交互与桌面端零回归重构：",
-            v43_f1_d:
-              "全新贴边磁吸胶囊与桌面级紧凑侧边菜单（占屏面积直降 44.7%），彻底消除移动端底部 TabBar 遮挡；严格模式隔离机制保障 PC 桌面端 100% 保持原样并完全移除多余折叠按钮。",
-            v43_f2_t: "问题现场与截图标注全链路修复：",
-            v43_f2_d:
-              "IssueEditor 三段式零遮挡布局与 Service Worker 视口物理缩放比精准裁剪（红框 0% 偏移）；SelectionOverlay 选区联动滚屏与智能贴底换位；ScreenshotOverlay 放大镜释手隐藏与防溢底增强。",
-            v42_f1_t: "移动端模拟全链路适配与工作区自由分栏：",
-            v42_f1_d:
-              "全面适配桌面 Chrome DevTools 移动端模拟：录制悬浮条、独立截图工具栏、选区提示条与问题编辑器支持窄屏折行、Pointer Events 触控交互、真实缩放比例裁剪及宿主 macOS 快捷键识别；预览页与离线报告新增左右工作区可拖拽分隔栏并支持比例持久化。",
-            v42_f2_t: "离线报告严格 CSP 零报错与导出时间戳命名：",
-            v42_f2_d:
-              "将离线报告 i18n 字典外链至 assets/i18n-data.js，并将 truncated-text 组件切换为 Constructable Stylesheets，在严格 CSP 下消除内联脚本与样式拦截（确保 file:// 双击离线报告正常渲染中文）；导出录制与截图 ZIP 自动注入本地时间戳并对齐 Session ID 居中格式。",
-            v41_f1_t: "统一解压工作区与两层排查架构：",
-            v41_f1_d:
-              "open_pack 全量幂等解压至独立工作区并落盘录屏与完整截图，自动生成标准 data/*.json 与 INDEX.md 索引，融合 CLI 宏观过滤与 jq/ffmpeg 微观深潜；内置定长 LRU 自动淘汰机制。",
-            v41_f2_t: "结构化提示词路由与模块解耦重构：",
-            v41_f2_d:
-              "新增精简（Compact）剪贴板提示词与自适应安装路由；独立工单与 Playwright 预览弹窗体验升级，收敛空间几何探测与焦点防护底层模块。",
-            v40_f1_t: "问题场景编辑器与工单系统升级：",
-            v40_f1_d:
-              "深度优化缺陷标记与速记卡交互体验，支持富文本批注、DOM 锚点高亮与多场景切换；结构化工单模态框适配全新设计系统 Tokens。",
-            v40_f2_t: "隐私脱敏策略与端侧构建优化：",
-            v40_f2_d:
-              "解耦 Content 注入脚本与冗余资源暴露，优化产物包体积；强化 LocalStorage/Cookie 脱敏与安全模式感知，完善交互聚合与回放性能。",
-            v39_f1_t: "零依赖 AI 诊断 Skill 与内置 CLI：",
-            v39_f1_d:
-              "收敛 12 项内存直读与级联溯源能力至 bug-lens-triage Skill 内置的零依赖 CLI（scripts/bug-lens-cli.mjs），支持一行 npx skills add 全局安装，彻底消除独立 MCP 配置门槛。",
-            v39_f2_t: "会话级包路径记忆与截图直出：",
-            v39_f2_d:
-              "open_pack 命令一步到位自动导出关键场景截图并建立会话状态缓存，后续下钻命令无需重复传包路径，极大减少终端交互与弹窗打断。",
-            v38_f1_t: "内存直读与专属诊断 Skill：",
-            v38_f1_d:
-              "发布免解压直读架构与 bug-lens-triage Agent 技能，支持 AI 免解压直读 ZIP 证据包，自动分流视觉级联溯源（cascade.json）与运行时序下钻，实现从证据到源码修复的标准化闭环。",
-            v38_f2_t: "跨标签页无缝录制与并行解析：",
-            v38_f2_d:
-              "支持衍生标签页自动追踪与分布式录制挂件状态同步，升级 Worker 并行 SourceMap 解析、全量黑匣子性能遥测与结构化缺陷工单导出。",
-            v37_f1_t: "Windows 与跨平台单例工作区：",
-            v37_f1_d:
-              "原生支持 Windows PowerShell 与 POSIX 终端环境自适应，提供强制覆写解压指令，保障 O(1) 恒定最小存储占用。",
-            v37_f2_t: "绝对路径自动内联与安全转义：",
-            v37_f2_d:
-              "下载完成后自动将本地真实路径转义注入解压命令，AI 编程助手即拷即跑，彻底告别手动替换与工作区污染。",
-            v36_f1_t: "全新设置页毛玻璃分段控制：",
-            v36_f1_d:
-              "采用 iOS 26 风格 Liquid Glass 交互组件与防抖动排版，响应式体验更丝滑。",
-            v36_f2_t: "截图文字标注体验重构：",
-            v36_f2_d:
-              "引入流式自动折行（Flow Layout）、Halo 发光描边与高辨识度配色（#FA5352），大幅提升批注可读性。",
-            v35_f1_t: "Chrome 原生风格设置页：",
-            v35_f1_d:
-              "支持独立选项页、快捷键自定义、自动化采集开关与存储策略管控。",
-            v35_f2_t: "跨标签页录制体验：",
-            v35_f2_d:
-              "增强跨 Tab 会话感知、录制暂停与恢复状态同步及预览 Toast 便捷动作。",
-            v34_f1_t: "前端框架源码探针：",
-            v34_f1_d:
-              "支持 Vue 2、Vue 3 及 React 源码路径与行号高精度解析，深度解包响应式状态。",
-            v33_f1_t: "极限高频压力与导出性能：",
-            v33_f1_d:
-              "优化后台 IndexedDB 批量事务与静默导出流水线，通过 21 套端到端全量压力测试硬化。",
-            changelogViewAll: "查看全部历史动态 (v0.7.33 ~ v0.7.44) →",
-            changelogHistoryText: "查看全部版本",
-            drawerEyebrow: "Releases & Activity",
-            drawerTitle: "版本演进与动态",
-            drawerHistoryTitle: "历史迭代 (v0.7.43 ~ v0.7.33)",
-            cliCopy: "复制",
-            closeAria: "关闭更新日志",
-            changelogMore: "在 GitHub 上查看完整发布历史 →",
-          },
-          en: {
-            navWorkflow: "Workflow",
-            navFeatures: "Capabilities",
-            navChangelog: "Changelog",
-            navFaq: "FAQ",
-            heroBadge: "CHROME EXTENSION · AI CODING",
-            heroVersionBadge: "v0.7.44 is Live · See What's New",
-            changelogEyebrow: "Releases & Activity",
-            changelogTitle: "Changelog & Activity",
-            changelogDesc:
-              "Iterating relentlessly to deliver the fastest, cleanest diagnostic experience for modern web and AI agents.",
-            tagLatest: "Latest",
-            v44_f1_t: "Native Rust Triage CLI & Cross-Platform Distribution: ",
-            v44_f1_d:
-              "Replaces the legacy JS script with a native Rust binary (bin/bug-lens-cli) featuring streaming zip-bomb protection, atomic extraction swaps, lossless pagination, full requestBody/error extraction, and 5-target GitHub Releases binaries with SHA-256 verified installers.",
-            v44_f2_t:
-              "Interactive Ticket Curation & Progressive Quick Export: ",
-            v44_f2_d:
-              "Rebuilds the ticket preview modal with module deletion, screenshot removal, inline editing, undo/redo, atomic merged-step exclusion, and http/https URL allowlisting; introduces staged quick-export onboarding with seamless legacy migration, fixes enum reset locks, and refines interaction grouping.",
-            v43_f1_t: "Mobile Emulation UX Redesign & Zero PC Regression: ",
-            v43_f1_d:
-              "Redesigns mobile recording controls with edge-docked pills and desktop-grade compact side menus (reducing screen coverage by 44.7%) to eliminate bottom TabBar overlap; strict mode isolation ensures PC desktop experience remains 100% pristine with redundant collapse toggles removed.",
-            v43_f2_t: "Issue Scene & Screenshot Overlay Hardening: ",
-            v43_f2_d:
-              "Zero-overlap three-tier IssueEditor layout with physical Tab scale viewport screenshot cropping (eliminating coordinate drift); SelectionOverlay scrolling synchronization and bottom smart flipping; ScreenshotOverlay magnifier release-hide and bottom overflow prevention.",
-            v42_f1_t: "Mobile Emulation Adaptation & Resizable Workspace: ",
-            v42_f1_d:
-              "Adapts the recording widget, screenshot overlay, selection bar, and issue editor for Chrome DevTools mobile emulation with responsive wrapping, unified Pointer Events touch controls, real bitmap-scale cropping, and host platform shortcut detection; adds a draggable horizontal split resizer with persisted ratio to both Preview and offline reports.",
-            v42_f2_t: "Strict-CSP Offline Reports & Timestamped Exports: ",
-            v42_f2_d:
-              "Externalizes offline report localization into assets/i18n-data.js and migrates truncated-text to Constructable Stylesheets to satisfy strict CSP without inline script/style violations on file:// opens; embeds readable local timestamps into exported session and screenshot ZIP filenames.",
-            v41_f1_t: "Unified Extract-First Workspace & Two-Tier Triage: ",
-            v41_f1_d:
-              "open_pack idempotently extracts archives to an isolated workspace with recording media and full step screenshots, auto-generates data/*.json and INDEX.md, pairs macro CLI filtering with jq/ffmpeg deep dives, and introduces LRU pack eviction.",
-            v41_f2_t: "Compact Prompt Routing & Architecture Decoupling: ",
-            v41_f2_d:
-              "Introduces compact clipboard prompts with adaptive install fallback; refactors ticket and Playwright modals while unifying spatial geometry probes and focus/scroll shields.",
-            v40_f1_t: "Enhanced Issue Scene Editor & Ticket Modal: ",
-            v40_f1_d:
-              "Streamlined defect marking and quick-card interactions with rich-text annotations, DOM anchor highlighting, and multi-scene switching; ticket modal upgraded to modern design tokens.",
-            v40_f2_t: "Refined Privacy Sanitization & Bundle Optimization: ",
-            v40_f2_d:
-              "Decouples injected content scripts, trims redundant resources, strengthens LocalStorage/Cookie masking with safe mode perception, and polishes interaction grouping.",
-            v39_f1_t: "Zero-Dependency Triage Skill & Bundled CLI: ",
-            v39_f1_d:
-              "Consolidates all 12 in-memory inspection and CSS cascade tracing capabilities into the bug-lens-triage Agent Skill with a bundled zero-dependency CLI (scripts/bug-lens-cli.mjs), installable via a single npx skills add command.",
-            v39_f2_t: "Active Pack Cache & Instant Screenshot Export: ",
-            v39_f2_d:
-              "open_pack automatically extracts key scene screenshots and caches active pack state across invocations, eliminating repetitive --pack flags and terminal interruption prompts.",
-            v38_f1_t: "In-Memory Inspection & Triage Skill: ",
-            v38_f1_d:
-              "Enables zero-extraction in-memory ZIP inspection and the bug-lens-triage Agent Skill, automating CSS cascade pinpointing (cascade.json) and chronological timeline drill-down for defect triage.",
-            v38_f2_t: "Seamless Multi-Tab Recording & Parallel SourceMap: ",
-            v38_f2_d:
-              "Supports derived tab auto-tracking and distributed widget state sync, powered by parallel Worker SourceMap resolution, blackbox telemetry archives, and structured bug ticket export.",
-            v37_f1_t: "Windows & Cross-Platform O(1) Workspace: ",
-            v37_f1_d:
-              "Natively supports Windows PowerShell and POSIX shells with idempotent overwrite unzip commands for zero workspace pollution and minimal storage.",
-            v37_f2_t: "Safe Inlined Path Injection: ",
-            v37_f2_d:
-              "Automatically escapes and inlines local downloaded ZIP paths into diagnostic CLI commands for friction-free copy-paste execution.",
-            v36_f1_t: "Liquid Glass Segmented Controls: ",
-            v36_f1_d:
-              "iOS 26 style liquid glass controls with zero-shift responsive layout for seamless workflow switching.",
-            v36_f2_t: "Redesigned Screenshot Annotations: ",
-            v36_f2_d:
-              "Fluid auto-wrap flow layout, glowing halo strokes, and high-contrast #FA5352 vibrant red annotations.",
-            v35_f1_t: "Chrome-Style Options Hub: ",
-            v35_f1_d:
-              "Standalone settings dashboard with shortcut customization, automation toggles, and storage controls.",
-            v35_f2_t: "Multi-Tab Recording Polish: ",
-            v35_f2_d:
-              "Enhanced cross-tab session tracking, synchronized pause states, and instant preview toast actions.",
-            v34_f1_t: "Framework Source Code Probes: ",
-            v34_f1_d:
-              "Pinpoints Vue 2, Vue 3, and React source paths and line numbers with automated state unboxing.",
-            v33_f1_t: "High-Frequency Burst Hardening: ",
-            v33_f1_d:
-              "Mitigates transaction locks via batching and hardens performance across 21 full-suite E2E stress runs.",
-            changelogViewAll: "View All Release History (v0.7.33 ~ v0.7.44) →",
-            changelogHistoryText: "View All Releases",
-            drawerEyebrow: "Releases & Activity",
-            drawerTitle: "Release Notes & Milestones",
-            drawerHistoryTitle: "Historical Releases (v0.7.43 ~ v0.7.33)",
-            cliCopy: "Copy",
-            closeAria: "Close Changelog",
-            changelogMore: "View Complete Release History on GitHub →",
-            heroTitle:
-              'From Bug Scene to <span class="hl">AI Fix</span><br />In 3 Seconds, Not 5 Minutes',
-            heroSub:
-              "Bug Lens records user interactions, DOM snapshots, console errors, and network logs in one click — automatically generating structured AI prompts for Cursor and Claude Code.",
-            effOld: "Screenshot ➔ Open Jira ➔ Type Logs ➔ Draft Prompt",
-            effNew: "1-Click Record ➔ Copy Auto-Prompt ➔ Paste to Cursor",
-            ctaInstall: "Install Extension",
-            ctaSource: "View Source",
-            demoPlayerTag: "20s Full Lifecycle Demo: Record ➔ Capture ➔ AI Fix",
-            bmTag: "FULL LIFECYCLE: Vue 3 TodoMVC Benchmark",
-            t1Title: "Step 01. Bug Reproduction & Red-Ring Capture",
-            t1Badge: "User Action",
-            t1Desc:
-              "Engineer clicks to toggle Todo item on Vue 3 TodoMVC (http://localhost:5173/). Bug Lens records the exact click trail with red-ring ripple annotations.",
-            t2Title: "Step 02. Auto Evidence ZIP Packaging",
-            t2Badge: "Auto-Export",
-            t3Title: "Step 03. AI_PROMPT.md Copy & AI Ingestion",
-            t3Badge: "AI Prompt",
-            t4Title: "Step 04. Engineer Review & Code Fix Acceptance",
-            t4Badge: "Bug Fixed",
-            t4Desc:
-              "AI generated patch for src/App.vue based on evidence. Engineer accepts change in Cursor:",
-            btnCopyPrompt: "Copy AI Prompt for Cursor / Claude",
-            wfTitle: "3 Steps to Precise AI Fixes",
-            wf1t: "One-Click Record",
-            wf1d: "Click Record and reproduce the bug. Click trails, DOM snapshots, console errors, and XHR/Fetch network logs are captured automatically.",
-            wf2t: "Auto-Export Evidence",
-            wf2d: "Stop recording to package a ZIP containing screenshot annotations, raw logs, and the structured AI_PROMPT.md file.",
-            wf3t: "Paste Directly to AI",
-            wf3d: "The prompt is auto-copied to your clipboard. Paste it directly into Cursor, Claude Code, or ChatGPT to generate instant fixes.",
-            pillarTitle: "Core Capabilities",
-            p1Tag: "All-in-One",
-            p1t: "Complete Evidence Chain",
-            p1d: "Merges click trails, DOM styles, console error stacks, and network logs into a unified timeline.",
-            p2Tag: "AI-Ready",
-            p2t: "AI-Native Prompts",
-            p2d: "Structured Markdown prompts engineered for LLM reasoning, eliminating manual bug reports.",
-            p3Tag: "Zero Telemetry",
-            p3t: "100% Local & Private",
-            p3d: "Zero backend servers. All recordings, logs, and screenshots stay strictly inside your browser.",
-            faqTitle: "Frequently Asked Questions",
-            q1: "Does Bug Lens upload my data to any server?",
-            a1: "No. Bug Lens is a 100% local extension without a backend server. All data lives inside your browser and your local exports.",
-            q2: "What is included in the exported ZIP report?",
-            a2: "AI_PROMPT.md for LLMs, an offline report.html, click screenshots, DOM snapshots, console logs, network requests, and WebM video.",
-            q3: "Which AI tools are supported?",
-            a3: "Any AI coding tool or chat assistant including Cursor, Claude Code, ChatGPT, DeepSeek, and Windsurf.",
-            footerSource: "Open Source",
-            footerIssues: "Report Issue",
-          },
-        };
-
-        function detectBrowserLang() {
-          var lang = (navigator.language || "").toLowerCase();
-          return lang.indexOf("zh") === 0 ? "zh" : "en";
-        }
-
-        function getSavedLang() {
-          return (
-            localStorage.getItem("bl_lang") ||
-            localStorage.getItem("bl-lang") ||
-            detectBrowserLang()
-          );
-        }
-
-        var YOUTUBE_VIDEO_ID = "zBtfJEysjx0";
-        var LOCAL_VIDEO_HTML =
-          '<video id="heroDemoVideo" poster="assets/demo/demo-poster.png" autoplay loop muted playsinline controls preload="metadata">' +
-          '<source src="assets/demo/bug-lens-demo-1080p.webm" type="video/webm" />' +
-          "您的浏览器暂不支持 HTML5 视频播放。" +
-          "</video>";
-        var YOUTUBE_IFRAME_HTML =
-          '<iframe id="heroDemoIframe" ' +
-          'src="https://www.youtube-nocookie.com/embed/' +
-          YOUTUBE_VIDEO_ID +
-          "?autoplay=1&mute=1&loop=1&playlist=" +
-          YOUTUBE_VIDEO_ID +
-          '&controls=1&rel=0" ' +
-          'title="Bug Lens Demo Video" frameborder="0" ' +
-          'allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" ' +
-          'allowfullscreen loading="lazy"></iframe>';
-
-        function isOverseasUser() {
-          try {
-            var tz = (
-              Intl.DateTimeFormat().resolvedOptions().timeZone || ""
-            ).toLowerCase();
-            var isChinaTz =
-              tz.indexOf("shanghai") !== -1 ||
-              tz.indexOf("chongqing") !== -1 ||
-              tz.indexOf("urumqi") !== -1 ||
-              tz.indexOf("beijing") !== -1 ||
-              tz.indexOf("harbin") !== -1;
-            var lang = (navigator.language || "").toLowerCase();
-            var isZh = lang.indexOf("zh") === 0;
-            return !isChinaTz && !isZh;
-          } catch (e) {
-            return false;
-          }
-        }
-
-        function updateDemoVideo(lang) {
-          var box = document.querySelector(".demo-video-box");
-          if (!box) return;
-          var useYouTube = lang === "en" || (lang !== "zh" && isOverseasUser());
-          if (useYouTube) {
-            if (!box.querySelector("iframe")) {
-              box.innerHTML = YOUTUBE_IFRAME_HTML;
-            }
-          } else {
-            if (!box.querySelector("video")) {
-              box.innerHTML = LOCAL_VIDEO_HTML;
-            }
-          }
-        }
-
-        function apply(lang) {
-          currentLang = lang;
-          var d = dict[lang] || dict.en;
-          var nodes = document.querySelectorAll("[data-l10n]");
-          for (var i = 0; i < nodes.length; i++) {
-            var key = nodes[i].getAttribute("data-l10n");
-            if (d[key]) {
-              var value = d[key];
-              if (value.indexOf("<") !== -1) nodes[i].innerHTML = value;
-              else nodes[i].textContent = value;
-            }
-          }
-          var ariaNodes = document.querySelectorAll("[data-l10n-aria]");
-          for (var j = 0; j < ariaNodes.length; j++) {
-            var ariaKey = ariaNodes[j].getAttribute("data-l10n-aria");
-            if (d[ariaKey]) {
-              ariaNodes[j].setAttribute("aria-label", d[ariaKey]);
-            }
-          }
-          document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
-          var btn = document.getElementById("langSwitch");
-          if (btn) btn.textContent = lang === "zh" ? "EN" : "中文";
-          updateDemoVideo(lang);
-        }
-
-        var initLang = getSavedLang();
-        apply(initLang);
-
-        window.toggleLang = function () {
-          var nextLang = currentLang === "zh" ? "en" : "zh";
-          localStorage.setItem("bl_lang", nextLang);
-          localStorage.setItem("bl-lang", nextLang);
-          apply(nextLang);
-        };
-      })();
-
-      // Changelog Drawer Controls (Pure Light Modern Sheet)
-      (function () {
-        function openChangelogDrawer() {
-          var drawer = document.getElementById("changelogDrawer");
-          var overlay = document.getElementById("changelogDrawerOverlay");
-          if (!drawer || !overlay) return;
-          drawer.classList.add("open");
-          overlay.classList.add("open");
-          drawer.setAttribute("aria-hidden", "false");
-          document.body.style.overflow = "hidden";
-        }
-
-        function closeChangelogDrawer() {
-          var drawer = document.getElementById("changelogDrawer");
-          var overlay = document.getElementById("changelogDrawerOverlay");
-          if (!drawer || !overlay) return;
-          drawer.classList.remove("open");
-          overlay.classList.remove("open");
-          drawer.setAttribute("aria-hidden", "true");
-          document.body.style.overflow = "";
-        }
-
-        window.openChangelogDrawer = openChangelogDrawer;
-        window.closeChangelogDrawer = closeChangelogDrawer;
-
-        window.copyCliSnippet = function (btn, text) {
-          if (!navigator.clipboard) return;
-          navigator.clipboard.writeText(text).then(function () {
-            var span = btn.querySelector("span");
-            var original = span ? span.textContent : "";
-            if (span)
-              span.textContent = currentLang === "zh" ? "已复制" : "Copied!";
-            btn.classList.add("copied");
-            setTimeout(function () {
-              if (span) span.textContent = original;
-              btn.classList.remove("copied");
-            }, 1800);
-          });
-        };
-
-        document.addEventListener("keydown", function (e) {
-          if (e.key === "Escape") {
-            closeChangelogDrawer();
-          }
-        });
-
-        if (window.location.hash === "#changelog") {
-          setTimeout(openChangelogDrawer, 350);
-        }
-      })();
-
-      // Scroll reveal
-      (function () {
-        var observer = new IntersectionObserver(
-          function (entries) {
-            entries.forEach(function (entry) {
-              if (entry.isIntersecting) {
-                entry.target.classList.add("visible");
-              }
-            });
-          },
-          { threshold: 0.1, rootMargin: "0px 0px -40px 0px" }
-        );
-
-        var reveals = document.querySelectorAll(".reveal");
-        for (var i = 0; i < reveals.length; i++) {
-          observer.observe(reveals[i]);
-        }
-      })();
-    </script>
   </body>
 </html>

@@ -40,16 +40,11 @@ node scripts/release-bump.mjs <version>
    - 将上一版本行的状态由 `Ready for Submission` 改为 `Submitted`。
    - 在表头下方第一行插入新版本记录：
      `| \`v<version>\` | <YYYY-MM-DD> | <英文特性摘要> | Ready for Submission |`
-2. **`site/index.html` 联动更新**（设 `<NN>` 为补丁号，如 `0.7.41` 对应 `v41`）：
-   - **Hero 呼吸灯徽标**：将 `.version-pill-tag` 与 `[data-l10n="heroVersionBadge"]` 文本更新为 `v<version> 现已上线 · 查看更新日志`。
-   - **主屏与抽屉聚焦卡片**：
-     - 将主屏 `.changelog-summary-card` 与抽屉 `.drawer-spotlight-card` 的版本更新为 `v<version>`，日期更新为当前发布日期，属性绑定 `v<NN>_f1_t/d`、`v<NN>_f2_t/d`。
-     - 更新抽屉分割线 `[data-l10n="drawerHistoryTitle"]` 范围，在 `.changelog-timeline` 最上方插入上一版本的归档卡片节点。
-   - **双语字典 (`dict.zh` 与 `dict.en`)**：
-     - 更新 `heroVersionBadge`、`changelogViewAll` 与 `drawerHistoryTitle`。
-     - 在 `dict.zh` 与 `dict.en` 中同步新增 `v<NN>_f1_t`、`v<NN>_f1_d`、`v<NN>_f2_t`、`v<NN>_f2_d` 词条。
+2. **官网 (`site/data/releases.js` 与 `site/index.html`) 联动更新**：
+   - **数据源更新（`site/data/releases.js`）**：在 `RELEASES` 数组顶部插入当前版本的发布对象（包含 `version`、`date`、可选 `cliCommand` 以及 `highlights.zh` / `highlights.en`）；页面会以此单一数据源自动渲染 Hero 版本徽标、主屏摘要卡、抽屉 Spotlight 卡片以及历史时间轴。
+   - **静态兜底同步（`site/index.html`）**：将 Hero 胶囊（`data-fallback-version`、`#heroVersionTag`、`#heroVersionText`）、主屏 `#changelogSummaryCard` 与 `#changelogViewAllBtn` 里的旧版本兜底文本更新为 `v<version>` 与发布日期。
 
-**Completion Criterion**: `git grep -n "<oldVersion>" site/index.html` 仅命中历史时间轴节点（`<!-- v<oldVersion> -->` 与 `<span class="changelog-ver">v<oldVersion></span>`），`heroVersionBadge` 与新 `v<NN>_*` 词条在 `dict.zh` 和 `dict.en` 中成对存在。
+**Completion Criterion**: `site/data/releases.js` 顶部已包含 `version: "<version>"` 的双语摘要对象；`git grep -n "<oldVersion>" site/index.html` 无未更新的静态兜底版本号残留（历史版本仅由 `site/data/releases.js` 维护）。
 
 ## Step 3: 类型检查、单测与构建 Release 包
 
