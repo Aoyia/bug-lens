@@ -1,6 +1,6 @@
 {
   "name": "bug-lens",
-  "version": "0.7.43",
+  "version": "0.7.44",
   "license": "AGPL-3.0-only",
   "private": true,
   "type": "module",

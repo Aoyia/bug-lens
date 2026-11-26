@@ -1,6 +1,6 @@
 [package]
 name = "bug-lens-cli"
-version = "0.7.43"
+version = "0.7.44"
 edition = "2021"
 license = "AGPL-3.0-only"
 description = "Native Rust CLI for Bug Lens evidence pack extraction, integrity verification, and triage queries."
