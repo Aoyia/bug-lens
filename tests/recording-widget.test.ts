@@ -1043,6 +1043,37 @@ describe("RecordingWidget - Drag and Auto-Collapse", () => {
     assert.equal(clicked, true, "点击操作按钮必须触发 onClick 回调");
   });
 
+  test("录制挂件 showToast 支持 3 行独立渲染且操作按钮保留在第 2 行副标题内", () => {
+    widget = new RecordingWidget(callbacks);
+    widget.showToast(
+      "主标题\n副标题 (按 ⌘V 粘贴)\n第三行引导提示",
+      6000,
+      "normal",
+      {
+        label: "预览 ↗",
+        onClick: () => {},
+      }
+    );
+
+    const toast = document.querySelector("#__wbr_toast__") as HTMLElement;
+    assert.ok(toast, "页面必须渲染 #__wbr_toast__");
+    assert.match(
+      toast.innerHTML,
+      /<div[^>]*>主标题<\/div>/,
+      "第 1 行主标题应渲染在独立 div 中"
+    );
+    assert.match(
+      toast.innerHTML,
+      /<div[^>]*>副标题 \(按 <kbd[^>]*>⌘V<\/kbd> 粘贴\)<span[^>]*>·<\/span><span id="__wbr_toast_action__"[^>]*>预览 ↗<\/span><\/div>/,
+      "第 2 行副标题与操作按钮应保持在同一 div 内且未混入第 3 行引导提示"
+    );
+    assert.match(
+      toast.innerHTML,
+      /<div[^>]*border-top:1px solid rgba\(0,0,0,0\.06\)!important;[^>]*>第三行引导提示<\/div>/,
+      "第 3 行引导提示应渲染在带顶部边框分隔的独立 div 中"
+    );
+  });
+
   test("首次挂载录制悬浮条时展示跟随轻气泡，且气泡展示期间保持展开", () => {
     storageMap.delete("__wbr_widget_bubble_seen__");
     widget = new RecordingWidget(callbacks);

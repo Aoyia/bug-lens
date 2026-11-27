@@ -5,9 +5,12 @@ import test from "node:test";
 import {
   DEFAULT_QUICK_EXPORT_GUIDE_STATE,
   QUICK_EXPORT_GUIDE_STORAGE_KEY,
+  STAGE2_ONBOARDING_TOAST_LIMIT,
   STOP_ACTION_MIGRATED_STORAGE_KEY,
   consumeStage2OnboardingToastInState,
   migrateLegacyStopActionIfNeeded,
+  normalizeQuickExportGuideState,
+  recordLegacySilentExportMigrated,
   recordManualStopActionChange,
   recordPreviewEdited,
   recordStage1PreviewOpened,
@@ -315,12 +318,26 @@ test("老用户迁移纯判定与存储迁移：阈值为 5 次，迁移后幂�
     (storeB[QUICK_EXPORT_GUIDE_STORAGE_KEY] as { status?: string })?.status,
     "accepted"
   );
+  assert.equal(
+    (
+      storeB[QUICK_EXPORT_GUIDE_STORAGE_KEY] as {
+        stage2OnboardingToastCount?: number;
+      }
+    )?.stage2OnboardingToastCount,
+    STAGE2_ONBOARDING_TOAST_LIMIT
+  );
+  assert.equal(
+    consumeStage2OnboardingToastInState(
+      normalizeQuickExportGuideState(storeB[QUICK_EXPORT_GUIDE_STORAGE_KEY])
+    ).shouldShowHint,
+    false
+  );
 
   // 二次调用因已标记 STOP_ACTION_MIGRATED_STORAGE_KEY，直接幂等返回 false
   const migratedBAgain = await migrateLegacyStopActionIfNeeded(async () => 99);
   assert.equal(migratedBAgain, false);
 
-  // 场景 C：历史会话 >= 5 的老用户（即使复制次数为 0）同样自动迁移
+  // 场景 C：历史会话 >= 5 的老用户（即使复制次数为 0）同样自动迁移且不再弹第二阶段新手引导
   const storeC = installMemoryStorage({
     [DIAGNOSTICS_STORAGE_KEY]: { metrics: { totalPromptCopies: 0 } },
   });
@@ -330,6 +347,65 @@ test("老用户迁移纯判定与存储迁移：阈值为 5 次，迁移后幂�
     (storeC[APP_SETTINGS_STORAGE_KEY] as { workflow?: { stopAction?: string } })
       ?.workflow?.stopAction,
     "silentExport"
+  );
+  assert.equal(
+    (
+      storeC[QUICK_EXPORT_GUIDE_STORAGE_KEY] as {
+        stage2OnboardingToastCount?: number;
+      }
+    )?.stage2OnboardingToastCount,
+    STAGE2_ONBOARDING_TOAST_LIMIT
+  );
+  assert.equal(
+    consumeStage2OnboardingToastInState(
+      normalizeQuickExportGuideState(storeC[QUICK_EXPORT_GUIDE_STORAGE_KEY])
+    ).shouldShowHint,
+    false
+  );
+
+  // 场景 D：迁移前 stopAction 已为 silentExport 的老用户同样跳过第二阶段新手引导
+  const storeD = installMemoryStorage({
+    [APP_SETTINGS_STORAGE_KEY]: {
+      ...DEFAULT_APP_SETTINGS,
+      workflow: {
+        ...DEFAULT_APP_SETTINGS.workflow,
+        stopAction: "silentExport",
+      },
+    },
+  });
+  const migratedD = await migrateLegacyStopActionIfNeeded(async () => 0);
+  assert.equal(migratedD, false);
+  assert.equal(storeD[STOP_ACTION_MIGRATED_STORAGE_KEY], true);
+  assert.equal(
+    (
+      storeD[QUICK_EXPORT_GUIDE_STORAGE_KEY] as {
+        stage2OnboardingToastCount?: number;
+      }
+    )?.stage2OnboardingToastCount,
+    STAGE2_ONBOARDING_TOAST_LIMIT
+  );
+  assert.equal(
+    consumeStage2OnboardingToastInState(
+      normalizeQuickExportGuideState(storeD[QUICK_EXPORT_GUIDE_STORAGE_KEY])
+    ).shouldShowHint,
+    false
+  );
+
+  // recordLegacySilentExportMigrated 不影响原有 recordUpgradeAccepted 行为
+  const acceptedViaBanner = recordUpgradeAccepted({
+    ...DEFAULT_QUICK_EXPORT_GUIDE_STATE,
+  });
+  assert.equal(acceptedViaBanner.stage2OnboardingToastCount, 0);
+  assert.equal(
+    consumeStage2OnboardingToastInState(acceptedViaBanner).shouldShowHint,
+    true
+  );
+  const migratedState = recordLegacySilentExportMigrated({
+    ...DEFAULT_QUICK_EXPORT_GUIDE_STATE,
+  });
+  assert.equal(
+    migratedState.stage2OnboardingToastCount,
+    STAGE2_ONBOARDING_TOAST_LIMIT
   );
 });
 
@@ -369,6 +445,23 @@ test("渐进式快捷导出新增 i18n 词条在双语字典齐全且英文无�
       `en ${key} 不得包含中文字符`
     );
   }
+
+  assert.ok(
+    zhDict.stage2SilentExportToastHint.message.includes("预览 ↗"),
+    "zh_CN stage2SilentExportToastHint 应与按钮文字「预览 ↗」一致"
+  );
+  assert.ok(
+    !zhDict.stage2SilentExportToastHint.message.includes("打开预览"),
+    "zh_CN stage2SilentExportToastHint 不得残留旧文案「打开预览」"
+  );
+  assert.ok(
+    enDict.stage2SilentExportToastHint.message.includes("Preview ↗"),
+    "en stage2SilentExportToastHint 应与按钮文字 'Preview ↗' 一致"
+  );
+  assert.ok(
+    !enDict.stage2SilentExportToastHint.message.includes("Open Preview"),
+    "en stage2SilentExportToastHint 不得残留旧文案 'Open Preview'"
+  );
 });
 
 test("saveAppSettings 支持从 silentExport 及非默认枚举值切回默认值（P0 回归）", async () => {

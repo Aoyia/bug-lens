@@ -138,6 +138,19 @@ export function recordUpgradeAccepted(
   };
 }
 
+export function recordLegacySilentExportMigrated(
+  state: QuickExportGuideState
+): QuickExportGuideState {
+  return {
+    ...state,
+    status: "accepted",
+    stage2OnboardingToastCount: Math.max(
+      state.stage2OnboardingToastCount,
+      STAGE2_ONBOARDING_TOAST_LIMIT
+    ),
+  };
+}
+
 export function recordUpgradeDismissed(
   state: QuickExportGuideState
 ): QuickExportGuideState {
@@ -342,7 +355,7 @@ export async function migrateLegacyStopActionIfNeeded(
     return false;
   }
   if (settings.workflow.stopAction === "silentExport") {
-    await updateQuickExportGuideState(recordUpgradeAccepted);
+    await updateQuickExportGuideState(recordLegacySilentExportMigrated);
     await markStopActionMigrated();
     return false;
   }
@@ -377,7 +390,7 @@ export async function migrateLegacyStopActionIfNeeded(
         stopAction: "silentExport",
       },
     }));
-    await updateQuickExportGuideState(recordUpgradeAccepted);
+    await updateQuickExportGuideState(recordLegacySilentExportMigrated);
     await markStopActionMigrated();
     return true;
   }

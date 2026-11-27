@@ -2580,6 +2580,6 @@
     "message": "Direct export enabled: future stops will download ZIP directly. You can switch back in Settings anytime."
   },
   "stage2SilentExportToastHint": {
-    "message": "Click Open Preview on the right anytime, or switch back to auto-preview in Settings."
+    "message": "Click \"Preview ↗\" anytime for details, or switch back to auto-preview in Settings."
   }
 }

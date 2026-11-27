@@ -51,12 +51,23 @@ export function buildToastInnerHtml(
   let contentHtml = "";
 
   if (isDualLine) {
-    const [title, ...rest] = message.split("\n");
-    const descHtml = formatShortcutKbdHtml(rest.join("\n"));
+    const [title, primaryDesc = "", ...extraLines] = message.split("\n");
+    const descHtml = formatShortcutKbdHtml(primaryDesc);
+    const extraLinesHtml = extraLines
+      .filter((line) => line.length > 0)
+      .map((line, idx) => {
+        const extraSpacing =
+          idx === 0
+            ? "margin-top:4px!important;padding-top:4px!important;border-top:1px solid rgba(0,0,0,0.06)!important;"
+            : "margin-top:2px!important;";
+        return `<div style="font-size:11.5px!important;font-weight:400!important;color:#86909c!important;line-height:1.4!important;max-width:100%!important;width:100%!important;word-break:break-word!important;${extraSpacing}">${formatShortcutKbdHtml(line)}</div>`;
+      })
+      .join("");
     contentHtml = `
       <div style="display:flex!important;flex-direction:column!important;gap:2px!important;align-items:flex-start!important;text-align:left!important;min-width:0!important;flex:1 1 0%!important;max-width:100%!important;">
         <div style="font-size:13.5px!important;font-weight:600!important;color:#1d2129!important;line-height:1.4!important;max-width:100%!important;word-break:break-word!important;">${title}</div>
         <div style="font-size:12px!important;font-weight:400!important;color:#86909c!important;line-height:1.4!important;max-width:100%!important;word-break:break-word!important;">${descHtml}${actionHtml}</div>
+        ${extraLinesHtml}
       </div>
     `;
   } else {
