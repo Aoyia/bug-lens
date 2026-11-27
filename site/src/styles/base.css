@@ -1,0 +1,171 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+  font-size: 16px;
+}
+
+body {
+  font-family: var(--font);
+  background: var(--bg-gradient);
+  color: var(--text);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.grid {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* Scroll reveal: micro depth-of-field focus + curtain wipe (only activates when JS adds html.js-ready) */
+html.js-ready .reveal:not(.reveal-settled) {
+  opacity: 0;
+  transform: translateY(14px) scale(0.962);
+  filter: blur(4px);
+  transition:
+    opacity 0.72s cubic-bezier(0.16, 1, 0.3, 1) var(--reveal-delay, 0ms),
+    filter 0.76s cubic-bezier(0.16, 1, 0.3, 1) var(--reveal-delay, 0ms),
+    transform 0.78s cubic-bezier(0.16, 1, 0.3, 1) var(--reveal-delay, 0ms);
+  will-change: opacity, filter, transform;
+}
+
+html.js-ready .reveal.visible:not(.reveal-settled) {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  filter: blur(0px);
+}
+
+/* Text headlines & section intros: crisp clip-path curtain wipe without shadow clipping */
+html.js-ready .reveal.reveal-curtain:not(.reveal-settled) {
+  opacity: 0;
+  clip-path: inset(0 0 24% 0);
+  transform: translateY(14px);
+  filter: none;
+  transition:
+    opacity 0.72s cubic-bezier(0.16, 1, 0.3, 1) var(--reveal-delay, 0ms),
+    clip-path 0.82s cubic-bezier(0.16, 1, 0.3, 1) var(--reveal-delay, 0ms),
+    transform 0.82s cubic-bezier(0.16, 1, 0.3, 1) var(--reveal-delay, 0ms);
+  will-change: opacity, clip-path, transform;
+}
+
+html.js-ready .reveal.reveal-curtain.visible:not(.reveal-settled) {
+  opacity: 1;
+  clip-path: inset(0 0 0% 0);
+  transform: translateY(0);
+}
+
+/* Keep .tl-step box geometry static so #tlSpine alignment never drifts */
+html.js-ready .tl-step.reveal:not(.reveal-settled) {
+  opacity: 1;
+  filter: none;
+  transform: none;
+  transition: none;
+  will-change: auto;
+}
+
+html.js-ready .tl-step.reveal:not(.reveal-settled) .tl-num {
+  opacity: 0;
+  filter: blur(3px);
+  transition:
+    opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1) var(--reveal-delay, 0ms),
+    filter 0.65s cubic-bezier(0.16, 1, 0.3, 1) var(--reveal-delay, 0ms),
+    background 0.28s ease,
+    border-color 0.28s ease,
+    color 0.28s ease,
+    box-shadow 0.28s ease,
+    transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, filter;
+}
+
+html.js-ready .tl-step.reveal.visible:not(.reveal-settled) .tl-num {
+  opacity: 1;
+  filter: blur(0px);
+}
+
+html.js-ready .tl-step.reveal:not(.reveal-settled) .tl-step-content {
+  opacity: 0;
+  transform: translateY(14px) scale(0.975);
+  filter: blur(3.5px);
+  transition:
+    opacity 0.72s cubic-bezier(0.16, 1, 0.3, 1)
+      calc(var(--reveal-delay, 0ms) + 60ms),
+    filter 0.76s cubic-bezier(0.16, 1, 0.3, 1)
+      calc(var(--reveal-delay, 0ms) + 60ms),
+    transform 0.78s cubic-bezier(0.16, 1, 0.3, 1)
+      calc(var(--reveal-delay, 0ms) + 60ms);
+  will-change: opacity, filter, transform;
+}
+
+html.js-ready .tl-step.reveal.visible:not(.reveal-settled) .tl-step-content {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  filter: blur(0px);
+}
+
+html.js-ready .tl-step.reveal:not(.reveal-settled) .showcase-frame img {
+  clip-path: inset(0 0 16% 0);
+  transform: scale(1.035);
+  transition:
+    clip-path 0.92s cubic-bezier(0.16, 1, 0.3, 1)
+      calc(var(--reveal-delay, 0ms) + 90ms),
+    transform 0.92s cubic-bezier(0.16, 1, 0.3, 1)
+      calc(var(--reveal-delay, 0ms) + 90ms);
+  will-change: clip-path, transform;
+}
+
+html.js-ready .tl-step.reveal.visible:not(.reveal-settled) .showcase-frame img {
+  clip-path: inset(0 0 0% 0);
+  transform: scale(1);
+}
+
+/* Generic Sections */
+.section {
+  padding: 72px 0;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.section-alt {
+  background: var(--surface-sub);
+}
+
+.section-header {
+  max-width: 720px;
+  margin-bottom: 36px;
+}
+
+.section-eyebrow {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--primary);
+  margin-bottom: 8px;
+}
+
+.section-title {
+  font-size: clamp(1.6rem, 2.8vw, 2.05rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--text);
+  margin-bottom: 12px;
+  line-height: 1.25;
+}
+
+.section-desc {
+  color: var(--text-muted);
+  font-size: 1rem;
+  line-height: 1.6;
+}

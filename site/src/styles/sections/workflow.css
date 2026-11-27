@@ -1,0 +1,242 @@
+/* Workflow Timeline */
+.timeline-wrap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+}
+
+.tl-body {
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 36px;
+  position: relative;
+}
+
+.tl-spine {
+  position: absolute;
+  left: 53px;
+  top: 54px;
+  width: 2px;
+  height: 0;
+  background: var(--border);
+  border-radius: 2px;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.tl-spine-fill {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    180deg,
+    var(--primary) 0%,
+    #3b82f6 65%,
+    var(--success) 100%
+  );
+  transform-origin: top center;
+  transform: scaleY(0);
+  will-change: transform;
+}
+
+.tl-step {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 20px;
+  position: relative;
+}
+
+.tl-num {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius);
+  background: var(--surface-sub);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--primary);
+  position: relative;
+  z-index: 1;
+  transition:
+    background 0.28s ease,
+    border-color 0.28s ease,
+    color 0.28s ease,
+    box-shadow 0.28s ease,
+    transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.tl-step.is-reached .tl-num {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(22, 93, 255, 0.24);
+}
+
+.tl-step.is-current .tl-num {
+  box-shadow:
+    0 0 0 4px rgba(22, 93, 255, 0.16),
+    0 4px 14px rgba(22, 93, 255, 0.28);
+  transform: scale(1.06);
+}
+
+.tl-step.last.is-reached .tl-num {
+  background: var(--success);
+  border-color: var(--success);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(0, 180, 42, 0.24);
+}
+
+.tl-step.last.is-current .tl-num {
+  box-shadow:
+    0 0 0 4px rgba(0, 180, 42, 0.16),
+    0 4px 14px rgba(0, 180, 42, 0.28);
+}
+
+.tl-step-content {
+  min-width: 0;
+}
+
+.tl-step-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.tl-step-head h3 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.tl-step-tag {
+  font-size: 0.74rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+.tl-step.last .tl-step-tag {
+  background: rgba(0, 180, 42, 0.1);
+  color: #008a1e;
+}
+
+.tl-desc {
+  font-size: 0.94rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+
+.step2-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+/* File Tree */
+.tl-file-tree {
+  background: var(--surface-sub);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.ft-title {
+  font-weight: 700;
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.ft-subtitle {
+  font-family: var(--font);
+  font-size: 0.78rem;
+  color: var(--text-light);
+  margin-bottom: 12px;
+}
+
+.tl-file-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 0;
+  border-top: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.tl-file-row .fn {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.tl-file-row .fd {
+  font-family: var(--font);
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+/* Prompt Toolbar & Code Block */
+.prompt-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.tl-code-block {
+  background: #14171f;
+  color: #e2e8f0;
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  line-height: 1.55;
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Diff Block */
+.tl-diff {
+  background: #14171f;
+  color: #cbd5e1;
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  line-height: 1.6;
+  overflow-x: auto;
+}
+
+.tl-diff .diff-file {
+  color: #94a3b8;
+}
+
+.tl-diff .del {
+  color: #fda4af;
+}
+
+.tl-diff .add {
+  color: #86efac;
+}

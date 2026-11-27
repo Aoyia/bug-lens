@@ -1,0 +1,34 @@
+---
+import type { SiteCopy } from "../data/i18n";
+import type { Locale } from "../data/site";
+import Navbar from "./Navbar.astro";
+import Hero from "./Hero.astro";
+import WorkflowSection from "./WorkflowSection.astro";
+import CapabilitiesSection from "./CapabilitiesSection.astro";
+import AgentSkillSection from "./AgentSkillSection.astro";
+import ChangelogSection from "./ChangelogSection.astro";
+import FaqSection from "./FaqSection.astro";
+import Footer from "./Footer.astro";
+import ChangelogDrawer from "./ChangelogDrawer.astro";
+
+interface Props {
+  locale: Locale;
+  copy: SiteCopy;
+}
+
+const { locale, copy } = Astro.props;
+---
+
+<Navbar locale={locale} copy={copy} />
+
+<main>
+  <Hero copy={copy} />
+  <WorkflowSection locale={locale} copy={copy} />
+  <CapabilitiesSection copy={copy} />
+  <AgentSkillSection copy={copy} />
+  <ChangelogSection locale={locale} copy={copy} />
+  <FaqSection copy={copy} />
+</main>
+
+<Footer locale={locale} copy={copy} />
+<ChangelogDrawer locale={locale} copy={copy} />

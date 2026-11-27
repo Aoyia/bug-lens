@@ -1,0 +1,97 @@
+---
+import type { SiteCopy } from "../data/i18n";
+import {
+  IMAGE_DIMENSIONS,
+  SITE_NAME,
+  getLocalePath,
+  withBase,
+  type Locale,
+} from "../data/site";
+
+interface Props {
+  locale: Locale;
+  copy: SiteCopy;
+}
+
+const { locale, copy } = Astro.props;
+const targetLocale: Locale = locale === "en" ? "zh" : "en";
+const switchHref = getLocalePath(targetLocale);
+const homeHref = getLocalePath(locale);
+const logoSrc = withBase("/assets/logo.png");
+---
+
+<header class="nav-bar">
+  <div class="nav-inner">
+    <a href={homeHref} class="nav-brand">
+      <img
+        src={logoSrc}
+        alt={SITE_NAME}
+        width="28"
+        height="28"
+        data-natural-size={`${IMAGE_DIMENSIONS.logo.width}x${IMAGE_DIMENSIONS.logo.height}`}
+      />
+      <span>{SITE_NAME}</span>
+    </a>
+
+    <nav class="nav-links" aria-label={copy.navAria}>
+      <a href="#workflow">{copy.navWorkflow}</a>
+      <a href="#capabilities">{copy.navCapabilities}</a>
+      <a href="#agent-skill">{copy.navAgentSkill}</a>
+      <a href="#changelog" class="nav-item-pill" data-open-changelog>
+        <span>{copy.navChangelog}</span>
+        <span class="aurora-new-pill" aria-hidden="true">
+          <span class="pill-dot"></span>
+          <span>NEW</span>
+        </span>
+      </a>
+      <a href="#faq">{copy.navFaq}</a>
+    </nav>
+
+    <div class="nav-actions">
+      <a
+        id="langSwitch"
+        href={switchHref}
+        hreflang={targetLocale === "zh" ? "zh-CN" : "en"}
+        lang={targetLocale === "zh" ? "zh-CN" : "en"}
+        class="lang-switch"
+        aria-label={copy.langSwitchAria}
+      >
+        {copy.langSwitchLabel}
+      </a>
+      <button
+        id="mobileMenuBtn"
+        type="button"
+        class="mobile-menu-btn"
+        aria-expanded="false"
+        aria-controls="mobileNavPanel"
+        aria-label={copy.navMenuAria}
+      >
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <line x1="3" y1="6" x2="21" y2="6"></line>
+          <line x1="3" y1="12" x2="21" y2="12"></line>
+          <line x1="3" y1="18" x2="21" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <div id="mobileNavPanel" class="mobile-nav-panel" hidden>
+    <div class="mobile-nav-inner">
+      <a href="#workflow">{copy.navWorkflow}</a>
+      <a href="#capabilities">{copy.navCapabilities}</a>
+      <a href="#agent-skill">{copy.navAgentSkill}</a>
+      <a href="#changelog" data-open-changelog>{copy.navChangelog}</a>
+      <a href="#faq">{copy.navFaq}</a>
+    </div>
+  </div>
+</header>

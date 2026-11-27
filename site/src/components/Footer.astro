@@ -1,0 +1,55 @@
+---
+import type { SiteCopy } from "../data/i18n";
+import {
+  GITHUB_COMMUNITY_URL,
+  GITHUB_DISCUSSIONS_URL,
+  GITHUB_ISSUES_URL,
+  GITHUB_LICENSE_URL,
+  GITHUB_PRIVACY_URL,
+  GITHUB_REPO_URL,
+  getLocalePath,
+  type Locale,
+} from "../data/site";
+
+interface Props {
+  locale: Locale;
+  copy: SiteCopy;
+}
+
+const { locale, copy } = Astro.props;
+const targetLocale: Locale = locale === "en" ? "zh" : "en";
+const altHref = getLocalePath(targetLocale);
+---
+
+<footer class="footer">
+  <div class="grid reveal">
+    <div class="footer-links">
+      <a href={GITHUB_REPO_URL} target="_blank" rel="noopener noreferrer">
+        {copy.footerSource}
+      </a>
+      <a href={GITHUB_PRIVACY_URL} target="_blank" rel="noopener noreferrer">
+        {copy.footerPrivacy}
+      </a>
+      <a href={GITHUB_DISCUSSIONS_URL} target="_blank" rel="noopener noreferrer">
+        {copy.footerDiscussions}
+      </a>
+      <a href={GITHUB_ISSUES_URL} target="_blank" rel="noopener noreferrer">
+        {copy.footerIssues}
+      </a>
+      <a href={GITHUB_COMMUNITY_URL} target="_blank" rel="noopener noreferrer">
+        {copy.footerCommunity}
+      </a>
+      <a href={GITHUB_LICENSE_URL} target="_blank" rel="noopener noreferrer">
+        {copy.footerLicense}
+      </a>
+      <a
+        href={altHref}
+        hreflang={targetLocale === "zh" ? "zh-CN" : "en"}
+        lang={targetLocale === "zh" ? "zh-CN" : "en"}
+      >
+        {copy.footerLangLinkLabel}
+      </a>
+    </div>
+    <p class="footer-copy">© 2026 Bug Lens · AGPL-3.0 Open Source</p>
+  </div>
+</footer>

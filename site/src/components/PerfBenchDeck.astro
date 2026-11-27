@@ -1,0 +1,185 @@
+---
+import type { SiteCopy } from "../data/i18n";
+import {
+  PERF_BAR_METRICS,
+  PERF_KPIS,
+  PERF_RING_GAUGE,
+  PERF_STEP_SLICES,
+} from "../data/benchmark";
+
+interface Props {
+  copy: SiteCopy;
+}
+
+const { copy } = Astro.props;
+---
+
+<div class="perf-bench-wrap reveal">
+  <div class="perf-deck">
+    <div class="perf-deck-top">
+      <div class="perf-status-pill">
+        <span class="perf-pulse-dot" aria-hidden="true"></span>
+        <span>{copy.perfStatusBadge}</span>
+      </div>
+      <p class="perf-deck-sample">{copy.perfFootnote}</p>
+    </div>
+
+    <div class="perf-kpi-strip">
+      {
+        PERF_KPIS.map((kpi) => (
+          <div class="perf-kpi-tile">
+            <span
+              class="perf-kpi-num"
+              data-count-to={kpi.countTo}
+              data-count-decimals={kpi.decimals}
+              data-count-prefix={kpi.prefix}
+              data-count-suffix={kpi.suffix}
+            >
+              {kpi.initialText}
+            </span>
+            <span class="perf-kpi-title">{copy.perfKpiTitles[kpi.id]}</span>
+            <span class="perf-kpi-sub">{kpi.sub}</span>
+          </div>
+        ))
+      }
+    </div>
+
+    <div class="perf-deck-body">
+      <article class="perf-panel" aria-labelledby="perfRuntimeTitle">
+        <div class="perf-panel-head">
+          <h3 id="perfRuntimeTitle" class="perf-panel-title">
+            {copy.perfRuntimeTitle}
+          </h3>
+          <div class="perf-legend" aria-hidden="true">
+            <span class="perf-legend-item">
+              <span class="perf-dot perf-dot-rust"></span>
+              <span>{copy.perfLegendRust}</span>
+            </span>
+            <span class="perf-legend-item">
+              <span class="perf-dot perf-dot-js"></span>
+              <span>{copy.perfLegendJs}</span>
+            </span>
+          </div>
+        </div>
+
+        <div class="perf-bars-grid">
+          {
+            PERF_BAR_METRICS.map((metric) => {
+              const labels = copy.perfMetrics[metric.id];
+              return (
+                <div class="perf-metric">
+                  <div class="perf-metric-head">
+                    <span class="perf-metric-name">{labels.name}</span>
+                    <span class="perf-gain-badge">{labels.gain}</span>
+                  </div>
+                  <div class="perf-bar-list">
+                    <div class="perf-bar-row">
+                      <div class="perf-bar-track">
+                        <div
+                          class="perf-bar-fill perf-bar-rust"
+                          style={`--bar-pct: ${metric.rustPct}`}
+                        />
+                      </div>
+                      <span class="perf-bar-val perf-val-rust">
+                        {metric.rustVal}
+                      </span>
+                    </div>
+                    <div class="perf-bar-row">
+                      <div class="perf-bar-track">
+                        <div
+                          class="perf-bar-fill perf-bar-js"
+                          style={`--bar-pct: ${metric.jsPct}`}
+                        />
+                      </div>
+                      <span class="perf-bar-val">{metric.jsVal}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          }
+        </div>
+      </article>
+
+      <article
+        class="perf-panel perf-panel-context"
+        aria-labelledby="perfContextTitle"
+      >
+        <div class="perf-panel-head">
+          <h3 id="perfContextTitle" class="perf-panel-title">
+            {copy.perfContextTitle}
+          </h3>
+        </div>
+
+        <div class="perf-ring-layout">
+          <div class="perf-gauge-box">
+            <svg
+              class="perf-gauge-svg"
+              width="164"
+              height="164"
+              viewBox="0 0 164 164"
+              aria-hidden="true"
+            >
+              <defs>
+                <linearGradient id="perfRingGrad" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="#38bdf8"></stop>
+                  <stop offset="100%" stop-color="#34d399"></stop>
+                </linearGradient>
+              </defs>
+              <circle
+                cx="82"
+                cy="82"
+                r="64"
+                fill="none"
+                stroke="rgba(148, 163, 184, 0.14)"
+                stroke-width="14"
+              ></circle>
+              <circle
+                class="perf-ring-progress"
+                cx="82"
+                cy="82"
+                r="64"
+                fill="none"
+                stroke="url(#perfRingGrad)"
+                stroke-width="14"
+                stroke-linecap="round"
+                stroke-dasharray={PERF_RING_GAUGE.dashArray}
+                stroke-dashoffset={PERF_RING_GAUGE.dashOffset}
+                transform="rotate(-90 82 82)"
+              ></circle>
+            </svg>
+            <div class="perf-gauge-center">
+              <strong
+                data-count-to={PERF_RING_GAUGE.countTo}
+                data-count-decimals={PERF_RING_GAUGE.decimals}
+                data-count-suffix={PERF_RING_GAUGE.suffix}
+              >
+                {PERF_RING_GAUGE.initialText}
+              </strong>
+              <span>{copy.perfRingSub}</span>
+            </div>
+          </div>
+
+          <div class="perf-step-stack">
+            {
+              PERF_STEP_SLICES.map((step) => (
+                <div class="perf-stack-card">
+                  <div>
+                    <code>{step.cmd}</code>
+                    <span>{copy.perfStepLabels[step.id]}</span>
+                  </div>
+                  <strong>{step.size}</strong>
+                </div>
+              ))
+            }
+          </div>
+        </div>
+
+        <div class="perf-context-footer">
+          <span>{copy.perfCtxBefore}</span>
+          <strong>{copy.perfCtxAfter}</strong>
+        </div>
+      </article>
+    </div>
+  </div>
+</div>

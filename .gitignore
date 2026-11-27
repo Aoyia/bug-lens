@@ -38,6 +38,9 @@ playwright-report/
 videos/
 /tools/
 site/*-prototypes.html
+site/dist/
+site/.astro/
+site/node_modules/
 .agents/skills/bug-lens-triage/bin/
 crates/*/target/
 openspec/

@@ -1,0 +1,100 @@
+---
+import "../styles/tokens.css";
+import "../styles/base.css";
+import "../styles/nav.css";
+import "../styles/components.css";
+import "../styles/sections/hero.css";
+import "../styles/sections/workflow.css";
+import "../styles/sections/capabilities.css";
+import "../styles/sections/agent-skill.css";
+import "../styles/sections/changelog.css";
+import "../styles/sections/faq-footer.css";
+import "../styles/responsive.css";
+
+import type { SiteCopy } from "../data/i18n";
+import { buildJsonLd } from "../data/seo";
+import {
+  IMAGE_DIMENSIONS,
+  SITE_NAME,
+  absoluteUrl,
+  getLocaleUrl,
+  withBase,
+  type Locale,
+} from "../data/site";
+
+interface Props {
+  locale: Locale;
+  copy: SiteCopy;
+}
+
+const { locale, copy } = Astro.props;
+const canonicalUrl = getLocaleUrl(locale);
+const enUrl = getLocaleUrl("en");
+const zhUrl = getLocaleUrl("zh");
+const ogImageUrl = absoluteUrl("/assets/og-cover.jpg");
+const logoHref = withBase("/assets/logo.png");
+const faviconHref = withBase("/favicon.ico");
+const llmsHref = withBase("/llms.txt");
+const jsonLdSafe = JSON.stringify(buildJsonLd(locale)).replace(/</g, "\\u003c");
+---
+
+<!doctype html>
+<html lang={copy.htmlLang}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{copy.pageTitle}</title>
+    <meta name="description" content={copy.metaDescription} />
+    <link rel="canonical" href={canonicalUrl} />
+    <link rel="alternate" hreflang="en" href={enUrl} />
+    <link rel="alternate" hreflang="zh-CN" href={zhUrl} />
+    <link rel="alternate" hreflang="x-default" href={enUrl} />
+    <link
+      rel="alternate"
+      type="text/plain"
+      title="LLM Context Index"
+      href={llmsHref}
+    />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={SITE_NAME} />
+    <meta property="og:locale" content={copy.ogLocale} />
+    <meta property="og:locale:alternate" content={copy.ogLocaleAlt} />
+    <meta property="og:title" content={copy.ogTitle} />
+    <meta property="og:description" content={copy.ogDescription} />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:image" content={ogImageUrl} />
+    <meta
+      property="og:image:width"
+      content={String(IMAGE_DIMENSIONS.ogCover.width)}
+    />
+    <meta
+      property="og:image:height"
+      content={String(IMAGE_DIMENSIONS.ogCover.height)}
+    />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={copy.twitterTitle} />
+    <meta name="twitter:description" content={copy.twitterDescription} />
+    <meta name="twitter:image" content={ogImageUrl} />
+
+    <link rel="icon" type="image/png" href={logoHref} />
+    <link rel="shortcut icon" href={faviconHref} />
+    <link rel="apple-touch-icon" href={logoHref} />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <script type="application/ld+json" set:html={jsonLdSafe} />
+  </head>
+  <body>
+    <slot />
+    <script>
+      import "../scripts/init";
+    </script>
+  </body>
+</html>

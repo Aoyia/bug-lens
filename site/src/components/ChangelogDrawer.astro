@@ -1,0 +1,149 @@
+---
+import type { SiteCopy } from "../data/i18n";
+import {
+  LATEST_RELEASE,
+  OLDEST_RELEASE,
+  PREVIOUS_RELEASE,
+  RELEASES,
+} from "../data/releases";
+import { GITHUB_RELEASES_URL, type Locale } from "../data/site";
+import CopyButton from "./CopyButton.astro";
+
+interface Props {
+  locale: Locale;
+  copy: SiteCopy;
+}
+
+const { locale, copy } = Astro.props;
+const spotlightHighlights = LATEST_RELEASE.highlights[locale] || [];
+const historyTitle = PREVIOUS_RELEASE
+  ? `${copy.drawerHistoryLabel} (v${PREVIOUS_RELEASE.version} ~ v${OLDEST_RELEASE.version})`
+  : copy.drawerHistoryLabel;
+const historicalReleases = RELEASES.slice(1);
+---
+
+<div id="changelogDrawerOverlay" class="changelog-drawer-overlay"></div>
+<aside
+  id="changelogDrawer"
+  class="changelog-drawer"
+  aria-labelledby="drawerTitle"
+  role="dialog"
+  aria-modal="true"
+  aria-hidden="true"
+>
+  <div class="changelog-drawer-header">
+    <div class="changelog-drawer-title-group">
+      <span class="changelog-drawer-eyebrow">{copy.drawerEyebrow}</span>
+      <h3 id="drawerTitle" class="changelog-drawer-title">
+        {copy.drawerTitle}
+      </h3>
+    </div>
+    <button
+      id="changelogDrawerClose"
+      type="button"
+      class="changelog-drawer-close"
+      aria-label={copy.closeAria}
+    >
+      <svg
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <line x1="18" y1="6" x2="6" y2="18"></line>
+        <line x1="6" y1="6" x2="18" y2="18"></line>
+      </svg>
+    </button>
+  </div>
+  <div class="changelog-drawer-body">
+    <div id="drawerSpotlightMount">
+      <div class="drawer-spotlight-card">
+        <div class="drawer-spotlight-header">
+          <span class="drawer-spotlight-ver">{`v${LATEST_RELEASE.version}`}</span>
+          <span class="changelog-tag">{copy.tagLatest}</span>
+          <span class="changelog-date">{LATEST_RELEASE.date}</span>
+        </div>
+        <div class="drawer-spotlight-content">
+          {
+            spotlightHighlights.map((item) => (
+              <div class="drawer-spotlight-feature">
+                <strong>{item.title}</strong>
+                <span>{` ${item.desc}`}</span>
+              </div>
+            ))
+          }
+          {
+            LATEST_RELEASE.cliCommand && (
+              <div class="cli-capsule">
+                <code class="cli-code">
+                  <span class="cli-prefix">$</span>
+                  <span>{LATEST_RELEASE.cliCommand}</span>
+                </code>
+                <CopyButton
+                  variant="cli"
+                  label={copy.cliCopy}
+                  copiedLabel={copy.cliCopied}
+                  copyText={LATEST_RELEASE.cliCommand}
+                />
+              </div>
+            )
+          }
+        </div>
+      </div>
+    </div>
+
+    <div class="drawer-history-divider">
+      <span id="drawerHistoryTitle" class="drawer-history-title">
+        {historyTitle}
+      </span>
+      <div class="drawer-history-line"></div>
+    </div>
+
+    <div id="drawerTimelineMount" class="changelog-timeline">
+      {
+        historicalReleases.map((rel) => {
+          const items = rel.highlights[locale] || [];
+          return (
+            <div class="changelog-item">
+              <div class="changelog-marker">
+                <span class="changelog-dot" />
+              </div>
+              <div class="changelog-card">
+                <div class="changelog-header">
+                  <div class="changelog-meta">
+                    <span class="changelog-ver">{`v${rel.version}`}</span>
+                    <span class="changelog-date">{rel.date}</span>
+                  </div>
+                </div>
+                <div class="changelog-content">
+                  {items.map((item) => (
+                    <div class="changelog-feature">
+                      <strong>{item.title}</strong>
+                      <span>{` ${item.desc}`}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          );
+        })
+      }
+    </div>
+
+    <div class="changelog-footer">
+      <a
+        href={GITHUB_RELEASES_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        class="changelog-more-link"
+      >
+        {copy.changelogMore}
+      </a>
+    </div>
+  </div>
+</aside>

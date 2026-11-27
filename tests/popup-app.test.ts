@@ -198,8 +198,12 @@ test("首次引导已迁移至 GitHub Pages 网页，扩展内不再内嵌引导
     resolve(process.cwd(), "src/entrypoints/background/events.ts"),
     "utf8"
   );
-  const guidePage = readFileSync(
-    resolve(process.cwd(), "site/index.html"),
+  const siteMeta = readFileSync(
+    resolve(process.cwd(), "site/src/data/site.ts"),
+    "utf8"
+  );
+  const enPage = readFileSync(
+    resolve(process.cwd(), "site/src/pages/index.astro"),
     "utf8"
   );
 
@@ -232,8 +236,11 @@ test("首次引导已迁移至 GitHub Pages 网页，扩展内不再内嵌引导
     "background events 应在自动化测试环境下（构建标志与 webdriver 检测）直接隔离跳过引导页打开"
   );
 
-  // GitHub Pages 引导页存在且包含核心内容
-  assert.ok(guidePage.includes("Bug Lens"), "docs/index.html 应包含产品名");
+  // GitHub Pages 引导页源码存在且包含核心产品标识与页面入口
+  assert.ok(
+    siteMeta.includes("Bug Lens") && enPage.includes("LandingPage"),
+    "site/ Astro 入口与站点元数据应包含产品名"
+  );
 });
 
 test("历史会话卡片整卡可点击打开预览，内嵌操作按钮必须阻止冒泡", () => {

@@ -129,3 +129,26 @@ jobs:
       - name: Test Triage Skill CLI
         shell: bash
         run: npx tsx --test tests/triage-cli-contract.test.ts tests/triage-cli-pack.test.ts tests/triage-cli-query.test.ts tests/triage-cli-tools.test.ts tests/triage-cli-bundle.test.ts tests/triage-cli-skill-contract.test.ts
+
+  site-build:
+    name: Website Typecheck & Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10.10.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Check & Build Astro Site
+        run: |
+          pnpm --dir site install --frozen-lockfile
+          pnpm --dir site check
+          pnpm --dir site build

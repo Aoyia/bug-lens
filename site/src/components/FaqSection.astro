@@ -1,0 +1,33 @@
+---
+import type { SiteCopy } from "../data/i18n";
+
+interface Props {
+  copy: SiteCopy;
+}
+
+const { copy } = Astro.props;
+---
+
+<section id="faq" class="section section-alt">
+  <div class="grid">
+    <div class="section-header reveal reveal-curtain">
+      <div class="section-eyebrow">{copy.faqEyebrow}</div>
+      <h2 class="section-title">{copy.faqTitle}</h2>
+    </div>
+
+    <div class="faq-list">
+      {
+        copy.faqs.map((faq, idx) => (
+          <details
+            class="faq-item reveal"
+            name="faq"
+            style={`--reveal-delay: ${idx * 50}ms`}
+          >
+            <summary>{faq.question}</summary>
+            <p>{faq.answer}</p>
+          </details>
+        ))
+      }
+    </div>
+  </div>
+</section>

@@ -40,11 +40,11 @@ node scripts/release-bump.mjs <version>
    - 将上一版本行的状态由 `Ready for Submission` 改为 `Submitted`。
    - 在表头下方第一行插入新版本记录：
      `| \`v<version>\` | <YYYY-MM-DD> | <英文特性摘要> | Ready for Submission |`
-2. **官网 (`site/data/releases.js` 与 `site/index.html`) 联动更新**：
-   - **数据源更新（`site/data/releases.js`）**：在 `RELEASES` 数组顶部插入当前版本的发布对象（包含 `version`、`date`、可选 `cliCommand` 以及 `highlights.zh` / `highlights.en`）；页面会以此单一数据源自动渲染 Hero 版本徽标、主屏摘要卡、抽屉 Spotlight 卡片以及历史时间轴。
-   - **静态兜底同步（`site/index.html`）**：将 Hero 胶囊（`data-fallback-version`、`#heroVersionTag`、`#heroVersionText`）、主屏 `#changelogSummaryCard` 与 `#changelogViewAllBtn` 里的旧版本兜底文本更新为 `v<version>` 与发布日期。
+2. **官网 (`site/src/data/releases.ts`) 联动更新**：
+   - **数据源更新（`site/src/data/releases.ts`）**：在 `RELEASES` 数组顶部插入当前版本的发布对象（包含 `version`、`date`、可选 `cliCommand` 以及 `highlights.zh` / `highlights.en`）；Astro 构建会自动同步渲染 `/` 与 `/zh/` 页面的 Hero 版本徽标、工作流闭环标签、主屏摘要卡、抽屉 Spotlight 卡片与历史时间轴，以及 JSON-LD、`sitemap.xml` 与 `llms.txt`。
+   - **构建验证**：执行 `pnpm check:site && pnpm build:site` 确认站点无类型或构建错误。
 
-**Completion Criterion**: `site/data/releases.js` 顶部已包含 `version: "<version>"` 的双语摘要对象；`git grep -n "<oldVersion>" site/index.html` 无未更新的静态兜底版本号残留（历史版本仅由 `site/data/releases.js` 维护）。
+**Completion Criterion**: `site/src/data/releases.ts` 顶部已包含 `version: "<version>"` 的双语摘要对象，且 `pnpm check:site && pnpm build:site` 退出码为 `0`。
 
 ## Step 3: 类型检查、单测与构建 Release 包
 

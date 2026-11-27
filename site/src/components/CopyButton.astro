@@ -1,0 +1,75 @@
+---
+interface Props {
+  variant?: "cli" | "prompt";
+  id?: string;
+  labelId?: string;
+  label: string;
+  copiedLabel: string;
+  failedLabel?: string;
+  copyText?: string;
+  copySource?: string;
+  timeoutMs?: number;
+  class?: string;
+}
+
+const {
+  variant = "cli",
+  id,
+  labelId,
+  label,
+  copiedLabel,
+  failedLabel,
+  copyText,
+  copySource,
+  timeoutMs = variant === "prompt" ? 2000 : 1800,
+  class: extraClass,
+} = Astro.props;
+
+const iconSize = variant === "prompt" ? 15 : 13;
+const baseClass = variant === "prompt" ? "btn-copy" : "cli-copy-btn";
+const labelClass =
+  variant === "cli" ? "cli-copy-label copy-btn-label" : "copy-btn-label";
+---
+
+<button
+  id={id}
+  type="button"
+  class:list={[baseClass, "js-copy-btn", extraClass]}
+  data-copy-text={copyText}
+  data-copy-source={copySource}
+  data-copy-label={label}
+  data-copied-label={copiedLabel}
+  data-copy-failed-label={failedLabel}
+  data-copy-timeout={String(timeoutMs)}
+>
+  <span class="copy-icon-stack" aria-hidden="true">
+    <svg
+      class="icon-copy"
+      width={iconSize}
+      height={iconSize}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    >
+      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+    </svg>
+    <svg
+      class="icon-check"
+      width={iconSize}
+      height={iconSize}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2.4"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    >
+      <path d="M5 12.5l4.2 4.2L19 7.5"></path>
+    </svg>
+  </span>
+  <span id={labelId} class={labelClass}>{label}</span>
+</button>

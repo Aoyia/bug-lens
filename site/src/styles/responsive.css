@@ -1,0 +1,167 @@
+/* Responsive Breakpoints */
+@media (max-width: 1024px) {
+  .pillars-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .skill-showcase {
+    grid-template-columns: 1fr;
+  }
+
+  .perf-kpi-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .perf-deck-body {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 840px) {
+  .step2-grid,
+  .eff-compare {
+    grid-template-columns: 1fr;
+  }
+
+  .tl-body {
+    padding: 20px;
+  }
+
+  .tl-step {
+    grid-template-columns: 36px minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .tl-num {
+    width: 36px;
+    height: 36px;
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 680px) {
+  .nav-links {
+    display: none;
+  }
+
+  .mobile-menu-btn {
+    display: inline-flex;
+  }
+
+  .pillars-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .section {
+    padding: 52px 0;
+  }
+
+  .grid {
+    padding: 0 16px;
+  }
+
+  .nav-inner {
+    padding: 12px 16px;
+  }
+
+  .changelog-summary-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+  }
+
+  .changelog-drawer {
+    width: 100vw;
+  }
+
+  .changelog-drawer-header {
+    padding: 18px 20px 14px;
+  }
+
+  .changelog-drawer-body {
+    padding: 20px 20px 32px;
+  }
+
+  .perf-deck {
+    padding: 20px 16px;
+  }
+
+  .perf-panel {
+    padding: 16px;
+  }
+
+  .perf-ring-layout {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+
+  .perf-step-stack {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .aurora-new-pill,
+  .perf-pulse-dot {
+    animation: none;
+  }
+
+  html.js-ready .reveal:not(.reveal-settled),
+  html.js-ready .reveal.reveal-curtain:not(.reveal-settled),
+  html.js-ready .tl-step.reveal:not(.reveal-settled) .tl-num,
+  html.js-ready .tl-step.reveal:not(.reveal-settled) .tl-step-content,
+  html.js-ready .tl-step.reveal:not(.reveal-settled) .showcase-frame img {
+    opacity: 1;
+    filter: none;
+    clip-path: none;
+    transform: none;
+    transition: none;
+    will-change: auto;
+  }
+
+  html.js-ready .perf-bench-wrap:not(.perf-animated) .perf-bar-fill,
+  html.js-ready .perf-bench-wrap.perf-animated .perf-bar-fill {
+    transform: scaleX(1);
+    transition: none;
+  }
+
+  html.js-ready .perf-bench-wrap:not(.perf-animated) .perf-gain-badge,
+  html.js-ready .perf-bench-wrap.perf-animated .perf-gain-badge,
+  html.js-ready .perf-bench-wrap:not(.perf-animated) .perf-stack-card,
+  html.js-ready .perf-bench-wrap.perf-animated .perf-stack-card {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  html.js-ready .perf-bench-wrap:not(.perf-animated) .perf-ring-progress,
+  html.js-ready .perf-bench-wrap.perf-animated .perf-ring-progress {
+    stroke-dashoffset: 1.61;
+    transition: none;
+  }
+
+  .changelog-drawer,
+  .changelog-drawer-overlay,
+  .pillar-card,
+  .btn,
+  .version-pill,
+  .nav-links a::after,
+  .tl-num,
+  .copy-icon-stack svg,
+  .copy-icon-stack .icon-check path {
+    transition: none;
+  }
+
+  .btn-copy.copied,
+  .cli-copy-btn.copied {
+    animation: none;
+  }
+
+  .tl-step.is-current .tl-num {
+    transform: none;
+  }
+}

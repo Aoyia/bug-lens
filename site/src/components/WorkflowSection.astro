@@ -1,0 +1,233 @@
+---
+import type { SiteCopy } from "../data/i18n";
+import { PROMPTS } from "../data/prompts";
+import { LATEST_RELEASE } from "../data/releases";
+import { IMAGE_DIMENSIONS, withBase, type Locale } from "../data/site";
+import CopyButton from "./CopyButton.astro";
+
+interface Props {
+  locale: Locale;
+  copy: SiteCopy;
+}
+
+const { locale, copy } = Astro.props;
+const defaultPrompt = PROMPTS.compact[locale] || PROMPTS.compact.en;
+const shotAnnotationSrc = withBase("/assets/showcase/screenshot-annotation.png");
+const shotPopupSrc = withBase("/assets/showcase/popup-panel.png");
+const previewWorkspaceSrc = withBase(
+  "/assets/showcase/evidence-preview-workspace.png"
+);
+---
+
+<section id="workflow" class="section section-alt">
+  <div class="grid">
+    <div class="section-header reveal reveal-curtain">
+      <div class="section-eyebrow">{copy.wfEyebrow}</div>
+      <h2 class="section-title">{copy.wfTitle}</h2>
+      <p class="section-desc">{copy.wfSubtitle}</p>
+    </div>
+
+    <div class="timeline-wrap">
+      <div class="window-topbar reveal">
+        <div class="tl-dots" aria-hidden="true">
+          <span class="tl-dot r"></span>
+          <span class="tl-dot y"></span>
+          <span class="tl-dot g"></span>
+        </div>
+        <span class="tl-tag">
+          {`v${LATEST_RELEASE.version} ${copy.bmTagPrefix}`}
+        </span>
+      </div>
+
+      <div class="tl-body">
+        <div id="tlSpine" class="tl-spine" aria-hidden="true">
+          <div id="tlSpineFill" class="tl-spine-fill"></div>
+        </div>
+
+        <article class="tl-step reveal">
+          <div class="tl-num">01</div>
+          <div class="tl-step-content">
+            <div class="tl-step-head">
+              <h3>{copy.t1Title}</h3>
+              <span class="tl-step-tag">{copy.t1Badge}</span>
+            </div>
+            <p class="tl-desc">{copy.t1Desc}</p>
+
+            <div class="showcase-switcher">
+              <div
+                class="segmented-tabs"
+                role="tablist"
+                aria-label={copy.captureTabsAria}
+              >
+                <button
+                  type="button"
+                  class="seg-tab active"
+                  role="tab"
+                  aria-selected="true"
+                  data-shot-tab="annotation"
+                >
+                  {copy.tabShotAnnotation}
+                </button>
+                <button
+                  type="button"
+                  class="seg-tab"
+                  role="tab"
+                  aria-selected="false"
+                  data-shot-tab="popup"
+                >
+                  {copy.tabShotPopup}
+                </button>
+              </div>
+
+              <figure class="showcase-frame" data-shot-panel="annotation">
+                <img
+                  src={shotAnnotationSrc}
+                  alt={copy.shotAltAnnotation}
+                  width={IMAGE_DIMENSIONS.screenshotAnnotation.width}
+                  height={IMAGE_DIMENSIONS.screenshotAnnotation.height}
+                  loading="lazy"
+                  decoding="async"
+                />
+                <figcaption>{copy.shotCaptionAnnotation}</figcaption>
+              </figure>
+
+              <figure
+                class="showcase-frame showcase-frame-compact"
+                data-shot-panel="popup"
+                hidden
+              >
+                <img
+                  src={shotPopupSrc}
+                  alt={copy.shotAltPopup}
+                  width={IMAGE_DIMENSIONS.popupPanel.width}
+                  height={IMAGE_DIMENSIONS.popupPanel.height}
+                  loading="lazy"
+                  decoding="async"
+                />
+                <figcaption>{copy.shotCaptionPopup}</figcaption>
+              </figure>
+            </div>
+          </div>
+        </article>
+
+        <article class="tl-step reveal">
+          <div class="tl-num">02</div>
+          <div class="tl-step-content">
+            <div class="tl-step-head">
+              <h3>{copy.t2Title}</h3>
+              <span class="tl-step-tag">{copy.t2Badge}</span>
+            </div>
+            <p class="tl-desc">{copy.t2Desc}</p>
+
+            <div class="step2-grid">
+              <figure class="showcase-frame">
+                <img
+                  src={previewWorkspaceSrc}
+                  alt={copy.t2ImgAlt}
+                  width={IMAGE_DIMENSIONS.previewWorkspace.width}
+                  height={IMAGE_DIMENSIONS.previewWorkspace.height}
+                  loading="lazy"
+                  decoding="async"
+                />
+                <figcaption>{copy.t2Caption}</figcaption>
+              </figure>
+
+              <div class="tl-file-tree">
+                <div class="ft-title">
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
+                    ></path>
+                  </svg>
+                  <span>{copy.archiveSampleName}</span>
+                </div>
+                <div class="ft-subtitle">{copy.treeLabel}</div>
+                {
+                  copy.fileTree.map((item) => (
+                    <div class="tl-file-row">
+                      <span class="fn">{item.name}</span>
+                      <span class="fd">{item.desc}</span>
+                    </div>
+                  ))
+                }
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="tl-step reveal">
+          <div class="tl-num">03</div>
+          <div class="tl-step-content">
+            <div class="tl-step-head">
+              <h3>{copy.t3Title}</h3>
+              <span class="tl-step-tag">{copy.t3Badge}</span>
+            </div>
+            <p class="tl-desc">{copy.t3Desc}</p>
+
+            <div class="prompt-toolbar">
+              <div
+                class="segmented-tabs"
+                role="tablist"
+                aria-label={copy.promptTabsAria}
+              >
+                <button
+                  type="button"
+                  class="seg-tab active"
+                  role="tab"
+                  aria-selected="true"
+                  data-prompt-mode="compact"
+                >
+                  {copy.tabPromptCompact}
+                </button>
+                <button
+                  type="button"
+                  class="seg-tab"
+                  role="tab"
+                  aria-selected="false"
+                  data-prompt-mode="full"
+                >
+                  {copy.tabPromptFull}
+                </button>
+              </div>
+              <CopyButton
+                variant="prompt"
+                id="copyPromptBtn"
+                labelId="copyPromptBtnText"
+                label={copy.btnCopyPrompt}
+                copiedLabel={copy.btnCopied}
+                failedLabel={copy.btnCopyFailed}
+                copySource="#rawPromptDisplay"
+                timeoutMs={2000}
+              />
+            </div>
+
+            <pre id="rawPromptDisplay" class="tl-code-block">{defaultPrompt}</pre>
+          </div>
+        </article>
+
+        <article class="tl-step last reveal">
+          <div class="tl-num">04</div>
+          <div class="tl-step-content">
+            <div class="tl-step-head">
+              <h3>{copy.t4Title}</h3>
+              <span class="tl-step-tag">{copy.t4Badge}</span>
+            </div>
+            <p class="tl-desc">{copy.t4Desc}</p>
+            <pre class="tl-diff"><span class="diff-file">// src/components/BillingTable.vue:39</span>
+<span class="del">- const sessionId = resp.data.paymentGatewaySession.id;</span>
+<span class="add">+ if (!res.ok) throw new Error(`HTTP $&#123;res.status&#125;`);</span>
+<span class="add">+ const sessionId = resp?.data?.paymentGatewaySession?.id ?? null;</span></pre>
+          </div>
+        </article>
+      </div>
+    </div>
+  </div>
+</section>
