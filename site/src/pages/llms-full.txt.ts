@@ -15,8 +15,6 @@ import {
   GITHUB_REPO_URL,
   SITE_NAME,
   SKILL_INSTALL_CMD,
-  UNIX_CLI_INSTALL_CMD,
-  WINDOWS_CLI_INSTALL_CMD,
   getLocaleUrl,
 } from "../data/site";
 
@@ -60,10 +58,8 @@ export const GET: APIRoute = () => {
     en.skillDesc,
     ...en.skillPoints.map((p) => `- ${p}`),
     "",
-    "### Installation Commands",
-    `- Global Skill: \`${SKILL_INSTALL_CMD}\``,
-    `- Native CLI (macOS / Linux): \`${UNIX_CLI_INSTALL_CMD}\``,
-    `- Native CLI (Windows PowerShell): \`${WINDOWS_CLI_INSTALL_CMD}\``,
+    "### Installation Command",
+    `- One-Step Setup: \`${SKILL_INSTALL_CMD}\` (automatically downloads and SHA-256 verifies the native binary for macOS / Linux / Windows on first run)`,
     "",
     `### Benchmark Metrics (${en.perfFootnote})`,
     ...PERF_KPIS.map(

@@ -8,7 +8,6 @@ import {
   GITHUB_REPO_URL,
   SITE_NAME,
   SKILL_INSTALL_CMD,
-  UNIX_CLI_INSTALL_CMD,
   absoluteUrl,
   getLocaleUrl,
 } from "../data/site";
@@ -42,8 +41,7 @@ export const GET: APIRoute = () => {
     `4. ${en.t4Title}: ${en.t4Desc}`,
     "",
     "## Optional Native Rust Triage CLI (`bug-lens-triage`)",
-    `- Install Skill: \`${SKILL_INSTALL_CMD}\``,
-    `- Install Native Binary (macOS / Linux): \`${UNIX_CLI_INSTALL_CMD}\``,
+    `- One-Step Install: \`${SKILL_INSTALL_CMD}\` (auto-downloads and SHA-256 verifies the OS binary on first run)`,
     `- Benchmark (${en.perfFootnote}): open_pack RSS 56.3 MB vs 186.8 MB (-70% RAM); query_network 13.5 ms vs 57.2 ms (4.2x faster); timeline 15.8 ms vs 54.2 ms (3.4x faster); query_network RSS 20.6 MB vs 79.3 MB (-74% RAM); context filtered from 6.20 MB JSON down to 24.5 KB (-99.6%).`,
     "",
     `## Latest Release (v${LATEST_RELEASE.version} · ${LATEST_RELEASE.date})`,

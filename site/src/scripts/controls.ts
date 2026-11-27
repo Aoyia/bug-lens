@@ -72,7 +72,6 @@ function bindTabGroup(
 
 export function initTabs(): void {
   bindTabGroup("data-shot-tab", "data-shot-panel");
-  bindTabGroup("data-os-tab", "data-os-panel");
 
   const promptDisplay = document.getElementById("rawPromptDisplay");
   const locale = getDocumentLocale();

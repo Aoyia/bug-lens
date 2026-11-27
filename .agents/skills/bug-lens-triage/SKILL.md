@@ -11,7 +11,7 @@ description: >-
 
 通过本技能配套的原生 Rust 二进制 `bin/bug-lens-cli`（Windows 为 `bin/bug-lens-cli.exe`）将 `.zip` 证据包流式幂等解压至隔离工作区，生成标准化派生 JSON 与 `INDEX.md`，采用“宏观 CLI 导航 + 微观原始文件直读”两层检索定位根因并修复业务源码。
 
-设 `<CLI>` 为本 `SKILL.md` 同级目录下的 `bin/bug-lens-cli` 绝对路径（POSIX 为 `"<skillDir>/bin/bug-lens-cli"`，Windows 为 `"<skillDir>\bin\bug-lens-cli.exe"`）。若 `<CLI>` 尚未就绪，可在本仓库根目录执行 `pnpm run build` 本地编译，或待线上发布后一次性执行 `"<skillDir>/scripts/install.sh"`（Windows 执行 `powershell -ExecutionPolicy Bypass -File "<skillDir>\scripts\install.ps1"`）从 GitHub Releases 下载并校验 SHA-256。
+设 `<CLI>` 为本 `SKILL.md` 同级目录下的 `bin/bug-lens-cli` 绝对路径（POSIX 为 `"<skillDir>/bin/bug-lens-cli"`，Windows 为 `"<skillDir>\bin\bug-lens-cli.exe"`）。**首次使用自动就绪**：调用前先检查 `<CLI>` 是否已存在；若缺失则自动执行一次性安装脚本（POSIX 执行 `bash "<skillDir>/scripts/install.sh"`，Windows 执行 `powershell -ExecutionPolicy Bypass -File "<skillDir>\scripts\install.ps1"`）从 GitHub Releases 按当前平台下载预编译二进制并校验 SHA-256（若处于本源码仓库本地开发环境下亦可运行 `pnpm run build` 编译），确认 `<CLI>` 就绪后再继续执行下方 `open_pack` 流程。
 
 ## Core Rules
 

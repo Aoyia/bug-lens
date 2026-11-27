@@ -163,13 +163,12 @@ export const EN_COPY: SiteCopy = {
     "Generates clean data/*.json and INDEX.md with full top-level requestBody & error extraction",
     "Prebuilt binaries for 5 desktop targets (macOS / Linux / Windows) with SHA-256 verified installers",
   ],
-  osTabsAria: "Operating system installer",
-  skillOsMac: "macOS / Linux",
-  skillOsWin: "Windows (PowerShell)",
-  skillStep1Label:
-    "1. Install the triage Skill globally (Claude Code / Cursor / Antigravity, etc.)",
-  skillStep2Label:
-    "2. Install the native Rust CLI once (GitHub Releases + SHA-256 verification)",
+  skillCardBadge: "One-Command Setup",
+  skillCardPlatforms: "macOS · Linux · Windows",
+  skillInstallLabel:
+    "Install the triage Skill globally (Claude Code / Cursor / Codex / Antigravity, etc.)",
+  skillAutoInstallNote:
+    "On first run, the native Rust CLI is automatically downloaded for your OS and SHA-256 verified — no second step required.",
   cliCopy: "Copy",
   cliCopied: "Copied!",
 

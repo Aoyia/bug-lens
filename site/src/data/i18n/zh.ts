@@ -155,19 +155,18 @@ export const ZH_COPY: SiteCopy = {
   skillEyebrow: "Agent Skill & Native CLI · 可选进阶",
   skillTitle: "为 AI Agent 打造的原生 Rust Triage 引擎",
   skillDesc:
-    "扩展本身已可独立运行；如果你使用 Claude Code、Cursor、Codex 或 Antigravity，只需安装官方 bug-lens-triage Skill 与原生 Rust CLI，AI 即可直接流式解压并按需索引大型 ZIP 证据包，彻底告别临时解析脚本。",
+    "扩展本身已可独立运行；如果你使用 Claude Code、Cursor、Codex 或 Antigravity，只需一条命令安装官方 bug-lens-triage Skill，AI 即可直接流式解压并按需索引大型 ZIP 证据包，彻底告别临时解析脚本。",
   skillPoints: [
     "2.49 MB 单一原生二进制（零外部依赖），流式防 Zip Bomb 与原子工作区切换",
     "自动生成标准 data/*.json 与 INDEX.md，完整提取顶层 requestBody 与 error",
     "5 大桌面平台预编译分发（macOS / Linux / Windows），SHA-256 校验安装",
   ],
-  osTabsAria: "操作系统安装方式",
-  skillOsMac: "macOS / Linux",
-  skillOsWin: "Windows (PowerShell)",
-  skillStep1Label:
-    "1. 全局安装诊断 Skill（支持 Claude Code / Cursor / Antigravity 等）",
-  skillStep2Label:
-    "2. 一次性安装原生 Rust CLI（GitHub Releases 下载 + SHA-256 校验）",
+  skillCardBadge: "一步安装",
+  skillCardPlatforms: "macOS · Linux · Windows",
+  skillInstallLabel:
+    "全局安装诊断 Skill（支持 Claude Code / Cursor / Codex / Antigravity 等）",
+  skillAutoInstallNote:
+    "首次分析证据包时自动按系统下载并校验 SHA-256 原生 Rust CLI，无需手动安装第二步。",
   cliCopy: "复制",
   cliCopied: "已复制",
 

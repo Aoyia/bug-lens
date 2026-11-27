@@ -103,11 +103,10 @@ export interface SiteCopy {
   skillTitle: string;
   skillDesc: string;
   skillPoints: string[];
-  osTabsAria: string;
-  skillOsMac: string;
-  skillOsWin: string;
-  skillStep1Label: string;
-  skillStep2Label: string;
+  skillCardBadge: string;
+  skillCardPlatforms: string;
+  skillInstallLabel: string;
+  skillAutoInstallNote: string;
   cliCopy: string;
   cliCopied: string;
 

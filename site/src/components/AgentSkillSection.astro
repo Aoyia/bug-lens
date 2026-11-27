@@ -1,10 +1,6 @@
 ---
 import type { SiteCopy } from "../data/i18n";
-import {
-  SKILL_INSTALL_CMD,
-  UNIX_CLI_INSTALL_CMD,
-  WINDOWS_CLI_INSTALL_CMD,
-} from "../data/site";
+import { SKILL_INSTALL_CMD } from "../data/site";
 import CopyButton from "./CopyButton.astro";
 import PerfBenchDeck from "./PerfBenchDeck.astro";
 
@@ -28,35 +24,13 @@ const { copy } = Astro.props;
       </div>
 
       <div class="skill-terminal-card reveal" style="--reveal-delay: 90ms">
-        <div class="skill-os-header">
-          <div
-            class="segmented-tabs"
-            role="tablist"
-            aria-label={copy.osTabsAria}
-          >
-            <button
-              type="button"
-              class="seg-tab active"
-              role="tab"
-              aria-selected="true"
-              data-os-tab="unix"
-            >
-              {copy.skillOsMac}
-            </button>
-            <button
-              type="button"
-              class="seg-tab"
-              role="tab"
-              aria-selected="false"
-              data-os-tab="windows"
-            >
-              {copy.skillOsWin}
-            </button>
-          </div>
+        <div class="skill-card-head">
+          <span class="skill-card-badge">{copy.skillCardBadge}</span>
+          <span class="skill-card-platforms">{copy.skillCardPlatforms}</span>
         </div>
 
         <div class="skill-cmd-group">
-          <div class="skill-cmd-label">{copy.skillStep1Label}</div>
+          <div class="skill-cmd-label">{copy.skillInstallLabel}</div>
           <div class="cli-capsule">
             <code class="cli-code">
               <span class="cli-prefix">$</span>
@@ -71,34 +45,7 @@ const { copy } = Astro.props;
           </div>
         </div>
 
-        <div class="skill-cmd-group">
-          <div class="skill-cmd-label">{copy.skillStep2Label}</div>
-          <div class="cli-capsule" data-os-panel="unix">
-            <code class="cli-code">
-              <span class="cli-prefix">$</span>
-              <span>{UNIX_CLI_INSTALL_CMD}</span>
-            </code>
-            <CopyButton
-              variant="cli"
-              label={copy.cliCopy}
-              copiedLabel={copy.cliCopied}
-              copyText={UNIX_CLI_INSTALL_CMD}
-            />
-          </div>
-
-          <div class="cli-capsule" data-os-panel="windows" hidden>
-            <code class="cli-code">
-              <span class="cli-prefix">&gt;</span>
-              <span>{WINDOWS_CLI_INSTALL_CMD}</span>
-            </code>
-            <CopyButton
-              variant="cli"
-              label={copy.cliCopy}
-              copiedLabel={copy.cliCopied}
-              copyText={WINDOWS_CLI_INSTALL_CMD}
-            />
-          </div>
-        </div>
+        <p class="skill-auto-note">{copy.skillAutoInstallNote}</p>
       </div>
     </div>
 

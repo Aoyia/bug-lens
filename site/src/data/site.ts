@@ -24,10 +24,6 @@ export const GITHUB_LICENSE_URL =
   "https://github.com/Aoyia/bug-lens/blob/main/LICENSE";
 
 export const SKILL_INSTALL_CMD = "npx skills add Aoyia/bug-lens-skill -g -y";
-export const UNIX_CLI_INSTALL_CMD =
-  "bash ~/.agents/skills/bug-lens-triage/scripts/install.sh";
-export const WINDOWS_CLI_INSTALL_CMD =
-  'powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\\.agents\\skills\\bug-lens-triage\\scripts\\install.ps1"';
 
 export const IMAGE_DIMENSIONS = {
   logo: { width: 128, height: 128 },
