@@ -43,10 +43,11 @@ export function initCopyButtons(): void {
       }
 
       const labelEl = btn.querySelector<HTMLElement>(".copy-btn-label");
-      if (!labelEl) return;
-
       const defaultLabel =
-        btn.dataset.copyLabel || labelEl.textContent || "Copy";
+        btn.dataset.copyLabel ||
+        labelEl?.textContent ||
+        btn.getAttribute("aria-label") ||
+        "Copy";
       const copiedLabel = btn.dataset.copiedLabel || "Copied";
       const failedLabel = btn.dataset.copyFailedLabel || "";
       const resetDelay = Number.parseInt(btn.dataset.copyTimeout || "1800", 10);
@@ -54,7 +55,12 @@ export function initCopyButtons(): void {
       void copyText(text).then((ok) => {
         if (!ok && !failedLabel) return;
 
-        labelEl.textContent = ok ? copiedLabel : failedLabel;
+        const nextText = ok ? copiedLabel : failedLabel;
+        if (labelEl) {
+          labelEl.textContent = nextText;
+        }
+        btn.setAttribute("aria-label", nextText);
+        btn.setAttribute("title", nextText);
         btn.classList.toggle("copied", ok);
 
         const prevTimer = copyTimers.get(btn);
@@ -64,7 +70,11 @@ export function initCopyButtons(): void {
 
         const nextTimer = window.setTimeout(
           () => {
-            labelEl.textContent = defaultLabel;
+            if (labelEl) {
+              labelEl.textContent = defaultLabel;
+            }
+            btn.setAttribute("aria-label", defaultLabel);
+            btn.setAttribute("title", defaultLabel);
             btn.classList.remove("copied");
             copyTimers.delete(btn);
           },

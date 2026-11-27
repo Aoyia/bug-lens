@@ -197,19 +197,20 @@ const previewWorkspaceSrc = withBase(
                   {copy.tabPromptFull}
                 </button>
               </div>
+            </div>
+
+            <div class="tl-code-wrap">
               <CopyButton
                 variant="prompt"
                 id="copyPromptBtn"
-                labelId="copyPromptBtnText"
                 label={copy.btnCopyPrompt}
                 copiedLabel={copy.btnCopied}
                 failedLabel={copy.btnCopyFailed}
                 copySource="#rawPromptDisplay"
                 timeoutMs={2000}
               />
+              <pre id="rawPromptDisplay" class="tl-code-block">{defaultPrompt}</pre>
             </div>
-
-            <pre id="rawPromptDisplay" class="tl-code-block">{defaultPrompt}</pre>
           </div>
         </article>
 

@@ -106,10 +106,29 @@
   padding: 4px 8px;
   border-radius: var(--radius-sm);
   font-family: inherit;
+  transition:
+    opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+    background 0.15s ease;
 }
 
 .changelog-summary-more-btn:hover {
   background: var(--primary-light);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .changelog-summary-more-btn {
+    opacity: 0;
+    transform: translateX(4px);
+    pointer-events: none;
+  }
+
+  .changelog-summary-card:hover .changelog-summary-more-btn,
+  .changelog-summary-card:focus-within .changelog-summary-more-btn {
+    opacity: 1;
+    transform: translateX(0);
+    pointer-events: auto;
+  }
 }
 
 .changelog-content {
@@ -215,6 +234,7 @@
   align-items: center;
   justify-content: center;
   color: #64748b;
+  opacity: 0.72;
   cursor: pointer;
   transition: all 0.15s ease;
 }
@@ -222,6 +242,7 @@
 .changelog-drawer-close:hover {
   background: #f1f5f9;
   color: #0f172a;
+  opacity: 1;
 }
 
 .changelog-drawer-body {

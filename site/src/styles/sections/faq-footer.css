@@ -34,12 +34,18 @@
   content: "+";
   font-family: var(--mono);
   font-size: 1.1rem;
-  color: var(--primary);
+  color: var(--text-light);
+  opacity: 0.45;
   flex-shrink: 0;
+  transition:
+    color 0.18s ease,
+    opacity 0.18s ease;
 }
 
+.faq-item:hover summary::after,
 .faq-item[open] summary::after {
-  content: "−";
+  color: var(--primary);
+  opacity: 1;
 }
 
 .faq-item p {

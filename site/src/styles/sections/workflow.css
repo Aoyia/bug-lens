@@ -207,7 +207,7 @@
   background: #14171f;
   color: #e2e8f0;
   border-radius: var(--radius);
-  padding: 16px 18px;
+  padding: 16px 48px 16px 18px;
   font-family: var(--mono);
   font-size: 0.8rem;
   line-height: 1.55;

@@ -1,6 +1,7 @@
 ---
 interface Props {
   variant?: "cli" | "prompt";
+  iconOnly?: boolean;
   id?: string;
   labelId?: string;
   label: string;
@@ -14,6 +15,7 @@ interface Props {
 
 const {
   variant = "cli",
+  iconOnly = true,
   id,
   labelId,
   label,
@@ -25,7 +27,7 @@ const {
   class: extraClass,
 } = Astro.props;
 
-const iconSize = variant === "prompt" ? 15 : 13;
+const iconSize = variant === "prompt" ? 15 : 14;
 const baseClass = variant === "prompt" ? "btn-copy" : "cli-copy-btn";
 const labelClass =
   variant === "cli" ? "cli-copy-label copy-btn-label" : "copy-btn-label";
@@ -34,7 +36,9 @@ const labelClass =
 <button
   id={id}
   type="button"
-  class:list={[baseClass, "js-copy-btn", extraClass]}
+  class:list={[baseClass, "js-copy-btn", iconOnly && "is-icon-only", extraClass]}
+  aria-label={label}
+  title={label}
   data-copy-text={copyText}
   data-copy-source={copySource}
   data-copy-label={label}
@@ -71,5 +75,11 @@ const labelClass =
       <path d="M5 12.5l4.2 4.2L19 7.5"></path>
     </svg>
   </span>
-  <span id={labelId} class={labelClass}>{label}</span>
+  {
+    !iconOnly && (
+      <span id={labelId} class={labelClass}>
+        {label}
+      </span>
+    )
+  }
 </button>

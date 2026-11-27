@@ -146,6 +146,12 @@
 
   .changelog-drawer,
   .changelog-drawer-overlay,
+  .changelog-summary-more-btn,
+  .changelog-drawer-close,
+  .cli-capsule,
+  .cli-copy-btn,
+  .btn-copy,
+  .faq-item summary::after,
   .pillar-card,
   .btn,
   .version-pill,
